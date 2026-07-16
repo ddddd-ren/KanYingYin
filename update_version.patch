@@ -1,0 +1,9 @@
+diff --git a/pubspec.yaml b/pubspec.yaml
+--- a/pubspec.yaml
++++ b/pubspec.yaml
+@@ -19 +19 @@
+-version: 2.2.2+20202
++version: 2.3.0+20300
+@@ -218 +218 @@
+-  msix_version: 2.2.2.0
++  msix_version: 2.3.0.0

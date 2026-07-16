@@ -1,0 +1,177 @@
+// ignore_for_file: avoid_print
+
+import 'dart:io';
+import 'package:hive_ce/hive.dart';
+import 'package:kanyingyin/utils/legacy_history_data_cleaner.dart';
+import 'package:kanyingyin/utils/logger.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:kanyingyin/modules/bangumi/bangumi_item.dart';
+import 'package:kanyingyin/modules/bangumi/bangumi_tag.dart';
+import 'package:kanyingyin/utils/app_identity.dart';
+
+class GStorage {
+  static late final Box<dynamic> setting;
+
+  /// Hive directory path, initialized during init()
+  static String? _hivePath;
+
+  static Future init() async {
+    _hivePath =
+        '${(await getApplicationSupportDirectory()).path}/${AppIdentity.storageNamespace}/hive';
+
+    try {
+      await LegacyHistoryDataCleaner.deleteFrom(Directory(_hivePath!));
+    } catch (error, stackTrace) {
+      AppLogger().w(
+        'GStorage: failed to delete legacy history data',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+
+    Hive.registerAdapter(BangumiItemAdapter());
+    Hive.registerAdapter(BangumiTagAdapter());
+
+    // Open each box with automatic recovery on corruption
+    setting = await _openBoxSafe<dynamic>('setting');
+  }
+
+  /// Open a Hive box with automatic recovery on corruption.
+  /// If the box is corrupted, delete it and create a new empty one.
+  static Future<Box<T>> _openBoxSafe<T>(String boxName) async {
+    try {
+      return await Hive.openBox<T>(boxName);
+    } catch (e) {
+      AppLogger().e('GStorage: Box "$boxName" corrupted, attempting recovery',
+          error: e);
+
+      // Delete the corrupted box files
+      await _deleteBoxFiles(boxName);
+
+      // Try to open again (will create a new empty box)
+      try {
+        final box = await Hive.openBox<T>(boxName);
+        AppLogger()
+            .i('GStorage: Box "$boxName" recovered successfully (data lost)');
+        return box;
+      } catch (e2) {
+        AppLogger().e('GStorage: Failed to recover box "$boxName"', error: e2);
+        rethrow;
+      }
+    }
+  }
+
+  /// Delete Hive box files for a given box name
+  static Future<void> _deleteBoxFiles(String boxName) async {
+    if (_hivePath == null) return;
+
+    final boxFile = File('$_hivePath/$boxName.hive');
+    final lockFile = File('$_hivePath/$boxName.lock');
+
+    try {
+      if (await boxFile.exists()) {
+        await boxFile.delete();
+        AppLogger().i('GStorage: Deleted corrupted box file: $boxName.hive');
+      }
+      if (await lockFile.exists()) {
+        await lockFile.delete();
+        AppLogger().i('GStorage: Deleted lock file: $boxName.lock');
+      }
+    } catch (e) {
+      AppLogger()
+          .e('GStorage: Failed to delete box files for "$boxName"', error: e);
+    }
+  }
+
+  // Prevent instantiation
+  GStorage._();
+}
+
+class SettingBoxKey {
+  static const String hAenable = 'hAenable',
+      hardwareDecoder = 'hardwareDecoder',
+      searchEnhanceEnable = 'searchEnhanceEnable',
+      autoUpdate = 'autoUpdate',
+      alwaysOntop = 'alwaysOntop',
+      defaultPlaySpeed = 'defaultPlaySpeed',
+      defaultShortcutForwardPlaySpeed = 'defaultShortcutForwardPlaySpeed',
+      defaultAspectRatioType = 'defaultAspectRatioType',
+      buttonSkipTime = 'buttonSkipTime',
+      arrowKeySkipTime = 'arrowKeySkipTime',
+      themeMode = 'themeMode',
+      themeColor = 'themeColor',
+      autoPlay = 'autoPlay',
+      autoPlayNext = 'autoPlayNext',
+      playResume = 'playResume',
+      showPlayerError = 'showPlayerError',
+      oledEnhance = 'oledEnhance',
+      displayMode = 'displayMode',
+      enableGitProxy = 'enableGitProxy',
+      enableSystemProxy = 'enableSystemProxy',
+      defaultStartupPage = 'defaultStartupPage',
+
+      /// Deprecated
+      isWideScreen = 'isWideScreen',
+      webDavEnable = 'webDavEnable',
+      webDavEnableHistory = 'webDavEnableHistory',
+      webDavEnableCollect = 'webDavEnableCollect',
+      webDavURL = 'webDavURL',
+      webDavUsername = 'webDavUsername',
+      webDavPassword = 'webDavPasswd',
+      lowMemoryMode = 'lowMemoryMode',
+      showWindowButton = 'showWindowButton',
+      useDynamicColor = 'useDynamicColor',
+      exitBehavior = 'exitBehavior',
+      playerDebugMode = 'playerDebugMode',
+      syncPlayEndPoint = 'syncPlayEndPoint',
+      androidEnableOpenSLES = 'androidEnableOpenSLES',
+      androidVideoRenderer = 'androidVideoRenderer',
+      androidAutoEnterPIP = 'androidAutoEnterPIP',
+      defaultSuperResolutionType = 'defaultSuperResolutionType',
+      superResolutionWarn = 'superResolutionWarn',
+      playerDisableAnimations = 'playerDisableAnimations',
+      playerLogLevel = 'playerLogLevel',
+      searchNotShowWatchedBangumis = 'searchNotShowWatchedBangumis',
+      searchNotShowAbandonedBangumis = 'searchNotShowAbandonedBangumis',
+      timelineNotShowAbandonedBangumis = 'timelineNotShowAbandonedBangumis',
+      timelineNotShowWatchedBangumis = 'timelineNotShowWatchedBangumis',
+      timelineOnlyShowWatchingBangumis = 'timelineOnlyShowWatchingBangumis',
+      useSystemFont = 'useSystemFont',
+      forceAdBlocker = 'forceAdBlocker',
+      backgroundPlayback = 'backgroundPlayback',
+      proxyEnable = 'proxyEnable',
+      proxyConfigured = 'proxyConfigured',
+      proxyUrl = 'proxyUrl',
+      proxyTestUrl = 'proxyTestUrl',
+      showRating = 'showRating',
+      downloadParallelEpisodes = 'downloadParallelEpisodes',
+      downloadParallelSegments = 'downloadParallelSegments',
+      shortcutDialogShown = 'shortcutDialogShown',
+      bangumiSyncEnable = 'bangumiSyncEnable',
+      bangumiAccessToken = 'bangumiAccessToken',
+      bangumiSyncPriority = 'bangumiSyncPriority',
+      bangumiImmediateSyncToastEnable = 'bangumiImmediateSyncToastEnable',
+      brightnessVolumeGesture = 'brightnessVolumeGesture',
+      localAutoLoadSubtitle = 'localAutoLoadSubtitle',
+      subtitleFontSize = 'subtitleFontSize',
+      subtitleColor = 'subtitleColor',
+      subtitleBorderColor = 'subtitleBorderColor',
+      subtitleBorderSize = 'subtitleBorderSize',
+      subtitleShadowEnabled = 'subtitleShadowEnabled',
+      subtitleShadowOffset = 'subtitleShadowOffset',
+      subtitlePosition = 'subtitlePosition',
+      subtitleForceStyle = 'subtitleForceStyle',
+      subtitleDelayByVideo = 'subtitleDelayByVideo',
+      lastLocalDirectory = 'lastLocalDirectory',
+      localRecentDirectories = 'localRecentDirectories',
+      localMediaSources = 'localMediaSources',
+      localMediaIndex = 'localMediaIndex',
+      localMediaDirectoryFingerprints = 'localMediaDirectoryFingerprints',
+      localSeriesTitleOverrides = 'localSeriesTitleOverrides',
+      cloudSources = 'cloudSources',
+      cloudMediaIndex = 'cloudMediaIndex',
+      localDefaultPath = 'localDefaultPath',
+      localMinRecognizedVideoSizeBytes = 'localMinRecognizedVideoSizeBytes',
+      cloudMinRecognizedVideoSizeBytes = 'cloudMinRecognizedVideoSizeBytes',
+      lastSeenVersion = 'lastSeenVersion';
+}

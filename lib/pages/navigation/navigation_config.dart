@@ -1,0 +1,58 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_modular/flutter_modular.dart';
+import 'package:kanyingyin/pages/local/local_module.dart';
+import 'package:kanyingyin/pages/my/my_module.dart';
+
+class NavigationDestinationConfig {
+  final String path;
+  final String label;
+  final IconData icon;
+  final IconData selectedIcon;
+  final Module Function() moduleBuilder;
+
+  const NavigationDestinationConfig({
+    required this.path,
+    required this.label,
+    required this.icon,
+    required this.selectedIcon,
+    required this.moduleBuilder,
+  });
+
+  String get defaultStartupPath => '/tab$path/';
+}
+
+final appNavigationDestinations = <NavigationDestinationConfig>[
+  NavigationDestinationConfig(
+    path: '/local',
+    label: '本地',
+    icon: Icons.folder_outlined,
+    selectedIcon: Icons.folder,
+    moduleBuilder: LocalModule.new,
+  ),
+  NavigationDestinationConfig(
+    path: '/my',
+    label: '我的',
+    icon: Icons.settings_outlined,
+    selectedIcon: Icons.settings,
+    moduleBuilder: MyModule.new,
+  ),
+];
+
+const defaultStartupPage = '/tab/local/';
+
+Map<String, String> get defaultStartupPageLabels {
+  return {
+    for (final item in appNavigationDestinations)
+      item.defaultStartupPath: item.label,
+  };
+}
+
+bool isValidStartupPage(String page) {
+  return defaultStartupPageLabels.containsKey(page);
+}
+
+int navigationIndexForStartupPage(String page) {
+  return appNavigationDestinations.indexWhere(
+    (item) => item.defaultStartupPath == page,
+  );
+}

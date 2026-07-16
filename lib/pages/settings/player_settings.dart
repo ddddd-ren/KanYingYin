@@ -1,0 +1,529 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show FilteringTextInputFormatter;
+import 'package:flutter_modular/flutter_modular.dart';
+import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
+import 'package:hive_ce/hive.dart';
+import 'package:kanyingyin/bean/appbar/sys_app_bar.dart';
+import 'package:kanyingyin/utils/constants.dart';
+import 'package:kanyingyin/utils/diagnostic_log_exporter.dart';
+import 'package:kanyingyin/utils/storage.dart';
+import 'package:kanyingyin/utils/pip_utils.dart';
+// ignore_for_file: avoid_print
+
+import 'package:card_settings_ui/card_settings_ui.dart';
+import 'package:kanyingyin/utils/utils.dart';
+
+class PlayerSettingsPage extends StatefulWidget {
+  const PlayerSettingsPage({super.key});
+
+  @override
+  State<PlayerSettingsPage> createState() => _PlayerSettingsPageState();
+}
+
+class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
+  Box setting = GStorage.setting;
+  late double defaultPlaySpeed;
+  late double defaultShortcutForwardPlaySpeed;
+  late int defaultAspectRatioType;
+  late bool hAenable;
+  late bool androidEnableOpenSLES;
+  late bool androidAutoEnterPIP;
+  late bool lowMemoryMode;
+  late bool playResume;
+  late bool showPlayerError;
+  late bool playerDisableAnimations;
+  late bool autoPlayNext;
+  late bool localAutoLoadSubtitle;
+  late bool backgroundPlayback;
+  late bool brightnessVolumeGesture;
+  late int playerButtonSkipTime;
+  late int playerArrowKeySkipTime;
+  final MenuController playerAspectRatioMenuController = MenuController();
+
+  @override
+  void initState() {
+    super.initState();
+    defaultPlaySpeed =
+        setting.get(SettingBoxKey.defaultPlaySpeed, defaultValue: 1.0);
+    defaultShortcutForwardPlaySpeed = setting
+        .get(SettingBoxKey.defaultShortcutForwardPlaySpeed, defaultValue: 2.0);
+    defaultAspectRatioType =
+        setting.get(SettingBoxKey.defaultAspectRatioType, defaultValue: 1);
+    hAenable = setting.get(SettingBoxKey.hAenable, defaultValue: true);
+    androidEnableOpenSLES =
+        setting.get(SettingBoxKey.androidEnableOpenSLES, defaultValue: true);
+    androidAutoEnterPIP =
+        setting.get(SettingBoxKey.androidAutoEnterPIP, defaultValue: false);
+    lowMemoryMode =
+        setting.get(SettingBoxKey.lowMemoryMode, defaultValue: false);
+    playResume = setting.get(SettingBoxKey.playResume, defaultValue: true);
+    showPlayerError =
+        setting.get(SettingBoxKey.showPlayerError, defaultValue: true);
+    autoPlayNext = setting.get(SettingBoxKey.autoPlayNext, defaultValue: true);
+    localAutoLoadSubtitle =
+        setting.get(SettingBoxKey.localAutoLoadSubtitle, defaultValue: true);
+    backgroundPlayback =
+        setting.get(SettingBoxKey.backgroundPlayback, defaultValue: false);
+    playerDisableAnimations =
+        setting.get(SettingBoxKey.playerDisableAnimations, defaultValue: false);
+    brightnessVolumeGesture =
+        setting.get(SettingBoxKey.brightnessVolumeGesture, defaultValue: true);
+
+    playerButtonSkipTime =
+        setting.get(SettingBoxKey.buttonSkipTime, defaultValue: 80);
+    playerArrowKeySkipTime =
+        setting.get(SettingBoxKey.arrowKeySkipTime, defaultValue: 10);
+  }
+
+  void onBackPressed(BuildContext context) {
+    if (AppDialog.observer.hasAppDialog) {
+      AppDialog.dismiss();
+      return;
+    }
+  }
+
+  void updateDefaultPlaySpeed(double speed) {
+    setting.put(SettingBoxKey.defaultPlaySpeed, speed);
+    setState(() {
+      defaultPlaySpeed = speed;
+    });
+  }
+
+  void updateDefaultShortcutForwardPlaySpeed(double speed) {
+    setting.put(SettingBoxKey.defaultShortcutForwardPlaySpeed, speed);
+    setState(() {
+      defaultShortcutForwardPlaySpeed = speed;
+    });
+  }
+
+  void updateDefaultAspectRatioType(int type) {
+    setting.put(SettingBoxKey.defaultAspectRatioType, type);
+    setState(() {
+      defaultAspectRatioType = type;
+    });
+  }
+
+  Future<void> updateButtonSkipTime() async {
+    final int? newButtonSkipTime = await _showSkipTimeChangeDialog(
+        title: '顶部按钮快进时长', initialValue: playerButtonSkipTime.toString());
+    print('新设置的顶部按钮快进时长: $newButtonSkipTime');
+
+    if (newButtonSkipTime != null &&
+        newButtonSkipTime != playerButtonSkipTime) {
+      setting.put(SettingBoxKey.buttonSkipTime, newButtonSkipTime);
+      setState(() {
+        playerButtonSkipTime = newButtonSkipTime;
+      });
+    }
+  }
+
+  Future<int?> _showSkipTimeChangeDialog(
+      {required String title, required String initialValue}) async {
+    return AppDialog.show<int>(builder: (context) {
+      String input = "";
+      return AlertDialog(
+        title: Text(title),
+        content: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+          return TextField(
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly, // 只允许输入数字
+            ],
+            decoration: InputDecoration(
+              floatingLabelBehavior:
+                  FloatingLabelBehavior.never, // 控制label的显示方式
+              labelText: initialValue,
+            ),
+            onChanged: (value) {
+              input = value;
+            },
+          );
+        }),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => AppDialog.dismiss(),
+            child: Text(
+              '取消',
+              style: TextStyle(color: Theme.of(context).colorScheme.outline),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              final int? newValue = int.tryParse(input);
+
+              if (newValue == null) {
+                AppDialog.showToast(message: '请输入数字');
+                return;
+              }
+
+              if (newValue <= 0) {
+                AppDialog.showToast(message: '请输入大于0的数字');
+                return;
+              }
+              // 以新设置的值弹出
+              AppDialog.dismiss(popWith: newValue);
+            },
+            child: const Text('确定'),
+          ),
+        ],
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fontFamily = Theme.of(context).textTheme.bodyMedium?.fontFamily;
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        onBackPressed(context);
+      },
+      child: Scaffold(
+        appBar: const SysAppBar(title: Text('播放设置')),
+        body: SettingsList(
+          maxWidth: 1000,
+          sections: [
+            SettingsSection(
+              tiles: [
+                SettingsTile.switchTile(
+                  onToggle: (value) async {
+                    hAenable = value ?? !hAenable;
+                    await setting.put(SettingBoxKey.hAenable, hAenable);
+                    if (!hAenable) {
+                      await setting.put(SettingBoxKey.hardwareDecoder, 'no');
+                    } else if (normalizeHardwareDecoder(setting.get(
+                          SettingBoxKey.hardwareDecoder,
+                          defaultValue: defaultHardwareDecoder,
+                        )) ==
+                        'no') {
+                      await setting.put(
+                        SettingBoxKey.hardwareDecoder,
+                        defaultHardwareDecoder,
+                      );
+                    }
+                    setState(() {});
+                  },
+                  title: Text('硬件解码', style: TextStyle(fontFamily: fontFamily)),
+                  initialValue: hAenable,
+                ),
+                SettingsTile.navigation(
+                  onPressed: (_) async {
+                    await Modular.to.pushNamed('/settings/player/decoder');
+                    if (mounted) {
+                      hAenable = setting.get(SettingBoxKey.hAenable,
+                          defaultValue: true);
+                      setState(() {});
+                    }
+                  },
+                  title: Text('解码方式', style: TextStyle(fontFamily: fontFamily)),
+                  description: Text(
+                      '当前：${hardwareDecoderLabel(setting.get(
+                        SettingBoxKey.hardwareDecoder,
+                        defaultValue: defaultHardwareDecoder,
+                      ))}',
+                      style: TextStyle(fontFamily: fontFamily)),
+                ),
+                if (Platform.isAndroid) ...[
+                  SettingsTile.navigation(
+                    onPressed: (_) async {
+                      await Modular.to.pushNamed('/settings/player/renderer');
+                    },
+                    title:
+                        Text('视频渲染器', style: TextStyle(fontFamily: fontFamily)),
+                    description: Text('选择视频输出方式',
+                        style: TextStyle(fontFamily: fontFamily)),
+                  ),
+                ],
+                SettingsTile.switchTile(
+                  onToggle: (value) async {
+                    lowMemoryMode = value ?? !lowMemoryMode;
+                    await setting.put(
+                        SettingBoxKey.lowMemoryMode, lowMemoryMode);
+                    setState(() {});
+                  },
+                  title:
+                      Text('低内存模式', style: TextStyle(fontFamily: fontFamily)),
+                  description: Text('禁用高级缓存以减少内存占用',
+                      style: TextStyle(fontFamily: fontFamily)),
+                  initialValue: lowMemoryMode,
+                ),
+                if (Platform.isAndroid) ...[
+                  SettingsTile.switchTile(
+                    onToggle: (value) async {
+                      androidEnableOpenSLES = value ?? !androidEnableOpenSLES;
+                      await setting.put(SettingBoxKey.androidEnableOpenSLES,
+                          androidEnableOpenSLES);
+                      setState(() {});
+                    },
+                    title:
+                        Text('低延迟音频', style: TextStyle(fontFamily: fontFamily)),
+                    description: Text('启用OpenSLES音频输出以降低延时',
+                        style: TextStyle(fontFamily: fontFamily)),
+                    initialValue: androidEnableOpenSLES,
+                  ),
+                ],
+                SettingsTile.navigation(
+                  onPressed: (_) async {
+                    Modular.to.pushNamed('/settings/player/super');
+                  },
+                  title: Text('超分辨率', style: TextStyle(fontFamily: fontFamily)),
+                ),
+              ],
+            ),
+            SettingsSection(
+              tiles: [
+                SettingsTile.switchTile(
+                  onToggle: (value) async {
+                    backgroundPlayback = value ?? !backgroundPlayback;
+                    await setting.put(
+                        SettingBoxKey.backgroundPlayback, backgroundPlayback);
+                    setState(() {});
+                  },
+                  title: Text('后台播放', style: TextStyle(fontFamily: fontFamily)),
+                  description: Text('应用退到后台或熄屏时继续播放音频',
+                      style: TextStyle(fontFamily: fontFamily)),
+                  initialValue: backgroundPlayback,
+                ),
+                SettingsTile.switchTile(
+                  onToggle: (value) async {
+                    playResume = value ?? !playResume;
+                    await setting.put(SettingBoxKey.playResume, playResume);
+                    setState(() {});
+                  },
+                  title: Text('自动跳转', style: TextStyle(fontFamily: fontFamily)),
+                  description: Text('跳转到上次播放位置',
+                      style: TextStyle(fontFamily: fontFamily)),
+                  initialValue: playResume,
+                ),
+                SettingsTile.switchTile(
+                  onToggle: (value) async {
+                    autoPlayNext = value ?? !autoPlayNext;
+                    await setting.put(SettingBoxKey.autoPlayNext, autoPlayNext);
+                    setState(() {});
+                  },
+                  title: Text('自动连播', style: TextStyle(fontFamily: fontFamily)),
+                  description: Text('当前视频播放完毕后自动播放下一集',
+                      style: TextStyle(fontFamily: fontFamily)),
+                  initialValue: autoPlayNext,
+                ),
+                SettingsTile.switchTile(
+                  onToggle: (value) async {
+                    localAutoLoadSubtitle = value ?? !localAutoLoadSubtitle;
+                    await setting.put(SettingBoxKey.localAutoLoadSubtitle,
+                        localAutoLoadSubtitle);
+                    setState(() {});
+                  },
+                  title: Text('同名字幕', style: TextStyle(fontFamily: fontFamily)),
+                  description: Text('播放本地视频时自动加载同目录同名字幕',
+                      style: TextStyle(fontFamily: fontFamily)),
+                  initialValue: localAutoLoadSubtitle,
+                ),
+                if (Platform.isAndroid)
+                  SettingsTile.switchTile(
+                    onToggle: (value) async {
+                      androidAutoEnterPIP = value ?? !androidAutoEnterPIP;
+                      await setting.put(SettingBoxKey.androidAutoEnterPIP,
+                          androidAutoEnterPIP);
+                      await PipUtils.setAndroidAutoEnterPIPEnabled(
+                          androidAutoEnterPIP);
+                      setState(() {});
+                    },
+                    title: Text('自动进入画中画',
+                        style: TextStyle(fontFamily: fontFamily)),
+                    description: Text('切到后台时，自动进入画中画',
+                        style: TextStyle(fontFamily: fontFamily)),
+                    initialValue: androidAutoEnterPIP,
+                  ),
+                SettingsTile.switchTile(
+                  onToggle: (value) async {
+                    playerDisableAnimations = value ?? !playerDisableAnimations;
+                    await setting.put(SettingBoxKey.playerDisableAnimations,
+                        playerDisableAnimations);
+                    setState(() {});
+                  },
+                  title: Text('禁用动画', style: TextStyle(fontFamily: fontFamily)),
+                  description: Text('禁用播放器内的过渡动画',
+                      style: TextStyle(fontFamily: fontFamily)),
+                  initialValue: playerDisableAnimations,
+                ),
+                if (!Utils.isDesktop())
+                  SettingsTile.switchTile(
+                    onToggle: (value) async {
+                      brightnessVolumeGesture =
+                          value ?? !brightnessVolumeGesture;
+                      await setting.put(SettingBoxKey.brightnessVolumeGesture,
+                          brightnessVolumeGesture);
+                      setState(() {});
+                    },
+                    title:
+                        Text('滑动手势', style: TextStyle(fontFamily: fontFamily)),
+                    description: Text('竖向滑动调节音量和亮度',
+                        style: TextStyle(fontFamily: fontFamily)),
+                    initialValue: brightnessVolumeGesture,
+                  ),
+              ],
+            ),
+            SettingsSection(
+              tiles: [
+                SettingsTile.switchTile(
+                  onToggle: (value) async {
+                    showPlayerError = value ?? !showPlayerError;
+                    await setting.put(
+                        SettingBoxKey.showPlayerError, showPlayerError);
+                    setState(() {});
+                  },
+                  title: Text('错误提示', style: TextStyle(fontFamily: fontFamily)),
+                  description: Text('显示播放器内部错误提示',
+                      style: TextStyle(fontFamily: fontFamily)),
+                  initialValue: showPlayerError,
+                ),
+                SettingsTile.navigation(
+                  onPressed: (_) async {
+                    try {
+                      await DiagnosticLogExporter().openLogDirectory();
+                    } on Object {
+                      AppDialog.showToast(message: '无法打开日志目录');
+                    }
+                  },
+                  leading: const Icon(Icons.folder_open_outlined),
+                  title:
+                      Text('打开日志目录', style: TextStyle(fontFamily: fontFamily)),
+                  description: Text('自动记录运行信息，最多保留 10 个日志文件',
+                      style: TextStyle(fontFamily: fontFamily)),
+                ),
+                SettingsTile.navigation(
+                  onPressed: (_) async {
+                    try {
+                      final file =
+                          await DiagnosticLogExporter().exportToDownloads();
+                      AppDialog.showToast(message: '诊断日志已导出：${file.path}');
+                    } on Object {
+                      AppDialog.showToast(message: '导出诊断日志失败');
+                    }
+                  },
+                  leading: const Icon(Icons.archive_outlined),
+                  title:
+                      Text('导出诊断日志', style: TextStyle(fontFamily: fontFamily)),
+                  description: Text('生成已脱敏的 ZIP 文件，便于排查播放问题',
+                      style: TextStyle(fontFamily: fontFamily)),
+                ),
+              ],
+            ),
+            SettingsSection(
+              tiles: [
+                SettingsTile(
+                  title: Text('默认倍速', style: TextStyle(fontFamily: fontFamily)),
+                  description: Slider(
+                    value: defaultPlaySpeed,
+                    min: 0.25,
+                    max: 3,
+                    divisions: 11,
+                    label: '${defaultPlaySpeed}x',
+                    onChanged: (value) {
+                      updateDefaultPlaySpeed(
+                          double.parse(value.toStringAsFixed(2)));
+                    },
+                  ),
+                ),
+                SettingsTile(
+                  title:
+                      Text('默认方向键倍速', style: TextStyle(fontFamily: fontFamily)),
+                  description: Slider(
+                    value: defaultShortcutForwardPlaySpeed,
+                    min: 1.25,
+                    max: 3,
+                    divisions: 7,
+                    label: '${defaultShortcutForwardPlaySpeed}x',
+                    onChanged: (value) {
+                      updateDefaultShortcutForwardPlaySpeed(
+                          double.parse(value.toStringAsFixed(2)));
+                    },
+                  ),
+                ),
+                SettingsTile.navigation(
+                  description: Slider(
+                    value: playerArrowKeySkipTime.toDouble(),
+                    min: 0,
+                    max: 15,
+                    divisions: 15,
+                    label: '$playerArrowKeySkipTime秒',
+                    onChanged: (value) {
+                      final newArrowKeySkipTime = value.toInt();
+                      print('新设置的方向键快进/快退时长: $newArrowKeySkipTime');
+
+                      if (value != playerArrowKeySkipTime) {
+                        setting.put(SettingBoxKey.arrowKeySkipTime,
+                            newArrowKeySkipTime);
+                        setState(() {
+                          playerArrowKeySkipTime = newArrowKeySkipTime;
+                        });
+                      }
+                    },
+                  ),
+                  title: Text('左右方向键的快进/快退秒数',
+                      style: TextStyle(fontFamily: fontFamily)),
+                ),
+                SettingsTile.navigation(
+                  onPressed: (_) async {
+                    await updateButtonSkipTime();
+                  },
+                  title: Text('跳过时长', style: TextStyle(fontFamily: fontFamily)),
+                  description: Text('顶栏跳过按钮的秒数',
+                      style: TextStyle(fontFamily: fontFamily)),
+                  value: Text('$playerButtonSkipTime 秒',
+                      style: TextStyle(fontFamily: fontFamily)),
+                ),
+                SettingsTile.navigation(
+                  onPressed: (_) async {
+                    if (playerAspectRatioMenuController.isOpen) {
+                      playerAspectRatioMenuController.close();
+                    } else {
+                      playerAspectRatioMenuController.open();
+                    }
+                  },
+                  title:
+                      Text('默认视频比例', style: TextStyle(fontFamily: fontFamily)),
+                  value: MenuAnchor(
+                    consumeOutsideTap: true,
+                    controller: playerAspectRatioMenuController,
+                    builder: (_, __, ___) {
+                      return Text(
+                        aspectRatioTypeMap[defaultAspectRatioType] ?? '自动',
+                        style: TextStyle(fontFamily: fontFamily),
+                      );
+                    },
+                    menuChildren: [
+                      for (final entry in aspectRatioTypeMap.entries)
+                        MenuItemButton(
+                          requestFocusOnHover: false,
+                          onPressed: () =>
+                              updateDefaultAspectRatioType(entry.key),
+                          child: Container(
+                            height: 48,
+                            constraints: BoxConstraints(minWidth: 112),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                entry.value,
+                                style: TextStyle(
+                                  color: entry.key == defaultAspectRatioType
+                                      ? Theme.of(context).colorScheme.primary
+                                      : null,
+                                  fontFamily: fontFamily,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

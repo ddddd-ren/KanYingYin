@@ -1,0 +1,385 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:kanyingyin/utils/constants.dart';
+
+// A simple dialog helper class to show dialogs and toasts based on flutter native implementation (replace flutter_smart_dialog)
+// flutter_smart_dialog use overlays and self-managed route stack to show dialogs.
+// It's powerful but can't behave like the default showDialog, e.g. the lack of mask animation. the lack of snackbar.
+// Use the implementation should be careful, because shared route stack with the whole app, it may cause some unexpected behaviors.
+// Don't use it in double PopScope widget.
+class AppDialog {
+  /// The global observer that tracks contexts across the application
+  static final AppDialogObserver observer = AppDialogObserver();
+
+  AppDialog._internal();
+
+  static Future<T?> show<T>({
+    BuildContext? context,
+    bool? clickMaskDismiss,
+    VoidCallback? onDismiss,
+    required WidgetBuilder builder,
+  }) async {
+    final ctx = context ?? observer.currentContext;
+    if (ctx != null && ctx.mounted) {
+      try {
+        final result = await showDialog<T>(
+          context: ctx,
+          barrierDismissible: clickMaskDismiss ?? true,
+          builder: builder,
+          routeSettings: const RouteSettings(name: 'AppDialog'),
+        );
+        onDismiss?.call();
+        return result;
+      } catch (e) {
+        debugPrint('App Dialog Error: Failed to show dialog: $e');
+        return null;
+      }
+    } else {
+      debugPrint('App Dialog Error: No context available to show the dialog');
+      return null;
+    }
+  }
+
+  static void showToast({
+    required String message,
+    BuildContext? context,
+    bool showActionButton = false,
+    String? actionLabel,
+    Function()? onActionPressed,
+    Duration duration = const Duration(seconds: 2),
+  }) {
+    final ctx = context ?? observer.scaffoldContext;
+    if (ctx != null && ctx.mounted) {
+      try {
+        ScaffoldMessenger.of(ctx)
+          ..removeCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(message),
+              behavior: SnackBarBehavior.floating,
+              width: MediaQuery.sizeOf(ctx).width >
+                      LayoutBreakpoint.medium['width']!
+                  ? 600
+                  : null,
+              duration: duration,
+              persist: false,
+              action: showActionButton
+                  ? SnackBarAction(
+                      label: actionLabel ?? 'Dismiss',
+                      onPressed: () {
+                        onActionPressed?.call();
+                        ScaffoldMessenger.of(ctx).hideCurrentSnackBar();
+                      },
+                    )
+                  : null,
+            ),
+          );
+      } catch (e) {
+        debugPrint('App Dialog Error: Failed to show toast: $e');
+      }
+    } else {
+      debugPrint(
+          'App Dialog Error: No Scaffold context available to show Toast');
+    }
+  }
+
+  static Future<void> showLoading({
+    BuildContext? context,
+    String? msg,
+    bool barrierDismissible = false,
+    Function()? onDismiss,
+  }) async {
+    final ctx = context ?? observer.currentContext;
+    if (ctx != null && ctx.mounted) {
+      try {
+        await showDialog(
+          context: ctx,
+          barrierDismissible: barrierDismissible,
+          builder: (BuildContext context) {
+            return Center(
+              child: Card(
+                elevation: 8.0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 16),
+                      Text(
+                        msg ?? 'Loading...',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+          routeSettings: const RouteSettings(name: 'AppDialog'),
+        );
+        onDismiss?.call();
+      } catch (e) {
+        debugPrint('App Dialog Error: Failed to show loading dialog: $e');
+      }
+    } else {
+      debugPrint(
+          'App Dialog Error: No context available to show the loading dialog');
+    }
+  }
+
+  static Future<T?> showBottomSheet<T>({
+    BuildContext? context,
+    required WidgetBuilder builder,
+    Color? backgroundColor,
+    double? elevation,
+    ShapeBorder? shape,
+    Clip? clipBehavior,
+    BoxConstraints? constraints,
+    Color? barrierColor,
+    bool isScrollControlled = false,
+    bool useRootNavigator = true,
+    bool isDismissible = true,
+    bool enableDrag = true,
+    RouteSettings? routeSettings,
+    AnimationController? transitionAnimationController,
+    Offset? anchorPoint,
+    bool useSafeArea = false,
+  }) async {
+    // Use provided context first, then root context, then fallback to current context
+    final ctx = context ?? observer.rootContext ?? observer.currentContext;
+    if (ctx != null && ctx.mounted) {
+      try {
+        final result = await showModalBottomSheet<T>(
+          context: ctx,
+          builder: builder,
+          backgroundColor: backgroundColor,
+          elevation: elevation,
+          shape: shape,
+          clipBehavior: clipBehavior,
+          constraints: constraints,
+          barrierColor: barrierColor,
+          isScrollControlled: isScrollControlled,
+          useRootNavigator: useRootNavigator,
+          isDismissible: isDismissible,
+          enableDrag: enableDrag,
+          routeSettings:
+              routeSettings ?? const RouteSettings(name: 'AppBottomSheet'),
+          transitionAnimationController: transitionAnimationController,
+          anchorPoint: anchorPoint,
+          useSafeArea: useSafeArea,
+        );
+        return result;
+      } catch (e) {
+        debugPrint('App Dialog Error: Failed to show bottom sheet: $e');
+        return null;
+      }
+    } else {
+      debugPrint(
+          'App Dialog Error: No context available to show the bottom sheet');
+      return null;
+    }
+  }
+
+  // 在存在返回值时弹出并附带返回值
+  static void dismiss<T>({T? popWith}) {
+    if (observer.hasAppDialog && observer.appDialogContext != null) {
+      try {
+        Navigator.of(observer.appDialogContext!).pop(popWith);
+      } catch (e) {
+        debugPrint('App Dialog Error: Failed to dismiss dialog: $e');
+      }
+    } else {
+      debugPrint('App Dialog Debug: No active AppDialog to dismiss');
+    }
+  }
+
+  /// Shows a non-dismissible timed success dialog with a linear progress
+  /// countdown, then auto-dismisses when the countdown completes.
+  ///
+  /// The caller is responsible for dismissing any currently-open dialog
+  /// BEFORE calling this method.
+  ///
+  /// [onComplete] is invoked inside [onDismiss] after the countdown finishes
+  /// (or if the dialog is dismissed for any other reason), ensuring it runs
+  /// exactly once and resources are always cleaned up.
+  static void showTimedSuccessDialog({
+    required String title,
+    required String message,
+    required VoidCallback onComplete,
+    Duration duration = const Duration(seconds: 3),
+  }) {
+    final progressNotifier = ValueNotifier<double>(0.0);
+    Timer? countdownTimer;
+    final totalMs = duration.inMilliseconds;
+    final stopwatch = Stopwatch()..start();
+    countdownTimer = Timer.periodic(const Duration(milliseconds: 16), (t) {
+      final elapsed = stopwatch.elapsedMilliseconds;
+      progressNotifier.value = (elapsed / totalMs).clamp(0.0, 1.0);
+      if (elapsed >= totalMs) {
+        t.cancel();
+        AppDialog.dismiss();
+      }
+    });
+    AppDialog.show(
+      clickMaskDismiss: false,
+      onDismiss: () {
+        countdownTimer?.cancel();
+        progressNotifier.dispose();
+        onComplete();
+      },
+      builder: (context) => Dialog(
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
+          child: SizedBox(
+            width: 320,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.check_circle_rounded,
+                  size: 52,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  message,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 24),
+                ValueListenableBuilder<double>(
+                  valueListenable: progressNotifier,
+                  builder: (context, value, _) => LinearProgressIndicator(
+                    value: value,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Navigator observer to track contexts and dialog routes
+class AppDialogObserver extends NavigatorObserver {
+  /// List of active dialog routes
+  final List<Route<dynamic>> _appDialogRoutes = [];
+
+  /// The most recent context from any MaterialPageRoute or PopupRoute
+  BuildContext? _currentContext;
+
+  /// The most recent context from any route containing a Scaffold
+  BuildContext? _scaffoldContext;
+
+  /// The root context of the app (for bottom sheets to cover the entire app)
+  BuildContext? _rootContext;
+
+  BuildContext? get currentContext => _currentContext;
+
+  BuildContext? get scaffoldContext => _scaffoldContext ?? _currentContext;
+
+  /// Get the root context for bottom sheets, fallback to scaffold context, then current context
+  BuildContext? get rootContext =>
+      _rootContext ?? _scaffoldContext ?? _currentContext;
+
+  bool get hasAppDialog => _appDialogRoutes.isNotEmpty;
+
+  BuildContext? get appDialogContext => _appDialogRoutes.isNotEmpty
+      ? _appDialogRoutes.last.navigator?.context
+      : null;
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPush(route, previousRoute);
+
+    /// workaround for #533
+    /// we can't remove snackbar when push a new route
+    /// otherwise, framework will throw an exception, and can't be caught
+    /// need other way to remove snackbar here
+    // _removeCurrentSnackBar(previousRoute);
+    if (_isAppDialogRoute(route)) {
+      _appDialogRoutes.add(route);
+    }
+    if (route.navigator?.context != null) {
+      _updateContexts(route.navigator!.context, route);
+    }
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPop(route, previousRoute);
+    _removeCurrentSnackBar(route);
+    if (_isAppDialogRoute(route)) {
+      _appDialogRoutes.remove(route);
+    }
+    if (previousRoute?.navigator?.context != null) {
+      _updateContexts(previousRoute!.navigator!.context, previousRoute);
+    }
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
+    if (_isAppDialogRoute(oldRoute!)) {
+      _appDialogRoutes.remove(oldRoute);
+    }
+    if (_isAppDialogRoute(newRoute!)) {
+      _appDialogRoutes.add(newRoute);
+    }
+    if (newRoute.navigator?.context != null) {
+      _updateContexts(newRoute.navigator!.context, newRoute);
+    }
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didRemove(route, previousRoute);
+
+    if (_isAppDialogRoute(route)) {
+      _appDialogRoutes.remove(route);
+    }
+
+    if (previousRoute?.navigator?.context != null) {
+      _updateContexts(previousRoute!.navigator!.context, previousRoute);
+    }
+  }
+
+  void _updateContexts(BuildContext context, Route<dynamic> route) {
+    _currentContext = context;
+    if (_hasScaffold(context)) {
+      _scaffoldContext = context;
+      // Always update root context with scaffold contexts to ensure we have the most recent one
+      // This helps ensure bottom sheets appear at the app level
+      _rootContext = context;
+    }
+  }
+
+  bool _hasScaffold(BuildContext context) {
+    return Scaffold.maybeOf(context) != null;
+  }
+
+  bool _isAppDialogRoute(Route<dynamic> route) {
+    return route.settings.name == 'AppDialog' ||
+        route.settings.name == 'AppBottomSheet';
+  }
+
+  void _removeCurrentSnackBar(Route<dynamic>? route) {
+    if (route?.navigator?.context != null) {
+      try {
+        ScaffoldMessenger.maybeOf(route!.navigator!.context)
+            ?.removeCurrentSnackBar();
+      } catch (_) {}
+    }
+  }
+}

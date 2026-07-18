@@ -22,12 +22,14 @@ void main() {
 
   test('读取非法值时回退默认并限制范围', () async {
     await box.put(SettingBoxKey.subtitleFontSize, 'bad');
+    await box.put(SettingBoxKey.subtitleColor, 123.9);
     await box.put(SettingBoxKey.subtitleBorderSize, 99);
     await box.put(SettingBoxKey.subtitlePosition, 1);
     final preferences = SubtitlePreferences(storage: box);
 
     final style = preferences.loadStyle();
     expect(style.fontSize, SubtitleStyleSettings.defaultFontSize);
+    expect(style.colorValue, 123);
     expect(style.borderSize, SubtitleStyleSettings.defaultBorderSize);
     expect(style.position, SubtitleStyleSettings.defaultPosition);
   });
@@ -67,14 +69,16 @@ void main() {
     expect(actual.forceStyle, expected.forceStyle);
   });
 
-  test('读取越界或旧类型 delay 时回退零', () async {
+  test('读取历史 delay 时限制范围但不做半秒舍入', () async {
     await box.put(SettingBoxKey.subtitleDelayByVideo, <String, Object?>{
       'too-large': 31,
+      'fraction': 1.24,
       'old': '1.5',
     });
     final preferences = SubtitlePreferences(storage: box);
 
-    expect(preferences.loadDelay('too-large'), 0);
+    expect(preferences.loadDelay('too-large'), 30);
+    expect(preferences.loadDelay('fraction'), 1.24);
     expect(preferences.loadDelay('old'), 0);
   });
 }

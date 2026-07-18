@@ -33,7 +33,7 @@ class LocalMediaSourceRepository implements ILocalMediaSourceRepository {
       if (value is! List) return <LocalMediaSource>[];
 
       final sources = value
-          .whereType<Map>()
+          .whereType<Map<Object?, Object?>>()
           .map((item) => LocalMediaSource.fromJson(
                 Map<String, dynamic>.from(item),
               ))

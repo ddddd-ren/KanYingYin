@@ -19,9 +19,9 @@ class BangumiTag {
 
   factory BangumiTag.fromJson(Map<String, dynamic> json) {
     return BangumiTag(
-      name: json['name'] ?? '',
-      count: json['count'] ?? 0,
-      totalCount: json['total_cont'] ?? 0,
+      name: json['name']?.toString() ?? '',
+      count: json['count'] is int ? json['count'] as int : 0,
+      totalCount: json['total_cont'] is int ? json['total_cont'] as int : 0,
     );
   }
 

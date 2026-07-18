@@ -57,7 +57,7 @@ class TmdbClient implements ITmdbClient {
     final results = response.data?['results'];
     if (results is! List) return const [];
     return results
-        .whereType<Map>()
+        .whereType<Map<Object?, Object?>>()
         .map((item) => _fromJson(
               Map<String, dynamic>.from(item),
               mediaType,

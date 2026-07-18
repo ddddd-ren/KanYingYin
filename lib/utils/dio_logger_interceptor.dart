@@ -12,7 +12,10 @@ class DioLoggerInterceptor extends Interceptor {
   }
 
   @override
-  void onResponse(Response response, ResponseInterceptorHandler handler) {
+  void onResponse(
+    Response<Object?> response,
+    ResponseInterceptorHandler handler,
+  ) {
     final elapsed = _elapsed(response.requestOptions);
     AppLogger().d(
       'HTTP: <-- ${response.statusCode} '

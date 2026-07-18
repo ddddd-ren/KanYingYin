@@ -22,7 +22,7 @@ class InitPage extends StatefulWidget {
 
 class _InitPageState extends State<InitPage> {
   final ShadersController shadersController = Modular.get<ShadersController>();
-  Box setting = GStorage.setting;
+  Box<Object?> setting = GStorage.setting;
   late final ThemeProvider themeProvider;
 
   @override
@@ -39,24 +39,26 @@ class _InitPageState extends State<InitPage> {
 
     _startDefaultPage();
     // delay to ensure that the default page is fully loaded
-    await Future.delayed(const Duration(milliseconds: 500));
+    await Future<void>.delayed(const Duration(milliseconds: 500));
     _showVersionChangelog();
   }
 
   void _startDefaultPage() {
-    final storedDefaultStartupPage = setting.get(
+    final storedDefaultStartupPage = setting.getTyped<String>(
       SettingBoxKey.defaultStartupPage,
       defaultValue: defaultStartupPage,
     );
     final startupPage = _normalizeDefaultStartupPage(storedDefaultStartupPage);
     // Workaround for dynamic_color. dynamic_color need PlatformChannel to get color, it takes time.
     // setDynamic here to avoid white screen flash when themeMode is dark.
-    themeProvider.setDynamic(
-        setting.get(SettingBoxKey.useDynamicColor, defaultValue: false));
+    themeProvider.setDynamic(setting.getTyped<bool>(
+      SettingBoxKey.useDynamicColor,
+      defaultValue: false,
+    ));
     Modular.to.navigate(startupPage);
   }
 
-  String _normalizeDefaultStartupPage(dynamic value) {
+  String _normalizeDefaultStartupPage(Object? value) {
     final page = value is String ? value : defaultStartupPage;
     if (isValidStartupPage(page)) {
       return page;
@@ -75,7 +77,7 @@ class _InitPageState extends State<InitPage> {
     }
     bool isRunningOnX11 = await Utils.isRunningOnX11();
     if (isRunningOnX11) {
-      await AppDialog.show(
+      await AppDialog.show<void>(
         clickMaskDismiss: false,
         builder: (context) {
           return PopScope(
@@ -97,7 +99,7 @@ class _InitPageState extends State<InitPage> {
                 ),
                 TextButton(
                   onPressed: () {
-                    AppDialog.dismiss();
+                    AppDialog.dismiss<void>();
                   },
                   child: const Text('继续'),
                 ),
@@ -116,7 +118,10 @@ class _InitPageState extends State<InitPage> {
       await WindowsShortcut.createDesktopShortcut();
       return;
     }
-    if (setting.get(SettingBoxKey.shortcutDialogShown, defaultValue: false)) {
+    if (setting.getTyped<bool>(
+      SettingBoxKey.shortcutDialogShown,
+      defaultValue: false,
+    )) {
       return;
     }
 
@@ -159,7 +164,7 @@ class _InitPageState extends State<InitPage> {
     // 更新 lastSeenVersion
     setting.put(SettingBoxKey.lastSeenVersion, currentVersion);
 
-    AppDialog.show(
+    AppDialog.show<void>(
       builder: (context) {
         return AlertDialog(
           title: const Text('版本更新日志'),
@@ -189,7 +194,7 @@ class _InitPageState extends State<InitPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () => AppDialog.dismiss(),
+              onPressed: () => AppDialog.dismiss<void>(),
               child: const Text('知道了'),
             ),
           ],

@@ -28,6 +28,10 @@ linter:
 # https://dart.dev/guides/language/analysis-options
 
 analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
   exclude:
     - build/**
     - fastlane/**

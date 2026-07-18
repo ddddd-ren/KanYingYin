@@ -23,15 +23,15 @@ class BangumiItem {
   int rank;
   @HiveField(8)
   Map<String, String> images;
-  @HiveField(9, defaultValue: [])
+  @HiveField(9, defaultValue: <BangumiTag>[])
   List<BangumiTag> tags;
-  @HiveField(10, defaultValue: [])
+  @HiveField(10, defaultValue: <String>[])
   List<String> alias;
   @HiveField(11, defaultValue: 0.0)
   double ratingScore;
   @HiveField(12, defaultValue: 0)
   int votes;
-  @HiveField(13, defaultValue: [])
+  @HiveField(13, defaultValue: <int>[])
   List<int> votesCount;
   @HiveField(14, defaultValue: '')
   String info;
@@ -57,11 +57,12 @@ class BangumiItem {
   factory BangumiItem.fromJson(Map<String, dynamic> json) {
     List<String> parseBangumiAliases(Map<String, dynamic> jsonData) {
       if (jsonData.containsKey('infobox') && jsonData['infobox'] is List) {
-        final List<dynamic> infobox = jsonData['infobox'];
+        final infobox = jsonData['infobox'];
+        if (infobox is! List<Object?>) return [];
         for (var item in infobox) {
           if (item is Map<String, dynamic> && item['key'] == '别名') {
-            final dynamic value = item['value'];
-            if (value is List) {
+            final value = item['value'];
+            if (value is List<Object?>) {
               return value
                   .map<String>((element) {
                     if (element is Map<String, dynamic> &&
@@ -93,15 +94,19 @@ class BangumiItem {
         return List<int>.generate(10, (i) => json['${i + 1}'] as int);
       }
       // For next.bgm.tv
-      if (json is List<dynamic>) {
-        return json.map((e) => e as int).toList();
+      if (json is List<Object?>) {
+        return json.whereType<int>().toList();
       }
       return [];
     }
 
-    List list = json['tags'] ?? [];
+    final rawTags = json['tags'];
+    final tags = rawTags is List<Object?> ? rawTags : const <Object?>[];
     List<String> bangumiAlias = parseBangumiAliases(json);
-    List<BangumiTag> tagList = list.map((i) => BangumiTag.fromJson(i)).toList();
+    final tagList = tags
+        .whereType<Map<String, dynamic>>()
+        .map(BangumiTag.fromJson)
+        .toList();
     List<int> voteList = parseBangumiVoteCount(json);
     final rating = json['rating'];
     final ratingMap =
@@ -110,7 +115,7 @@ class BangumiItem {
     final imageMap = rawImages is Map<String, dynamic>
         ? rawImages.map((key, value) => MapEntry(key, value?.toString() ?? ''))
         : <String, String>{
-            "large": json['image'] ?? '',
+            "large": json['image']?.toString() ?? '',
             "common": "",
             "medium": "",
             "small": "",
@@ -126,24 +131,29 @@ class BangumiItem {
             airDate.isEmpty ? '2000-11-11' : airDate,
           );
     return BangumiItem(
-      id: json['id'],
-      type: json['type'] ?? 2,
-      name: json['name'] ?? '',
+      id: json['id'] is int ? json['id'] as int : 0,
+      type: json['type'] is int ? json['type'] as int : 2,
+      name: json['name']?.toString() ?? '',
       nameCn: (json['name_cn'] ?? '') == ''
-          ? (((json['nameCN'] ?? '') == '') ? json['name'] : json['nameCN'])
-          : json['name_cn'],
-      summary: json['summary'] ?? '',
+          ? (((json['nameCN'] ?? '') == '')
+              ? json['name']?.toString() ?? ''
+              : json['nameCN']?.toString() ?? '')
+          : json['name_cn']?.toString() ?? '',
+      summary: json['summary']?.toString() ?? '',
       airDate: airDate,
       airWeekday: airWeekday,
-      rank: ratingMap['rank'] ?? 0,
+      rank: ratingMap['rank'] is int ? ratingMap['rank'] as int : 0,
       images: Map<String, String>.from(imageMap),
       tags: tagList,
       alias: bangumiAlias,
       ratingScore: double.parse(
-          (ratingMap['score'] ?? 0.0).toDouble().toStringAsFixed(1)),
-      votes: ratingMap['total'] ?? 0,
+        (ratingMap['score'] is num ? ratingMap['score'] as num : 0.0)
+            .toDouble()
+            .toStringAsFixed(1),
+      ),
+      votes: ratingMap['total'] is int ? ratingMap['total'] as int : 0,
       votesCount: voteList,
-      info: json['info'] ?? '',
+      info: json['info']?.toString() ?? '',
     );
   }
 }

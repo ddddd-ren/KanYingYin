@@ -22,9 +22,9 @@ class ThemeSettingsPage extends StatefulWidget {
 }
 
 class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
-  Box setting = GStorage.setting;
-  late dynamic defaultThemeMode;
-  late dynamic defaultThemeColor;
+  Box<Object?> setting = GStorage.setting;
+  late String defaultThemeMode;
+  late String defaultThemeColor;
   late bool oledEnhance;
   late bool useDynamicColor;
   late bool showWindowButton;
@@ -35,23 +35,36 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
   @override
   void initState() {
     super.initState();
-    defaultThemeMode =
-        setting.get(SettingBoxKey.themeMode, defaultValue: 'system');
-    defaultThemeColor =
-        setting.get(SettingBoxKey.themeColor, defaultValue: 'default');
-    oledEnhance = setting.get(SettingBoxKey.oledEnhance, defaultValue: false);
-    useDynamicColor =
-        setting.get(SettingBoxKey.useDynamicColor, defaultValue: false);
-    showWindowButton =
-        setting.get(SettingBoxKey.showWindowButton, defaultValue: false);
-    useSystemFont =
-        setting.get(SettingBoxKey.useSystemFont, defaultValue: false);
+    defaultThemeMode = setting.getTyped<String>(
+      SettingBoxKey.themeMode,
+      defaultValue: 'system',
+    );
+    defaultThemeColor = setting.getTyped<String>(
+      SettingBoxKey.themeColor,
+      defaultValue: 'default',
+    );
+    oledEnhance = setting.getTyped<bool>(
+      SettingBoxKey.oledEnhance,
+      defaultValue: false,
+    );
+    useDynamicColor = setting.getTyped<bool>(
+      SettingBoxKey.useDynamicColor,
+      defaultValue: false,
+    );
+    showWindowButton = setting.getTyped<bool>(
+      SettingBoxKey.showWindowButton,
+      defaultValue: false,
+    );
+    useSystemFont = setting.getTyped<bool>(
+      SettingBoxKey.useSystemFont,
+      defaultValue: false,
+    );
     themeProvider = Provider.of<ThemeProvider>(context, listen: false);
   }
 
   void onBackPressed(BuildContext context) {
     if (AppDialog.observer.hasAppDialog) {
-      AppDialog.dismiss();
+      AppDialog.dismiss<void>();
       return;
     }
   }
@@ -129,8 +142,11 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
   }
 
   void updateOledEnhance() {
-    dynamic color;
-    oledEnhance = setting.get(SettingBoxKey.oledEnhance, defaultValue: false);
+    Color color;
+    oledEnhance = setting.getTyped<bool>(
+      SettingBoxKey.oledEnhance,
+      defaultValue: false,
+    );
     if (defaultThemeColor == 'default') {
       color = const Color(0xFF00D4AA);
     } else {
@@ -155,7 +171,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
             SettingsSection(
               title: Text('外观', style: TextStyle(fontFamily: fontFamily)),
               tiles: [
-                SettingsTile.navigation(
+                SettingsTile<void>.navigation(
                   onPressed: (_) {
                     if (menuController.isOpen) {
                       menuController.close();
@@ -273,17 +289,16 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
                     ],
                   ),
                 ),
-                SettingsTile.navigation(
+                SettingsTile<void>.navigation(
                   enabled: !useDynamicColor,
                   onPressed: (_) async {
-                    AppDialog.show(builder: (context) {
+                    AppDialog.show<void>(builder: (context) {
                       return AlertDialog(
                         title: Text('配色方案',
                             style: TextStyle(fontFamily: fontFamily)),
                         content: StatefulBuilder(builder:
                             (BuildContext context, StateSetter setState) {
-                          final List<Map<String, dynamic>> colorThemes =
-                              colorThemeTypes;
+                          final colorThemes = colorThemeTypes;
                           return Wrap(
                             alignment: WrapAlignment.center,
                             spacing: 8,
@@ -296,21 +311,21 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
                                     onTap: () {
                                       index == 0
                                           ? resetTheme()
-                                          : setTheme(e['color']);
-                                      AppDialog.dismiss();
+                                          : setTheme(e.color);
+                                      AppDialog.dismiss<void>();
                                     },
                                     child: Column(
                                       children: [
                                         PaletteCard(
-                                          color: e['color'],
-                                          selected: (e['color']
-                                                      .value
+                                          color: e.color,
+                                          selected: (e.color
+                                                      .toARGB32()
                                                       .toRadixString(16) ==
                                                   defaultThemeColor ||
                                               (defaultThemeColor == 'default' &&
                                                   index == 0)),
                                         ),
-                                        Text(e['label']),
+                                        Text(e.label),
                                       ],
                                     ),
                                   );
@@ -324,7 +339,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
                   },
                   title: Text('配色方案', style: TextStyle(fontFamily: fontFamily)),
                 ),
-                SettingsTile.switchTile(
+                SettingsTile<bool>.switchTile(
                   enabled: !Platform.isIOS,
                   onToggle: (value) async {
                     useDynamicColor = value ?? !useDynamicColor;
@@ -336,13 +351,13 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
                   title: Text('动态配色', style: TextStyle(fontFamily: fontFamily)),
                   initialValue: useDynamicColor,
                 ),
-                SettingsTile.switchTile(
+                SettingsTile<bool>.switchTile(
                   onToggle: (value) async {
                     useSystemFont = value ?? !useSystemFont;
                     await setting.put(
                         SettingBoxKey.useSystemFont, useSystemFont);
                     themeProvider.setFontFamily(useSystemFont);
-                    dynamic color;
+                    Color color;
                     if (defaultThemeColor == 'default') {
                       color = const Color(0xFF00D4AA);
                     } else {
@@ -363,7 +378,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
             ),
             SettingsSection(
               tiles: [
-                SettingsTile.switchTile(
+                SettingsTile<bool>.switchTile(
                   onToggle: (value) async {
                     oledEnhance = value ?? !oledEnhance;
                     await setting.put(SettingBoxKey.oledEnhance, oledEnhance);
@@ -381,7 +396,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
             if (Utils.isDesktop())
               SettingsSection(
                 tiles: [
-                  SettingsTile.switchTile(
+                  SettingsTile<bool>.switchTile(
                     onToggle: (value) async {
                       showWindowButton = value ?? !showWindowButton;
                       await setting.put(
@@ -399,7 +414,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
             if (Platform.isAndroid)
               SettingsSection(
                 tiles: [
-                  SettingsTile.navigation(
+                  SettingsTile<void>.navigation(
                     onPressed: (_) async {
                       Modular.to.pushNamed('/settings/theme/display');
                     },

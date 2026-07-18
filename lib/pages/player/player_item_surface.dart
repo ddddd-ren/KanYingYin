@@ -75,7 +75,7 @@ class _PlayerItemSurfaceState extends State<PlayerItemSurface> {
         children: [
           Video(
             controller: playerController.videoController!,
-            controls: NoVideoControls,
+            controls: null,
             pauseUponEnteringBackgroundMode: false,
             fit: playerController.aspectRatioType == 1
                 ? BoxFit.contain

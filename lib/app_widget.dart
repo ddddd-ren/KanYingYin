@@ -129,7 +129,7 @@ class AppWidget extends StatefulWidget {
 
 class _AppWidgetState extends State<AppWidget>
     with TrayListener, WidgetsBindingObserver, WindowListener {
-  Box setting = GStorage.setting;
+  Box<Object?> setting = GStorage.setting;
 
   final TrayManager trayManager = TrayManager.instance;
   late final WindowsAppShellService appShellService;
@@ -203,13 +203,13 @@ class _AppWidgetState extends State<AppWidget>
       case 0:
         exit(0);
       case 1:
-        AppDialog.dismiss();
+        AppDialog.dismiss<void>();
         windowManager.hide();
         break;
       default:
         if (showingExitDialog) return;
         showingExitDialog = true;
-        AppDialog.show(onDismiss: () {
+        AppDialog.show<void>(onDismiss: () {
           showingExitDialog = false;
         }, builder: (context) {
           bool saveExitBehavior = false; // 下次不再询问？
@@ -223,7 +223,7 @@ class _AppWidgetState extends State<AppWidget>
                 const Text('您想要退出看影音吗？'),
                 const SizedBox(height: 24),
                 StatefulBuilder(builder: (context, setState) {
-                  onChanged(value) {
+                  void onChanged(bool? value) {
                     saveExitBehavior = value ?? false;
                     setState(() {});
                   }
@@ -253,11 +253,14 @@ class _AppWidgetState extends State<AppWidget>
                     if (saveExitBehavior) {
                       await setting.put(SettingBoxKey.exitBehavior, 1);
                     }
-                    AppDialog.dismiss();
+                    AppDialog.dismiss<void>();
                     windowManager.hide();
                   },
                   child: const Text('最小化至托盘')),
-              const TextButton(onPressed: AppDialog.dismiss, child: Text('取消')),
+              TextButton(
+                onPressed: AppDialog.dismiss<void>,
+                child: const Text('取消'),
+              ),
             ],
           );
         });
@@ -309,8 +312,10 @@ class _AppWidgetState extends State<AppWidget>
     };
     themeProvider.setThemeMode(themeMode, notify: false);
 
-    final bool useSystemFont =
-        setting.get(SettingBoxKey.useSystemFont, defaultValue: false);
+    final bool useSystemFont = setting.getTyped<bool>(
+      SettingBoxKey.useSystemFont,
+      defaultValue: false,
+    );
     themeProvider.setFontFamily(useSystemFont, notify: false);
   }
 
@@ -346,8 +351,10 @@ class _AppWidgetState extends State<AppWidget>
     final Object? storedThemeColor =
         setting.get(SettingBoxKey.themeColor, defaultValue: 'default');
     final Color color = parseStoredThemeColor(storedThemeColor);
-    bool oledEnhance =
-        setting.get(SettingBoxKey.oledEnhance, defaultValue: false);
+    bool oledEnhance = setting.getTyped<bool>(
+      SettingBoxKey.oledEnhance,
+      defaultValue: false,
+    );
     final defaultDarkTheme = ThemeData(
         useMaterial3: true,
         fontFamily: themeProvider.currentFontFamily,

@@ -86,7 +86,7 @@ class CloudMediaIndexRepository {
     final items = <CloudMediaIndexItem>[];
     final rawItems = data['items'];
     if (rawItems is List) {
-      for (final raw in rawItems.whereType<Map>()) {
+      for (final raw in rawItems.whereType<Map<Object?, Object?>>()) {
         try {
           final item = _itemFromJson(Map<String, Object?>.from(raw));
           if (item.sourceId == sourceId) items.add(item);
@@ -118,7 +118,8 @@ class CloudMediaIndexRepository {
           continue;
         }
         final children = <CloudFileEntry>[];
-        for (final raw in (entry.value as List).whereType<Map>()) {
+        for (final raw in (entry.value as List<Object?>)
+            .whereType<Map<Object?, Object?>>()) {
           try {
             children.add(_entryFromJson(Map<String, Object?>.from(raw)));
           } on Object {
@@ -207,7 +208,7 @@ class CloudMediaIndexRepository {
         final retainedItems = <Object?>[];
         final rawItems = data['items'];
         if (rawItems is List) {
-          for (final raw in rawItems.whereType<Map>()) {
+          for (final raw in rawItems.whereType<Map<Object?, Object?>>()) {
             if (raw['sourceId'] != sourceId) retainedItems.add(raw);
           }
         }

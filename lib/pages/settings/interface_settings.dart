@@ -16,7 +16,7 @@ class InterfaceSettingsPage extends StatefulWidget {
 }
 
 class _InterfaceSettingsPageState extends State<InterfaceSettingsPage> {
-  Box setting = GStorage.setting;
+  Box<Object?> setting = GStorage.setting;
   late String defaultPage;
   late String localDefaultPath;
   final MenuController defaultPageMenuController = MenuController();
@@ -24,15 +24,17 @@ class _InterfaceSettingsPageState extends State<InterfaceSettingsPage> {
   @override
   void initState() {
     super.initState();
-    defaultPage = setting.get(
+    defaultPage = setting.getTyped<String>(
       SettingBoxKey.defaultStartupPage,
       defaultValue: defaultStartupPage,
     );
     if (!isValidStartupPage(defaultPage)) {
       defaultPage = defaultStartupPage;
     }
-    localDefaultPath =
-        setting.get(SettingBoxKey.localDefaultPath, defaultValue: '');
+    localDefaultPath = setting.getTyped<String>(
+      SettingBoxKey.localDefaultPath,
+      defaultValue: '',
+    );
   }
 
   void updateDefaultPage(String page) {
@@ -53,7 +55,7 @@ class _InterfaceSettingsPageState extends State<InterfaceSettingsPage> {
       body: SettingsList(
         sections: [
           SettingsSection(tiles: [
-            SettingsTile.navigation(
+            SettingsTile<void>.navigation(
               onPressed: (_) async {
                 if (defaultPageMenuController.isOpen) {
                   defaultPageMenuController.close();
@@ -100,7 +102,7 @@ class _InterfaceSettingsPageState extends State<InterfaceSettingsPage> {
             ),
           ]),
           SettingsSection(tiles: [
-            SettingsTile.navigation(
+            SettingsTile<void>.navigation(
               onPressed: (_) async {
                 final result = await LocalDirectoryPickerPage.pick(
                   context,

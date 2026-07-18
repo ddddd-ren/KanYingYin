@@ -10,14 +10,14 @@ import 'package:kanyingyin/utils/storage.dart';
 
 void main() {
   late Directory hiveDirectory;
-  late Box<dynamic> setting;
+  late Box<Object?> setting;
 
   setUpAll(() async {
     hiveDirectory = Directory.systemTemp.createTempSync(
       'kanyingyin-network-settings-',
     );
     Hive.init(hiveDirectory.path);
-    setting = await Hive.openBox<dynamic>('network-settings-test');
+    setting = await Hive.openBox<Object?>('network-settings-test');
   });
 
   setUp(() => setting.clear());

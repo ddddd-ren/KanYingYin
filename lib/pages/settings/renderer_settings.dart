@@ -13,9 +13,12 @@ class RendererSettings extends StatefulWidget {
 }
 
 class _RendererSettingsState extends State<RendererSettings> {
-  late final Box setting = GStorage.setting;
+  late final Box<Object?> setting = GStorage.setting;
   late final ValueNotifier<String> renderer = ValueNotifier<String>(
-    setting.get(SettingBoxKey.androidVideoRenderer, defaultValue: 'auto'),
+    setting.getTyped<String>(
+      SettingBoxKey.androidVideoRenderer,
+      defaultValue: 'auto',
+    ),
   );
 
   @override

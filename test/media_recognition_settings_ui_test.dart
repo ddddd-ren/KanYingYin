@@ -19,7 +19,7 @@ void main() {
   setUpAll(() async {
     hiveDirectory = await Directory.systemTemp.createTemp('media-settings-ui');
     Hive.init(hiveDirectory.path);
-    GStorage.setting = await Hive.openBox<dynamic>('settings-ui');
+    GStorage.setting = await Hive.openBox<Object?>('settings-ui');
   });
 
   tearDownAll(() async {
@@ -67,8 +67,8 @@ void main() {
     final storage = _MemoryStorage();
     await _pumpPage(tester, storage: storage);
 
-    final tileFinder = find.widgetWithText(SettingsTile, '本地媒体库');
-    final tile = tester.widget<SettingsTile<dynamic>>(tileFinder);
+    final tileFinder = find.widgetWithText(SettingsTile<void>, '本地媒体库');
+    final tile = tester.widget<SettingsTile<void>>(tileFinder);
     final context = tester.element(tileFinder);
     tile.onPressed!(context);
     tile.onPressed!(context);

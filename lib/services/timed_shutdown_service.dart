@@ -84,7 +84,7 @@ class TimedShutdownService {
 
     // If dialog is showing, dismiss it
     if (_isDialogShowing) {
-      AppDialog.dismiss();
+      AppDialog.dismiss<void>();
       _isDialogShowing = false;
     }
   }
@@ -110,7 +110,7 @@ class TimedShutdownService {
     if (_isDialogShowing) return;
     _isDialogShowing = true;
 
-    AppDialog.show(
+    AppDialog.show<void>(
       clickMaskDismiss: false,
       onDismiss: () {
         _isDialogShowing = false;
@@ -123,7 +123,7 @@ class TimedShutdownService {
             TextButton(
               onPressed: () {
                 _isDialogShowing = false;
-                AppDialog.dismiss();
+                AppDialog.dismiss<void>();
                 repeat();
                 AppDialog.showToast(message: '已重新开始 $_lastSetMinutes 分钟定时');
               },
@@ -132,7 +132,7 @@ class TimedShutdownService {
             TextButton(
               onPressed: () {
                 _isDialogShowing = false;
-                AppDialog.dismiss();
+                AppDialog.dismiss<void>();
               },
               child: Text(
                 '关闭',
@@ -179,7 +179,7 @@ class TimedShutdownService {
     int selectedHours = 0;
     int selectedMinutes = 0;
 
-    AppDialog.show(
+    AppDialog.show<void>(
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setState) {
@@ -251,7 +251,7 @@ class TimedShutdownService {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => AppDialog.dismiss(),
+                  onPressed: () => AppDialog.dismiss<void>(),
                   child: Text(
                     '取消',
                     style:
@@ -265,7 +265,7 @@ class TimedShutdownService {
                       AppDialog.showToast(message: '请选择有效的时间');
                       return;
                     }
-                    AppDialog.dismiss();
+                    AppDialog.dismiss<void>();
                     if (autoStart) {
                       TimedShutdownService()
                           .start(totalMinutes, onExpired: onExpired);

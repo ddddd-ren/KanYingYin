@@ -27,7 +27,7 @@ class HiveCloudSourceStorage implements CloudSourceStorage {
     );
     if (value is! List) return <Map<String, dynamic>>[];
     return value
-        .whereType<Map>()
+        .whereType<Map<Object?, Object?>>()
         .map((item) => Map<String, dynamic>.from(item))
         .toList(growable: false);
   }

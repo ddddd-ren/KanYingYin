@@ -61,7 +61,7 @@ class SmallestPlayerItemPanel extends StatefulWidget {
 }
 
 class _SmallestPlayerItemPanelState extends State<SmallestPlayerItemPanel> {
-  Box setting = GStorage.setting;
+  Box<Object?> setting = GStorage.setting;
   late bool haEnable;
   late Animation<Offset> topOffsetAnimation;
   late Animation<Offset> bottomOffsetAnimation;
@@ -74,7 +74,7 @@ class _SmallestPlayerItemPanelState extends State<SmallestPlayerItemPanel> {
   // SVG Caches
   String? cachedSvgString;
   void showForwardChange() {
-    AppDialog.show(builder: (context) {
+    AppDialog.show<void>(builder: (context) {
       String input = "";
       return AlertDialog(
         title: const Text('跳过秒数'),
@@ -96,7 +96,7 @@ class _SmallestPlayerItemPanelState extends State<SmallestPlayerItemPanel> {
         }),
         actions: <Widget>[
           TextButton(
-            onPressed: () => AppDialog.dismiss(),
+            onPressed: () => AppDialog.dismiss<void>(),
             child: Text(
               '取消',
               style: TextStyle(color: Theme.of(context).colorScheme.outline),
@@ -106,9 +106,9 @@ class _SmallestPlayerItemPanelState extends State<SmallestPlayerItemPanel> {
             onPressed: () async {
               if (input != "") {
                 playerController.setButtonForwardTime(int.parse(input));
-                AppDialog.dismiss();
+                AppDialog.dismiss<void>();
               } else {
-                AppDialog.dismiss();
+                AppDialog.dismiss<void>();
               }
             },
             child: const Text('确定'),
@@ -142,7 +142,8 @@ class _SmallestPlayerItemPanelState extends State<SmallestPlayerItemPanel> {
       parent: widget.animationController,
       curve: Curves.easeInOut,
     ));
-    haEnable = setting.get(SettingBoxKey.hAenable, defaultValue: true);
+    haEnable =
+        setting.getTyped<bool>(SettingBoxKey.hAenable, defaultValue: true);
     cacheSvgIcons();
   }
 

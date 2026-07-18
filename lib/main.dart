@@ -109,8 +109,10 @@ Future<void> _startApplication() async {
         }));
     return;
   }
-  bool showWindowButton = await GStorage.setting
-      .get(SettingBoxKey.showWindowButton, defaultValue: false);
+  bool showWindowButton = GStorage.setting.getTyped<bool>(
+    SettingBoxKey.showWindowButton,
+    defaultValue: false,
+  );
   if (Utils.isDesktop()) {
     await windowManager.ensureInitialized();
     bool isLowResolution = await Utils.isLowResolution();

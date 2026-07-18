@@ -12,10 +12,10 @@ class DecoderSettings extends StatefulWidget {
 }
 
 class _DecoderSettingsState extends State<DecoderSettings> {
-  late final Box setting = GStorage.setting;
+  late final Box<Object?> setting = GStorage.setting;
   late final ValueNotifier<String> decoder = ValueNotifier<String>(
     normalizeHardwareDecoder(
-      setting.get(
+      setting.getTyped<String>(
         SettingBoxKey.hardwareDecoder,
         defaultValue: defaultHardwareDecoder,
       ),

@@ -191,22 +191,24 @@ class PosterService {
 
     try {
       for (final endpoint in ['movie', 'tv']) {
-        final response =
-            await _dio.get('$baseUrl/search/$endpoint', queryParameters: {
-          'api_key': apiKey,
-          'query': query,
-          'language': 'zh-CN',
-        });
+        final response = await _dio.get<Map<String, dynamic>>(
+            '$baseUrl/search/$endpoint',
+            queryParameters: {
+              'api_key': apiKey,
+              'query': query,
+              'language': 'zh-CN',
+            });
 
-        var results = response.data['results'] as List?;
+        var results = response.data?['results'] as List?;
         if (results == null || results.isEmpty) {
-          final enResponse =
-              await _dio.get('$baseUrl/search/$endpoint', queryParameters: {
-            'api_key': apiKey,
-            'query': query,
-            'language': 'en-US',
-          });
-          results = enResponse.data['results'] as List?;
+          final enResponse = await _dio.get<Map<String, dynamic>>(
+              '$baseUrl/search/$endpoint',
+              queryParameters: {
+                'api_key': apiKey,
+                'query': query,
+                'language': 'en-US',
+              });
+          results = enResponse.data?['results'] as List?;
         }
 
         if (results != null && results.isNotEmpty) {
@@ -241,13 +243,13 @@ class PosterService {
           connectTimeout: const Duration(seconds: 10),
           receiveTimeout: const Duration(seconds: 30),
         ),
-      ).get(
+      ).get<List<int>>(
         posterUrl,
         options: Options(responseType: ResponseType.bytes),
       );
 
       final file = File(savePath);
-      await file.writeAsBytes(response.data);
+      await file.writeAsBytes(response.data ?? const <int>[]);
       AppLogger().i('PosterService: downloaded poster to $savePath');
       return savePath;
     } catch (e) {
@@ -275,14 +277,17 @@ class PosterService {
           connectTimeout: const Duration(seconds: 10),
           receiveTimeout: const Duration(seconds: 30),
         ),
-      ).get(
+      ).get<List<int>>(
         posterUrl,
         options: Options(responseType: ResponseType.bytes),
       );
 
       final target = File(savePath);
       final temporary = File('$savePath.download');
-      await temporary.writeAsBytes(response.data, flush: true);
+      await temporary.writeAsBytes(
+        response.data ?? const <int>[],
+        flush: true,
+      );
       if (await target.exists()) await target.delete();
       await temporary.rename(savePath);
       AppLogger().i('PosterService: downloaded to $savePath');
@@ -297,7 +302,7 @@ class PosterService {
     if (_workingProxy != null) return _workingProxy;
 
     try {
-      await _dio.get(
+      await _dio.get<Object?>(
         '$_baseUrl/configuration',
         queryParameters: {'api_key': apiKey},
       );
@@ -307,7 +312,7 @@ class PosterService {
 
     for (final proxy in _proxies) {
       try {
-        await _dio.get(
+        await _dio.get<Object?>(
           '$proxy/configuration',
           queryParameters: {'api_key': apiKey},
         );

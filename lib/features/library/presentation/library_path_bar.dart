@@ -43,6 +43,18 @@ class LibraryDirectoryStatusViewData {
   final String currentFile;
   final double? progress;
   final String progressLabel;
+
+  factory LibraryDirectoryStatusViewData.matchingMetadata({
+    required String label,
+    required int current,
+    required int total,
+  }) {
+    return LibraryDirectoryStatusViewData(
+      kind: LibraryDirectoryStatusKind.matchingMetadata,
+      label: label,
+      progressLabel: total > 0 ? '$current/$total' : '',
+    );
+  }
 }
 
 class LibraryPathBarViewData {

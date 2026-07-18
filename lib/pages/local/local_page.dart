@@ -825,12 +825,10 @@ class _LocalPageState extends State<LocalPage>
           label: '${localController.libraryIndexFailures.length} 项扫描失败');
     }
     if (localController.isMatchingBangumi) {
-      return LibraryDirectoryStatusViewData(
-          kind: LibraryDirectoryStatusKind.matchingMetadata,
+      return LibraryDirectoryStatusViewData.matchingMetadata(
           label: localController.bangumiMatchProgress,
-          progressLabel: localController.bangumiMatchTotal > 0
-              ? r'${localController.bangumiMatchCurrent}/${localController.bangumiMatchTotal}'
-              : '');
+          current: localController.bangumiMatchCurrent,
+          total: localController.bangumiMatchTotal);
     }
     if (localController.isFetchingPosters) {
       return LibraryDirectoryStatusViewData(

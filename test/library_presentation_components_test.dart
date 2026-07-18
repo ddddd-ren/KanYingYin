@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' show PointerDeviceKind;
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart'
+    show PointerEnterEvent, kSecondaryMouseButton;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
@@ -9,6 +12,17 @@ import 'package:kanyingyin/features/library/presentation/library_path_bar.dart';
 import 'package:kanyingyin/features/library/presentation/library_source_menu.dart';
 
 void main() {
+  test('TMDB 匹配状态显示实际 current/total 而不是插值字面量', () {
+    final status = LibraryDirectoryStatusViewData.matchingMetadata(
+      label: '正在匹配',
+      current: 3,
+      total: 12,
+    );
+
+    expect(status.progressLabel, '3/12');
+    expect(status.progressLabel, isNot(contains(r'${')));
+  });
+
   test('展示 view data 会复制并冻结所有列表', () {
     const breadcrumb = LibraryBreadcrumbViewData(label: 'D:', path: r'D:\');
     const source = LibrarySourceViewData(
@@ -262,6 +276,22 @@ void main() {
       expect(actionItem, item.id);
     });
 
+    testWidgets('鼠标右键触发更多动作', (tester) async {
+      String? actionItem;
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: LibraryMediaGrid(
+            data: LibraryMediaGridViewData(items: const [item]),
+            onShowActions: (value) async => actionItem = value.id,
+          ),
+        ),
+      ));
+
+      await tester.tap(find.byType(InkWell), buttons: kSecondaryMouseButton);
+      await tester.pump();
+      expect(actionItem, item.id);
+    });
+
     testWidgets('悬浮 160ms 后显示信息 overlay 并保持原动画曲线', (tester) async {
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
@@ -285,6 +315,64 @@ void main() {
       expect(opacity.opacity, 1);
       await tester.pump(const Duration(milliseconds: 160));
       expect(tester.widget<AnimatedOpacity>(opacityFinder).opacity, 1);
+    });
+
+    testWidgets('媒体项重排后悬浮状态按 id 跟随而不按位置串位', (tester) async {
+      const first = LibraryMediaItemViewData(
+        id: 'first',
+        title: '第一项',
+        subtitle: '',
+        infoText: '',
+        modifiedText: '',
+        hasMultipleEpisodes: false,
+        hasSubtitle: false,
+        scrapeLabel: '已刮削',
+      );
+      const second = LibraryMediaItemViewData(
+        id: 'second',
+        title: '第二项',
+        subtitle: '',
+        infoText: '',
+        modifiedText: '',
+        hasMultipleEpisodes: false,
+        hasSubtitle: false,
+        scrapeLabel: '已刮削',
+      );
+
+      Widget build(List<LibraryMediaItemViewData> items) => MaterialApp(
+            home: Scaffold(
+              body: LibraryMediaGrid(
+                data: LibraryMediaGridViewData(items: items),
+              ),
+            ),
+          );
+
+      await tester.pumpWidget(build(const [first, second]));
+      final cardRegion = tester
+          .widgetList<MouseRegion>(find.byType(MouseRegion))
+          .firstWhere((region) => region.onEnter != null);
+      cardRegion.onEnter!(const PointerEnterEvent());
+      await tester.pump();
+      double opacityFor(String title) => tester
+          .widget<AnimatedOpacity>(find
+              .ancestor(
+                of: find.text(title),
+                matching: find.byType(AnimatedOpacity),
+              )
+              .first)
+          .opacity;
+      expect(opacityFor('第一项'), 1);
+      expect(opacityFor('第二项'), 0);
+
+      await tester.pumpWidget(build(const [second, first]));
+      await tester.pump();
+      expect(opacityFor('第二项'), 0);
+      expect(opacityFor('第一项'), 1);
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey<String>('second'))).dx,
+        lessThan(
+            tester.getTopLeft(find.byKey(const ValueKey<String>('first'))).dx),
+      );
     });
 
     testWidgets('加载和海报刮削状态显示进度', (tester) async {
@@ -369,6 +457,55 @@ void main() {
       expect(find.byIcon(Icons.play_circle_fill), findsOneWidget);
     });
 
+    testWidgets('失败 ImageProvider 在真实卡片中依次回退到本地和占位', (tester) async {
+      const failed = _FailingImageProvider();
+      final local = MemoryImage(base64Decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      ));
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: LibraryMediaGrid(
+            data: LibraryMediaGridViewData(items: [
+              LibraryMediaItemViewData(
+                id: 'local',
+                title: '本地回退',
+                subtitle: '',
+                infoText: '',
+                modifiedText: '',
+                hasMultipleEpisodes: false,
+                hasSubtitle: false,
+                scrapeLabel: '已刮削',
+                networkCoverProvider: failed,
+                localCoverProvider: local,
+              ),
+              const LibraryMediaItemViewData(
+                id: 'placeholder',
+                title: '占位回退',
+                subtitle: '',
+                infoText: '',
+                modifiedText: '',
+                hasMultipleEpisodes: true,
+                hasSubtitle: false,
+                scrapeLabel: '未刮削',
+                networkCoverProvider: failed,
+                localCoverProvider: failed,
+              ),
+            ]),
+          ),
+        ),
+      ));
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        tester.widgetList<Image>(find.byType(Image)).any(
+              (image) => identical(image.image, local),
+            ),
+        isTrue,
+      );
+      expect(find.byIcon(Icons.video_collection_outlined), findsOneWidget);
+    });
+
     testWidgets('空目录保留选择文件夹入口', (tester) async {
       var picked = false;
       await tester.pumpWidget(
@@ -412,4 +549,22 @@ void main() {
     expect(source, contains('LibraryMediaGrid('));
     expect(source, contains('heroTag:'));
   });
+}
+
+class _FailingImageProvider extends ImageProvider<_FailingImageProvider> {
+  const _FailingImageProvider();
+
+  @override
+  Future<_FailingImageProvider> obtainKey(ImageConfiguration configuration) =>
+      SynchronousFuture<_FailingImageProvider>(this);
+
+  @override
+  ImageStreamCompleter loadImage(
+    _FailingImageProvider key,
+    ImageDecoderCallback decode,
+  ) {
+    return OneFrameImageStreamCompleter(
+      Future<ImageInfo>.error(StateError('测试图片加载失败')),
+    );
+  }
 }

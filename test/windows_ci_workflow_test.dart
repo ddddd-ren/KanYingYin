@@ -52,6 +52,15 @@ void main() {
       contains('flutter build windows --release --no-pub'),
     );
     expect(releaseWorkflow, contains('dart run msix:create'));
+    expect(releaseWorkflow, contains('--sign-msix=false'));
+    expect(
+      releaseWorkflow,
+      contains(r'--certificate-path="$placeholderCertificate"'),
+    );
+    expect(
+      releaseWorkflow.toLowerCase(),
+      isNot(contains(r'c:\users\asus')),
+    );
     expect(releaseWorkflow, contains('com.kanyingyin.player'));
     expect(releaseWorkflow, contains('AppxManifest.xml'));
     expect(releaseWorkflow, contains('看影音-'));

@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:kanyingyin/features/library/presentation/library_source_menu.dart';
 
 class LibraryBreadcrumbViewData {
   const LibraryBreadcrumbViewData({
@@ -47,10 +46,9 @@ class LibraryDirectoryStatusViewData {
 }
 
 class LibraryPathBarViewData {
-  const LibraryPathBarViewData({
-    required this.breadcrumbs,
-    required this.recentPaths,
-    required this.sourceMenu,
+  LibraryPathBarViewData({
+    required List<LibraryBreadcrumbViewData> breadcrumbs,
+    required List<LibraryRecentPathViewData> recentPaths,
     required this.sortBy,
     required this.sortAscending,
     required this.status,
@@ -67,10 +65,10 @@ class LibraryPathBarViewData {
     this.canReadMediaInfo = false,
     this.canGenerateThumbnails = false,
     this.canMatchMetadata = false,
-  });
+  })  : breadcrumbs = List<LibraryBreadcrumbViewData>.unmodifiable(breadcrumbs),
+        recentPaths = List<LibraryRecentPathViewData>.unmodifiable(recentPaths);
   final List<LibraryBreadcrumbViewData> breadcrumbs;
   final List<LibraryRecentPathViewData> recentPaths;
-  final LibrarySourceMenuViewData sourceMenu;
   final String sortBy;
   final bool sortAscending;
   final LibraryDirectoryStatusViewData status;
@@ -93,6 +91,7 @@ class LibraryPathBar extends StatelessWidget {
   const LibraryPathBar({
     super.key,
     required this.data,
+    required this.sourceMenu,
     required this.searchController,
     required this.onPickDirectory,
     required this.onRefresh,
@@ -100,9 +99,6 @@ class LibraryPathBar extends StatelessWidget {
     required this.onSearchChanged,
     required this.onClearSearch,
     required this.onBreadcrumbSelected,
-    this.onOpenSource,
-    this.onRemoveSource,
-    this.onRemoveUnavailableSources,
     this.onScanLibrary,
     this.onOpenLibrary,
     this.onOpenRecentPath,
@@ -116,6 +112,7 @@ class LibraryPathBar extends StatelessWidget {
   });
 
   final LibraryPathBarViewData data;
+  final Widget sourceMenu;
   final TextEditingController searchController;
   final FutureOr<void> Function() onPickDirectory;
   final FutureOr<void> Function() onRefresh;
@@ -123,9 +120,6 @@ class LibraryPathBar extends StatelessWidget {
   final ValueChanged<String> onSearchChanged;
   final VoidCallback onClearSearch;
   final FutureOr<void> Function(String path) onBreadcrumbSelected;
-  final LibrarySourceAction? onOpenSource;
-  final LibrarySourceAction? onRemoveSource;
-  final FutureOr<void> Function()? onRemoveUnavailableSources;
   final FutureOr<void> Function()? onScanLibrary;
   final FutureOr<void> Function()? onOpenLibrary;
   final FutureOr<void> Function(String path)? onOpenRecentPath;
@@ -151,12 +145,7 @@ class LibraryPathBar extends StatelessWidget {
           _button(Icons.folder_open, '选择目录',
               data.isLoading ? null : onPickDirectory),
           const SizedBox(width: 4),
-          LibrarySourceMenu(
-            data: data.sourceMenu,
-            onOpen: onOpenSource ?? (_) {},
-            onRemove: onRemoveSource ?? (_) {},
-            onRemoveUnavailable: onRemoveUnavailableSources ?? () {},
-          ),
+          sourceMenu,
           const SizedBox(width: 4),
           _busyButton(Icons.manage_search_outlined, '扫描媒体库', data.isIndexing,
               data.canScanLibrary ? onScanLibrary : null),

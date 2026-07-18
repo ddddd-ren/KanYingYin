@@ -695,6 +695,7 @@ class _LocalPageState extends State<LocalPage>
             Observer(
                 builder: (_) => LibraryPathBar(
                       data: _pathBarData(),
+                      sourceMenu: _sourceMenu(),
                       searchController: _searchController,
                       onPickDirectory: _pickDirectory,
                       onRefresh: localController.refresh,
@@ -704,17 +705,6 @@ class _LocalPageState extends State<LocalPage>
                       }),
                       onClearSearch: _clearSearch,
                       onBreadcrumbSelected: _enterDirectory,
-                      onOpenSource: (source) => _enterDirectory(source.path),
-                      onRemoveSource: (source) {
-                        final match = localController.mediaSources
-                            .where((item) => item.path == source.path)
-                            .firstOrNull;
-                        if (match != null) {
-                          return _confirmRemoveMediaSource(match);
-                        }
-                      },
-                      onRemoveUnavailableSources:
-                          _confirmRemoveUnavailableMediaSources,
                       onScanLibrary: () => _refreshLocalLibraryIndex(context),
                       onOpenLibrary: () => _showLocalLibrary(context),
                       onOpenRecentPath: _enterDirectory,
@@ -756,21 +746,6 @@ class _LocalPageState extends State<LocalPage>
             path: path,
           ),
       ],
-      sourceMenu: LibrarySourceMenuViewData(
-        enabled: !localController.isLoading,
-        unavailableCount: localController.unavailableMediaSourceCount(),
-        sources: [
-          for (final source in localController.mediaSources)
-            LibrarySourceViewData(
-              id: source.path,
-              name: source.name,
-              path: source.path,
-              subtitle: _buildMediaSourceSubtitle(source),
-              isAvailable: localController.isMediaSourceAvailable(source),
-              isCurrent: source.path == localController.currentPath,
-            )
-        ],
-      ),
       sortBy: localController.sortBy,
       sortAscending: localController.sortAscending,
       status: _directoryStatusData(),
@@ -796,6 +771,36 @@ class _LocalPageState extends State<LocalPage>
       canMatchMetadata: !localController.isLoading &&
           !localController.isMatchingBangumi &&
           localController.localLibraryVideoCount > 0,
+    );
+  }
+
+  Widget _sourceMenu() {
+    return LibrarySourceMenu(
+      data: LibrarySourceMenuViewData(
+        enabled: !localController.isLoading,
+        unavailableCount: localController.unavailableMediaSourceCount(),
+        sources: [
+          for (final source in localController.mediaSources)
+            LibrarySourceViewData(
+              id: source.path,
+              name: source.name,
+              path: source.path,
+              subtitle: _buildMediaSourceSubtitle(source),
+              isAvailable: localController.isMediaSourceAvailable(source),
+              isCurrent: source.path == localController.currentPath,
+            )
+        ],
+      ),
+      onOpen: (source) => _enterDirectory(source.path),
+      onRemove: (source) {
+        final match = localController.mediaSources
+            .where((item) => item.path == source.path)
+            .firstOrNull;
+        if (match != null) {
+          return _confirmRemoveMediaSource(match);
+        }
+      },
+      onRemoveUnavailable: _confirmRemoveUnavailableMediaSources,
     );
   }
 
@@ -933,6 +938,7 @@ class _LocalPageState extends State<LocalPage>
       networkCoverUrl: localController
           .tmdbPosterUrlForPaths(group.episodes.map((item) => item.path)),
       isScraping: isScraping,
+      heroTag: first.path,
     );
   }
 

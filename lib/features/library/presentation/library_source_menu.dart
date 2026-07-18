@@ -25,11 +25,11 @@ class LibrarySourceViewData {
 }
 
 class LibrarySourceMenuViewData {
-  const LibrarySourceMenuViewData({
-    required this.sources,
+  LibrarySourceMenuViewData({
+    required List<LibrarySourceViewData> sources,
     this.unavailableCount = 0,
     this.enabled = true,
-  });
+  }) : sources = List<LibrarySourceViewData>.unmodifiable(sources);
 
   final List<LibrarySourceViewData> sources;
   final int unavailableCount;

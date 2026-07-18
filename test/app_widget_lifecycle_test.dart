@@ -83,6 +83,112 @@ void main() {
       expect(nonWindowsPlatform.brightnesses, isEmpty);
     });
 
+    test('同色并发亮度请求只访问平台一次', () async {
+      final platform = _FakeAppShellPlatform(manualBrightness: true);
+      final service = WindowsAppShellService(platform: platform);
+
+      final first = service.syncBrightness(Brightness.dark);
+      final second = service.syncBrightness(Brightness.dark);
+
+      expect(platform.brightnesses, const [Brightness.dark]);
+      platform.completeBrightness(0);
+      await Future.wait([first, second]);
+      expect(platform.brightnesses, const [Brightness.dark]);
+    });
+
+    test('异色快速请求串行执行且最终缓存最后一次亮度', () async {
+      final platform = _FakeAppShellPlatform(manualBrightness: true);
+      final service = WindowsAppShellService(platform: platform);
+
+      final dark = service.syncBrightness(Brightness.dark);
+      final light = service.syncBrightness(Brightness.light);
+      expect(platform.brightnesses, const [Brightness.dark]);
+
+      platform.completeBrightness(0);
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        platform.brightnesses,
+        const [Brightness.dark, Brightness.light],
+      );
+
+      platform.completeBrightness(1);
+      await Future.wait([dark, light]);
+      await service.syncBrightness(Brightness.light);
+      expect(platform.brightnesses, hasLength(2), reason: '最后完成的亮度应成为缓存值');
+    });
+
+    test('解绑后旧亮度 Future 不污染新 generation 的缓存', () async {
+      final platform = _FakeAppShellPlatform(manualBrightness: true);
+      final service = WindowsAppShellService(platform: platform);
+
+      final stale = service.syncBrightness(Brightness.dark);
+      service.detach();
+      platform.completeBrightness(0);
+      await stale;
+
+      final current = service.syncBrightness(Brightness.dark);
+      expect(platform.brightnesses, hasLength(2));
+      platform.completeBrightness(1);
+      await current;
+    });
+
+    test('解绑分别重试失败的监听器移除且不重复清理成功项', () async {
+      final capturedErrors = <Object>[];
+      final platform = _FakeAppShellPlatform(failedRemoveTrayAttempts: 1);
+      final service = WindowsAppShellService(
+        platform: platform,
+        onError: (error, stackTrace) => capturedErrors.add(error),
+      );
+      final trayListener = _TrayListener();
+      final windowListener = _WindowListener();
+      await service.initialize(
+        trayListener: trayListener,
+        windowListener: windowListener,
+      );
+
+      service.detach();
+      expect(platform.removeTrayListenerCalls, 1);
+      expect(platform.removeWindowListenerCalls, 1);
+
+      service.detach();
+      expect(platform.removeTrayListenerCalls, 2);
+      expect(platform.removeWindowListenerCalls, 1);
+      expect(capturedErrors, hasLength(1));
+
+      await service.initialize(
+        trayListener: trayListener,
+        windowListener: windowListener,
+      );
+      expect(platform.addTrayListenerCalls, 2);
+      expect(platform.addWindowListenerCalls, 2);
+    });
+
+    test('销毁时某个监听器移除失败不阻断另一个监听器清理', () async {
+      final platform = _FakeAppShellPlatform(
+        failedRemoveTrayAttempts: 1,
+        failedRemoveWindowAttempts: 1,
+      );
+      final service = WindowsAppShellService(
+        platform: platform,
+        onError: (error, stackTrace) {},
+      );
+      await service.initialize(
+        trayListener: _TrayListener(),
+        windowListener: _WindowListener(),
+      );
+
+      service.dispose();
+
+      expect(platform.removeTrayListenerCalls, 1);
+      expect(platform.removeWindowListenerCalls, 1);
+      await service.initialize(
+        trayListener: _TrayListener(),
+        windowListener: _WindowListener(),
+      );
+      expect(platform.addTrayListenerCalls, 1);
+      expect(platform.addWindowListenerCalls, 1);
+    });
+
     test('单个插件能力失败不阻断后续能力且下次可重试', () async {
       final platform = _FakeAppShellPlatform(failedTrayIconAttempts: 1);
       final capturedErrors = <Object>[];
@@ -204,6 +310,117 @@ void main() {
       expect(platform.trayTooltipCalls, 0);
       expect(platform.trayMenuCalls, 0);
     });
+
+    testWidgets('原位替换 owned 服务会销毁旧服务并初始化 borrowed 服务', (tester) async {
+      final oldPlatform = _FakeAppShellPlatform();
+      final oldService = WindowsAppShellService(platform: oldPlatform);
+      final newPlatform = _FakeAppShellPlatform();
+      final newService = WindowsAppShellService(platform: newPlatform);
+
+      await tester.pumpWidget(AppShellLifecycle(
+        service: oldService,
+        trayListener: _TrayListener(),
+        windowListener: _WindowListener(),
+        ownership: AppShellServiceOwnership.owned,
+        child: const SizedBox(),
+      ));
+      await tester.pumpWidget(AppShellLifecycle(
+        service: newService,
+        trayListener: _TrayListener(),
+        windowListener: _WindowListener(),
+        ownership: AppShellServiceOwnership.borrowed,
+        child: const SizedBox(),
+      ));
+
+      expect(oldPlatform.removeTrayListenerCalls, 1);
+      expect(oldPlatform.removeWindowListenerCalls, 1);
+      expect(newPlatform.addTrayListenerCalls, 1);
+      expect(newPlatform.addWindowListenerCalls, 1);
+      await oldService.initialize(
+        trayListener: _TrayListener(),
+        windowListener: _WindowListener(),
+      );
+      expect(oldPlatform.addTrayListenerCalls, 1, reason: '旧 owned 服务已经永久销毁');
+
+      await tester.pumpWidget(const SizedBox());
+      await newService.initialize(
+        trayListener: _TrayListener(),
+        windowListener: _WindowListener(),
+      );
+      expect(newPlatform.addTrayListenerCalls, 2,
+          reason: '新 borrowed 服务仅解绑，仍归外部所有');
+      newService.dispose();
+    });
+
+    testWidgets('原位替换 borrowed 服务会解绑旧服务并接管新 owned 服务', (tester) async {
+      final oldPlatform = _FakeAppShellPlatform();
+      final oldService = WindowsAppShellService(platform: oldPlatform);
+      final newPlatform = _FakeAppShellPlatform();
+      final newService = WindowsAppShellService(platform: newPlatform);
+
+      await tester.pumpWidget(AppShellLifecycle(
+        service: oldService,
+        trayListener: _TrayListener(),
+        windowListener: _WindowListener(),
+        ownership: AppShellServiceOwnership.borrowed,
+        child: const SizedBox(),
+      ));
+      await tester.pumpWidget(AppShellLifecycle(
+        service: newService,
+        trayListener: _TrayListener(),
+        windowListener: _WindowListener(),
+        ownership: AppShellServiceOwnership.owned,
+        child: const SizedBox(),
+      ));
+
+      expect(oldPlatform.removeTrayListenerCalls, 1);
+      expect(newPlatform.addTrayListenerCalls, 1);
+      await oldService.initialize(
+        trayListener: _TrayListener(),
+        windowListener: _WindowListener(),
+      );
+      expect(oldPlatform.addTrayListenerCalls, 2,
+          reason: '旧 borrowed 服务仍归外部所有');
+
+      await tester.pumpWidget(const SizedBox());
+      await newService.initialize(
+        trayListener: _TrayListener(),
+        windowListener: _WindowListener(),
+      );
+      expect(newPlatform.addTrayListenerCalls, 1, reason: '新 owned 服务随组件永久销毁');
+      oldService.dispose();
+    });
+
+    testWidgets('同一服务原位替换 listeners 时重试首次失败的解绑', (tester) async {
+      final platform = _FakeAppShellPlatform(failedRemoveTrayAttempts: 1);
+      final service = WindowsAppShellService(
+        platform: platform,
+        onError: (error, stackTrace) {},
+      );
+      final oldTrayListener = _TrayListener();
+      final newTrayListener = _TrayListener();
+
+      await tester.pumpWidget(AppShellLifecycle(
+        service: service,
+        trayListener: oldTrayListener,
+        windowListener: _WindowListener(),
+        ownership: AppShellServiceOwnership.borrowed,
+        child: const SizedBox(),
+      ));
+      await tester.pumpWidget(AppShellLifecycle(
+        service: service,
+        trayListener: newTrayListener,
+        windowListener: _WindowListener(),
+        ownership: AppShellServiceOwnership.borrowed,
+        child: const SizedBox(),
+      ));
+
+      expect(platform.removeTrayListenerCalls, 2);
+      expect(platform.addTrayListenerCalls, 2);
+      expect(platform.lastTrayListener, same(newTrayListener));
+      await tester.pumpWidget(const SizedBox());
+      service.dispose();
+    });
   });
 
   group('parseStoredThemeColor', () {
@@ -244,6 +461,15 @@ void main() {
     expect(buildBody, isNot(contains('FlutterDisplayMode.supported')));
     expect(buildBody, isNot(contains('themeProvider.setTheme(')));
   });
+
+  test('持久化主题色转换归属于 AppWidget 而非 Windows 服务', () {
+    final appWidgetSource = File('lib/app_widget.dart').readAsStringSync();
+    final windowsServiceSource =
+        File('lib/services/windows_app_shell_service.dart').readAsStringSync();
+
+    expect(appWidgetSource, contains('Color parseStoredThemeColor('));
+    expect(windowsServiceSource, isNot(contains('parseStoredThemeColor')));
+  });
 }
 
 String _methodBody(String source, String signature, {String? after}) {
@@ -265,7 +491,10 @@ class _FakeAppShellPlatform implements WindowsAppShellPlatform {
   _FakeAppShellPlatform({
     this.isWindows = true,
     this.failedTrayIconAttempts = 0,
+    this.failedRemoveTrayAttempts = 0,
+    this.failedRemoveWindowAttempts = 0,
     this.preventCloseCompleter,
+    this.manualBrightness = false,
   });
 
   @override
@@ -286,24 +515,43 @@ class _FakeAppShellPlatform implements WindowsAppShellPlatform {
   int trayTooltipCalls = 0;
   int trayMenuCalls = 0;
   int failedTrayIconAttempts;
+  int failedRemoveTrayAttempts;
+  int failedRemoveWindowAttempts;
   final Completer<void>? preventCloseCompleter;
+  final bool manualBrightness;
   String? trayIcon;
   String? trayTooltip;
   List<TrayMenuEntry>? menuItems;
   final List<Brightness> brightnesses = [];
+  final List<Completer<void>> brightnessCompleters = [];
+  TrayListener? lastTrayListener;
 
   @override
-  void addTrayListener(TrayListener listener) => addTrayListenerCalls++;
+  void addTrayListener(TrayListener listener) {
+    addTrayListenerCalls++;
+    lastTrayListener = listener;
+  }
 
   @override
-  void removeTrayListener(TrayListener listener) => removeTrayListenerCalls++;
+  void removeTrayListener(TrayListener listener) {
+    removeTrayListenerCalls++;
+    if (failedRemoveTrayAttempts > 0) {
+      failedRemoveTrayAttempts--;
+      throw StateError('托盘监听器移除失败');
+    }
+  }
 
   @override
   void addWindowListener(WindowListener listener) => addWindowListenerCalls++;
 
   @override
-  void removeWindowListener(WindowListener listener) =>
-      removeWindowListenerCalls++;
+  void removeWindowListener(WindowListener listener) {
+    removeWindowListenerCalls++;
+    if (failedRemoveWindowAttempts > 0) {
+      failedRemoveWindowAttempts--;
+      throw StateError('窗口监听器移除失败');
+    }
+  }
 
   @override
   Future<void> setPreventClose() {
@@ -334,8 +582,15 @@ class _FakeAppShellPlatform implements WindowsAppShellPlatform {
   }
 
   @override
-  Future<void> setBrightness(Brightness brightness) async =>
-      brightnesses.add(brightness);
+  Future<void> setBrightness(Brightness brightness) {
+    brightnesses.add(brightness);
+    if (!manualBrightness) return Future<void>.value();
+    final completer = Completer<void>();
+    brightnessCompleters.add(completer);
+    return completer.future;
+  }
+
+  void completeBrightness(int index) => brightnessCompleters[index].complete();
 }
 
 class _TrayListener with TrayListener {}

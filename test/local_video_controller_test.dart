@@ -94,16 +94,23 @@ void main() {
 
   test('本地页面恢复分组和媒体库入口', () {
     final source = File('lib/pages/local/local_page.dart').readAsStringSync();
+    final pathBar = File(
+      'lib/features/library/presentation/library_path_bar.dart',
+    ).readAsStringSync();
 
     expect(source, isNot(contains('FeatureFlags.seriesGroupingEnabled')));
     expect(source, contains('_seriesGrouper.group(items)'));
-    expect(source, contains("tooltip: '扫描媒体库'"));
-    expect(source, contains("tooltip: '媒体库'"));
+    expect(source, contains('LibraryPathBar('));
+    expect(pathBar, contains("'扫描媒体库'"));
+    expect(pathBar, contains("'媒体库'"));
   });
 
   test('本地页面优先使用 TMDB 海报并保留本地封面回退', () {
     final pageSource =
         File('lib/pages/local/local_page.dart').readAsStringSync();
+    final gridSource = File(
+      'lib/features/library/presentation/library_media_grid.dart',
+    ).readAsStringSync();
     final librarySource =
         File('lib/pages/local/library_sheet.dart').readAsStringSync();
     final controllerSource =
@@ -111,23 +118,30 @@ void main() {
 
     expect(controllerSource, contains('tmdbPosterUrlForPaths'));
     expect(pageSource, contains('tmdbPosterUrlForPaths'));
-    expect(pageSource, contains('Image.network'));
+    expect(pageSource, contains('networkCoverUrl:'));
+    expect(gridSource, contains('Image.network'));
     expect(
       librarySource.indexOf('if (remoteUrl != null && remoteUrl.isNotEmpty)'),
       lessThan(librarySource.indexOf('if (cover != null && cover.isNotEmpty)')),
     );
   });
 
-  test('TMDB 刮削完成后在响应式网格构建阶段立即读取新海报', () {
-    final source = File('lib/pages/local/local_page.dart').readAsStringSync();
-    final observerBuilder = source.indexOf('child: Observer(');
-    final posterSnapshot = source.indexOf('final tmdbPosterUrls =');
-    final lazyGrid = source.indexOf('return GridView.builder(');
+  test('TMDB 刮削完成后由 Observer 重建网格展示数据', () {
+    final page = File('lib/pages/local/local_page.dart').readAsStringSync();
+    final grid = File(
+      'lib/features/library/presentation/library_media_grid.dart',
+    ).readAsStringSync();
+    final observerBuilder = page.indexOf('Expanded(child: Observer(');
+    final mediaItems = page.indexOf(
+      'items: [for (final group in groups) _mediaItemData(group)]',
+    );
 
     expect(observerBuilder, greaterThanOrEqualTo(0));
-    expect(posterSnapshot, greaterThan(observerBuilder));
-    expect(posterSnapshot, lessThan(lazyGrid));
-    expect(source, contains('tmdbPosterUrl: tmdbPosterUrls[group]'));
+    expect(mediaItems, greaterThan(observerBuilder));
+    expect(page, contains('tmdbPosterUrlForPaths'));
+    expect(page, contains('networkCoverUrl:'));
+    expect(grid, contains('GridView.builder'));
+    expect(grid, contains('widget.item.networkCoverUrl'));
   });
 
   test('字幕设置支持按视频调节出现时间', () {

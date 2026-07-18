@@ -2,11 +2,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
+import 'package:kanyingyin/core/app_version.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/utils/utils.dart';
 import 'package:kanyingyin/utils/version_history.dart';
-import 'package:kanyingyin/request/config/api_endpoints.dart';
 import 'package:provider/provider.dart';
 import 'package:kanyingyin/providers/theme_provider.dart';
 import 'package:kanyingyin/shaders/shaders_controller.dart';
@@ -149,7 +149,7 @@ class _InitPageState extends State<InitPage> {
   void _showVersionChangelog() {
     final lastSeenVersion =
         setting.get(SettingBoxKey.lastSeenVersion, defaultValue: '');
-    final currentVersion = ApiEndpoints.version;
+    final currentVersion = AppVersion.current;
 
     if (lastSeenVersion == currentVersion) return;
 

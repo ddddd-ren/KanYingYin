@@ -5,6 +5,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/app_module.dart';
 import 'package:kanyingyin/app_widget.dart';
+import 'package:kanyingyin/core/app_version.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/providers/theme_provider.dart';
 import 'package:path_provider/path_provider.dart';
@@ -20,7 +21,6 @@ import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 import 'package:kanyingyin/utils/logger.dart';
-import 'package:kanyingyin/request/config/api_endpoints.dart';
 
 void main() {
   runZonedGuarded(() async {
@@ -28,7 +28,7 @@ void main() {
     _installGlobalErrorLogging();
     final sessionId = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
     AppLogger().i(
-      '应用启动: version=${ApiEndpoints.version} '
+      '应用启动: version=${AppVersion.current} '
       'os=${Platform.operatingSystemVersion} session=$sessionId',
       forceLog: true,
     );

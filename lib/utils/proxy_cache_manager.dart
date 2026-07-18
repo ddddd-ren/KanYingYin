@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
-import 'package:kanyingyin/request/core/network_config.dart';
 import 'package:kanyingyin/utils/logger.dart';
+import 'package:kanyingyin/utils/network_settings_config_factory.dart';
 import 'package:kanyingyin/utils/proxy_manager.dart';
 
 class ProxyCacheManager {
@@ -42,7 +42,7 @@ class _ProxyAwareFileService extends FileService {
     String url, {
     Map<String, String>? headers,
   }) async {
-    final config = NetworkConfig.fromSettings(
+    final config = NetworkSettingsConfigFactory.create(
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 20),
     );

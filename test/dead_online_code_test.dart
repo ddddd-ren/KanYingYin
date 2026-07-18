@@ -130,9 +130,8 @@ void main() {
   test('界面设置和版本配置不再包含旧在线项目选项', () {
     final interfaceSource =
         File('lib/pages/settings/interface_settings.dart').readAsStringSync();
-    final endpointSource = File(
-      'lib/request/config/api_endpoints.dart',
-    ).readAsStringSync();
+    final appVersionSource =
+        File('lib/core/app_version.dart').readAsStringSync();
 
     expect(interfaceSource, isNot(contains('显示评分')));
     expect(interfaceSource, isNot(contains('showRating')));
@@ -144,7 +143,10 @@ void main() {
       'latestApp',
       'pluginShop',
     ]) {
-      expect(endpointSource.toLowerCase(), isNot(contains(text.toLowerCase())));
+      expect(
+        appVersionSource.toLowerCase(),
+        isNot(contains(text.toLowerCase())),
+      );
     }
   });
 }

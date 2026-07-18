@@ -1,5 +1,4 @@
 import 'package:hive_ce/hive.dart';
-import 'package:kanyingyin/utils/utils.dart';
 import 'package:kanyingyin/modules/bangumi/bangumi_tag.dart';
 
 part 'bangumi_item.g.dart';
@@ -123,7 +122,7 @@ class BangumiItem {
             rawAirWeekday >= DateTime.monday &&
             rawAirWeekday <= DateTime.sunday
         ? rawAirWeekday
-        : Utils.dateStringToWeekday(
+        : _dateStringToWeekday(
             airDate.isEmpty ? '2000-11-11' : airDate,
           );
     return BangumiItem(
@@ -146,5 +145,13 @@ class BangumiItem {
       votesCount: voteList,
       info: json['info'] ?? '',
     );
+  }
+}
+
+int _dateStringToWeekday(String dateString) {
+  try {
+    return DateTime.parse(dateString).weekday;
+  } catch (_) {
+    return DateTime.monday;
   }
 }

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:kanyingyin/request/config/api_endpoints.dart';
+import 'package:kanyingyin/core/app_version.dart';
 
 class StyleString {
   static const double cardSpace = 10;
@@ -132,7 +132,7 @@ const List<String> acceptLanguageList = [
 
 /// Bangumi API 文档要求的UA格式
 Map<String, String> bangumiHTTPHeader = {
-  'user-agent': 'KanYingYin/${ApiEndpoints.version} (com.kanyingyin.player)',
+  'user-agent': 'KanYingYin/${AppVersion.current} (com.kanyingyin.player)',
   'referer': '',
   'content-type': 'application/json'
 };

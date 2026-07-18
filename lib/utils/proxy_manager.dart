@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:kanyingyin/request/core/dio_factory.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/utils/proxy_utils.dart';
 import 'package:kanyingyin/utils/storage.dart';
@@ -100,13 +99,11 @@ class ProxyManager {
 
   /// 应用代理设置
   static void applyProxy() {
-    DioFactory.reset();
     AppLogger().i('Proxy: 网络客户端配置已刷新');
   }
 
   /// 清除代理设置
   static void clearProxy() {
-    DioFactory.reset();
     AppLogger().i('Proxy: 网络客户端代理已清除');
   }
 

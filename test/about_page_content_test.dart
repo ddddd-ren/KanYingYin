@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  final projectRoot = _findProjectRoot();
+
   test('关于页面仅显示看影音自身内容', () {
     final source = File('lib/pages/about/about_page.dart').readAsStringSync();
     for (final text in [
@@ -38,20 +40,37 @@ void main() {
     expect(about, contains('界面与操作参考 Kazumi'));
   });
 
-  test('Linux 安装包描述符合本地媒体定位', () {
+  test('持续集成仅保留 Windows 质量门禁与发布', () {
     for (final workflowPath in [
       '.github/workflows/pr.yaml',
       '.github/workflows/release.yaml',
     ]) {
-      final workflow = File(workflowPath).readAsStringSync();
-      final description = RegExp(
-        r'^\s*Description:\s*(.+)$',
-        multiLine: true,
-      ).firstMatch(workflow);
+      final workflow = File(
+        '${projectRoot.path}${Platform.pathSeparator}'
+        '${workflowPath.replaceAll('/', Platform.pathSeparator)}',
+      ).readAsStringSync();
 
-      expect(description, isNotNull, reason: workflowPath);
-      expect(description!.group(1), 'Local video library and player.');
-      expect(description.group(1)!.toLowerCase(), isNot(contains('online')));
+      expect(workflow, contains('runs-on: windows-latest'),
+          reason: workflowPath);
+      expect(workflow, contains('flutter test --no-pub'), reason: workflowPath);
+      expect(workflow, contains('flutter build windows --release --no-pub'),
+          reason: workflowPath);
+      expect(workflow, isNot(contains('assets/linux/')), reason: workflowPath);
     }
   });
+}
+
+Directory _findProjectRoot() {
+  var directory = Directory.current.absolute;
+  while (true) {
+    if (File('${directory.path}${Platform.pathSeparator}pubspec.yaml')
+        .existsSync()) {
+      return directory;
+    }
+    final parent = directory.parent;
+    if (parent.path == directory.path) {
+      throw StateError('无法定位项目根目录');
+    }
+    directory = parent;
+  }
 }

@@ -1,7 +1,8 @@
 import 'package:dio/dio.dart';
+import 'package:kanyingyin/core/network/dio_factory.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
-import 'package:kanyingyin/request/core/dio_factory.dart';
-import 'package:kanyingyin/request/core/network_config.dart';
+import 'package:kanyingyin/utils/dio_logger_interceptor.dart';
+import 'package:kanyingyin/utils/network_settings_config_factory.dart';
 
 abstract class ITmdbClient {
   Future<List<TmdbMetadata>> search(
@@ -25,11 +26,13 @@ class TmdbClient implements ITmdbClient {
       : _dio = dio ?? _createDefaultDio();
 
   static Dio _createDefaultDio() {
+    final config = NetworkSettingsConfigFactory.create(
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 15),
+    ).copyWith(enableLog: false);
     final dio = DioFactory.createForConfig(
-      NetworkConfig.fromSettings(
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 15),
-      ).copyWith(enableLog: false),
+      config,
+      interceptors: config.enableLog ? [DioLoggerInterceptor()] : const [],
     );
     dio.options.baseUrl = 'https://api.themoviedb.org/3';
     return dio;

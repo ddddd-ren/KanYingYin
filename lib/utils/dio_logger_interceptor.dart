@@ -37,9 +37,7 @@ class DioLoggerInterceptor extends Interceptor {
 
   int? _elapsed(RequestOptions options) {
     final startedAt = options.extra[_startedAtExtraKey];
-    if (startedAt is! DateTime) {
-      return null;
-    }
+    if (startedAt is! DateTime) return null;
     return DateTime.now().difference(startedAt).inMilliseconds;
   }
 }

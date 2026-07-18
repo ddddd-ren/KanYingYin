@@ -72,34 +72,24 @@ void main() {
         'lib/pages/about/about_module.dart',
         '.github/workflows/pr.yaml',
         '.github/workflows/release.yaml',
-        'assets/linux/com.kanyingyin.player.desktop',
         'test/identity_v2_zero_residue_test.dart',
       ]),
     );
   });
 
-  test('Linux 桌面资源与打包工作流使用当前应用身份', () {
-    const identity = 'com.kanyingyin.player';
-    const desktopFileName = '$identity.desktop';
-    final desktop = File(
-      'assets/linux/$desktopFileName',
-    ).readAsStringSync();
-
-    expect(_desktopField(desktop, 'Name'), '看影音');
-    expect(_desktopField(desktop, 'GenericName'), '本地视频媒体库与播放器');
-    expect(_desktopField(desktop, 'Comment'), '本地视频媒体库与播放器');
-    expect(_desktopField(desktop, 'Icon'), identity);
-    expect(desktop, isNot(contains(String.fromCharCodes([23601, 30475]))));
-    expect(desktop.toLowerCase(), isNot(contains('online')));
-    expect(desktop, isNot(contains('在线')));
-
+  test('工作流不再包含旧平台并保留 Windows 质量门禁', () {
     for (final workflowPath in [
       '.github/workflows/pr.yaml',
       '.github/workflows/release.yaml',
     ]) {
       final workflow = File(workflowPath).readAsStringSync();
-      expect(workflow, contains('assets/linux/$desktopFileName'));
-      expect(workflow, isNot(contains('assets/linux/$identity.v2.desktop')));
+      expect(workflow, contains('runs-on: windows-latest'));
+      expect(workflow, contains('flutter analyze --no-pub'));
+      expect(workflow, contains('flutter test --no-pub'));
+      expect(workflow, contains('flutter build windows --release --no-pub'));
+      expect(workflow, isNot(contains('ubuntu-latest')));
+      expect(workflow, isNot(contains('macos-latest')));
+      expect(workflow, isNot(contains('assets/linux/')));
     }
   });
 
@@ -211,13 +201,6 @@ String? _yamlField(String block, String key) {
     '^[ \\t]+${RegExp.escape(key)}:\\s*([^\\s#]+)\\s*(?:#.*)?\$',
     multiLine: true,
   ).firstMatch(block)?.group(1);
-}
-
-String? _desktopField(String source, String key) {
-  return RegExp(
-    '^${RegExp.escape(key)}=(.*)\$',
-    multiLine: true,
-  ).firstMatch(source)?.group(1)?.trim();
 }
 
 bool _allowsAttribution(String path) {

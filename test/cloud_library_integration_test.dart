@@ -376,7 +376,11 @@ void main() {
     expect(controller.mediaLibraryVideoCount, 1);
     expect(controller.selectedLibrarySourceId, 'openlist');
     final page = File('lib/pages/local/local_page.dart').readAsStringSync();
-    expect(page, contains('localController.mediaLibraryVideoCount == 0'));
+    expect(page, contains('LibraryPathBar('));
+    expect(
+      page,
+      contains('canOpenLibrary: localController.mediaLibraryVideoCount > 0'),
+    );
   });
 
   test('云索引完整持久化 TMDB 元数据和海报缓存路径', () async {

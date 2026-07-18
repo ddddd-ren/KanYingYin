@@ -1,10 +1,11 @@
-import 'dart:io';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:flutter/services.dart';
+import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
+import 'package:kanyingyin/features/library/presentation/library_path_bar.dart';
+import 'package:kanyingyin/features/library/presentation/library_source_menu.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/local_media_source.dart';
@@ -23,7 +24,6 @@ import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/utils/storage.dart';
-import 'package:kanyingyin/utils/utils.dart';
 import 'package:path/path.dart' as p;
 
 class LocalPage extends StatefulWidget {
@@ -31,18 +31,6 @@ class LocalPage extends StatefulWidget {
 
   @override
   State<LocalPage> createState() => _LocalPageState();
-}
-
-enum _MediaSourceMenuAction { open, remove, removeUnavailable }
-
-class _MediaSourceMenuSelection {
-  const _MediaSourceMenuSelection({
-    this.source,
-    required this.action,
-  });
-
-  final LocalMediaSource? source;
-  final _MediaSourceMenuAction action;
 }
 
 class _LocalPageState extends State<LocalPage>
@@ -700,481 +688,251 @@ class _LocalPageState extends State<LocalPage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            // 路径导航栏
-            _buildPathBar(context, colorScheme, textTheme),
-            // 排序栏
-            _buildSortBar(context, colorScheme),
-            _buildSearchBar(context, colorScheme),
-            // 文件列表
-            _buildFileGrid(context, colorScheme, textTheme),
+            Observer(
+                builder: (_) => LibraryPathBar(
+                      data: _pathBarData(),
+                      searchController: _searchController,
+                      onPickDirectory: _pickDirectory,
+                      onRefresh: localController.refresh,
+                      onSort: localController.toggleSort,
+                      onSearchChanged: (value) => setState(() {
+                        _searchKeyword = value.trim().toLowerCase();
+                      }),
+                      onClearSearch: _clearSearch,
+                      onBreadcrumbSelected: _enterDirectory,
+                      onOpenSource: (source) => _enterDirectory(source.path),
+                      onRemoveSource: (source) {
+                        final match = localController.mediaSources
+                            .where((item) => item.path == source.path)
+                            .firstOrNull;
+                        if (match != null) {
+                          return _confirmRemoveMediaSource(match);
+                        }
+                      },
+                      onRemoveUnavailableSources:
+                          _confirmRemoveUnavailableMediaSources,
+                      onScanLibrary: () => _refreshLocalLibraryIndex(context),
+                      onOpenLibrary: () => _showLocalLibrary(context),
+                      onOpenRecentPath: _enterDirectory,
+                      onNavigateUp: localController.navigateUp,
+                      onFetchPosters: () => _fetchPosters(context),
+                      onFetchMediaInfo: () => _fetchMediaInfo(context),
+                      onGenerateThumbnails: () => _fetchThumbnails(context),
+                      onMatchMetadata: () => _scrapeTmdb(context),
+                      onCancelScan: localController.cancelLocalLibraryIndex,
+                      onShowFailures: () => _showLibraryFailures(context),
+                    )),
+            Expanded(child: Observer(builder: (_) => _mediaGrid(context))),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildPathBar(
-      BuildContext context, ColorScheme colorScheme, TextTheme textTheme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
-        border: Border(
-          bottom: BorderSide(color: colorScheme.outlineVariant, width: 0.5),
-        ),
-      ),
-      child: Observer(
-        builder: (_) {
-          return Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.folder_open, size: 20),
-                tooltip: '选择目录',
-                onPressed: localController.isLoading ? null : _pickDirectory,
-                style: IconButton.styleFrom(
-                  padding: const EdgeInsets.all(4),
-                  minimumSize: const Size(32, 32),
-                ),
-              ),
-              const SizedBox(width: 4),
-              _buildMediaSourceMenu(context, colorScheme),
-              const SizedBox(width: 4),
-              IconButton(
-                icon: localController.isIndexingLibrary
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.manage_search_outlined, size: 20),
-                tooltip: '扫描媒体库',
-                onPressed: (localController.isLoading ||
-                        localController.isIndexingLibrary ||
-                        localController.mediaSources.isEmpty)
-                    ? null
-                    : () => _refreshLocalLibraryIndex(context),
-                style: IconButton.styleFrom(
-                  padding: const EdgeInsets.all(4),
-                  minimumSize: const Size(32, 32),
-                ),
-              ),
-              const SizedBox(width: 4),
-              IconButton(
-                icon: const Icon(Icons.video_collection_outlined, size: 20),
-                tooltip: '媒体库',
-                onPressed: localController.mediaLibraryVideoCount == 0
-                    ? null
-                    : () => _showLocalLibrary(context),
-                style: IconButton.styleFrom(
-                  padding: const EdgeInsets.all(4),
-                  minimumSize: const Size(32, 32),
-                ),
-              ),
-              const SizedBox(width: 4),
-              PopupMenuButton<String>(
-                tooltip: '最近目录',
-                icon: const Icon(Icons.history, size: 20),
-                enabled: !localController.isLoading &&
-                    localController.pathHistory.isNotEmpty,
-                onSelected: _enterDirectory,
-                itemBuilder: (context) {
-                  return [
-                    for (final path in localController.pathHistory)
-                      PopupMenuItem(
-                        value: path,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 320),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                p.basename(path).isEmpty
-                                    ? path
-                                    : p.basename(path),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                path,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .labelSmall
-                                    ?.copyWith(color: colorScheme.outline),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                  ];
-                },
-              ),
-              const SizedBox(width: 4),
-              // 返回上级
-              IconButton(
-                icon: const Icon(Icons.arrow_upward, size: 20),
-                tooltip: '上级目录',
-                onPressed: localController.isLoading ||
-                        localController.currentPath.isEmpty
-                    ? null
-                    : () => localController.navigateUp(),
-                style: IconButton.styleFrom(
-                  padding: const EdgeInsets.all(4),
-                  minimumSize: const Size(32, 32),
-                ),
-              ),
-              const SizedBox(width: 4),
-              // 刷新
-              IconButton(
-                icon: const Icon(Icons.refresh, size: 20),
-                tooltip: '刷新',
-                onPressed: localController.isLoading
-                    ? null
-                    : () => localController.refresh(),
-                style: IconButton.styleFrom(
-                  padding: const EdgeInsets.all(4),
-                  minimumSize: const Size(32, 32),
-                ),
-              ),
-              const SizedBox(width: 4),
-              // 获取海报
-              IconButton(
-                icon: localController.isFetchingPosters
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.image_search, size: 20),
-                tooltip: '获取海报',
-                onPressed: (localController.isLoading ||
-                        localController.isFetchingPosters)
-                    ? null
-                    : () => _fetchPosters(context),
-                style: IconButton.styleFrom(
-                  padding: const EdgeInsets.all(4),
-                  minimumSize: const Size(32, 32),
-                ),
-              ),
-              const SizedBox(width: 4),
-              IconButton(
-                icon: localController.isFetchingMediaInfo
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.info_outline, size: 20),
-                tooltip: '读取媒体信息',
-                onPressed: (localController.isLoading ||
-                        localController.isFetchingMediaInfo ||
-                        localController.currentPath.isEmpty)
-                    ? null
-                    : () => _fetchMediaInfo(context),
-                style: IconButton.styleFrom(
-                  padding: const EdgeInsets.all(4),
-                  minimumSize: const Size(32, 32),
-                ),
-              ),
-              const SizedBox(width: 4),
-              IconButton(
-                icon: localController.isFetchingThumbnails
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.photo_camera_outlined, size: 20),
-                tooltip: '生成缩略图',
-                onPressed: (localController.isLoading ||
-                        localController.isFetchingThumbnails ||
-                        localController.currentPath.isEmpty)
-                    ? null
-                    : () => _fetchThumbnails(context),
-                style: IconButton.styleFrom(
-                  padding: const EdgeInsets.all(4),
-                  minimumSize: const Size(32, 32),
-                ),
-              ),
-              const SizedBox(width: 4),
-              IconButton(
-                icon: localController.isMatchingBangumi
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.cloud_sync_outlined, size: 20),
-                tooltip: '批量刮削 TMDB 信息',
-                onPressed: (localController.isLoading ||
-                        localController.isMatchingBangumi ||
-                        localController.localLibraryVideoCount == 0)
-                    ? null
-                    : () => _scrapeTmdb(context),
-                style: IconButton.styleFrom(
-                  padding: const EdgeInsets.all(4),
-                  minimumSize: const Size(32, 32),
-                ),
-              ),
-              const SizedBox(width: 8),
-              // 路径面包屑
-              Expanded(
-                child: _buildBreadcrumb(context, colorScheme, textTheme),
-              ),
-            ],
-          );
-        },
-      ),
-    );
+  void _clearSearch() {
+    _searchController.clear();
+    setState(() => _searchKeyword = '');
   }
 
-  Widget _buildBreadcrumb(
-      BuildContext context, ColorScheme colorScheme, TextTheme textTheme) {
-    final parts = _splitPath(localController.currentPath);
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (int i = 0; i < parts.length; i++) ...[
-            if (i > 0)
-              Icon(Icons.chevron_right, size: 16, color: colorScheme.outline),
-            GestureDetector(
-              onTap: () {
-                if (i < parts.length - 1) {
-                  final targetPath = _buildPathFromParts(parts, i);
-                  _enterDirectory(targetPath);
-                }
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: Text(
-                  _breadcrumbLabel(parts[i]),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: textTheme.bodySmall?.copyWith(
-                    color: i == parts.length - 1
-                        ? colorScheme.onSurface
-                        : colorScheme.primary,
-                    fontWeight: i == parts.length - 1
-                        ? FontWeight.w600
-                        : FontWeight.normal,
-                  ),
-                ),
-              ),
-            ),
-          ],
+  LibraryPathBarViewData _pathBarData() {
+    final parts = p.split(localController.currentPath);
+    return LibraryPathBarViewData(
+      breadcrumbs: [
+        for (var i = 0; i < parts.length; i++)
+          LibraryBreadcrumbViewData(
+            label: _breadcrumbLabel(parts[i]),
+            path: p.joinAll(parts.take(i + 1)),
+            isCurrent: i == parts.length - 1,
+          ),
+      ],
+      recentPaths: [
+        for (final path in localController.pathHistory)
+          LibraryRecentPathViewData(
+            label: p.basename(path).isEmpty ? path : p.basename(path),
+            path: path,
+          ),
+      ],
+      sourceMenu: LibrarySourceMenuViewData(
+        enabled: !localController.isLoading,
+        unavailableCount: localController.unavailableMediaSourceCount(),
+        sources: [
+          for (final source in localController.mediaSources)
+            LibrarySourceViewData(
+              id: source.path,
+              name: source.name,
+              path: source.path,
+              subtitle: _buildMediaSourceSubtitle(source),
+              isAvailable: localController.isMediaSourceAvailable(source),
+              isCurrent: source.path == localController.currentPath,
+            )
         ],
       ),
+      sortBy: localController.sortBy,
+      sortAscending: localController.sortAscending,
+      status: _directoryStatusData(),
+      searchKeyword: _searchKeyword,
+      isLoading: localController.isLoading,
+      isIndexing: localController.isIndexingLibrary,
+      isFetchingPosters: localController.isFetchingPosters,
+      isFetchingMediaInfo: localController.isFetchingMediaInfo,
+      isFetchingThumbnails: localController.isFetchingThumbnails,
+      isMatchingMetadata: localController.isMatchingBangumi,
+      canScanLibrary: !localController.isLoading &&
+          !localController.isIndexingLibrary &&
+          localController.mediaSources.isNotEmpty,
+      canOpenLibrary: localController.mediaLibraryVideoCount > 0,
+      canNavigateUp:
+          !localController.isLoading && localController.currentPath.isNotEmpty,
+      canReadMediaInfo: !localController.isLoading &&
+          !localController.isFetchingMediaInfo &&
+          localController.currentPath.isNotEmpty,
+      canGenerateThumbnails: !localController.isLoading &&
+          !localController.isFetchingThumbnails &&
+          localController.currentPath.isNotEmpty,
+      canMatchMetadata: !localController.isLoading &&
+          !localController.isMatchingBangumi &&
+          localController.localLibraryVideoCount > 0,
     );
   }
 
-  Widget _buildMediaSourceMenu(
-    BuildContext context,
-    ColorScheme colorScheme,
-  ) {
-    final sources = localController.mediaSources;
-    return PopupMenuButton<_MediaSourceMenuSelection>(
-      tooltip: '媒体源',
-      icon: const Icon(Icons.video_library_outlined, size: 20),
-      enabled: !localController.isLoading && sources.isNotEmpty,
-      onSelected: (selection) {
-        switch (selection.action) {
-          case _MediaSourceMenuAction.open:
-            final source = selection.source;
-            if (source != null) {
-              _enterDirectory(source.path);
-            }
-          case _MediaSourceMenuAction.remove:
-            final source = selection.source;
-            if (source != null) {
-              _confirmRemoveMediaSource(source);
-            }
-          case _MediaSourceMenuAction.removeUnavailable:
-            _confirmRemoveUnavailableMediaSources();
-        }
+  LibraryDirectoryStatusViewData _directoryStatusData() {
+    if (localController.isIndexingLibrary) {
+      return LibraryDirectoryStatusViewData(
+        kind: LibraryDirectoryStatusKind.indexing,
+        label: localController.libraryIndexProgress.isEmpty
+            ? '正在扫描媒体库'
+            : localController.libraryIndexProgress,
+        currentFile: localController.libraryIndexCurrentFile,
+        progress: localController.libraryIndexTotal > 0
+            ? localController.libraryIndexProgressValue.clamp(0, 1)
+            : null,
+        progressLabel:
+            '${(localController.libraryIndexProgressValue * 100).clamp(0, 100).round()}%',
+      );
+    }
+    if (localController.libraryIndexFailures.isNotEmpty) {
+      return LibraryDirectoryStatusViewData(
+          kind: LibraryDirectoryStatusKind.indexFailures,
+          label: '${localController.libraryIndexFailures.length} 项扫描失败');
+    }
+    if (localController.isMatchingBangumi) {
+      return LibraryDirectoryStatusViewData(
+          kind: LibraryDirectoryStatusKind.matchingMetadata,
+          label: localController.bangumiMatchProgress,
+          progressLabel: localController.bangumiMatchTotal > 0
+              ? r'${localController.bangumiMatchCurrent}/${localController.bangumiMatchTotal}'
+              : '');
+    }
+    if (localController.isFetchingPosters) {
+      return LibraryDirectoryStatusViewData(
+          kind: LibraryDirectoryStatusKind.fetchingPosters,
+          label: localController.posterProgress,
+          currentFile: localController.posterCurrentFile,
+          progress: localController.posterTotal > 0
+              ? localController.posterProgressValue.clamp(0, 1)
+              : null,
+          progressLabel: localController.posterTotal > 0
+              ? '${(localController.posterProgressValue * 100).clamp(0, 100).round()}%'
+              : '');
+    }
+    if (localController.isFetchingMediaInfo) {
+      return LibraryDirectoryStatusViewData(
+          kind: LibraryDirectoryStatusKind.fetchingMediaInfo,
+          label: localController.mediaInfoCurrentFile.isEmpty
+              ? '正在读取媒体信息'
+              : localController.mediaInfoCurrentFile,
+          progressLabel: localController.mediaInfoTotal > 0
+              ? '${localController.mediaInfoCurrent}/${localController.mediaInfoTotal}'
+              : '');
+    }
+    if (localController.isFetchingThumbnails) {
+      return LibraryDirectoryStatusViewData(
+          kind: LibraryDirectoryStatusKind.fetchingThumbnails,
+          label: localController.thumbnailCurrentFile.isEmpty
+              ? '正在生成缩略图'
+              : localController.thumbnailCurrentFile,
+          progressLabel: localController.thumbnailTotal > 0
+              ? '${localController.thumbnailCurrent}/${localController.thumbnailTotal}'
+              : '');
+    }
+    if (localController.isLoading) {
+      return const LibraryDirectoryStatusViewData(
+          kind: LibraryDirectoryStatusKind.loading, label: '加载中...');
+    }
+    final groups = _visibleGroups(localController.items);
+    final videos =
+        groups.fold<int>(0, (count, group) => count + group.episodeCount);
+    final searchSuffix = _searchKeyword.isEmpty ? '' : ' · 已筛选';
+    final librarySuffix = localController.localLibraryVideoCount == 0
+        ? ''
+        : ' · 媒体库 ${localController.localLibraryVideoCount} 个视频/${localController.localLibrarySeriesCount} 个系列';
+    return LibraryDirectoryStatusViewData(
+        kind: LibraryDirectoryStatusKind.idle,
+        label: '${groups.length} 部剧/$videos 个视频$searchSuffix$librarySuffix');
+  }
+
+  Widget _mediaGrid(BuildContext context) {
+    final groups = _visibleGroups(localController.items);
+    final groupById = {
+      for (final group in groups) group.firstEpisode.path: group
+    };
+    return LibraryMediaGrid(
+      data: LibraryMediaGridViewData(
+        currentPath: localController.currentPath,
+        isLoading: localController.isLoading,
+        errorMessage: localController.errorMessage,
+        hasSearchFilter: _searchKeyword.isNotEmpty &&
+            localController.items.isNotEmpty &&
+            groups.isEmpty,
+        items: [for (final group in groups) _mediaItemData(group)],
+      ),
+      scrollController: _scrollController,
+      onPickDirectory: _pickDirectory,
+      onRetry: localController.refresh,
+      onClearSearch: _clearSearch,
+      onPlay: (item) {
+        final group = groupById[item.id];
+        if (group != null) _playGroup(group);
       },
-      itemBuilder: (context) {
-        final entries = <PopupMenuEntry<_MediaSourceMenuSelection>>[];
-        final unavailableCount = localController.unavailableMediaSourceCount();
-        if (unavailableCount > 0) {
-          entries
-            ..add(
-              PopupMenuItem(
-                value: const _MediaSourceMenuSelection(
-                  action: _MediaSourceMenuAction.removeUnavailable,
-                ),
-                child: _buildRemoveUnavailableMediaSourceMenuItem(
-                  context,
-                  colorScheme,
-                  unavailableCount,
-                ),
-              ),
-            )
-            ..add(const PopupMenuDivider(height: 6));
-        }
-        for (var i = 0; i < sources.length; i++) {
-          final source = sources[i];
-          final isAvailable = localController.isMediaSourceAvailable(source);
-          entries
-            ..add(
-              PopupMenuItem(
-                enabled: isAvailable,
-                value: _MediaSourceMenuSelection(
-                  source: source,
-                  action: _MediaSourceMenuAction.open,
-                ),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 420),
-                  child: _buildMediaSourceMenuItem(
-                    context,
-                    colorScheme,
-                    source,
-                  ),
-                ),
-              ),
-            )
-            ..add(
-              PopupMenuItem(
-                value: _MediaSourceMenuSelection(
-                  source: source,
-                  action: _MediaSourceMenuAction.remove,
-                ),
-                child: _buildRemoveMediaSourceMenuItem(
-                  context,
-                  colorScheme,
-                  source,
-                ),
-              ),
-            );
-          if (i < sources.length - 1) {
-            entries.add(const PopupMenuDivider(height: 6));
-          }
-        }
-        return entries;
+      onShowActions: (item) {
+        final group = groupById[item.id];
+        if (group != null) return _showGroupActions(context, group);
       },
     );
   }
 
-  Widget _buildMediaSourceMenuItem(
-    BuildContext context,
-    ColorScheme colorScheme,
-    LocalMediaSource source,
-  ) {
-    final isCurrent = source.path == localController.currentPath;
-    final isAvailable = localController.isMediaSourceAvailable(source);
-    final iconColor = !isAvailable
-        ? colorScheme.error
-        : isCurrent
-            ? colorScheme.primary
-            : colorScheme.outline;
-    return Row(
-      children: [
-        Icon(
-          !isAvailable
-              ? Icons.error_outline
-              : isCurrent
-                  ? Icons.check_circle_outline
-                  : Icons.folder_outlined,
-          size: 20,
-          color: iconColor,
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                source.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight:
-                          isCurrent ? FontWeight.w600 : FontWeight.normal,
-                      color: isAvailable ? null : colorScheme.error,
-                    ),
-              ),
-              Text(
-                source.path,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context)
-                    .textTheme
-                    .labelSmall
-                    ?.copyWith(color: colorScheme.outline),
-              ),
-              Text(
-                _buildMediaSourceSubtitle(source),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context)
-                    .textTheme
-                    .labelSmall
-                    ?.copyWith(color: colorScheme.outline),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRemoveMediaSourceMenuItem(
-    BuildContext context,
-    ColorScheme colorScheme,
-    LocalMediaSource source,
-  ) {
-    return Row(
-      children: [
-        Icon(Icons.delete_outline, size: 20, color: colorScheme.error),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            '移除“${source.name}”',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: colorScheme.error),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRemoveUnavailableMediaSourceMenuItem(
-    BuildContext context,
-    ColorScheme colorScheme,
-    int count,
-  ) {
-    return Row(
-      children: [
-        Icon(Icons.cleaning_services_outlined,
-            size: 20, color: colorScheme.error),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            '清理 $count 个失效媒体源',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: colorScheme.error),
-          ),
-        ),
-      ],
+  LibraryMediaItemViewData _mediaItemData(LocalVideoGroup group) {
+    final first = group.firstEpisode;
+    final isScraping = localController.isFetchingPosters &&
+        (localController.posterCurrentFile == group.title ||
+            group.episodes
+                .any((item) => localController.posterCurrentFile == item.name));
+    return LibraryMediaItemViewData(
+      id: first.path,
+      title: group.title,
+      subtitle: group.subtitle,
+      infoText: group.hasMultipleEpisodes
+          ? _buildSeriesInfoText(group)
+          : _buildItemInfoText(first),
+      mediaInfoText: first.hasMediaInfo && !group.hasMultipleEpisodes
+          ? _buildMediaInfoText(first)
+          : '',
+      modifiedText: _latestModifiedText(group),
+      hasMultipleEpisodes: group.hasMultipleEpisodes,
+      hasSubtitle: group.episodes.any((item) => item.hasSubtitle),
+      scrapeLabel: isScraping
+          ? '正在刮削'
+          : group.needsOnlinePoster
+              ? '未刮削'
+              : '已刮削',
+      localCoverPath: group.cover,
+      networkCoverUrl: localController
+          .tmdbPosterUrlForPaths(group.episodes.map((item) => item.path)),
+      isScraping: isScraping,
     );
   }
 
@@ -1195,17 +953,6 @@ class _LocalPageState extends State<LocalPage>
         '${twoDigits(local.hour)}:${twoDigits(local.minute)}';
   }
 
-  /// 将路径拆分为 Windows 面包屑段
-  /// 例: C:\Users\Videos => [C:, Users, Videos]
-  List<String> _splitPath(String path) {
-    if (path.isEmpty) return [];
-    return p.split(path);
-  }
-
-  String _buildPathFromParts(List<String> parts, int index) {
-    return p.joinAll(parts.take(index + 1));
-  }
-
   String _breadcrumbLabel(String part) {
     if (part == p.separator) {
       return p.separator;
@@ -1215,881 +962,12 @@ class _LocalPageState extends State<LocalPage>
         : part;
   }
 
-  Widget _buildSortBar(BuildContext context, ColorScheme colorScheme) {
-    return Observer(
-      builder: (_) {
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          child: Row(
-            children: [
-              Expanded(child: _buildDirectoryStatus(context, colorScheme)),
-              _sortChip(context, '名称', 'name'),
-              const SizedBox(width: 4),
-              _sortChip(context, '大小', 'size'),
-              const SizedBox(width: 4),
-              _sortChip(context, '日期', 'modified'),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildSearchBar(BuildContext context, ColorScheme colorScheme) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 2, 12, 6),
-      child: SizedBox(
-        height: 38,
-        child: TextField(
-          controller: _searchController,
-          textInputAction: TextInputAction.search,
-          decoration: InputDecoration(
-            hintText: '搜索当前目录',
-            prefixIcon: const Icon(Icons.search, size: 18),
-            suffixIcon: _searchKeyword.isEmpty
-                ? null
-                : IconButton(
-                    tooltip: '清空搜索',
-                    icon: const Icon(Icons.close, size: 18),
-                    onPressed: () {
-                      _searchController.clear();
-                      setState(() {
-                        _searchKeyword = '';
-                      });
-                    },
-                  ),
-            filled: true,
-            fillColor: colorScheme.surfaceContainerHighest.withValues(
-              alpha: 0.45,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide.none,
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-          ),
-          onChanged: (value) {
-            setState(() {
-              _searchKeyword = value.trim().toLowerCase();
-            });
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _sortChip(BuildContext context, String label, String field) {
-    return Observer(
-      builder: (_) {
-        final isActive = localController.sortBy == field;
-        return GestureDetector(
-          onTap: () => localController.toggleSort(field),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: isActive
-                  ? Theme.of(context).colorScheme.primaryContainer
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: isActive
-                            ? Theme.of(context).colorScheme.onPrimaryContainer
-                            : Theme.of(context).colorScheme.outline,
-                      ),
-                ),
-                if (isActive)
-                  Icon(
-                    localController.sortAscending
-                        ? Icons.arrow_upward
-                        : Icons.arrow_downward,
-                    size: 12,
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildDirectoryStatus(BuildContext context, ColorScheme colorScheme) {
-    final textTheme = Theme.of(context).textTheme;
-    if (localController.isIndexingLibrary) {
-      return Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    localController.libraryIndexProgress.isEmpty
-                        ? '正在扫描媒体库'
-                        : localController.libraryIndexProgress,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: textTheme.bodySmall?.copyWith(
-                      color: colorScheme.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                Text(
-                  '${(localController.libraryIndexProgressValue * 100).clamp(0, 100).round()}%',
-                  style: textTheme.labelSmall?.copyWith(
-                    color: colorScheme.primary,
-                  ),
-                ),
-                IconButton(
-                  tooltip: '取消扫描',
-                  icon: const Icon(Icons.close, size: 16),
-                  onPressed: localController.cancelLocalLibraryIndex,
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints.tightFor(
-                    width: 28,
-                    height: 28,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 3),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: localController.libraryIndexTotal > 0
-                    ? localController.libraryIndexProgressValue.clamp(0, 1)
-                    : null,
-                minHeight: 3,
-              ),
-            ),
-            if (localController.libraryIndexCurrentFile.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(
-                localController.libraryIndexCurrentFile,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: textTheme.labelSmall?.copyWith(
-                  color: colorScheme.outline,
-                ),
-              ),
-            ],
-          ],
-        ),
-      );
-    }
-
-    if (localController.libraryIndexFailures.isNotEmpty) {
-      return Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: Row(
-          children: [
-            Icon(Icons.error_outline, size: 16, color: colorScheme.error),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                '${localController.libraryIndexFailures.length} 项扫描失败',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: textTheme.bodySmall?.copyWith(
-                  color: colorScheme.error,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () => _showLibraryFailures(context),
-              child: const Text('查看'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (localController.isMatchingBangumi) {
-      return Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: colorScheme.primary,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                localController.bangumiMatchProgress,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: textTheme.bodySmall?.copyWith(
-                  color: colorScheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            if (localController.bangumiMatchTotal > 0)
-              Text(
-                '\${localController.bangumiMatchCurrent}/\${localController.bangumiMatchTotal}',
-                style: textTheme.labelSmall?.copyWith(
-                  color: colorScheme.primary,
-                ),
-              ),
-          ],
-        ),
-      );
-    }
-
-    if (localController.isFetchingPosters) {
-      return Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    localController.posterProgress,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: textTheme.bodySmall?.copyWith(
-                      color: colorScheme.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                if (localController.posterTotal > 0)
-                  Text(
-                    '${(localController.posterProgressValue * 100).clamp(0, 100).round()}%',
-                    style: textTheme.labelSmall?.copyWith(
-                      color: colorScheme.primary,
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 3),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: localController.posterTotal > 0
-                    ? localController.posterProgressValue.clamp(0, 1)
-                    : null,
-                minHeight: 3,
-              ),
-            ),
-            if (localController.posterCurrentFile.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(
-                localController.posterCurrentFile,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: textTheme.labelSmall?.copyWith(
-                  color: colorScheme.outline,
-                ),
-              ),
-            ],
-          ],
-        ),
-      );
-    }
-
-    if (localController.isFetchingMediaInfo) {
-      return Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: colorScheme.primary,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                localController.mediaInfoCurrentFile.isEmpty
-                    ? '正在读取媒体信息'
-                    : localController.mediaInfoCurrentFile,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: textTheme.bodySmall?.copyWith(
-                  color: colorScheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            if (localController.mediaInfoTotal > 0)
-              Text(
-                '${localController.mediaInfoCurrent}/${localController.mediaInfoTotal}',
-                style: textTheme.labelSmall?.copyWith(
-                  color: colorScheme.primary,
-                ),
-              ),
-          ],
-        ),
-      );
-    }
-
-    if (localController.isFetchingThumbnails) {
-      return Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: colorScheme.primary,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                localController.thumbnailCurrentFile.isEmpty
-                    ? '正在生成缩略图'
-                    : localController.thumbnailCurrentFile,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: textTheme.bodySmall?.copyWith(
-                  color: colorScheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            if (localController.thumbnailTotal > 0)
-              Text(
-                '${localController.thumbnailCurrent}/${localController.thumbnailTotal}',
-                style: textTheme.labelSmall?.copyWith(
-                  color: colorScheme.primary,
-                ),
-              ),
-          ],
-        ),
-      );
-    }
-
-    if (localController.isLoading) {
-      return Text(
-        '加载中...',
-        style: textTheme.bodySmall?.copyWith(color: colorScheme.outline),
-      );
-    }
-
-    final visibleGroups = _visibleGroups(localController.items);
-    final videoCount = visibleGroups.fold<int>(
-        0, (count, group) => count + group.episodeCount);
-    final searchSuffix = _searchKeyword.isEmpty ? '' : ' · 已筛选';
-    final seriesCount = visibleGroups.length;
-    final librarySuffix = localController.localLibraryVideoCount == 0
-        ? ''
-        : ' · 媒体库 ${localController.localLibraryVideoCount} 个视频/${localController.localLibrarySeriesCount} 个系列';
-    return Text(
-      '$seriesCount 部剧/$videoCount 个视频$searchSuffix$librarySuffix',
-      style: textTheme.bodySmall?.copyWith(color: colorScheme.outline),
-    );
-  }
-
-  Widget _buildFileGrid(
-      BuildContext context, ColorScheme colorScheme, TextTheme textTheme) {
-    return Expanded(
-      child: Observer(
-        builder: (_) {
-          if (localController.isLoading && localController.items.isEmpty) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          if (localController.errorMessage != null &&
-              localController.items.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.error_outline,
-                        size: 48, color: colorScheme.error),
-                    const SizedBox(height: 12),
-                    Text(
-                      localController.errorMessage!,
-                      textAlign: TextAlign.center,
-                      style: textTheme.bodyMedium
-                          ?.copyWith(color: colorScheme.error),
-                    ),
-                    const SizedBox(height: 16),
-                    OutlinedButton(
-                      onPressed: () => localController.refresh(),
-                      child: const Text('重试'),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-
-          final visibleGroups = _visibleGroups(localController.items);
-          final tmdbPosterUrls = <LocalVideoGroup, String?>{
-            for (final group in visibleGroups)
-              group: localController.tmdbPosterUrlForPaths(
-                group.episodes.map((item) => item.path),
-              ),
-          };
-
-          if (localController.items.isEmpty) {
-            // 未设置路径：引导用户去设置
-            if (localController.currentPath.isEmpty) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.folder_open,
-                          size: 48, color: colorScheme.outline),
-                      const SizedBox(height: 12),
-                      Text(
-                        '请先设置本地文件目录',
-                        style: textTheme.bodyLarge
-                            ?.copyWith(color: colorScheme.outline),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '设置 → 界面 → 本地文件默认路径',
-                        style: textTheme.bodySmall
-                            ?.copyWith(color: colorScheme.outline),
-                      ),
-                      const SizedBox(height: 16),
-                      FilledButton.icon(
-                        onPressed: _pickDirectory,
-                        icon: const Icon(Icons.folder_open),
-                        label: const Text('选择文件夹'),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }
-            // 已设置路径但没有可识别的视频
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.video_file_outlined,
-                      size: 48, color: colorScheme.outline),
-                  const SizedBox(height: 12),
-                  Text(
-                    '没有可识别的视频',
-                    style: textTheme.bodyLarge
-                        ?.copyWith(color: colorScheme.outline),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '仅显示大于 800MB 的视频文件',
-                    style: textTheme.bodySmall
-                        ?.copyWith(color: colorScheme.outline),
-                  ),
-                  const SizedBox(height: 16),
-                  OutlinedButton.icon(
-                    onPressed: _pickDirectory,
-                    icon: const Icon(Icons.folder_open),
-                    label: const Text('切换文件夹'),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          if (visibleGroups.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.search_off, size: 48, color: colorScheme.outline),
-                  const SizedBox(height: 12),
-                  Text(
-                    '没有匹配的文件',
-                    style: textTheme.bodyLarge
-                        ?.copyWith(color: colorScheme.outline),
-                  ),
-                  const SizedBox(height: 16),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      _searchController.clear();
-                      setState(() {
-                        _searchKeyword = '';
-                      });
-                    },
-                    icon: const Icon(Icons.close),
-                    label: const Text('清空搜索'),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final crossAxisCount = _getGridCrossAxisCount(context);
-              final spacing = _getGridSpacing(context);
-              final padding = _getGridPadding(context);
-              final mainAxisExtent = _getGridMainAxisExtent(
-                context,
-                constraints.maxWidth,
-                crossAxisCount,
-                spacing,
-                padding,
-              );
-              return GridView.builder(
-                controller: _scrollController,
-                padding: EdgeInsets.all(padding),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: crossAxisCount,
-                  crossAxisSpacing: spacing,
-                  mainAxisSpacing: spacing,
-                  childAspectRatio: 0.68,
-                  mainAxisExtent: mainAxisExtent,
-                ),
-                itemCount: visibleGroups.length,
-                itemBuilder: (context, index) {
-                  final group = visibleGroups[index];
-                  return _buildGroupTile(
-                    context,
-                    group,
-                    colorScheme,
-                    textTheme,
-                    tmdbPosterUrl: tmdbPosterUrls[group],
-                  );
-                },
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  int _getGridCrossAxisCount(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    if (Utils.isDesktop()) {
-      if (width < 900) return 3;
-      return 4;
-    }
-    if (Utils.isTablet()) return 4;
-    return 3; // 手机
-  }
-
-  double _getGridSpacing(BuildContext context) {
-    return Utils.isDesktop() ? 12 : 8;
-  }
-
-  double _getGridPadding(BuildContext context) {
-    return Utils.isDesktop() ? 12 : 8;
-  }
-
-  double? _getGridMainAxisExtent(
-    BuildContext context,
-    double maxWidth,
-    int crossAxisCount,
-    double spacing,
-    double padding,
-  ) {
-    if (!Utils.isDesktop() ||
-        !maxWidth.isFinite ||
-        maxWidth <= 0 ||
-        crossAxisCount <= 0) {
-      return null;
-    }
-    final availableWidth =
-        maxWidth - padding * 2 - spacing * (crossAxisCount - 1);
-    final itemWidth = availableWidth / crossAxisCount;
-    return (itemWidth / 0.68).clamp(320.0, 680.0);
-  }
-
   List<LocalVideoGroup> _visibleGroups(Iterable<LocalFileItem> items) {
     final groups = _seriesGrouper.group(items);
     if (_searchKeyword.isEmpty) {
       return groups;
     }
     return groups.where((group) => group.matches(_searchKeyword)).toList();
-  }
-
-  Widget _buildGroupTile(
-    BuildContext context,
-    LocalVideoGroup group,
-    ColorScheme colorScheme,
-    TextTheme textTheme, {
-    required String? tmdbPosterUrl,
-  }) {
-    final firstEpisode = group.firstEpisode;
-    final cover = group.cover;
-    final isScrapingCurrent = localController.isFetchingPosters &&
-        (localController.posterCurrentFile == group.title ||
-            group.episodes
-                .any((item) => localController.posterCurrentFile == item.name));
-    var isHovered = false;
-    return StatefulBuilder(
-      builder: (context, setTileState) {
-        final showOverlay = isHovered;
-        return MouseRegion(
-          onEnter: (_) => setTileState(() => isHovered = true),
-          onExit: (_) => setTileState(() => isHovered = false),
-          child: Material(
-            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
-            borderRadius: BorderRadius.circular(8),
-            clipBehavior: Clip.hardEdge,
-            child: InkWell(
-              onLongPress: () => _showGroupActions(context, group),
-              onSecondaryTap: () => _showGroupActions(context, group),
-              onTap: () => _playGroup(group),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  _buildGroupCover(
-                    group,
-                    colorScheme,
-                    cover: cover,
-                    tmdbPosterUrl: tmdbPosterUrl,
-                  ),
-                  IgnorePointer(
-                    child: AnimatedOpacity(
-                      opacity: showOverlay ? 1 : 0,
-                      duration: const Duration(milliseconds: 160),
-                      curve: Curves.easeOut,
-                      child: _buildGroupPosterOverlay(
-                        context,
-                        group,
-                        firstEpisode,
-                        textTheme,
-                        isScrapingCurrent,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildGroupCover(
-    LocalVideoGroup group,
-    ColorScheme colorScheme, {
-    required String? cover,
-    required String? tmdbPosterUrl,
-  }) {
-    Widget localCover() {
-      if (cover == null || cover.isEmpty) {
-        return _buildPosterPlaceholder(group, colorScheme);
-      }
-      return Image.file(
-        File(cover),
-        fit: BoxFit.contain,
-        width: double.infinity,
-        height: double.infinity,
-        errorBuilder: (_, __, ___) =>
-            _buildPosterPlaceholder(group, colorScheme),
-      );
-    }
-
-    if (tmdbPosterUrl == null || tmdbPosterUrl.isEmpty) {
-      return localCover();
-    }
-    return Image.network(
-      tmdbPosterUrl,
-      fit: BoxFit.contain,
-      width: double.infinity,
-      height: double.infinity,
-      errorBuilder: (_, __, ___) => localCover(),
-    );
-  }
-
-  Widget _buildPosterPlaceholder(
-    LocalVideoGroup group,
-    ColorScheme colorScheme,
-  ) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colorScheme.primaryContainer.withValues(alpha: 0.82),
-      ),
-      child: Center(
-        child: Container(
-          width: 82,
-          height: 82,
-          decoration: BoxDecoration(
-            color: colorScheme.primary.withValues(alpha: 0.16),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            group.hasMultipleEpisodes
-                ? Icons.video_collection_outlined
-                : Icons.play_circle_fill,
-            size: 48,
-            color: colorScheme.primary,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGroupPosterOverlay(
-    BuildContext context,
-    LocalVideoGroup group,
-    LocalFileItem firstEpisode,
-    TextTheme textTheme,
-    bool isScrapingCurrent,
-  ) {
-    final hasSubtitle = group.episodes.any((item) => item.hasSubtitle);
-    final scrapeLabel = isScrapingCurrent
-        ? '正在刮削'
-        : group.needsOnlinePoster
-            ? '未刮削'
-            : '已刮削';
-    final infoText = group.hasMultipleEpisodes
-        ? _buildSeriesInfoText(group)
-        : _buildItemInfoText(firstEpisode);
-    final mediaInfoText =
-        firstEpisode.hasMediaInfo && !group.hasMultipleEpisodes
-            ? _buildMediaInfoText(firstEpisode)
-            : '';
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.transparent,
-            Colors.black.withValues(alpha: 0.2),
-            Colors.black.withValues(alpha: 0.82),
-          ],
-          stops: const [0, 0.42, 1],
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Text(
-              group.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: textTheme.titleMedium?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-                height: 1.15,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              group.subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: textTheme.labelMedium?.copyWith(
-                color: Colors.white.withValues(alpha: 0.9),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              [
-                infoText,
-                if (mediaInfoText.isNotEmpty) mediaInfoText,
-                _latestModifiedText(group),
-              ].where((part) => part.isNotEmpty).join('  ·  '),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: textTheme.labelSmall?.copyWith(
-                color: Colors.white.withValues(alpha: 0.78),
-                height: 1.25,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                _buildPosterInfoChip(
-                  context,
-                  Icons.closed_caption_outlined,
-                  hasSubtitle ? '有字幕' : '无字幕',
-                ),
-                _buildPosterInfoChip(
-                  context,
-                  Icons.image_search_outlined,
-                  scrapeLabel,
-                  loading: isScrapingCurrent,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPosterInfoChip(
-    BuildContext context,
-    IconData icon,
-    String label, {
-    bool loading = false,
-  }) {
-    final textTheme = Theme.of(context).textTheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (loading)
-              const SizedBox(
-                width: 12,
-                height: 12,
-                child: CircularProgressIndicator(
-                  strokeWidth: 1.8,
-                  color: Colors.white,
-                ),
-              )
-            else
-              Icon(icon, size: 13, color: Colors.white),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: textTheme.labelSmall?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   String _buildItemInfoText(

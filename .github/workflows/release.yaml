@@ -1,449 +1,123 @@
----
-    name: "release"
-    
-    on:
-      push:
-        tags:
-          - "*"
-      workflow_dispatch:
-        inputs:
-          logLevel:
-            description: 'Log level'     
-            required: true
-            default: 'warning'
-    
-    jobs:
-      flutter-build-android:
-        name: "Release for android"
-        runs-on: "ubuntu-latest" 
-        permissions: write-all
-        steps:
-          - name: Clone repository
-            uses: actions/checkout@v4
-          - name: Extract tag name
-            run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-            shell: bash
-          - name: Echo build progress
-            run: echo "KanYingYin_android_${{ env.tag }}.apk build progress"
-            shell: bash
-          - name: Install dependencies
-            run: |
-              sudo apt-get update
-              sudo apt-get install -y clang cmake libgtk-3-dev ninja-build libayatana-appindicator3-dev libasound2-dev
-            shell: bash
-          - name: Set up JDK 17
-            uses: actions/setup-java@v4
-            with:
-              java-version: '17'
-              distribution: 'temurin'          
-          - name: Set up Flutter
-            uses: subosito/flutter-action@v2.16.0
-            with:
-              channel: stable
-              flutter-version-file: pubspec.yaml
-          - name: Get Flutter dependencies
-            run: flutter pub get
-            shell: bash
-          - name: Inject DanDan API Credentials
-            run: |
-              sed -i "s/kvpx7qkqjh/${{ secrets.DANDANAPI_APPID }}/g" lib/utils/mortis.dart
-              sed -i "s/rABUaBLqdz7aCSi3fe88ZDj2gwga9Vax/${{ secrets.DANDANAPI_KEY }}/g" lib/utils/mortis.dart
-          - name: Build Flutter for Android
-            run: flutter build apk --split-per-abi
-            shell: bash
-          - name: Package android build output
-            run: cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk KanYingYin_android_${env:tag}.apk
-            shell: bash
+name: Windows 发布
 
-          - name: Upload android outputs
-            uses: actions/upload-artifact@v4
-            with:
-              name: android_outputs
-              path: KanYingYin_android_*.apk
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
 
-      flutter-build-windows:
-        name: "Release for windows"
-        runs-on: "windows-latest"
-        needs: [flutter-build-android, flutter-build-ios, flutter-build-linux, flutter-build-macos] 
-        permissions: write-all
-    
-        steps:
-          - name: Clone repository
-            uses: actions/checkout@v4
-          - run: |
-                  $tag = "${{ github.ref }}".Replace('refs/tags/', '')
-                  echo "tag=$(echo $tag)" >> $env:GITHUB_ENV
-          - run: echo "KanYingYin_windows_${env:tag}.zip build progress"
-          - run: choco install yq
-          - name: Enable Git longpaths
-            run: git config --system core.longpaths true
-          - name: Set up Flutter
-            uses: subosito/flutter-action@v2.16.0
-            with:
-              channel: stable
-              flutter-version-file: pubspec.yaml
-          - name: Set up Java
-            uses: actions/setup-java@v4
-            with:
-              distribution: 'temurin'
-              java-version: '18'
-          - run: flutter pub get
-          - name: Inject DanDan API Credentials
-            env:
-              DANDANAPI_APPID: ${{ secrets.DANDANAPI_APPID }}
-              DANDANAPI_KEY: ${{ secrets.DANDANAPI_KEY }}
-            run: |
-              (Get-Content -Path 'lib/utils/mortis.dart') -replace "kvpx7qkqjh", "$env:DANDANAPI_APPID" | Set-Content -Path 'lib/utils/mortis.dart'
-              (Get-Content -Path 'lib/utils/mortis.dart') -replace "rABUaBLqdz7aCSi3fe88ZDj2gwga9Vax", "$env:DANDANAPI_KEY" | Set-Content -Path 'lib/utils/mortis.dart'
-          - run: flutter build windows   
-          - run: Compress-Archive build/windows/x64/runner/Release/* KanYingYin_windows_${env:tag}.zip
-          - name: Upload windows outputs
-            uses: actions/upload-artifact@v4
-            id: unsigned-windows-zip-artifacts
-            with:
-              name: windows_outputs
-              path: |
-                KanYingYin_windows_*.zip
+permissions:
+  contents: write
+  actions: read
 
-          # Sign Zip
-          - run: New-Item -Path "build/windows/zip_signed_output" -ItemType Directory
-          - name: sign windows zip
-            uses: signpath/github-action-submit-signing-request@v1.1
-            with:
-              api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
-              organization-id: 'fa047255-4772-4be1-b14f-5cfa62635877'
-              project-slug: 'KanYingYin'
-              signing-policy-slug: 'release-signing'
-              artifact-configuration-slug: 'Packet'
-              github-artifact-id: '${{ steps.unsigned-windows-zip-artifacts.outputs.artifact-id }}'
-              wait-for-completion: true
-              output-artifact-directory: 'build/windows/zip_signed_output'
-          
-          - name: Upload windows zip signed ouputs
-            uses: actions/upload-artifact@v4
-            id: signed-windows-zip-artifacts
-            with:
-              name: windows_zip_signed_outputs
-              path: build/windows/zip_signed_output/*.zip
-              
-          # Replace Unpacked Artifact with Signed Artifact
-          - name: Replace Unpacked Artifact with Signed Artifact
-            run: Expand-Archive -Path "build/windows/zip_signed_output/KanYingYin_windows_${env:tag}.zip" -DestinationPath "build/windows/x64/runner/Release" -Force
-          
-          # Build Unsigned MSIX
-          - name: Build unsigned msix
-            run: dart run msix:create
-          - name: Upload windows msix ouputs
-            uses: actions/upload-artifact@v4
-            id: unsigned-windows-msix-artifacts
-            with:
-              name: windows_msix_outputs
-              path: |
-                build/windows/x64/runner/Release/kanyingyin.msix
-          
-          # Sign MSIX
-          - run: New-Item -Path "build/windows/msix_signed_output" -ItemType Directory
-          - name: sign windows msix
-            uses: signpath/github-action-submit-signing-request@v1.1
-            with:
-              api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
-              organization-id: 'fa047255-4772-4be1-b14f-5cfa62635877'
-              project-slug: 'KanYingYin'
-              signing-policy-slug: 'release-signing'
-              artifact-configuration-slug: 'MSIX'
-              github-artifact-id: '${{ steps.unsigned-windows-msix-artifacts.outputs.artifact-id }}'
-              wait-for-completion: true
-              output-artifact-directory: 'build/windows/msix_signed_output'
-          
-          - name: Upload windows msix signed ouputs
-            uses: actions/upload-artifact@v4
-            id: signed-windows-msix-artifacts
-            with:
-              name: windows_msix_signed_outputs
-              path: build/windows/msix_signed_output/*.msix
+jobs:
+  windows-release:
+    name: Windows Release 与 MSIX 发布
+    runs-on: windows-latest
+    env:
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
 
-      flutter-build-linux:
-        name: "Release for Linux"
-        runs-on: "ubuntu-latest" 
-        permissions: write-all
-        steps:
-          - name: Clone repository
-            uses: actions/checkout@v4
-          - name: Extract tag name
-            run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-            shell: bash
-          - name: Echo build progress
-            run: echo "KanYingYin_linux_${{ env.tag }}.tar.gz build progress"
-            shell: bash
-          - name: Install dependencies
-            run: |
-              sudo apt-get update
-              sudo apt-get install -y clang cmake libgtk-3-dev ninja-build libayatana-appindicator3-dev unzip webkit2gtk-4.1 libasound2-dev
-              sudo apt-get install -y gcc g++ autoconf automake debhelper glslang-dev ladspa-sdk xutils-dev libasound2-dev \
-                  libarchive-dev libbluray-dev libbs2b-dev libcaca-dev libcdio-paranoia-dev libdrm-dev \
-                  libdav1d-dev libdvdnav-dev libegl1-mesa-dev libepoxy-dev libfontconfig-dev libfreetype6-dev \
-                  libfribidi-dev libgl1-mesa-dev libgbm-dev libgme-dev libgsm1-dev libharfbuzz-dev libjpeg-dev \
-                  libbrotli-dev liblcms2-dev libmodplug-dev libmp3lame-dev libopenal-dev \
-                  libopus-dev libopencore-amrnb-dev libopencore-amrwb-dev libpulse-dev librtmp-dev \
-                  libsdl2-dev libsixel-dev libssh-dev libsoxr-dev libspeex-dev libtool \
-                  libv4l-dev libva-dev libvdpau-dev libvorbis-dev libvo-amrwbenc-dev \
-                  libunwind-dev libvpx-dev libwayland-dev libx11-dev libxext-dev \
-                  libxkbcommon-dev libxrandr-dev libxss-dev libxv-dev libxvidcore-dev \
-                  linux-libc-dev nasm ninja-build pkg-config python3 python3-docutils wayland-protocols \
-                  x11proto-core-dev zlib1g-dev libfdk-aac-dev libtheora-dev libwebp-dev \
-                  unixodbc-dev libpq-dev libxxhash-dev libaom-dev              
-            shell: bash
-          - name: Set up Flutter
-            uses: subosito/flutter-action@v2.16.0
-            with:
-              channel: stable
-              flutter-version-file: pubspec.yaml
-          - name: Get Flutter dependencies
-            run: flutter pub get
-            shell: bash
-          - name: Inject DanDan API Credentials
-            run: |
-              sed -i "s/kvpx7qkqjh/${{ secrets.DANDANAPI_APPID }}/g" lib/utils/mortis.dart
-              sed -i "s/rABUaBLqdz7aCSi3fe88ZDj2gwga9Vax/${{ secrets.DANDANAPI_KEY }}/g" lib/utils/mortis.dart
-          - name: Build Flutter for Linux
-            run: flutter build linux
-            shell: bash
-          # - name: Download FFmpeg Assets
-          #   uses: dsaltares/fetch-gh-release-asset@master
-          #   with:
-          #     repo: 'Predidit/avbuild'
-          #     version: 'tags/1.1.0'
-          #     file: 'ffmpeg_linux_amd64.zip'
-          #     token: ${{ secrets.GITHUB_TOKEN }}
-          # - run: rm -f build/linux/x64/release/bundle/lib/libffmpeg.so.7
-          # - run: unzip ffmpeg_linux_amd64.zip -d build/linux/x64/release/bundle/lib
-          - name: Package linux build output
-            run: |
-              # Tarball package
-              tar -zcvf KanYingYin_linux_${{ env.tag }}_amd64.tar.gz -C build/linux/x64/release/bundle .
+      - name: 配置 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version-file: pubspec.yaml
 
-              # Debian package
-              mkdir KanYingYin_linux_${{ env.tag }}_amd64
-              cd KanYingYin_linux_${{ env.tag }}_amd64
-              mkdir -p opt/KanYingYin
-              mkdir -p usr/share/applications
-              mkdir -p usr/share/icons/hicolor/512x512/apps
-              cp -r ../build/linux/x64/release/bundle/* opt/KanYingYin
-              cp -r ../assets/linux/DEBIAN .
-              chmod 0755 DEBIAN/postinst
-              chmod 0755 DEBIAN/postrm
+      - name: 获取依赖
+        run: flutter pub get
 
-              cat>DEBIAN/control<<EOF
-              Maintainer: madoka773 <valigarmanda55@gmail.com>
-              Package: KanYingYin
-              Version: ${{ env.tag }}
-              Section: x11
-              Priority: optional
-              Architecture: amd64
-              Essential: no
-              Installed-Size: 34648
-              Description: Local video library and player.
-              Homepage: https://github.com/Predidit/KanYingYin
-              Depends: libayatana-appindicator3-1,
-                       gir1.2-ayatanaappindicator3-0.1,
-                       libwebkit2gtk-4.1-0
-              EOF
+      - name: Dart 格式检查
+        run: dart format --output=none --set-exit-if-changed .
 
-              cp ../assets/linux/com.kanyingyin.player.desktop usr/share/applications
-              cp ../assets/images/logo/logo_linux.png usr/share/icons/hicolor/512x512/apps/com.kanyingyin.player.png
+      - name: Flutter 静态分析
+        run: flutter analyze --no-pub
 
-              cd ..
-              dpkg-deb --build --root-owner-group KanYingYin_linux_${{ env.tag }}_amd64
-            shell: bash
+      - name: Flutter 测试
+        run: flutter test --no-pub
 
-          - name: Upload linux outputs
-            uses: actions/upload-artifact@v4
-            with:
-              name: linux_outputs
-              path: |
-                KanYingYin_linux_*.tar.gz
-                KanYingYin_linux_*.deb
+      - name: 构建 Windows Release
+        run: flutter build windows --release --no-pub
 
-      flutter-build-ios:
-        name: "Release for iOS"
-        runs-on: "macos-latest"
-        permissions: write-all
+      - name: 校验应用版本与标签
+        shell: pwsh
+        run: |
+          $pubspec = Get-Content -LiteralPath 'pubspec.yaml' -Raw -Encoding UTF8
+          $versionMatch = [regex]::Match($pubspec, '(?m)^version:\s*([^+\r\n]+)')
+          $msixMatch = [regex]::Match($pubspec, '(?m)^\s*msix_version:\s*([^\r\n]+)')
+          if (-not $versionMatch.Success -or -not $msixMatch.Success) { throw '无法从 pubspec.yaml 读取应用版本' }
+          $appVersion = $versionMatch.Groups[1].Value.Trim()
+          $msixVersion = $msixMatch.Groups[1].Value.Trim()
+          $tag = if ('${{ github.ref }}' -like 'refs/tags/*') { '${{ github.ref_name }}' } else { "v$appVersion" }
+          if ($tag -ne "v$appVersion") { throw "标签 $tag 与 pubspec 版本 $appVersion 不一致" }
+          $parts = [System.Collections.Generic.List[string]]($appVersion.Split('.'))
+          while ($parts.Count -lt 4) { $parts.Add('0') }
+          $expectedMsix = ($parts[0..3] -join '.')
+          if ($msixVersion -ne $expectedMsix) { throw "msix_version $msixVersion 与应用版本 $appVersion 不一致，应为 $expectedMsix" }
+          "APP_VERSION=$appVersion" >> $env:GITHUB_ENV
+          "MSIX_VERSION=$msixVersion" >> $env:GITHUB_ENV
 
-        steps:
-          - name: Clone repository
-            uses: actions/checkout@v4
-          - name: Extract tag name
-            run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-          - name: Echo build progress
-            run: echo "KanYingYin_ios_${{ env.tag }}.ipa build progress"
-          - name: Set up Flutter
-            uses: subosito/flutter-action@v2.16.0
-            with:
-              channel: stable
-              flutter-version-file: pubspec.yaml
-          - run: flutter pub get
-          - name: Inject DanDan API Credentials
-            run: |
-              sed -i '' "s/kvpx7qkqjh/${{ secrets.DANDANAPI_APPID }}/g" lib/utils/mortis.dart
-              sed -i '' "s/rABUaBLqdz7aCSi3fe88ZDj2gwga9Vax/${{ secrets.DANDANAPI_KEY }}/g" lib/utils/mortis.dart
-          - name: Build IPA
-            run: |
-              flutter build ios --release --no-codesign
-          - name: Create IPA
-            run: |
-              mkdir Payload
-              cp -R build/ios/iphoneos/Runner.app Payload/Runner.app
-              find Payload/Runner.app/Frameworks -type d -name "*.framework" -exec codesign --force --sign - --preserve-metadata=identifier,entitlements {} \;
-              zip -q -r KanYingYin_ios_${{ env.tag }}_no_sign.ipa Payload
-          - name: Upload iOS build
-            uses: actions/upload-artifact@v4
-            with:
-              name: ios_outputs
-              path: KanYingYin_ios_*.ipa
+      - name: 生成 MSIX
+        run: dart run msix:create
 
-      flutter-build-macos:
-        name: "Release for Macos"
-        runs-on: "macos-latest"
-        permissions: write-all
+      - name: 校验 MSIX 清单
+        shell: pwsh
+        run: |
+          $source = Get-ChildItem -LiteralPath 'build/windows/x64/runner/Release' -Filter '*.msix' | Select-Object -First 1
+          if ($null -eq $source) { throw '未找到 msix:create 输出' }
+          $extract = Join-Path $env:RUNNER_TEMP 'kanyingyin-msix'
+          if (Test-Path -LiteralPath $extract) { Remove-Item -LiteralPath $extract -Recurse -Force }
+          $archive = Join-Path $env:RUNNER_TEMP 'kanyingyin-msix.zip'
+          Copy-Item -LiteralPath $source.FullName -Destination $archive -Force
+          Expand-Archive -LiteralPath $archive -DestinationPath $extract
+          $manifest = Get-ChildItem -LiteralPath $extract -Filter 'AppxManifest.xml' -Recurse | Select-Object -First 1
+          if ($null -eq $manifest) { throw 'MSIX 中未找到 AppxManifest.xml' }
+          [xml]$xml = Get-Content -LiteralPath $manifest.FullName -Raw -Encoding UTF8
+          $identity = $xml.Package.Identity
+          if ($identity.Name -ne 'com.kanyingyin.player') { throw "清单 identity 不匹配: $($identity.Name)" }
+          if ($identity.Version -ne $env:MSIX_VERSION) { throw "清单版本 $($identity.Version) 不匹配: $env:MSIX_VERSION" }
 
-        steps:
-          - name: Clone repository
-            uses: actions/checkout@v4
-          - name: Extract tag name
-            run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-          - name: Echo build progress
-            run: echo "KanYingYin_macos_${{ env.tag }}.dmg build progress"
-          - name: Set up Flutter
-            uses: subosito/flutter-action@v2.16.0
-            with:
-              channel: stable
-              flutter-version-file: pubspec.yaml
-          - run: flutter pub get
-          - name: Inject DanDan API Credentials
-            run: |
-              sed -i '' "s/kvpx7qkqjh/${{ secrets.DANDANAPI_APPID }}/g" lib/utils/mortis.dart
-              sed -i '' "s/rABUaBLqdz7aCSi3fe88ZDj2gwga9Vax/${{ secrets.DANDANAPI_KEY }}/g" lib/utils/mortis.dart
-          - run: flutter build macos --release
-          - name: Create DMG
-            run: |
-              npm install --global create-dmg
-              create-dmg build/macos/Build/Products/Release/KanYingYin.app
-            continue-on-error: true
-          - name: Rename DMG
-            run: mv KanYingYin*.dmg KanYingYin_macos_${{ env.tag }}.dmg
-          - name: Upload MacOS build
-            uses: actions/upload-artifact@v4
-            with:
-              name: macos_outputs
-              path: KanYingYin_macos_*.dmg
+      - name: 准备最终文件名
+        shell: pwsh
+        run: |
+          $source = Get-ChildItem -LiteralPath 'build/windows/x64/runner/Release' -Filter '*.msix' | Select-Object -First 1
+          $final = Join-Path $env:GITHUB_WORKSPACE "看影音-$env:APP_VERSION.msix"
+          Copy-Item -LiteralPath $source.FullName -Destination $final -Force
+          "MSIX_PATH=$final" >> $env:GITHUB_ENV
 
-      release:
-        name: "Release"
-        runs-on: "ubuntu-latest"
-        needs: [flutter-build-windows] 
-        permissions: write-all
-        steps:
-          - name: Clone repository
-            uses: actions/checkout@v4
-          - name: Extract tag name
-            run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-            shell: bash
-          - name: Set up JDK 17
-            uses: actions/setup-java@v4
-            with:
-              java-version: '17'
-              distribution: 'temurin'          
-          - name: Setup Android SDK
-            uses: android-actions/setup-android@v3
-          - name: Setup Android build tools
-            run: sdkmanager "build-tools;34.0.0"
-  
-          - name: Download windows zip build file
-            uses: actions/download-artifact@v4
-            with:
-              name: windows_zip_signed_outputs
-              path: windows_zip_signed_outputs 
-          - name: List files in windows_outputs directory
-            run: ls -l windows_zip_signed_outputs   
-          - name: Copy windows build file to root
-            run: cp windows_zip_signed_outputs/* KanYingYin_windows_${{ env.tag }}.zip
+      - name: 上传待签名 MSIX
+        id: unsigned-msix
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-msix-unsigned
+          path: 看影音-${{ env.APP_VERSION }}.msix
+          if-no-files-found: error
 
-          - name: Download windows msix build file
-            uses: actions/download-artifact@v4
-            with:
-              name: windows_msix_signed_outputs
-              path: windows_msix_signed_outputs  
-          - name: List files in windows_msix_signed_outputs directory
-            run: ls -l windows_msix_signed_outputs   
-          - name: Copy windows build file to root
-            run: cp windows_msix_signed_outputs/* KanYingYin_windows_${{ env.tag }}.msix
+      - name: 可选 SignPath 签名
+        if: ${{ env.SIGNPATH_API_TOKEN != '' }}
+        uses: signpath/github-action-submit-signing-request@v1.1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: fa047255-4772-4be1-b14f-5cfa62635877
+          project-slug: KanYingYin
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: MSIX
+          github-artifact-id: ${{ steps.unsigned-msix.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: build/windows/msix_signed_output
 
-          - name: Download android build file
-            uses: actions/download-artifact@v4
-            with:
-              name: android_outputs
-              path: android_outputs 
-          - name: List files in android_outputs directory
-            run: ls -l android_outputs   
-          - name: Copy android build file to unsigned floder
-            run: | 
-              mkdir build
-              mkdir build/unsigned
-              mkdir build/signed
-              cp android_outputs/* build/unsigned/KanYingYin_android_${{ env.tag }}.apk
+      - name: 使用签名后的 MSIX
+        if: ${{ env.SIGNPATH_API_TOKEN != '' }}
+        shell: pwsh
+        run: |
+          $signed = Get-ChildItem -LiteralPath 'build/windows/msix_signed_output' -Filter '*.msix' -Recurse | Select-Object -First 1
+          if ($null -eq $signed) { throw 'SignPath 未返回签名后的 MSIX' }
+          Copy-Item -LiteralPath $signed.FullName -Destination $env:MSIX_PATH -Force
 
-          - name: Download iOS build file
-            uses: actions/download-artifact@v4
-            with:
-              name: ios_outputs
-              path: ios_outputs  
-          - name: List files in ios_outputs directory
-            run: ls -l ios_outputs   
-          - name: Copy ios build file to root
-            run: cp ios_outputs/* KanYingYin_ios_${{ env.tag }}_no_sign.ipa
-
-          - name: Download macos build file
-            uses: actions/download-artifact@v4
-            with:
-              name: macos_outputs
-              path: macos_outputs  
-          - name: List files in macos_outputs directory
-            run: ls -l macos_outputs   
-          - name: Copy macos build file to root
-            run: cp macos_outputs/* KanYingYin_macos_${{ env.tag }}.dmg
-            
-          - name: Download linux build file
-            uses: actions/download-artifact@v4
-            with:
-              name: linux_outputs
-              path: linux_outputs  
-          - name: List files in linux_outputs directory
-            run: ls -l linux_outputs   
-          - name: Copy linux build file to root
-            run: cp linux_outputs/* .
-
-          - name: Sign APK
-            id: sign_app
-            uses: filippoLeporati93/android-release-signer@v1
-            with:
-              releaseDirectory: build/unsigned
-              signingKeyBase64: ${{ secrets.SIGNING_KEY_BASE64 }}
-              alias: ${{ secrets.KEY_ALIAS }}
-              keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
-            env:
-              BUILD_TOOLS_VERSION: "34.0.0"
-
-          - name: Copy Signed android build file
-            run: cp ${{steps.sign_app.outputs.signedReleaseFile}} build/signed/KanYingYin_android_${{ env.tag }}.apk
-
-          - name: Create release
-            uses: softprops/action-gh-release@v2
-            with:
-              files: |
-                build/signed/*.apk
-                KanYingYin_windows_*.zip
-                KanYingYin_windows_*.msix
-                KanYingYin_macos_*.dmg
-                KanYingYin_ios_*.ipa
-                KanYingYin_linux_*.tar.gz
-                KanYingYin_linux_*.deb
+      - name: 发布 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.APP_VERSION }}
+          files: 看影音-${{ env.APP_VERSION }}.msix

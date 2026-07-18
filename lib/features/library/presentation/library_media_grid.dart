@@ -21,6 +21,9 @@ class LibraryMediaItemViewData {
     this.localCoverPath,
     this.networkCoverUrl,
     this.isScraping = false,
+    this.heroTag,
+    this.networkCoverProvider,
+    this.localCoverProvider,
   });
 
   final String id;
@@ -35,22 +38,83 @@ class LibraryMediaItemViewData {
   final String? localCoverPath;
   final String? networkCoverUrl;
   final bool isScraping;
+  final Object? heroTag;
+  final ImageProvider<Object>? networkCoverProvider;
+  final ImageProvider<Object>? localCoverProvider;
 }
 
 class LibraryMediaGridViewData {
-  const LibraryMediaGridViewData({
-    this.items = const [],
+  LibraryMediaGridViewData({
+    List<LibraryMediaItemViewData> items = const [],
     this.currentPath = '',
     this.isLoading = false,
     this.errorMessage,
     this.hasSearchFilter = false,
-  });
+  }) : items = List<LibraryMediaItemViewData>.unmodifiable(items);
 
   final List<LibraryMediaItemViewData> items;
   final String currentPath;
   final bool isLoading;
   final String? errorMessage;
   final bool hasSearchFilter;
+}
+
+class LibraryMediaCoverFallback {
+  const LibraryMediaCoverFallback._();
+
+  static Widget buildLocal(
+    LibraryMediaItemViewData item, {
+    required WidgetBuilder placeholderBuilder,
+  }) {
+    final provider = item.localCoverProvider;
+    if (provider != null) {
+      return Image(
+        image: provider,
+        fit: BoxFit.contain,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (context, _, __) => placeholderBuilder(context),
+      );
+    }
+    final path = item.localCoverPath;
+    if (path == null || path.isEmpty) {
+      return Builder(builder: placeholderBuilder);
+    }
+    return Image.file(
+      File(path),
+      fit: BoxFit.contain,
+      width: double.infinity,
+      height: double.infinity,
+      errorBuilder: (context, _, __) => placeholderBuilder(context),
+    );
+  }
+
+  static Widget buildNetwork(
+    LibraryMediaItemViewData item, {
+    required WidgetBuilder localBuilder,
+  }) {
+    final provider = item.networkCoverProvider;
+    if (provider != null) {
+      return Image(
+        image: provider,
+        fit: BoxFit.contain,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (context, _, __) => localBuilder(context),
+      );
+    }
+    final url = item.networkCoverUrl;
+    if (url == null || url.isEmpty) {
+      return Builder(builder: localBuilder);
+    }
+    return Image.network(
+      url,
+      fit: BoxFit.contain,
+      width: double.infinity,
+      height: double.infinity,
+      errorBuilder: (context, _, __) => localBuilder(context),
+    );
+  }
 }
 
 class LibraryMediaGrid extends StatelessWidget {
@@ -240,7 +304,10 @@ class _LibraryMediaTileState extends State<_LibraryMediaTile> {
               ? null
               : () async => await widget.onPlay!(widget.item),
           child: Stack(fit: StackFit.expand, children: [
-            _cover(colors),
+            if (widget.item.heroTag == null)
+              _cover(colors)
+            else
+              Hero(tag: widget.item.heroTag!, child: _cover(colors)),
             IgnorePointer(
                 child: AnimatedOpacity(
               opacity: _hovered ? 1 : 0,
@@ -272,23 +339,13 @@ class _LibraryMediaTileState extends State<_LibraryMediaTile> {
                       size: 48,
                       color: colors.primary))),
         );
-    Widget local() {
-      final path = widget.item.localCoverPath;
-      if (path == null || path.isEmpty) return placeholder();
-      return Image.file(File(path),
-          fit: BoxFit.contain,
-          width: double.infinity,
-          height: double.infinity,
-          errorBuilder: (_, __, ___) => placeholder());
-    }
-
-    final url = widget.item.networkCoverUrl;
-    if (url == null || url.isEmpty) return local();
-    return Image.network(url,
-        fit: BoxFit.contain,
-        width: double.infinity,
-        height: double.infinity,
-        errorBuilder: (_, __, ___) => local());
+    return LibraryMediaCoverFallback.buildNetwork(
+      widget.item,
+      localBuilder: (context) => LibraryMediaCoverFallback.buildLocal(
+        widget.item,
+        placeholderBuilder: (_) => placeholder(),
+      ),
+    );
   }
 
   Widget _overlay(BuildContext context) {

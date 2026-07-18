@@ -141,7 +141,8 @@ void main() {
     expect(page, contains('tmdbPosterUrlForPaths'));
     expect(page, contains('networkCoverUrl:'));
     expect(grid, contains('GridView.builder'));
-    expect(grid, contains('widget.item.networkCoverUrl'));
+    expect(grid, contains('final url = item.networkCoverUrl'));
+    expect(grid, contains('LibraryMediaCoverFallback.buildNetwork'));
   });
 
   test('字幕设置支持按视频调节出现时间', () {

@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +9,56 @@ import 'package:kanyingyin/features/library/presentation/library_path_bar.dart';
 import 'package:kanyingyin/features/library/presentation/library_source_menu.dart';
 
 void main() {
+  test('展示 view data 会复制并冻结所有列表', () {
+    const breadcrumb = LibraryBreadcrumbViewData(label: 'D:', path: r'D:\');
+    const source = LibrarySourceViewData(
+      id: 'local',
+      name: '本地',
+      path: r'D:\',
+      subtitle: '本地来源',
+    );
+    const media = LibraryMediaItemViewData(
+      id: 'media',
+      title: '标题',
+      subtitle: '副标题',
+      infoText: '信息',
+      modifiedText: '2026-07-19',
+      hasMultipleEpisodes: false,
+      hasSubtitle: false,
+      scrapeLabel: '未刮削',
+    );
+    final breadcrumbs = <LibraryBreadcrumbViewData>[breadcrumb];
+    final sources = <LibrarySourceViewData>[source];
+    final items = <LibraryMediaItemViewData>[media];
+    final sourceData = LibrarySourceMenuViewData(sources: sources);
+    final pathData = LibraryPathBarViewData(
+      breadcrumbs: breadcrumbs,
+      recentPaths: const [],
+      sortBy: 'name',
+      sortAscending: true,
+      status: const LibraryDirectoryStatusViewData(
+        kind: LibraryDirectoryStatusKind.idle,
+        label: '',
+      ),
+    );
+    final gridData = LibraryMediaGridViewData(items: items);
+
+    breadcrumbs.clear();
+    sources.clear();
+    items.clear();
+    expect(pathData.breadcrumbs, hasLength(1));
+    expect(sourceData.sources, hasLength(1));
+    expect(gridData.items, hasLength(1));
+    expect(() => pathData.breadcrumbs.add(breadcrumb), throwsUnsupportedError);
+    expect(
+        () => pathData.recentPaths.add(
+              const LibraryRecentPathViewData(label: '视频', path: r'D:\视频'),
+            ),
+        throwsUnsupportedError);
+    expect(() => sourceData.sources.add(source), throwsUnsupportedError);
+    expect(() => gridData.items.add(media), throwsUnsupportedError);
+  });
+
   group('LibraryPathBar', () {
     testWidgets('显示路径工具、排序和搜索，并转发动作', (tester) async {
       var picked = false;
@@ -21,7 +73,7 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: LibraryPathBar(
-              data: const LibraryPathBarViewData(
+              data: LibraryPathBarViewData(
                 breadcrumbs: [
                   LibraryBreadcrumbViewData(label: 'D:', path: r'D:\'),
                   LibraryBreadcrumbViewData(
@@ -31,7 +83,6 @@ void main() {
                   ),
                 ],
                 recentPaths: [],
-                sourceMenu: LibrarySourceMenuViewData(sources: []),
                 sortBy: 'name',
                 sortAscending: true,
                 status: LibraryDirectoryStatusViewData(
@@ -41,6 +92,7 @@ void main() {
                 canReadMediaInfo: true,
                 canGenerateThumbnails: true,
               ),
+              sourceMenu: const SizedBox.shrink(),
               searchController: searchController,
               onPickDirectory: () async => picked = true,
               onRefresh: () async => refreshed = true,
@@ -99,7 +151,7 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: LibrarySourceMenu(
-              data: const LibrarySourceMenuViewData(
+              data: LibrarySourceMenuViewData(
                 sources: [available, unavailable],
                 unavailableCount: 1,
               ),
@@ -147,6 +199,7 @@ void main() {
       hasMultipleEpisodes: true,
       hasSubtitle: true,
       scrapeLabel: '已刮削',
+      heroTag: 'library-show-1',
     );
 
     testWidgets('桌面宽度按断点切换列数且点击卡片', (tester) async {
@@ -159,7 +212,7 @@ void main() {
           MaterialApp(
             home: Scaffold(
               body: LibraryMediaGrid(
-                data: const LibraryMediaGridViewData(items: [item]),
+                data: LibraryMediaGridViewData(items: const [item]),
                 onPlay: (value) async => played = value.id,
                 onShowActions: (_) async {},
               ),
@@ -182,6 +235,7 @@ void main() {
       delegate = grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
       expect(delegate.crossAxisCount, 4);
       expect(find.text('测试动画'), findsOneWidget);
+      expect(tester.widget<Hero>(find.byType(Hero)).tag, item.heroTag);
       expect(
           tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,
           0);
@@ -192,13 +246,136 @@ void main() {
       expect(played, item.id);
     });
 
+    testWidgets('长按卡片触发更多动作', (tester) async {
+      String? actionItem;
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: LibraryMediaGrid(
+            data: LibraryMediaGridViewData(items: const [item]),
+            onShowActions: (value) async => actionItem = value.id,
+          ),
+        ),
+      ));
+
+      await tester.longPress(find.byType(InkWell));
+      await tester.pump();
+      expect(actionItem, item.id);
+    });
+
+    testWidgets('悬浮 160ms 后显示信息 overlay 并保持原动画曲线', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: LibraryMediaGrid(
+            data: LibraryMediaGridViewData(items: const [item]),
+          ),
+        ),
+      ));
+      final opacityFinder = find.byType(AnimatedOpacity);
+      var opacity = tester.widget<AnimatedOpacity>(opacityFinder);
+      expect(opacity.opacity, 0);
+      expect(opacity.duration, const Duration(milliseconds: 160));
+      expect(opacity.curve, Curves.easeOut);
+
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(gesture.removePointer);
+      await gesture.addPointer(location: Offset.zero);
+      await gesture.moveTo(tester.getCenter(find.byType(InkWell)));
+      await tester.pump();
+      opacity = tester.widget<AnimatedOpacity>(opacityFinder);
+      expect(opacity.opacity, 1);
+      await tester.pump(const Duration(milliseconds: 160));
+      expect(tester.widget<AnimatedOpacity>(opacityFinder).opacity, 1);
+    });
+
+    testWidgets('加载和海报刮削状态显示进度', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: LibraryMediaGrid(
+            data: LibraryMediaGridViewData(isLoading: true),
+          ),
+        ),
+      ));
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: LibraryMediaGrid(
+            data: LibraryMediaGridViewData(items: const [
+              LibraryMediaItemViewData(
+                id: 'fetching',
+                title: '刮削中',
+                subtitle: '',
+                infoText: '',
+                modifiedText: '',
+                hasMultipleEpisodes: false,
+                hasSubtitle: false,
+                scrapeLabel: '正在刮削',
+                isScraping: true,
+              ),
+            ]),
+          ),
+        ),
+      ));
+      expect(find.text('正在刮削'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+
+    testWidgets('网络封面失败后回退本地封面，本地失败后显示占位', (tester) async {
+      final localCover = File(r'C:\test\cover.png');
+      final networkProvider = MemoryImage(base64Decode('AA=='));
+
+      final item = LibraryMediaItemViewData(
+        id: 'local-fallback',
+        title: '本地回退',
+        subtitle: '',
+        infoText: '',
+        modifiedText: '',
+        hasMultipleEpisodes: false,
+        hasSubtitle: false,
+        scrapeLabel: '已刮削',
+        networkCoverUrl: 'https://unused.invalid/cover.png',
+        localCoverPath: localCover.path,
+        networkCoverProvider: networkProvider,
+        localCoverProvider: FileImage(localCover),
+      );
+      late BuildContext imageContext;
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(builder: (context) {
+          imageContext = context;
+          return const SizedBox.shrink();
+        }),
+      ));
+      final networkImage = LibraryMediaCoverFallback.buildNetwork(
+        item,
+        localBuilder: (context) => LibraryMediaCoverFallback.buildLocal(
+          item,
+          placeholderBuilder: (_) => const Icon(Icons.play_circle_fill),
+        ),
+      ) as Image;
+      expect(networkImage.image, same(networkProvider));
+      final localFallback = networkImage.errorBuilder!(
+        imageContext,
+        StateError('模拟网络封面失败'),
+        StackTrace.empty,
+      ) as Image;
+      expect(localFallback.image, isA<FileImage>());
+
+      final placeholder = localFallback.errorBuilder!(
+        imageContext,
+        StateError('模拟本地封面失败'),
+        StackTrace.empty,
+      );
+      await tester.pumpWidget(MaterialApp(home: placeholder));
+      expect(find.byIcon(Icons.play_circle_fill), findsOneWidget);
+    });
+
     testWidgets('空目录保留选择文件夹入口', (tester) async {
       var picked = false;
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
             body: LibraryMediaGrid(
-              data: const LibraryMediaGridViewData(currentPath: ''),
+              data: LibraryMediaGridViewData(currentPath: ''),
               onPickDirectory: () async => picked = true,
             ),
           ),
@@ -230,7 +407,9 @@ void main() {
   test('LocalPage 实际组合三个媒体库展示组件', () {
     final source = File('lib/pages/local/local_page.dart').readAsStringSync();
     expect(source, contains('LibraryPathBar('));
+    expect(source, contains('LibrarySourceMenu('));
     expect(source, contains('LibrarySourceMenuViewData('));
     expect(source, contains('LibraryMediaGrid('));
+    expect(source, contains('heroTag:'));
   });
 }

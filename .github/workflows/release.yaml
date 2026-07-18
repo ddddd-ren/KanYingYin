@@ -60,7 +60,11 @@ jobs:
           "MSIX_VERSION=$msixVersion" >> $env:GITHUB_ENV
 
       - name: 生成 MSIX
-        run: dart run msix:create
+        shell: pwsh
+        run: |
+          $placeholderCertificate = Join-Path $env:RUNNER_TEMP 'unsigned-placeholder.cer'
+          New-Item -Path $placeholderCertificate -ItemType File -Force | Out-Null
+          dart run msix:create --sign-msix=false --certificate-path="$placeholderCertificate" --build-windows=false
 
       - name: 校验 MSIX 清单
         shell: pwsh

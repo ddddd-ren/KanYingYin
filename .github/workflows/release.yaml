@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 发布既有标签，例如 v1.2.3
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -14,11 +19,12 @@ jobs:
   windows-release:
     name: Windows Release 与 MSIX 发布
     runs-on: windows-latest
-    env:
-      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
 
       - name: 配置 Flutter
         uses: subosito/flutter-action@v2
@@ -42,20 +48,27 @@ jobs:
         run: flutter build windows --release --no-pub
 
       - name: 校验应用版本与标签
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
         shell: pwsh
         run: |
+          if ($env:RELEASE_TAG -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') { throw "发布标签格式无效: $env:RELEASE_TAG" }
+          git show-ref --verify --quiet "refs/tags/$env:RELEASE_TAG"
+          if ($LASTEXITCODE -ne 0) { throw "发布标签不存在: $env:RELEASE_TAG" }
+          $tagCommit = (git rev-list -n 1 $env:RELEASE_TAG).Trim()
+          $headCommit = (git rev-parse HEAD).Trim()
+          if ($tagCommit -ne $headCommit) { throw "标签 $env:RELEASE_TAG 未指向当前 HEAD" }
+
           $pubspec = Get-Content -LiteralPath 'pubspec.yaml' -Raw -Encoding UTF8
-          $versionMatch = [regex]::Match($pubspec, '(?m)^version:\s*([^+\r\n]+)')
-          $msixMatch = [regex]::Match($pubspec, '(?m)^\s*msix_version:\s*([^\r\n]+)')
+          $versionMatch = [regex]::Match($pubspec, '(?m)^version:\s*([0-9]+\.[0-9]+\.[0-9]+)(?:\+[0-9]+)?\s*$')
+          $msixMatch = [regex]::Match($pubspec, '(?m)^\s*msix_version:\s*([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)\s*$')
           if (-not $versionMatch.Success -or -not $msixMatch.Success) { throw '无法从 pubspec.yaml 读取应用版本' }
           $appVersion = $versionMatch.Groups[1].Value.Trim()
           $msixVersion = $msixMatch.Groups[1].Value.Trim()
-          $tag = if ('${{ github.ref }}' -like 'refs/tags/*') { '${{ github.ref_name }}' } else { "v$appVersion" }
-          if ($tag -ne "v$appVersion") { throw "标签 $tag 与 pubspec 版本 $appVersion 不一致" }
-          $parts = [System.Collections.Generic.List[string]]($appVersion.Split('.'))
-          while ($parts.Count -lt 4) { $parts.Add('0') }
-          $expectedMsix = ($parts[0..3] -join '.')
+          if ($env:RELEASE_TAG -ne "v$appVersion") { throw "标签 $env:RELEASE_TAG 与 pubspec 版本 $appVersion 不一致" }
+          $expectedMsix = "$appVersion.0"
           if ($msixVersion -ne $expectedMsix) { throw "msix_version $msixVersion 与应用版本 $appVersion 不一致，应为 $expectedMsix" }
+          "RELEASE_TAG=$env:RELEASE_TAG" >> $env:GITHUB_ENV
           "APP_VERSION=$appVersion" >> $env:GITHUB_ENV
           "MSIX_VERSION=$msixVersion" >> $env:GITHUB_ENV
 
@@ -83,24 +96,23 @@ jobs:
           if ($identity.Name -ne 'com.kanyingyin.player') { throw "清单 identity 不匹配: $($identity.Name)" }
           if ($identity.Version -ne $env:MSIX_VERSION) { throw "清单版本 $($identity.Version) 不匹配: $env:MSIX_VERSION" }
 
-      - name: 准备最终文件名
+      - name: 准备待签名 MSIX
         shell: pwsh
         run: |
           $source = Get-ChildItem -LiteralPath 'build/windows/x64/runner/Release' -Filter '*.msix' | Select-Object -First 1
-          $final = Join-Path $env:GITHUB_WORKSPACE "看影音-$env:APP_VERSION.msix"
-          Copy-Item -LiteralPath $source.FullName -Destination $final -Force
-          "MSIX_PATH=$final" >> $env:GITHUB_ENV
+          $unsignedDirectory = 'build/windows/msix_unsigned_output'
+          New-Item -Path $unsignedDirectory -ItemType Directory -Force | Out-Null
+          Copy-Item -LiteralPath $source.FullName -Destination "$unsignedDirectory/看影音-$env:APP_VERSION.msix" -Force
 
       - name: 上传待签名 MSIX
         id: unsigned-msix
         uses: actions/upload-artifact@v4
         with:
           name: windows-msix-unsigned
-          path: 看影音-${{ env.APP_VERSION }}.msix
+          path: build/windows/msix_unsigned_output/看影音-${{ env.APP_VERSION }}.msix
           if-no-files-found: error
 
-      - name: 可选 SignPath 签名
-        if: ${{ env.SIGNPATH_API_TOKEN != '' }}
+      - name: SignPath 签名 MSIX
         uses: signpath/github-action-submit-signing-request@v1.1
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -112,16 +124,16 @@ jobs:
           wait-for-completion: true
           output-artifact-directory: build/windows/msix_signed_output
 
-      - name: 使用签名后的 MSIX
-        if: ${{ env.SIGNPATH_API_TOKEN != '' }}
+      - name: 准备签名后的 MSIX
         shell: pwsh
         run: |
           $signed = Get-ChildItem -LiteralPath 'build/windows/msix_signed_output' -Filter '*.msix' -Recurse | Select-Object -First 1
           if ($null -eq $signed) { throw 'SignPath 未返回签名后的 MSIX' }
-          Copy-Item -LiteralPath $signed.FullName -Destination $env:MSIX_PATH -Force
+          $final = Join-Path $env:GITHUB_WORKSPACE "看影音-$env:APP_VERSION.msix"
+          Copy-Item -LiteralPath $signed.FullName -Destination $final -Force
 
       - name: 发布 GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.APP_VERSION }}
+          tag_name: ${{ env.RELEASE_TAG }}
           files: 看影音-${{ env.APP_VERSION }}.msix

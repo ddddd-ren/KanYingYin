@@ -9,8 +9,7 @@ void main() {
     const expectedVersion = '1.0.0';
     const expectedBuildNumber = '10000';
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    final apiEndpoints =
-        File('lib/request/config/api_endpoints.dart').readAsStringSync();
+    final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final readme = File('README.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
@@ -41,7 +40,7 @@ void main() {
     expect(msixVersion!.group(1), version);
     expect(msixIdentity, AppIdentity.windowsIdentity);
     expect(readmeIdentity, AppIdentity.windowsIdentity);
-    expect(apiEndpoints, contains("version = '$version'"));
+    expect(appVersion, contains("current = '$version'"));
     expect(releaseNotes, contains('## $version+$buildNumber'));
     expect(releaseNotes, contains('MSIX 版本：$version.0'));
     expect(readme, contains('| 当前版本 | $version |'));

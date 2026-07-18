@@ -55,6 +55,33 @@ class BangumiItem {
   });
 
   factory BangumiItem.fromJson(Map<String, dynamic> json) {
+    FormatException invalidField(String field) =>
+        FormatException('Bangumi 字段格式错误: $field');
+
+    int requiredInt(String field) {
+      final value = json[field];
+      if (value is int) return value;
+      throw invalidField(field);
+    }
+
+    int optionalInt(
+      Map<String, dynamic> source,
+      String field,
+      int defaultValue,
+    ) {
+      final value = source[field];
+      if (value == null) return defaultValue;
+      if (value is int) return value;
+      throw invalidField(field);
+    }
+
+    String optionalString(String field, [String defaultValue = '']) {
+      final value = json[field];
+      if (value == null) return defaultValue;
+      if (value is String) return value;
+      throw invalidField(field);
+    }
+
     List<String> parseBangumiAliases(Map<String, dynamic> jsonData) {
       if (jsonData.containsKey('infobox') && jsonData['infobox'] is List) {
         final infobox = jsonData['infobox'];
@@ -91,22 +118,41 @@ class BangumiItem {
       final json = rating['count'];
       // For api.bgm.tv
       if (json is Map<String, dynamic>) {
-        return List<int>.generate(10, (i) => json['${i + 1}'] as int);
+        return List<int>.generate(10, (index) {
+          final value = json['${index + 1}'];
+          if (value is int) return value;
+          throw invalidField('rating.count.${index + 1}');
+        });
       }
       // For next.bgm.tv
       if (json is List<Object?>) {
-        return json.whereType<int>().toList();
+        final values = <int>[];
+        for (var index = 0; index < json.length; index++) {
+          final value = json[index];
+          if (value is! int) {
+            throw invalidField('rating.count[$index]');
+          }
+          values.add(value);
+        }
+        return values;
       }
       return [];
     }
 
     final rawTags = json['tags'];
-    final tags = rawTags is List<Object?> ? rawTags : const <Object?>[];
+    if (rawTags != null && rawTags is! List<Object?>) {
+      throw invalidField('tags');
+    }
+    final tags = rawTags as List<Object?>? ?? const <Object?>[];
     List<String> bangumiAlias = parseBangumiAliases(json);
-    final tagList = tags
-        .whereType<Map<String, dynamic>>()
-        .map(BangumiTag.fromJson)
-        .toList();
+    final tagList = <BangumiTag>[];
+    for (var index = 0; index < tags.length; index++) {
+      final tag = tags[index];
+      if (tag is! Map<String, dynamic>) {
+        throw invalidField('tags[$index]');
+      }
+      tagList.add(BangumiTag.fromJson(tag));
+    }
     List<int> voteList = parseBangumiVoteCount(json);
     final rating = json['rating'];
     final ratingMap =
@@ -115,7 +161,7 @@ class BangumiItem {
     final imageMap = rawImages is Map<String, dynamic>
         ? rawImages.map((key, value) => MapEntry(key, value?.toString() ?? ''))
         : <String, String>{
-            "large": json['image']?.toString() ?? '',
+            "large": optionalString('image'),
             "common": "",
             "medium": "",
             "small": "",
@@ -130,30 +176,35 @@ class BangumiItem {
         : _dateStringToWeekday(
             airDate.isEmpty ? '2000-11-11' : airDate,
           );
+    final name = optionalString('name');
+    final nameCn = optionalString('name_cn');
+    final legacyNameCn = optionalString('nameCN');
+    final score = ratingMap['score'];
+    if (score != null && score is! num) {
+      throw invalidField('rating.score');
+    }
     return BangumiItem(
-      id: json['id'] is int ? json['id'] as int : 0,
-      type: json['type'] is int ? json['type'] as int : 2,
-      name: json['name']?.toString() ?? '',
-      nameCn: (json['name_cn'] ?? '') == ''
-          ? (((json['nameCN'] ?? '') == '')
-              ? json['name']?.toString() ?? ''
-              : json['nameCN']?.toString() ?? '')
-          : json['name_cn']?.toString() ?? '',
-      summary: json['summary']?.toString() ?? '',
+      id: requiredInt('id'),
+      type: optionalInt(json, 'type', 2),
+      name: name,
+      nameCn: nameCn.isNotEmpty
+          ? nameCn
+          : legacyNameCn.isNotEmpty
+              ? legacyNameCn
+              : name,
+      summary: optionalString('summary'),
       airDate: airDate,
       airWeekday: airWeekday,
-      rank: ratingMap['rank'] is int ? ratingMap['rank'] as int : 0,
+      rank: optionalInt(ratingMap, 'rank', 0),
       images: Map<String, String>.from(imageMap),
       tags: tagList,
       alias: bangumiAlias,
       ratingScore: double.parse(
-        (ratingMap['score'] is num ? ratingMap['score'] as num : 0.0)
-            .toDouble()
-            .toStringAsFixed(1),
+        (score as num? ?? 0.0).toDouble().toStringAsFixed(1),
       ),
-      votes: ratingMap['total'] is int ? ratingMap['total'] as int : 0,
+      votes: optionalInt(ratingMap, 'total', 0),
       votesCount: voteList,
-      info: json['info']?.toString() ?? '',
+      info: optionalString('info'),
     );
   }
 }

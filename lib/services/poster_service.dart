@@ -17,11 +17,19 @@ class PosterService {
   ];
 
   final Dio _dio;
+  final Dio _downloadDio;
   final String Function() _apiKeyProvider;
   String? _workingProxy;
 
-  PosterService({String Function()? apiKeyProvider})
+  PosterService({String Function()? apiKeyProvider, Dio? downloadDio})
       : _apiKeyProvider = apiKeyProvider ?? _readApiKey,
+        _downloadDio = downloadDio ??
+            Dio(
+              BaseOptions(
+                connectTimeout: const Duration(seconds: 10),
+                receiveTimeout: const Duration(seconds: 30),
+              ),
+            ),
         _dio = Dio(
           BaseOptions(
             connectTimeout: const Duration(seconds: 8),
@@ -238,18 +246,17 @@ class PosterService {
         return savePath;
       }
 
-      final response = await Dio(
-        BaseOptions(
-          connectTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 30),
-        ),
-      ).get<List<int>>(
+      final response = await _downloadDio.get<List<int>>(
         posterUrl,
         options: Options(responseType: ResponseType.bytes),
       );
+      final bytes = response.data;
+      if (bytes == null || bytes.isEmpty) {
+        throw const FormatException('海报响应为空');
+      }
 
       final file = File(savePath);
-      await file.writeAsBytes(response.data ?? const <int>[]);
+      await file.writeAsBytes(bytes);
       AppLogger().i('PosterService: downloaded poster to $savePath');
       return savePath;
     } catch (e) {
@@ -264,6 +271,7 @@ class PosterService {
     String savePath, {
     bool overwrite = false,
   }) async {
+    final temporary = File('$savePath.download');
     try {
       if (!overwrite && File(savePath).existsSync()) {
         AppLogger().i('PosterService: poster already exists: $savePath');
@@ -272,20 +280,18 @@ class PosterService {
 
       await File(savePath).parent.create(recursive: true);
 
-      final response = await Dio(
-        BaseOptions(
-          connectTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 30),
-        ),
-      ).get<List<int>>(
+      final response = await _downloadDio.get<List<int>>(
         posterUrl,
         options: Options(responseType: ResponseType.bytes),
       );
+      final bytes = response.data;
+      if (bytes == null || bytes.isEmpty) {
+        throw const FormatException('海报响应为空');
+      }
 
       final target = File(savePath);
-      final temporary = File('$savePath.download');
       await temporary.writeAsBytes(
-        response.data ?? const <int>[],
+        bytes,
         flush: true,
       );
       if (await target.exists()) await target.delete();
@@ -293,6 +299,15 @@ class PosterService {
       AppLogger().i('PosterService: downloaded to $savePath');
       return savePath;
     } catch (e) {
+      try {
+        if (await temporary.exists()) {
+          await temporary.delete();
+        }
+      } catch (cleanupError) {
+        AppLogger().w(
+          'PosterService: failed to clean temporary poster: $cleanupError',
+        );
+      }
       AppLogger().w('PosterService: download failed for $posterUrl: $e');
       return null;
     }

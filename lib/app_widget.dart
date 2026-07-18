@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -15,9 +16,12 @@ import 'package:kanyingyin/providers/theme_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
+import 'package:kanyingyin/services/windows_app_shell_service.dart';
 
 class AppWidget extends StatefulWidget {
-  const AppWidget({super.key});
+  const AppWidget({super.key, this.appShellService});
+
+  final WindowsAppShellService? appShellService;
 
   @override
   State<AppWidget> createState() => _AppWidgetState();
@@ -28,28 +32,42 @@ class _AppWidgetState extends State<AppWidget>
   Box setting = GStorage.setting;
 
   final TrayManager trayManager = TrayManager.instance;
+  late final WindowsAppShellService appShellService;
   bool showingExitDialog = false;
+  bool _displayModeInitialized = false;
 
   @override
   void initState() {
-    trayManager.addListener(this);
-    windowManager.addListener(this);
-    setPreventClose();
-    WidgetsBinding.instance.addObserver(this);
     super.initState();
+    appShellService = widget.appShellService ?? WindowsAppShellService();
+    WidgetsBinding.instance.addObserver(this);
+    Modular.setObservers([AppDialog.observer]);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(appShellService.initialize(
+        trayListener: this,
+        windowListener: this,
+      ));
+      unawaited(_initializeDisplayMode());
+    });
   }
 
-  void setPreventClose() async {
-    if (Utils.isDesktop()) {
-      await windowManager.setPreventClose(true);
-      setState(() {});
-    }
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    _applyStoredThemePreferences(themeProvider);
+    final brightness =
+        themeProvider.isEffectiveDark() ? Brightness.dark : Brightness.light;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(appShellService.syncBrightness(brightness));
+    });
   }
 
   @override
   void dispose() {
-    trayManager.removeListener(this);
-    windowManager.removeListener(this);
+    appShellService.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -178,69 +196,59 @@ class _AppWidgetState extends State<AppWidget>
       final brightness =
           WidgetsBinding.instance.platformDispatcher.platformBrightness;
       AppLogger().i("Updating title bar brightness: $brightness");
-      await windowManager.setBrightness(brightness);
+      await appShellService.syncBrightness(brightness);
     }
   }
 
-  Future<void> _handleTray() async {
-    if (Platform.isWindows) {
-      await trayManager.setIcon('assets/images/logo/logo_lanczos.ico');
-    } else if (Platform.environment.containsKey('FLATPAK_ID') ||
-        Platform.environment.containsKey('SNAP')) {
-      await trayManager.setIcon('com.kanyingyin.player');
-    } else {
-      await trayManager.setIcon('assets/images/logo/logo_rounded.png');
-    }
+  void _applyStoredThemePreferences(ThemeProvider themeProvider) {
+    final Object? storedThemeMode =
+        setting.get(SettingBoxKey.themeMode, defaultValue: 'system');
+    final themeMode = switch (storedThemeMode) {
+      'dark' => ThemeMode.dark,
+      'light' => ThemeMode.light,
+      _ => ThemeMode.system,
+    };
+    themeProvider.setThemeMode(themeMode, notify: false);
 
-    if (!Platform.isLinux) {
-      await trayManager.setToolTip(AppIdentity.displayName);
-    }
+    final bool useSystemFont =
+        setting.get(SettingBoxKey.useSystemFont, defaultValue: false);
+    themeProvider.setFontFamily(useSystemFont, notify: false);
+  }
 
-    Menu trayMenu = Menu(items: [
-      MenuItem(key: 'show_window', label: '显示窗口'),
-      MenuItem.separator(),
-      MenuItem(key: 'exit', label: '退出看影音')
-    ]);
-    await trayManager.setContextMenu(trayMenu);
+  Future<void> _initializeDisplayMode() async {
+    if (_displayModeInitialized || !Platform.isAndroid) return;
+    _displayModeInitialized = true;
+    try {
+      final modes = await FlutterDisplayMode.supported;
+      final Object? storedDisplayMode = setting.get(SettingBoxKey.displayMode);
+      final selectedMode = storedDisplayMode == null
+          ? DisplayMode.auto
+          : modes.firstWhere(
+              (mode) => mode.toString() == storedDisplayMode,
+              orElse: () => DisplayMode.auto,
+            );
+      final preferredMode = modes.firstWhere(
+        (mode) => mode == selectedMode,
+        orElse: () => DisplayMode.auto,
+      );
+      await FlutterDisplayMode.setPreferredMode(preferredMode);
+    } catch (error, stackTrace) {
+      AppLogger().e(
+        'DisPlay: set preferred mode failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final ThemeProvider themeProvider = Provider.of<ThemeProvider>(context);
-    if (Utils.isDesktop()) {
-      _handleTray();
-    }
-    dynamic color;
-    dynamic defaultThemeColor =
+    final Object? storedThemeColor =
         setting.get(SettingBoxKey.themeColor, defaultValue: 'default');
-    if (defaultThemeColor == 'default') {
-      color = const Color(0xFF00D4AA);
-    } else {
-      color = Color(int.parse(defaultThemeColor, radix: 16));
-    }
+    final Color color = parseStoredThemeColor(storedThemeColor);
     bool oledEnhance =
         setting.get(SettingBoxKey.oledEnhance, defaultValue: false);
-    bool useSystemFont =
-        setting.get(SettingBoxKey.useSystemFont, defaultValue: false);
-    final defaultThemeMode =
-        setting.get(SettingBoxKey.themeMode, defaultValue: 'system');
-    if (defaultThemeMode == 'dark') {
-      themeProvider.setThemeMode(ThemeMode.dark, notify: false);
-    }
-    if (defaultThemeMode == 'light') {
-      themeProvider.setThemeMode(ThemeMode.light, notify: false);
-    }
-    if (defaultThemeMode == 'system') {
-      themeProvider.setThemeMode(ThemeMode.system, notify: false);
-    }
-
-    // Set Windows title bar theme based on app theme
-    if (Platform.isWindows) {
-      windowManager.setBrightness(
-          themeProvider.isEffectiveDark() ? Brightness.dark : Brightness.light);
-    }
-
-    themeProvider.setFontFamily(useSystemFont, notify: false);
     var defaultDarkTheme = ThemeData(
         useMaterial3: true,
         fontFamily: themeProvider.currentFontFamily,
@@ -310,27 +318,6 @@ class _AppWidgetState extends State<AppWidget>
         );
       },
     );
-    Modular.setObservers([AppDialog.observer]);
-
-    // 强制设置高帧率
-    if (Platform.isAndroid) {
-      try {
-        late List modes;
-        FlutterDisplayMode.supported.then((value) {
-          modes = value;
-          var storageDisplay = setting.get(SettingBoxKey.displayMode);
-          DisplayMode f = DisplayMode.auto;
-          if (storageDisplay != null) {
-            f = modes.firstWhere((e) => e.toString() == storageDisplay);
-          }
-          DisplayMode preferred = modes.toList().firstWhere((el) => el == f);
-          FlutterDisplayMode.setPreferredMode(preferred);
-        });
-      } catch (e) {
-        AppLogger().e('DisPlay: set preferred mode failed', error: e);
-      }
-    }
-
     return app;
   }
 }

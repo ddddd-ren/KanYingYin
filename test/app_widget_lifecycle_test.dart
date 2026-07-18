@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/app_widget.dart';
 import 'package:kanyingyin/services/windows_app_shell_service.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
@@ -80,6 +82,128 @@ void main() {
       await nonWindowsService.syncBrightness(Brightness.dark);
       expect(nonWindowsPlatform.brightnesses, isEmpty);
     });
+
+    test('单个插件能力失败不阻断后续能力且下次可重试', () async {
+      final platform = _FakeAppShellPlatform(failedTrayIconAttempts: 1);
+      final capturedErrors = <Object>[];
+      final service = WindowsAppShellService(
+        platform: platform,
+        onError: (error, stackTrace) => capturedErrors.add(error),
+      );
+      final trayListener = _TrayListener();
+      final windowListener = _WindowListener();
+
+      await service.initialize(
+        trayListener: trayListener,
+        windowListener: windowListener,
+      );
+
+      expect(platform.preventCloseCalls, 1);
+      expect(platform.trayIconCalls, 1);
+      expect(platform.trayTooltipCalls, 1);
+      expect(platform.trayMenuCalls, 1);
+
+      await service.initialize(
+        trayListener: trayListener,
+        windowListener: windowListener,
+      );
+
+      expect(platform.preventCloseCalls, 2);
+      expect(platform.trayIconCalls, 2);
+      expect(platform.trayTooltipCalls, 2);
+      expect(platform.trayMenuCalls, 2);
+      expect(platform.addTrayListenerCalls, 1);
+      expect(platform.addWindowListenerCalls, 1);
+      expect(capturedErrors, hasLength(1));
+    });
+  });
+
+  group('AppShellLifecycle', () {
+    testWidgets('在首帧子树构建前启动初始化并在销毁时移除监听器', (tester) async {
+      final platform = _FakeAppShellPlatform();
+      final service = WindowsAppShellService(platform: platform);
+      var listenersAttachedDuringBuild = false;
+
+      await tester.pumpWidget(
+        AppShellLifecycle(
+          service: service,
+          trayListener: _TrayListener(),
+          windowListener: _WindowListener(),
+          ownership: AppShellServiceOwnership.borrowed,
+          child: Builder(builder: (context) {
+            listenersAttachedDuringBuild = platform.addTrayListenerCalls == 1 &&
+                platform.addWindowListenerCalls == 1;
+            return const SizedBox();
+          }),
+        ),
+      );
+
+      expect(listenersAttachedDuringBuild, isTrue);
+      await tester.pumpWidget(const SizedBox());
+      expect(platform.removeTrayListenerCalls, 1);
+      expect(platform.removeWindowListenerCalls, 1);
+
+      await service.initialize(
+        trayListener: _TrayListener(),
+        windowListener: _WindowListener(),
+      );
+      expect(platform.addTrayListenerCalls, 2,
+          reason: '借用的服务由外部持有，组件只能解绑本次监听器');
+      service.dispose();
+    });
+
+    testWidgets('拥有的服务随生命周期销毁', (tester) async {
+      final platform = _FakeAppShellPlatform();
+      final service = WindowsAppShellService(platform: platform);
+
+      await tester.pumpWidget(
+        AppShellLifecycle(
+          service: service,
+          trayListener: _TrayListener(),
+          windowListener: _WindowListener(),
+          ownership: AppShellServiceOwnership.owned,
+          child: const SizedBox(),
+        ),
+      );
+      await tester.pumpWidget(const SizedBox());
+      await service.initialize(
+        trayListener: _TrayListener(),
+        windowListener: _WindowListener(),
+      );
+
+      expect(platform.removeTrayListenerCalls, 1);
+      expect(platform.removeWindowListenerCalls, 1);
+      expect(platform.addTrayListenerCalls, 1, reason: '生命周期拥有的服务不得在销毁后重新初始化');
+    });
+
+    testWidgets('初始化等待期间销毁后不再继续调用平台能力', (tester) async {
+      final preventCloseCompleter = Completer<void>();
+      final platform = _FakeAppShellPlatform(
+        preventCloseCompleter: preventCloseCompleter,
+      );
+      final service = WindowsAppShellService(platform: platform);
+
+      await tester.pumpWidget(
+        AppShellLifecycle(
+          service: service,
+          trayListener: _TrayListener(),
+          windowListener: _WindowListener(),
+          ownership: AppShellServiceOwnership.owned,
+          child: const SizedBox(),
+        ),
+      );
+      expect(platform.preventCloseCalls, 1);
+
+      await tester.pumpWidget(const SizedBox());
+      preventCloseCompleter.complete();
+      await tester.pump();
+
+      expect(platform.removeTrayListenerCalls, 1);
+      expect(platform.removeWindowListenerCalls, 1);
+      expect(platform.trayIconCalls, 0);
+      expect(platform.trayTooltipCalls, 0);
+      expect(platform.trayMenuCalls, 0);
+    });
   });
 
   group('parseStoredThemeColor', () {
@@ -108,17 +232,24 @@ void main() {
 
   test('AppWidget.build 不执行应用壳和平台一次性副作用', () {
     final source = File('lib/app_widget.dart').readAsStringSync();
-    final buildBody = _methodBody(source, 'Widget build(BuildContext context)');
+    final buildBody = _methodBody(
+      source,
+      'Widget build(BuildContext context)',
+      after: 'class _AppWidgetState',
+    );
 
     expect(buildBody, isNot(contains('setBrightness')));
     expect(buildBody, isNot(contains('setObservers')));
     expect(buildBody, isNot(contains('_handleTray')));
     expect(buildBody, isNot(contains('FlutterDisplayMode.supported')));
+    expect(buildBody, isNot(contains('themeProvider.setTheme(')));
   });
 }
 
-String _methodBody(String source, String signature) {
-  final signatureIndex = source.indexOf(signature);
+String _methodBody(String source, String signature, {String? after}) {
+  final searchStart = after == null ? 0 : source.indexOf(after);
+  expect(searchStart, isNonNegative, reason: '找不到起始标记：$after');
+  final signatureIndex = source.indexOf(signature, searchStart);
   expect(signatureIndex, isNonNegative, reason: '找不到方法：$signature');
   final openingBrace = source.indexOf('{', signatureIndex);
   var depth = 0;
@@ -131,7 +262,11 @@ String _methodBody(String source, String signature) {
 }
 
 class _FakeAppShellPlatform implements WindowsAppShellPlatform {
-  _FakeAppShellPlatform({this.isWindows = true});
+  _FakeAppShellPlatform({
+    this.isWindows = true,
+    this.failedTrayIconAttempts = 0,
+    this.preventCloseCompleter,
+  });
 
   @override
   final bool isWindows;
@@ -147,6 +282,11 @@ class _FakeAppShellPlatform implements WindowsAppShellPlatform {
   int addWindowListenerCalls = 0;
   int removeWindowListenerCalls = 0;
   int preventCloseCalls = 0;
+  int trayIconCalls = 0;
+  int trayTooltipCalls = 0;
+  int trayMenuCalls = 0;
+  int failedTrayIconAttempts;
+  final Completer<void>? preventCloseCompleter;
   String? trayIcon;
   String? trayTooltip;
   List<TrayMenuEntry>? menuItems;
@@ -166,17 +306,32 @@ class _FakeAppShellPlatform implements WindowsAppShellPlatform {
       removeWindowListenerCalls++;
 
   @override
-  Future<void> setPreventClose() async => preventCloseCalls++;
+  Future<void> setPreventClose() {
+    preventCloseCalls++;
+    return preventCloseCompleter?.future ?? Future<void>.value();
+  }
 
   @override
-  Future<void> setTrayIcon(String iconPath) async => trayIcon = iconPath;
+  Future<void> setTrayIcon(String iconPath) async {
+    trayIconCalls++;
+    if (failedTrayIconAttempts > 0) {
+      failedTrayIconAttempts--;
+      throw StateError('托盘图标设置失败');
+    }
+    trayIcon = iconPath;
+  }
 
   @override
-  Future<void> setTrayTooltip(String tooltip) async => trayTooltip = tooltip;
+  Future<void> setTrayTooltip(String tooltip) async {
+    trayTooltipCalls++;
+    trayTooltip = tooltip;
+  }
 
   @override
-  Future<void> setTrayMenu(List<TrayMenuEntry> items) async =>
-      menuItems = List.of(items);
+  Future<void> setTrayMenu(List<TrayMenuEntry> items) async {
+    trayMenuCalls++;
+    menuItems = List.of(items);
+  }
 
   @override
   Future<void> setBrightness(Brightness brightness) async =>

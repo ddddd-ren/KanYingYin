@@ -221,6 +221,32 @@ void main() {
     expect(result.result, same(PosterScrapeResult.empty));
   });
 
+  test('海报 fallback await 后取消不向 scraper 返回地址', () async {
+    final scraper = _FallbackPosterScraper();
+    final fallbackStarted = Completer<void>();
+    final fallbackResult = Completer<String?>();
+    var cancelled = false;
+    final coordinator = LocalLibraryMetadataCoordinator(
+      posterScraper: scraper,
+    );
+
+    final pending = coordinator.fetchPosters(
+      <LocalFileItem>[_video('A.mkv')],
+      isCancelled: () => cancelled,
+      fallbackCover: (_) {
+        fallbackStarted.complete();
+        return fallbackResult.future;
+      },
+    );
+    await fallbackStarted.future;
+    cancelled = true;
+    fallbackResult.complete('poster.jpg');
+    final result = await pending;
+
+    expect(scraper.fallbackValue, isNull);
+    expect(result.cancelled, isTrue);
+  });
+
   test('媒体探测异常保持向上传递', () async {
     final coordinator = LocalLibraryMetadataCoordinator(
       mediaProbe: _ThrowingProbe(throwOnProbe: true),
@@ -298,8 +324,8 @@ class _Refresher extends LocalMediaIndexMetadataRefresher {
 
   @override
   Future<LocalMediaIndexMetadataRefreshResult> refreshRepository(
-    ILocalMediaIndexRepository repository,
-  ) async {
+      ILocalMediaIndexRepository repository,
+      {LocalMediaIndexMetadataRefreshCancelChecker? isCancelled}) async {
     this.repository = repository;
     return const LocalMediaIndexMetadataRefreshResult(
       checkedCount: 4,
@@ -315,8 +341,8 @@ class _DelayedRefresher extends LocalMediaIndexMetadataRefresher {
 
   @override
   Future<LocalMediaIndexMetadataRefreshResult> refreshRepository(
-    ILocalMediaIndexRepository repository,
-  ) {
+      ILocalMediaIndexRepository repository,
+      {LocalMediaIndexMetadataRefreshCancelChecker? isCancelled}) {
     started.complete();
     return _result.future;
   }
@@ -431,5 +457,24 @@ class _ThrowingPosterScraper implements ILocalPosterScraper {
     FallbackCoverProvider? fallbackCover,
   }) {
     throw StateError('海报失败');
+  }
+}
+
+class _FallbackPosterScraper implements ILocalPosterScraper {
+  String? fallbackValue;
+
+  @override
+  Future<PosterScrapeResult> scrapeMissingPosters(
+    List<LocalFileItem> items, {
+    PosterScrapeProgressCallback? onProgress,
+    FallbackCoverProvider? fallbackCover,
+  }) async {
+    fallbackValue = await fallbackCover?.call(items.single);
+    return const PosterScrapeResult(
+      success: 1,
+      failed: 0,
+      skipped: 0,
+      total: 1,
+    );
   }
 }

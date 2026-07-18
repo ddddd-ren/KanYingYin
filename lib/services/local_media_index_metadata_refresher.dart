@@ -19,6 +19,8 @@ class LocalMediaIndexMetadataRefreshResult {
   });
 }
 
+typedef LocalMediaIndexMetadataRefreshCancelChecker = bool Function();
+
 class LocalMediaIndexMetadataRefresher {
   LocalMediaIndexMetadataRefresher({
     LocalEpisodeParser? episodeParser,
@@ -84,8 +86,9 @@ class LocalMediaIndexMetadataRefresher {
   }
 
   Future<LocalMediaIndexMetadataRefreshResult> refreshRepository(
-    ILocalMediaIndexRepository repository,
-  ) async {
+    ILocalMediaIndexRepository repository, {
+    LocalMediaIndexMetadataRefreshCancelChecker? isCancelled,
+  }) async {
     final items = repository.getAll();
     var refreshedCount = 0;
     var skippedCount = 0;
@@ -119,6 +122,7 @@ class LocalMediaIndexMetadataRefresher {
 
     if (refreshedCount > 0) {
       for (final entry in bySourcePath.entries) {
+        if (isCancelled?.call() ?? false) break;
         await repository.saveForSource(entry.key, entry.value);
       }
     }

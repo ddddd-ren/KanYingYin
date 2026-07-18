@@ -452,6 +452,71 @@ void main() {
     expect(repository.getByPath(firstVideo)?.cover, isNull);
   });
 
+  test('LocalController 封面更新挂起期间导航后停止后续提交', () async {
+    final firstDir = await Directory.systemTemp.createTemp('cover_update_a_');
+    final secondDir = await Directory.systemTemp.createTemp('cover_update_b_');
+    addTearDown(() async {
+      if (await firstDir.exists()) await firstDir.delete(recursive: true);
+      if (await secondDir.exists()) await secondDir.delete(recursive: true);
+    });
+    final firstVideo = '${firstDir.path}${Platform.pathSeparator}a.mkv';
+    final secondVideo = '${firstDir.path}${Platform.pathSeparator}b.mkv';
+    final otherVideo = '${secondDir.path}${Platform.pathSeparator}c.mkv';
+    await File('${firstDir.path}${Platform.pathSeparator}cover.jpg')
+        .writeAsBytes(<int>[1]);
+    final repository = _DelayedUpdateMediaIndexRepository();
+    await repository.saveForSource(firstDir.path, <LocalMediaIndexItem>[
+      for (final path in <String>[firstVideo, secondVideo])
+        LocalMediaIndexItem(
+          path: path,
+          name: path.split(Platform.pathSeparator).last,
+          parentPath: firstDir.path,
+          sourcePath: firstDir.path,
+          size: 1,
+          modified: DateTime(2026),
+          seriesName: 'A',
+          indexedAt: DateTime(2026),
+        ),
+    ]);
+    final scraper = _DelayedPosterScraper();
+    final controller = LocalController(
+      scanner: _PathScanner(<String, List<LocalFileItem>>{
+        firstDir.path: <LocalFileItem>[
+          _item(path: firstVideo),
+          _item(path: secondVideo),
+        ],
+        secondDir.path: <LocalFileItem>[_item(path: otherVideo)],
+      }),
+      mediaIndexRepository: repository,
+      mediaSourceRepository: _MemoryMediaSourceRepository(),
+      metadataCoordinator: LocalLibraryMetadataCoordinator(
+        posterScraper: scraper,
+        mediaIndexRepository: repository,
+      ),
+      preferences: _preferences(),
+    );
+    controller.reloadLocalLibraryIndex();
+
+    await controller.navigateTo(firstDir.path);
+    final pending = controller.fetchPosters();
+    await scraper.started.future;
+    scraper.complete(const PosterScrapeResult(
+      success: 1,
+      failed: 0,
+      skipped: 0,
+      total: 1,
+    ));
+    await repository.updateStarted.future;
+    await controller.navigateTo(secondDir.path);
+    repository.completeUpdate();
+    await pending;
+
+    expect(repository.updatedPaths, <String>[firstVideo]);
+    expect(controller.localLibraryItems, hasLength(2));
+    expect(controller.localLibraryItems.every((item) => item.cover == null),
+        isTrue);
+  });
+
   test('LocalController updates media info for current directory videos',
       () async {
     final dir = await Directory.systemTemp.createTemp('kanyingyin_media_info_');
@@ -1259,4 +1324,22 @@ class _MemoryMediaIndexRepository implements ILocalMediaIndexRepository {
     _items.clear();
     _fingerprints.clear();
   }
+}
+
+class _DelayedUpdateMediaIndexRepository extends _MemoryMediaIndexRepository {
+  final updateStarted = Completer<void>();
+  final _allowUpdate = Completer<void>();
+  final updatedPaths = <String>[];
+
+  @override
+  Future<void> updateItem(LocalMediaIndexItem item) async {
+    updatedPaths.add(item.path);
+    if (updatedPaths.length == 1) {
+      updateStarted.complete();
+      await _allowUpdate.future;
+    }
+    await super.updateItem(item);
+  }
+
+  void completeUpdate() => _allowUpdate.complete();
 }

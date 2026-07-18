@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -143,6 +144,62 @@ void main() {
     expect(item.releaseGroup, 'ManualGroup');
     expect(item.manualOverride, isTrue);
   });
+
+  test('取消时允许在途 source 保存完成但不启动后续 source 保存', () async {
+    final firstDir = await Directory.systemTemp.createTemp('metadata_first_');
+    final secondDir = await Directory.systemTemp.createTemp('metadata_second_');
+    addTearDown(() async {
+      if (await firstDir.exists()) await firstDir.delete(recursive: true);
+      if (await secondDir.exists()) await secondDir.delete(recursive: true);
+    });
+    final repository = _DelayedSaveRepository();
+    for (final directory in <Directory>[firstDir, secondDir]) {
+      final file = File(
+        '${directory.path}${Platform.pathSeparator}Movie 2024.mkv',
+      );
+      await file.writeAsString('video');
+      final stat = await file.stat();
+      await repository.saveForSource(directory.path, <LocalMediaIndexItem>[
+        LocalMediaIndexItem(
+          path: file.path,
+          name: p.basename(file.path),
+          parentPath: directory.path,
+          sourcePath: directory.path,
+          size: stat.size,
+          modified: stat.modified,
+          seriesName: 'Movie 2024',
+          derivedMetadataVersion: 0,
+          indexedAt: DateTime(2026),
+        ),
+      ]);
+    }
+    repository.beginDelaying();
+    var cancelled = false;
+
+    final pending = LocalMediaIndexMetadataRefresher().refreshRepository(
+      repository,
+      isCancelled: () => cancelled,
+    );
+    await repository.saveStarted.future;
+    cancelled = true;
+    repository.completeSave();
+    await pending;
+
+    expect(repository.savedSources, <String>[firstDir.path]);
+    expect(
+        repository
+            .getBySourcePath(firstDir.path)
+            .single
+            .hasCurrentDerivedMetadata,
+        isTrue);
+    expect(
+      repository
+          .getBySourcePath(secondDir.path)
+          .single
+          .hasCurrentDerivedMetadata,
+      isFalse,
+    );
+  });
 }
 
 class _MemoryMediaIndexRepository implements ILocalMediaIndexRepository {
@@ -220,4 +277,33 @@ class _MemoryMediaIndexRepository implements ILocalMediaIndexRepository {
     _items.clear();
     _fingerprints.clear();
   }
+}
+
+class _DelayedSaveRepository extends _MemoryMediaIndexRepository {
+  final saveStarted = Completer<void>();
+  final _allowSave = Completer<void>();
+  final savedSources = <String>[];
+  var _delayWrites = false;
+
+  void beginDelaying() {
+    _delayWrites = true;
+    savedSources.clear();
+  }
+
+  @override
+  Future<void> saveForSource(
+    String sourcePath,
+    List<LocalMediaIndexItem> items,
+  ) async {
+    if (_delayWrites) {
+      savedSources.add(sourcePath);
+      if (savedSources.length == 1) {
+        saveStarted.complete();
+        await _allowSave.future;
+      }
+    }
+    await super.saveForSource(sourcePath, items);
+  }
+
+  void completeSave() => _allowSave.complete();
 }

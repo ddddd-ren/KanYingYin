@@ -236,9 +236,11 @@ final class LocalLibraryMetadataCoordinator {
             },
       fallbackCover: fallbackCover == null
           ? null
-          : (item) {
+          : (item) async {
               if (isCancelled?.call() ?? false) return null;
-              return fallbackCover(item);
+              final result = await fallbackCover(item);
+              if (isCancelled?.call() ?? false) return null;
+              return result;
             },
     );
     if (isCancelled?.call() ?? false) {
@@ -257,7 +259,10 @@ final class LocalLibraryMetadataCoordinator {
     if (repository == null) {
       throw StateError('未配置本地媒体索引仓储');
     }
-    final result = await _metadataRefresher.refreshRepository(repository);
+    final result = await _metadataRefresher.refreshRepository(
+      repository,
+      isCancelled: isCancelled,
+    );
     if (isCancelled?.call() ?? false) {
       return LocalDerivedMetadataBatchResult.cancelledResult;
     }

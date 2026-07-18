@@ -448,7 +448,12 @@ abstract class _LocalController with Store {
         posterPath,
         refreshNavigationRequestId,
       )) {
-        await _syncIndexedCovers(targetItems);
+        await _syncIndexedCovers(
+          targetItems,
+          posterRequestId: posterRequestId,
+          posterPath: posterPath,
+          navigationRequestId: refreshNavigationRequestId,
+        );
       }
     }
     return result.toMap();
@@ -482,9 +487,21 @@ abstract class _LocalController with Store {
     return null;
   }
 
-  Future<void> _syncIndexedCovers(List<LocalFileItem> targetItems) async {
+  Future<void> _syncIndexedCovers(
+    List<LocalFileItem> targetItems, {
+    required int posterRequestId,
+    required String posterPath,
+    required int navigationRequestId,
+  }) async {
     var updated = false;
     for (final item in targetItems) {
+      if (!_isCurrentPosterRequest(
+        posterRequestId,
+        posterPath,
+        navigationRequestId,
+      )) {
+        return;
+      }
       final indexed = _mediaIndexRepository.getByPath(item.path);
       if (indexed == null) continue;
 
@@ -493,10 +510,29 @@ abstract class _LocalController with Store {
         continue;
       }
 
+      if (!_isCurrentPosterRequest(
+        posterRequestId,
+        posterPath,
+        navigationRequestId,
+      )) {
+        return;
+      }
       await _mediaIndexRepository.updateItem(indexed.copyWith(cover: cover));
+      if (!_isCurrentPosterRequest(
+        posterRequestId,
+        posterPath,
+        navigationRequestId,
+      )) {
+        return;
+      }
       updated = true;
     }
-    if (updated) {
+    if (updated &&
+        _isCurrentPosterRequest(
+          posterRequestId,
+          posterPath,
+          navigationRequestId,
+        )) {
       _reloadLocalLibraryIndexSafe();
     }
   }

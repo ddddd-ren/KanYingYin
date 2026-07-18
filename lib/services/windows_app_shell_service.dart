@@ -6,31 +6,6 @@ import 'package:kanyingyin/utils/logger.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
-const Color _fallbackThemeColor = Color(0xFF00D4AA);
-
-/// 解析应用壳持久化的主题配置，不访问平台或存储。
-Color parseStoredThemeColor(Object? storedValue) {
-  if (storedValue == null || storedValue == 'default') {
-    return _fallbackThemeColor;
-  }
-
-  int? colorValue;
-  if (storedValue is int) {
-    colorValue = storedValue;
-  } else if (storedValue is String) {
-    final normalized = storedValue.trim().replaceFirst(
-          RegExp(r'^0x', caseSensitive: false),
-          '',
-        );
-    colorValue = int.tryParse(normalized, radix: 16);
-  }
-
-  if (colorValue == null || colorValue < 0 || colorValue > 0xFFFFFFFF) {
-    return _fallbackThemeColor;
-  }
-  return Color(colorValue);
-}
-
 class TrayMenuEntry {
   const TrayMenuEntry({required this.key, required this.label})
       : isSeparator = false;
@@ -81,9 +56,12 @@ class WindowsAppShellService {
   final WindowsAppShellPlatform _platform;
   final void Function(Object error, StackTrace stackTrace) _onError;
   Future<void>? _initialization;
+  Future<void>? _brightnessDrain;
+  _BrightnessRequest? _pendingBrightness;
   TrayListener? _trayListener;
   WindowListener? _windowListener;
-  Brightness? _lastBrightness;
+  Brightness? _appliedBrightness;
+  int? _appliedBrightnessGeneration;
   bool _trayListenerAttached = false;
   bool _windowListenerAttached = false;
   bool _initialized = false;
@@ -154,15 +132,53 @@ class WindowsAppShellService {
     }
   }
 
-  Future<void> syncBrightness(Brightness brightness) async {
-    if (_disposed || !_platform.isWindows || _lastBrightness == brightness) {
-      return;
+  Future<void> syncBrightness(Brightness brightness) {
+    if (_disposed || !_platform.isWindows) return Future<void>.value();
+    if (_brightnessDrain == null &&
+        _appliedBrightness == brightness &&
+        _appliedBrightnessGeneration == _generation) {
+      return Future<void>.value();
     }
+
+    _pendingBrightness = _BrightnessRequest(brightness, _generation);
+    return _brightnessDrain ??= _drainBrightness();
+  }
+
+  Future<void> _drainBrightness() async {
     try {
-      await _platform.setBrightness(brightness);
-      if (!_disposed) _lastBrightness = brightness;
-    } catch (error, stackTrace) {
-      _onError(error, stackTrace);
+      while (!_disposed) {
+        final request = _pendingBrightness;
+        if (request == null) return;
+        if (request.generation != _generation) {
+          if (identical(_pendingBrightness, request)) {
+            _pendingBrightness = null;
+          }
+          continue;
+        }
+        if (_appliedBrightness == request.brightness &&
+            _appliedBrightnessGeneration == request.generation) {
+          if (identical(_pendingBrightness, request)) {
+            _pendingBrightness = null;
+          }
+          continue;
+        }
+
+        try {
+          await _platform.setBrightness(request.brightness);
+          if (!_disposed && request.generation == _generation) {
+            _appliedBrightness = request.brightness;
+            _appliedBrightnessGeneration = request.generation;
+          }
+        } catch (error, stackTrace) {
+          _onError(error, stackTrace);
+        }
+
+        if (identical(_pendingBrightness, request)) {
+          _pendingBrightness = null;
+        }
+      }
+    } finally {
+      _brightnessDrain = null;
     }
   }
 
@@ -171,6 +187,9 @@ class WindowsAppShellService {
     WindowListener windowListener,
   ) {
     var succeeded = true;
+    if (_trayListenerAttached && !identical(_trayListener, trayListener)) {
+      succeeded &= _removeTrayListener();
+    }
     if (!_trayListenerAttached) {
       try {
         _platform.addTrayListener(trayListener);
@@ -180,6 +199,10 @@ class WindowsAppShellService {
         succeeded = false;
         _onError(error, stackTrace);
       }
+    }
+    if (_windowListenerAttached &&
+        !identical(_windowListener, windowListener)) {
+      succeeded &= _removeWindowListener();
     }
     if (!_windowListenerAttached) {
       try {
@@ -214,25 +237,38 @@ class WindowsAppShellService {
     _generation++;
     _initialized = false;
     _initialization = null;
+    _pendingBrightness = null;
+    _appliedBrightness = null;
+    _appliedBrightnessGeneration = null;
 
-    if (_trayListenerAttached) {
+    _removeTrayListener();
+    _removeWindowListener();
+  }
+
+  bool _removeTrayListener() {
+    if (!_trayListenerAttached) return true;
+    try {
+      _platform.removeTrayListener(_trayListener!);
       _trayListenerAttached = false;
-      try {
-        _platform.removeTrayListener(_trayListener!);
-      } catch (error, stackTrace) {
-        _onError(error, stackTrace);
-      }
+      _trayListener = null;
+      return true;
+    } catch (error, stackTrace) {
+      _onError(error, stackTrace);
+      return false;
     }
-    if (_windowListenerAttached) {
+  }
+
+  bool _removeWindowListener() {
+    if (!_windowListenerAttached) return true;
+    try {
+      _platform.removeWindowListener(_windowListener!);
       _windowListenerAttached = false;
-      try {
-        _platform.removeWindowListener(_windowListener!);
-      } catch (error, stackTrace) {
-        _onError(error, stackTrace);
-      }
+      _windowListener = null;
+      return true;
+    } catch (error, stackTrace) {
+      _onError(error, stackTrace);
+      return false;
     }
-    _trayListener = null;
-    _windowListener = null;
   }
 
   void dispose() {
@@ -248,6 +284,13 @@ class WindowsAppShellService {
       stackTrace: stackTrace,
     );
   }
+}
+
+class _BrightnessRequest {
+  const _BrightnessRequest(this.brightness, this.generation);
+
+  final Brightness brightness;
+  final int generation;
 }
 
 class _PluginWindowsAppShellPlatform implements WindowsAppShellPlatform {

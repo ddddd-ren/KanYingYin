@@ -18,6 +18,31 @@ import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 import 'package:kanyingyin/services/windows_app_shell_service.dart';
 
+const Color _fallbackThemeColor = Color(0xFF00D4AA);
+
+/// 将持久化主题色转换为应用主题颜色，不访问平台或存储。
+Color parseStoredThemeColor(Object? storedValue) {
+  if (storedValue == null || storedValue == 'default') {
+    return _fallbackThemeColor;
+  }
+
+  int? colorValue;
+  if (storedValue is int) {
+    colorValue = storedValue;
+  } else if (storedValue is String) {
+    final normalized = storedValue.trim().replaceFirst(
+          RegExp(r'^0x', caseSensitive: false),
+          '',
+        );
+    colorValue = int.tryParse(normalized, radix: 16);
+  }
+
+  if (colorValue == null || colorValue < 0 || colorValue > 0xFFFFFFFF) {
+    return _fallbackThemeColor;
+  }
+  return Color(colorValue);
+}
+
 enum AppShellServiceOwnership { borrowed, owned }
 
 class AppShellLifecycle extends StatefulWidget {
@@ -51,13 +76,37 @@ class _AppShellLifecycleState extends State<AppShellLifecycle> {
   }
 
   @override
-  void dispose() {
-    if (widget.ownership == AppShellServiceOwnership.owned) {
-      widget.service.dispose();
+  void didUpdateWidget(covariant AppShellLifecycle oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final serviceChanged = !identical(oldWidget.service, widget.service);
+    final listenersChanged =
+        !identical(oldWidget.trayListener, widget.trayListener) ||
+            !identical(oldWidget.windowListener, widget.windowListener);
+    if (!serviceChanged && !listenersChanged) return;
+
+    if (serviceChanged) {
+      _release(oldWidget);
     } else {
-      widget.service.detach();
+      oldWidget.service.detach();
     }
+    unawaited(widget.service.initialize(
+      trayListener: widget.trayListener,
+      windowListener: widget.windowListener,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _release(widget);
     super.dispose();
+  }
+
+  void _release(AppShellLifecycle configuration) {
+    if (configuration.ownership == AppShellServiceOwnership.owned) {
+      configuration.service.dispose();
+    } else {
+      configuration.service.detach();
+    }
   }
 
   @override

@@ -90,6 +90,31 @@ import 'package:flutter_modular/flutter_modular.dart';
     );
   });
 
+  test('core 依赖只允许 core 内部，network 外部依赖限定基础包白名单', () {
+    expect(_isForbiddenCoreUri('lib/core/network/dio_factory.dart'), isFalse);
+    expect(_isForbiddenCoreUri('lib/services/tmdb/tmdb_client.dart'), isTrue);
+    expect(_isForbiddenCoreUri('lib/repositories/cache.dart'), isTrue);
+    expect(
+        _isForbiddenCoreUri('lib/modules/bangumi/bangumi_item.dart'), isTrue);
+    expect(_isForbiddenCoreUri('lib/providers/theme_provider.dart'), isTrue);
+    expect(_isForbiddenCoreUri('lib/pages/about/about_page.dart'), isTrue);
+    expect(_isForbiddenCoreUri('lib/features/player/presentation/player.dart'),
+        isTrue);
+
+    expect(_isAllowedCoreNetworkUri('lib/core/app_version.dart'), isTrue);
+    expect(_isAllowedCoreNetworkUri('dart:io'), isTrue);
+    expect(_isAllowedCoreNetworkUri('package:dio/dio.dart'), isTrue);
+    expect(_isAllowedCoreNetworkUri('package:dio/io.dart'), isTrue);
+    expect(_isAllowedCoreNetworkUri('package:flutter/material.dart'), isFalse);
+    expect(_isAllowedCoreNetworkUri('package:provider/provider.dart'), isFalse);
+    expect(
+        _isAllowedCoreNetworkUri(
+            'package:flutter_modular/flutter_modular.dart'),
+        isFalse);
+    expect(
+        _isAllowedCoreNetworkUri('package:unknown_ui/widgets.dart'), isFalse);
+  });
+
   test('旧 request 层已完全迁出', () {
     final requestDirectory =
         Directory('${libDirectory.path}${Platform.pathSeparator}request');
@@ -120,14 +145,7 @@ import 'package:flutter_modular/flutter_modular.dart';
 
     final forbidden = _dartFiles(networkDirectory)
         .expand((file) => _imports(file, projectRoot: projectRoot))
-        .where(
-          (import) =>
-              _isFlutterModularUri(import.uri) ||
-              _isProjectUri(import.uri) &&
-                  RegExp(
-                    r'(?:^|/)(pages|features|modules|utils|services|repositories)/',
-                  ).hasMatch(import.uri),
-        )
+        .where((import) => !_isAllowedCoreNetworkUri(import.uri))
         .toList(growable: false);
 
     expect(forbidden, isEmpty, reason: _formatImports(forbidden));
@@ -153,13 +171,7 @@ import 'package:flutter_modular/flutter_modular.dart';
         Directory('${libDirectory.path}${Platform.pathSeparator}core');
     final forbidden = _dartFiles(coreDirectory)
         .expand((file) => _imports(file, projectRoot: projectRoot))
-        .where(
-          (import) =>
-              _isProjectUri(import.uri) &&
-              RegExp(
-                r'(?:^|/)(features(?:/[^/]+)?/presentation|pages)/',
-              ).hasMatch(import.uri),
-        )
+        .where((import) => _isForbiddenCoreUri(import.uri))
         .toList(growable: false);
 
     expect(forbidden, isEmpty, reason: _formatImports(forbidden));
@@ -264,6 +276,14 @@ bool _isProjectUri(String uri) => uri.startsWith('lib/');
 
 bool _isFlutterModularUri(String uri) =>
     uri.startsWith('package:flutter_modular/');
+
+bool _isForbiddenCoreUri(String uri) =>
+    _isProjectUri(uri) && !uri.startsWith('lib/core/');
+
+bool _isAllowedCoreNetworkUri(String uri) =>
+    uri.startsWith('lib/core/') ||
+    uri.startsWith('dart:') ||
+    uri.startsWith('package:dio/');
 
 Iterable<String> _directiveUris(String source) sync* {
   var index = 0;

@@ -10,7 +10,6 @@ class NetworkConfig {
     this.proxyHost,
     this.proxyPort,
     this.allowBadCertificates = false,
-    this.enableLog = true,
   });
 
   final Duration connectTimeout;
@@ -19,7 +18,6 @@ class NetworkConfig {
   final String? proxyHost;
   final int? proxyPort;
   final bool allowBadCertificates;
-  final bool enableLog;
 
   bool get hasProxy => proxyHost != null && proxyPort != null;
 
@@ -46,7 +44,6 @@ class NetworkConfig {
     int? proxyPort,
     bool? clearProxy,
     bool? allowBadCertificates,
-    bool? enableLog,
   }) {
     final shouldClearProxy = clearProxy ?? false;
     return NetworkConfig(
@@ -56,7 +53,6 @@ class NetworkConfig {
       proxyHost: shouldClearProxy ? null : proxyHost ?? this.proxyHost,
       proxyPort: shouldClearProxy ? null : proxyPort ?? this.proxyPort,
       allowBadCertificates: allowBadCertificates ?? this.allowBadCertificates,
-      enableLog: enableLog ?? this.enableLog,
     );
   }
 }

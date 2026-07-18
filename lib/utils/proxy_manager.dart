@@ -36,7 +36,7 @@ class ProxyManager {
 
   /// 启动时初始化代理。
   ///
-  /// 如果用户已经手动配置并启用代理，只刷新网络客户端。
+  /// 如果用户已经手动配置并启用代理，验证后供新建客户端读取。
   /// 如果在线资源直连正常，不主动改动用户的代理开关。
   /// 如果 Bangumi 直连超时，会自动探测常见本机代理端口并启用。
   static Future<void> initializeProxy() async {
@@ -88,7 +88,7 @@ class ProxyManager {
     applyProxy();
   }
 
-  /// 在线资源请求失败后重新探测代理，并在找到可用路径时刷新 Dio。
+  /// 在线资源请求失败后重新探测代理，并更新后续新建客户端使用的设置。
   ///
   /// 这个入口用于处理启动后网络状态变化、代理稍后启动、旧代理失效等情况。
   static Future<bool> recoverOnlineResourceProxy() {
@@ -99,12 +99,12 @@ class ProxyManager {
 
   /// 应用代理设置
   static void applyProxy() {
-    AppLogger().i('Proxy: 网络客户端配置已刷新');
+    AppLogger().i('Proxy: 代理设置已保存，将对新建网络客户端生效');
   }
 
   /// 清除代理设置
   static void clearProxy() {
-    AppLogger().i('Proxy: 网络客户端代理已清除');
+    AppLogger().i('Proxy: 代理清除设置已保存，将对新建网络客户端生效');
   }
 
   static Future<(String, int)?> _detectLocalProxy() async {

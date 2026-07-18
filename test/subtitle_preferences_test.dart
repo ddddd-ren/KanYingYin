@@ -34,6 +34,21 @@ void main() {
     expect(style.position, SubtitleStyleSettings.defaultPosition);
   });
 
+  test('样式历史非有限数值回退默认且不抛异常', () async {
+    await box.put(SettingBoxKey.subtitleFontSize, double.nan);
+    await box.put(SettingBoxKey.subtitleColor, double.infinity);
+    await box.put(SettingBoxKey.subtitleBorderSize, double.negativeInfinity);
+    await box.put(SettingBoxKey.subtitleShadowOffset, double.nan);
+    await box.put(SettingBoxKey.subtitlePosition, double.infinity);
+
+    final style = SubtitlePreferences(storage: box).loadStyle();
+    expect(style.fontSize, SubtitleStyleSettings.defaultFontSize);
+    expect(style.colorValue, SubtitleStyleSettings.defaultColorValue);
+    expect(style.borderSize, SubtitleStyleSettings.defaultBorderSize);
+    expect(style.shadowOffset, SubtitleStyleSettings.defaultShadowOffset);
+    expect(style.position, SubtitleStyleSettings.defaultPosition);
+  });
+
   test('保存和读取当前视频 delay，零值删除且保留其他视频', () async {
     final preferences = SubtitlePreferences(storage: box);
     await preferences.saveDelay('other', 2.5);
@@ -73,12 +88,16 @@ void main() {
     await box.put(SettingBoxKey.subtitleDelayByVideo, <String, Object?>{
       'too-large': 31,
       'fraction': 1.24,
+      'nan': double.nan,
+      'infinity': double.infinity,
       'old': '1.5',
     });
     final preferences = SubtitlePreferences(storage: box);
 
     expect(preferences.loadDelay('too-large'), 30);
     expect(preferences.loadDelay('fraction'), 1.24);
+    expect(preferences.loadDelay('nan'), 0);
+    expect(preferences.loadDelay('infinity'), 0);
     expect(preferences.loadDelay('old'), 0);
   });
 }

@@ -96,7 +96,9 @@ class SubtitlePreferences {
     final values = _delayMap();
     final value = values[key];
     if (value is! num) return 0.0;
-    return value.toDouble().clamp(-30.0, 30.0).toDouble();
+    final converted = value.toDouble();
+    if (!converted.isFinite) return 0.0;
+    return converted.clamp(-30.0, 30.0).toDouble();
   }
 
   Future<void> saveDelay(String key, double seconds) async {
@@ -123,12 +125,14 @@ class SubtitlePreferences {
     final value = _storage.get(key);
     if (value is! num) return fallback;
     final converted = value.toDouble();
+    if (!converted.isFinite) return fallback;
     return converted >= min && converted <= max ? converted : fallback;
   }
 
   int _int(String key, int fallback) {
     final value = _storage.get(key);
-    return value is num ? value.toInt() : fallback;
+    if (value is! num || !value.toDouble().isFinite) return fallback;
+    return value.toInt();
   }
 
   bool _bool(String key, bool fallback) {

@@ -30,10 +30,9 @@ void main() {
       'bad': null,
       'forward': <Object?>['', 42],
     }, dispatch: (_) {});
-    expect(handler.handleShortcutDown('X'), isFalse);
-    expect(handler.handleShortcutDown(''), isFalse);
-    expect(handler.handleShortcutDown('42'), isFalse);
-    expect(handler.handleShortcutLongPress('X', 'invalid'), isFalse);
+    expect(handler.handleKey('X', PlayerShortcutPhase.down), isFalse);
+    expect(handler.handleKey('', PlayerShortcutPhase.down), isFalse);
+    expect(handler.handleKey('42', PlayerShortcutPhase.down), isFalse);
     final result = handler.dispatchKey('missing', PlayerShortcutPhase.down);
     expect(result.consumed, isFalse);
     expect(result.action, isNull);
@@ -48,8 +47,11 @@ void main() {
       },
       dispatch: actions.add,
     );
-    expect(handler.handleShortcutDown('Arrow Right'), isTrue);
-    expect(handler.handleShortcutDown(''), isFalse);
+    expect(
+      handler.handleKey('Arrow Right', PlayerShortcutPhase.down),
+      isTrue,
+    );
+    expect(handler.handleKey('', PlayerShortcutPhase.down), isFalse);
     expect(actions, [PlayerShortcutAction.forward]);
   });
 
@@ -98,8 +100,11 @@ void main() {
   test('PlayerItem 实际委托快捷键分发', () {
     final source = File('lib/pages/player/player_item.dart').readAsStringSync();
     expect(source, contains('PlayerShortcutHandler'));
-    expect(source, contains('_shortcutHandler.handleShortcutDown(keyLabel)'));
-    expect(source,
-        contains('_shortcutHandler.handleShortcutLongPress(keyLabel, mode)'));
+    expect(source, contains('Map<PlayerShortcutAction, void Function()>'));
+    expect(source, isNot(contains('handleShortcutLongPress')));
+    expect(source, contains('_shortcutHandler.handleKey('));
+    expect(source, contains('PlayerShortcutPhase.down'));
+    expect(source, contains('PlayerShortcutPhase.repeat'));
+    expect(source, contains('PlayerShortcutPhase.up'));
   });
 }

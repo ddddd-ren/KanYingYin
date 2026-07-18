@@ -1,4 +1,6 @@
-import 'package:flutter/foundation.dart';
+import 'dart:async';
+
+import 'package:flutter/material.dart';
 
 enum PlayerOverlay { none, subtitleSettings, videoInfo, other }
 
@@ -51,4 +53,109 @@ class PlayerOverlayCoordinator extends ChangeNotifier {
     _disposed = true;
     super.dispose();
   }
+}
+
+class PlayerOverlayPresenter extends StatefulWidget {
+  const PlayerOverlayPresenter({
+    super.key,
+    required this.coordinator,
+    required this.videoInfoBuilder,
+    required this.child,
+    this.isScrollControlled = true,
+    this.constraints,
+    this.clipBehavior = Clip.antiAlias,
+  });
+
+  final PlayerOverlayCoordinator coordinator;
+  final WidgetBuilder videoInfoBuilder;
+  final Widget child;
+  final bool isScrollControlled;
+  final BoxConstraints? constraints;
+  final Clip clipBehavior;
+
+  @override
+  State<PlayerOverlayPresenter> createState() => _PlayerOverlayPresenterState();
+}
+
+class _PlayerOverlayPresenterState extends State<PlayerOverlayPresenter> {
+  NavigatorState? _sheetNavigator;
+  bool _sheetOpen = false;
+  bool _showScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.coordinator.addListener(_handleOverlayChanged);
+    _handleOverlayChanged();
+  }
+
+  @override
+  void didUpdateWidget(PlayerOverlayPresenter oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.coordinator == widget.coordinator) return;
+    oldWidget.coordinator.removeListener(_handleOverlayChanged);
+    widget.coordinator.addListener(_handleOverlayChanged);
+    _handleOverlayChanged();
+  }
+
+  void _handleOverlayChanged() {
+    if (widget.coordinator.visible == PlayerOverlay.videoInfo) {
+      _scheduleVideoInfo();
+    } else {
+      _closeOwnedSheet();
+    }
+  }
+
+  void _scheduleVideoInfo() {
+    if (!mounted || _sheetOpen || _showScheduled) return;
+    _showScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showScheduled = false;
+      if (!mounted || widget.coordinator.visible != PlayerOverlay.videoInfo) {
+        return;
+      }
+      unawaited(_showVideoInfo());
+    });
+  }
+
+  Future<void> _showVideoInfo() async {
+    _sheetOpen = true;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: widget.isScrollControlled,
+      constraints: widget.constraints,
+      clipBehavior: widget.clipBehavior,
+      builder: (context) {
+        _sheetNavigator = Navigator.of(context);
+        if (widget.coordinator.visible != PlayerOverlay.videoInfo) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _closeOwnedSheet();
+          });
+        }
+        return widget.videoInfoBuilder(context);
+      },
+    );
+    _sheetOpen = false;
+    _sheetNavigator = null;
+    if (mounted && widget.coordinator.visible == PlayerOverlay.videoInfo) {
+      widget.coordinator.closeVideoInfo();
+    }
+  }
+
+  void _closeOwnedSheet() {
+    final navigator = _sheetNavigator;
+    if (navigator == null) return;
+    _sheetNavigator = null;
+    navigator.pop();
+  }
+
+  @override
+  void dispose() {
+    widget.coordinator.removeListener(_handleOverlayChanged);
+    _closeOwnedSheet();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

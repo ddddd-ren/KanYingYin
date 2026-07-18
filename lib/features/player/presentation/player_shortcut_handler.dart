@@ -48,8 +48,10 @@ extension PlayerShortcutActionCommand on PlayerShortcutAction {
       };
 }
 
-typedef PlayerShortcutCallback = FutureOr<void> Function(
-  PlayerShortcutAction action,
+typedef PlayerShortcutCallback = FutureOr<void> Function();
+typedef PlayerShortcutErrorHandler = void Function(
+  Object error,
+  StackTrace stackTrace,
 );
 
 class PlayerShortcutDispatchResult {
@@ -75,25 +77,33 @@ class PlayerShortcutDispatchResult {
 class PlayerShortcutHandler {
   PlayerShortcutHandler({
     required Map<String, List<String>> shortcuts,
-    required this.dispatch,
+    required Map<PlayerShortcutAction, PlayerShortcutCallback> actions,
+    required this.onError,
     Set<String>? longPressActions,
   })  : _shortcuts = _copy(shortcuts),
+        _actions =
+            Map<PlayerShortcutAction, PlayerShortcutCallback>.unmodifiable(
+          actions,
+        ),
         _longPressActions = longPressActions ?? const {'forward'};
 
   factory PlayerShortcutHandler.fromConfig({
     required Map<String, Object?> shortcuts,
-    required PlayerShortcutCallback dispatch,
+    required Map<PlayerShortcutAction, PlayerShortcutCallback> actions,
+    required PlayerShortcutErrorHandler onError,
     Set<String>? longPressActions,
   }) {
     return PlayerShortcutHandler(
       shortcuts: _parse(shortcuts),
-      dispatch: dispatch,
+      actions: actions,
+      onError: onError,
       longPressActions: longPressActions,
     );
   }
 
-  final PlayerShortcutCallback dispatch;
+  final PlayerShortcutErrorHandler onError;
   final Map<String, List<String>> _shortcuts;
+  final Map<PlayerShortcutAction, PlayerShortcutCallback> _actions;
   final Set<String> _longPressActions;
 
   PlayerShortcutDispatchResult dispatchKey(
@@ -106,7 +116,7 @@ class PlayerShortcutHandler {
         if (entry.value.contains(keyLabel)) {
           final action = _actionFor(entry.key);
           if (action == null) continue;
-          dispatch(action);
+          if (!_invoke(action)) continue;
           return PlayerShortcutDispatchResult.handled(phase, action);
         }
       }
@@ -117,7 +127,7 @@ class PlayerShortcutHandler {
       if (_shortcuts[function]?.contains(keyLabel) != true) continue;
       final action = _actionFor('$function$suffix');
       if (action == null) continue;
-      dispatch(action);
+      if (!_invoke(action)) continue;
       return PlayerShortcutDispatchResult.handled(phase, action);
     }
     return PlayerShortcutDispatchResult.ignored(phase);
@@ -125,6 +135,24 @@ class PlayerShortcutHandler {
 
   bool handleKey(String keyLabel, PlayerShortcutPhase phase) =>
       dispatchKey(keyLabel, phase).consumed;
+
+  bool dispatchAction(PlayerShortcutAction action) => _invoke(action);
+
+  bool _invoke(PlayerShortcutAction action) {
+    final callback = _actions[action];
+    if (callback == null) return false;
+    try {
+      final result = callback();
+      if (result is Future<void>) {
+        unawaited(result.catchError((Object error, StackTrace stackTrace) {
+          onError(error, stackTrace);
+        }));
+      }
+    } catch (error, stackTrace) {
+      onError(error, stackTrace);
+    }
+    return true;
+  }
 
   static Map<String, List<String>> _copy(Map<String, List<String>> source) =>
       <String, List<String>>{

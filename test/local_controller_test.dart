@@ -251,6 +251,47 @@ void main() {
     expect(controller.mediaSources, isEmpty);
   });
 
+  test('媒体库扫描期间拒绝删除媒体源和失效源并保留索引', () async {
+    final dir = await Directory.systemTemp.createTemp('index_remove_race_');
+    final video = File('${dir.path}${Platform.pathSeparator}Show S01E01.mkv');
+    await video.writeAsString('video');
+    addTearDown(() async {
+      if (await dir.exists()) await dir.delete(recursive: true);
+    });
+
+    final sourceRepository = _MemoryMediaSourceRepository();
+    final indexRepository = _MemoryMediaIndexRepository();
+    final stat = await video.stat();
+    final item = LocalMediaIndexItem.fromFile(
+      file: video,
+      stat: stat,
+      sourcePath: dir.path,
+      indexedAt: DateTime(2026),
+    );
+    await indexRepository.saveForSource(dir.path, [item]);
+    final indexer = _DelayedMediaIndexer(item);
+    final controller = LocalController(
+      scanner: _ImmediateScanner(const []),
+      mediaIndexer: indexer,
+      mediaIndexRepository: indexRepository,
+      mediaSourceRepository: sourceRepository,
+      preferences: _preferences(),
+    );
+    await controller.setRootDirectory(dir.path);
+
+    final scan = controller.refreshLocalLibraryIndex();
+    await indexer.started.future;
+    await dir.delete(recursive: true);
+
+    expect(await controller.removeMediaSource(dir.path), isFalse);
+    expect(await controller.removeUnavailableMediaSources(), 0);
+    expect(sourceRepository.getAll(), hasLength(1));
+    expect(indexRepository.getBySourcePath(dir.path), [item]);
+
+    indexer.complete();
+    await scan;
+  });
+
   test('LocalController does not duplicate path history on refresh', () async {
     final dir = await Directory.systemTemp.createTemp('kanyingyin_history_');
     addTearDown(() async {
@@ -646,7 +687,6 @@ void main() {
       preferences: _preferences(),
     );
     await controller.setRootDirectory(dir.path);
-
     await expectLater(
       controller.refreshLocalLibraryIndex(throwOnFailure: true),
       throwsA(isA<StateError>()),
@@ -660,14 +700,16 @@ void main() {
     addTearDown(() async {
       if (await dir.exists()) await dir.delete(recursive: true);
     });
+    final sourceRepository = _MemoryMediaSourceRepository();
     final controller = LocalController(
       scanner: _ImmediateScanner(const []),
       mediaIndexer: _CancelledMediaIndexer(),
       mediaIndexRepository: _MemoryMediaIndexRepository(),
-      mediaSourceRepository: _MemoryMediaSourceRepository(),
+      mediaSourceRepository: sourceRepository,
       preferences: _preferences(),
     );
     await controller.setRootDirectory(dir.path);
+    final summaryCountBeforeScan = sourceRepository.scanSummaries.length;
 
     await expectLater(
       controller.refreshLocalLibraryIndex(throwOnFailure: true),
@@ -675,6 +717,7 @@ void main() {
     );
     expect(controller.libraryIndexSummary, contains('媒体库扫描已取消'));
     expect(controller.isIndexingLibrary, isFalse);
+    expect(sourceRepository.scanSummaries, hasLength(summaryCountBeforeScan));
   });
 
   test('严格重载网盘媒体库时向上传递仓储异常', () async {
@@ -1195,6 +1238,37 @@ class _FakeMediaIndexer implements ILocalMediaIndexer {
       addedCount: 1,
       updatedCount: 0,
       reusedCount: 0,
+      removedCount: 0,
+      skippedCount: 0,
+    );
+  }
+}
+
+class _DelayedMediaIndexer implements ILocalMediaIndexer {
+  _DelayedMediaIndexer(this.item);
+
+  final LocalMediaIndexItem item;
+  final started = Completer<void>();
+  final _completion = Completer<void>();
+
+  void complete() => _completion.complete();
+
+  @override
+  Future<LocalMediaIndexResult> indexSource(
+    String sourcePath, {
+    LocalMediaIndexProgressCallback? onProgress,
+    bool enrichMediaInfo = false,
+    bool generateThumbnails = false,
+    LocalMediaIndexCancelChecker? isCancelled,
+  }) async {
+    started.complete();
+    await _completion.future;
+    return LocalMediaIndexResult(
+      sourcePath: sourcePath,
+      items: [item],
+      addedCount: 0,
+      updatedCount: 0,
+      reusedCount: 1,
       removedCount: 0,
       skippedCount: 0,
     );

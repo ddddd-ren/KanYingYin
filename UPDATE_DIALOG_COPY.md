@@ -26,6 +26,6 @@
 发布新版本时，本文件中的应用版本、安装包版本和弹窗正文必须与以下文件保持一致：
 
 - `pubspec.yaml`
-- `lib/request/config/api_endpoints.dart`
+- `lib/core/app_version.dart`
 - `lib/utils/version_history.dart`
 - `RELEASE_NOTES.md`

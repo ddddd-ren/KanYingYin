@@ -643,6 +643,7 @@ abstract class _LocalController with Store {
 
   @action
   Future<bool> removeMediaSource(String path) async {
+    if (isIndexingLibrary) return false;
     try {
       final removed = await _mediaSourceRepository.removePath(path);
       await _tryRemoveMediaIndexSource(path);
@@ -670,6 +671,7 @@ abstract class _LocalController with Store {
 
   @action
   Future<int> removeUnavailableMediaSources() async {
+    if (isIndexingLibrary) return 0;
     final unavailableSources = mediaSources
         .where((source) => !isMediaSourceAvailable(source))
         .toList(growable: false);
@@ -856,6 +858,11 @@ abstract class _LocalController with Store {
         removedCount += result.removedCount;
         skippedCount += result.skippedCount;
         libraryIndexFailures.addAll(result.failures);
+        if (result.cancelled || cancelLibraryIndexRequested) {
+          scanCancelled = true;
+          libraryIndexSummary = '媒体库扫描已取消，已保留 $localLibraryVideoCount 个已索引视频';
+          break;
+        }
         await _mediaSourceRepository.updateScanSummary(
           path: source.path,
           fileCount: result.totalCount,
@@ -863,11 +870,6 @@ abstract class _LocalController with Store {
           directoryCount: 0,
           skippedCount: result.skippedCount,
         );
-        if (result.cancelled || cancelLibraryIndexRequested) {
-          scanCancelled = true;
-          libraryIndexSummary = '媒体库扫描已取消，已保留 $localLibraryVideoCount 个已索引视频';
-          break;
-        }
       }
       _reloadMediaSourcesSafe();
       _reloadLocalLibraryIndexSafe();

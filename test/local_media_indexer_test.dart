@@ -199,6 +199,35 @@ void main() {
     expect(repository.getAll(), isEmpty);
   });
 
+  test('LocalMediaIndexer 在保存阶段取消时不提交索引和目录指纹', () async {
+    final tempDir = await Directory.systemTemp.createTemp('index_save_cancel_');
+    addTearDown(() async {
+      if (await tempDir.exists()) await tempDir.delete(recursive: true);
+    });
+    final video =
+        File('${tempDir.path}${Platform.pathSeparator}Show S01E01.mkv');
+    await video.writeAsString('video');
+    final repository = _TrackingMediaIndexRepository();
+    final indexer = _testIndexer(
+      repository: repository,
+      mediaProbe: const _FakeMediaProbe({}),
+    );
+    var cancelled = false;
+
+    final result = await indexer.indexSource(
+      tempDir.path,
+      isCancelled: () => cancelled,
+      onProgress: (progress) {
+        if (progress.phase == LocalMediaIndexPhase.saving) cancelled = true;
+      },
+    );
+
+    expect(result.cancelled, isTrue);
+    expect(repository.saveItemsCount, 0);
+    expect(repository.saveFingerprintsCount, 0);
+    expect(repository.getAll(), isEmpty);
+  });
+
   test('LocalMediaIndexer removes deleted videos from index', () async {
     final tempDir =
         await Directory.systemTemp.createTemp('kanyingyin_index_delete_');
@@ -579,5 +608,28 @@ class _MemoryMediaIndexRepository implements ILocalMediaIndexRepository {
   Future<void> clear() async {
     _items.clear();
     _fingerprints.clear();
+  }
+}
+
+class _TrackingMediaIndexRepository extends _MemoryMediaIndexRepository {
+  int saveItemsCount = 0;
+  int saveFingerprintsCount = 0;
+
+  @override
+  Future<void> saveForSource(
+    String sourcePath,
+    List<LocalMediaIndexItem> items,
+  ) async {
+    saveItemsCount++;
+    await super.saveForSource(sourcePath, items);
+  }
+
+  @override
+  Future<void> saveDirectoryFingerprints(
+    String sourcePath,
+    Map<String, String> fingerprints,
+  ) async {
+    saveFingerprintsCount++;
+    await super.saveDirectoryFingerprints(sourcePath, fingerprints);
   }
 }

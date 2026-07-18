@@ -166,6 +166,26 @@ void main() {
       lessThan(releaseWorkflow.indexOf('发布 GitHub Release')),
     );
   });
+
+  test('签名输出唯一且发布前验证签名、签名者和结构化清单', () {
+    final verification = _stepBlock(releaseWorkflow, '验证签名后的 MSIX');
+    expect(verification, contains(r'$signedFiles.Count -ne 1'));
+    expect(verification, contains(r'& $signTool verify /pa /v'));
+    expect(verification, contains('MakeAppx.exe'));
+    expect(verification, contains('unpack /p'));
+    expect(verification, contains(r'[xml]$manifestXml'));
+    expect(verification, contains("'com.kanyingyin.player'"));
+    expect(verification, contains("'CN=KanYingYin'"));
+    expect(verification, contains(r'$env:MSIX_VERSION'));
+    expect(verification, contains('Get-AuthenticodeSignature'));
+    expect(verification, contains("Status -ne 'Valid'"));
+    expect(verification, contains("Subject -ne 'CN=KanYingYin'"));
+    expect(verification, isNot(contains('SIGNPATH_API_TOKEN')));
+    expect(
+      releaseWorkflow.indexOf('验证签名后的 MSIX'),
+      lessThan(releaseWorkflow.indexOf('softprops/action-gh-release@v2')),
+    );
+  });
 }
 
 List<String> _topLevelJobNames(String workflow) {

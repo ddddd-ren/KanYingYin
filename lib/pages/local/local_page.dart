@@ -162,6 +162,7 @@ class _LocalPageState extends State<LocalPage>
   }
 
   Future<void> _confirmRemoveMediaSource(LocalMediaSource source) async {
+    if (localController.isLoading || localController.isIndexingLibrary) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -198,6 +199,7 @@ class _LocalPageState extends State<LocalPage>
   }
 
   Future<void> _confirmRemoveUnavailableMediaSources() async {
+    if (localController.isLoading || localController.isIndexingLibrary) return;
     final count = localController.unavailableMediaSourceCount();
     if (count <= 0) return;
 
@@ -777,7 +779,8 @@ class _LocalPageState extends State<LocalPage>
   Widget _sourceMenu() {
     return LibrarySourceMenu(
       data: LibrarySourceMenuViewData(
-        enabled: !localController.isLoading,
+        enabled:
+            !localController.isLoading && !localController.isIndexingLibrary,
         unavailableCount: localController.unavailableMediaSourceCount(),
         sources: [
           for (final source in localController.mediaSources)

@@ -8,13 +8,14 @@ class NetworkSettingsConfigFactory {
   NetworkSettingsConfigFactory._();
 
   static NetworkConfig create({
+    Box<dynamic>? setting,
     Duration connectTimeout = const Duration(seconds: 12),
     Duration receiveTimeout = const Duration(seconds: 12),
     Duration? sendTimeout,
   }) {
-    final Box<dynamic> setting = GStorage.setting;
+    final settings = setting ?? GStorage.setting;
     final proxyEnable =
-        setting.get(SettingBoxKey.proxyEnable, defaultValue: false) == true;
+        settings.get(SettingBoxKey.proxyEnable, defaultValue: false) == true;
     if (!proxyEnable) {
       return NetworkConfig(
         connectTimeout: connectTimeout,
@@ -23,7 +24,10 @@ class NetworkSettingsConfigFactory {
       );
     }
 
-    final rawProxyUrl = setting.get(SettingBoxKey.proxyUrl, defaultValue: '');
+    final rawProxyUrl = settings.get(
+      SettingBoxKey.proxyUrl,
+      defaultValue: '',
+    );
     final proxyUrl = rawProxyUrl is String ? rawProxyUrl : '';
     final parsed = ProxyUtils.parseProxyUrl(proxyUrl);
     if (parsed == null) {
@@ -41,7 +45,6 @@ class NetworkSettingsConfigFactory {
       sendTimeout: sendTimeout,
       proxyHost: parsed.$1,
       proxyPort: parsed.$2,
-      allowBadCertificates: true,
     );
   }
 }

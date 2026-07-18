@@ -28,6 +28,8 @@ import 'package:kanyingyin/services/audio_controller.dart';
 import 'package:kanyingyin/services/local_subtitle_importer.dart';
 import 'package:kanyingyin/pages/player/widgets/player_gestures.dart';
 import 'package:kanyingyin/pages/player/widgets/subtitle_settings_overlay.dart';
+import 'package:kanyingyin/features/player/presentation/player_overlay_coordinator.dart';
+import 'package:kanyingyin/features/player/presentation/player_shortcut_handler.dart';
 import 'package:path/path.dart' as p;
 
 class PlayerItem extends StatefulWidget {
@@ -65,9 +67,10 @@ class _PlayerItemState extends State<PlayerItem>
   final IVideoPageController videoPageController =
       Modular.get<IVideoPageController>();
   final AudioController _audioController = AudioController();
-  late Map<String, List<String>> keyboardShortcuts;
-  late List<String> keyboardActionsNeedLongPress;
+  late PlayerShortcutHandler _shortcutHandler;
   late Map<String, void Function()> keyboardActions;
+  final PlayerOverlayCoordinator _overlayCoordinator =
+      PlayerOverlayCoordinator();
 
   // 硬件解码
   late bool haEnable;
@@ -81,8 +84,6 @@ class _PlayerItemState extends State<PlayerItem>
   Timer? hideVolumeUITimer;
 
   double lastVolume = 0;
-  bool showSubtitleOverlay = false;
-
   // 过渡动画控制器
   AnimationController? animationController;
 
@@ -175,17 +176,17 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   void _loadShortcuts() {
-    keyboardShortcuts = {};
+    final shortcuts = <String, Object?>{};
     defaultShortcuts.forEach((key, defaultValue) {
-      keyboardShortcuts[key] = setting
-          .get('shortcut_$key', defaultValue: defaultValue)
-          .cast<String>();
+      shortcuts[key] = setting.get('shortcut_$key', defaultValue: defaultValue);
     });
+    _shortcutHandler = PlayerShortcutHandler.fromConfig(
+      shortcuts: shortcuts,
+      dispatch: (action) => keyboardActions[action.command]?.call(),
+    );
   }
 
   void _initKeyboardActions() {
-    //需要实现长按的功能列表。
-    keyboardActionsNeedLongPress = ["forward"];
     //快捷键功能对应表
     keyboardActions = {
       'playorpause': () => playerController.playOrPause(),
@@ -224,33 +225,12 @@ class _PlayerItemState extends State<PlayerItem>
 
   //快捷键按下
   bool handleShortcutDown(String keyLabel) {
-    for (final entry in keyboardShortcuts.entries) {
-      final func = entry.key;
-      final keys = entry.value;
-      if (keys.contains(keyLabel)) {
-        final action = keyboardActions[func];
-        if (action != null) {
-          action();
-          return true;
-        }
-      }
-    }
-    return false;
+    return _shortcutHandler.handleShortcutDown(keyLabel);
   }
 
   // 快捷键长按
   bool handleShortcutLongPress(String keyLabel, String mode) {
-    for (final func in keyboardActionsNeedLongPress) {
-      final keys = keyboardShortcuts[func];
-      if (keys?.contains(keyLabel) == true) {
-        final action = keyboardActions[func + mode];
-        if (action != null) {
-          action();
-          return true;
-        }
-      }
-    }
-    return false;
+    return _shortcutHandler.handleShortcutLongPress(keyLabel, mode);
   }
 
   //上一集下一集动作
@@ -353,7 +333,7 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   void _handleTap() {
-    if (showSubtitleOverlay) {
+    if (_overlayCoordinator.visible == PlayerOverlay.subtitleSettings) {
       closeSubtitleSettingsOverlay();
       return;
     }
@@ -955,6 +935,10 @@ class _PlayerItemState extends State<PlayerItem>
     }
   }
 
+  void _handleOverlayChanged() {
+    if (mounted) setState(() {});
+  }
+
   void openSubtitleSettingsOverlay() {
     if (playerController.isLocalPlayback) {
       playerController.refreshSubtitleCandidates();
@@ -964,22 +948,18 @@ class _PlayerItemState extends State<PlayerItem>
     playerController.canHidePlayerPanel = false;
     playerController.showVideoController = true;
     animationController?.forward();
-    setState(() {
-      showSubtitleOverlay = true;
-    });
+    _overlayCoordinator.openSubtitleSettings();
   }
 
   void closeSubtitleSettingsOverlay() {
-    if (!showSubtitleOverlay) return;
-    setState(() {
-      showSubtitleOverlay = false;
-    });
+    if (_overlayCoordinator.visible != PlayerOverlay.subtitleSettings) return;
+    _overlayCoordinator.closeSubtitleSettings();
     playerController.canHidePlayerPanel = true;
     startHideTimer();
   }
 
   void toggleSubtitleSettingsOverlay() {
-    if (showSubtitleOverlay) {
+    if (_overlayCoordinator.visible == PlayerOverlay.subtitleSettings) {
       closeSubtitleSettingsOverlay();
     } else {
       openSubtitleSettingsOverlay();
@@ -1023,7 +1003,11 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   void showVideoInfo() async {
-    showModalBottomSheet(
+    if (_overlayCoordinator.visible == PlayerOverlay.subtitleSettings) {
+      closeSubtitleSettingsOverlay();
+    }
+    _overlayCoordinator.openVideoInfo();
+    await showModalBottomSheet<void>(
         isScrollControlled: true,
         constraints: BoxConstraints(
             maxHeight: MediaQuery.of(context).size.height * 3 / 4,
@@ -1062,6 +1046,7 @@ class _PlayerItemState extends State<PlayerItem>
             ),
           );
         });
+    _overlayCoordinator.closeVideoInfo();
   }
 
   /// Used to decide which panel is used.
@@ -1101,8 +1086,9 @@ class _PlayerItemState extends State<PlayerItem>
   @override
   void initState() {
     super.initState();
-    _loadShortcuts();
     _initKeyboardActions();
+    _loadShortcuts();
+    _overlayCoordinator.addListener(_handleOverlayChanged);
     _initPlayerMenu();
     _fullscreenListener = mobx.reaction<bool>(
       (_) => videoPageController.isFullscreen,
@@ -1171,6 +1157,9 @@ class _PlayerItemState extends State<PlayerItem>
     animationController?.dispose();
     animationController = null;
     _disposePlayerMenu();
+    _overlayCoordinator
+      ..removeListener(_handleOverlayChanged)
+      ..dispose();
     if (Platform.isAndroid) {
       unawaited(_syncAndroidPIPPlayerPageState(false));
       PipUtils.disposePipHandler();
@@ -1359,7 +1348,8 @@ class _PlayerItemState extends State<PlayerItem>
                       onSetBrightness: setBrightness,
                       startHideTimer: startHideTimer,
                     ),
-                    if (showSubtitleOverlay)
+                    if (_overlayCoordinator.visible ==
+                        PlayerOverlay.subtitleSettings)
                       SubtitleSettingsOverlay(
                         playerController: playerController,
                         onClose: closeSubtitleSettingsOverlay,

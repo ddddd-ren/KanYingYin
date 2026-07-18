@@ -18,10 +18,61 @@ import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 import 'package:kanyingyin/services/windows_app_shell_service.dart';
 
+enum AppShellServiceOwnership { borrowed, owned }
+
+class AppShellLifecycle extends StatefulWidget {
+  const AppShellLifecycle({
+    super.key,
+    required this.service,
+    required this.trayListener,
+    required this.windowListener,
+    required this.ownership,
+    required this.child,
+  });
+
+  final WindowsAppShellService service;
+  final TrayListener trayListener;
+  final WindowListener windowListener;
+  final AppShellServiceOwnership ownership;
+  final Widget child;
+
+  @override
+  State<AppShellLifecycle> createState() => _AppShellLifecycleState();
+}
+
+class _AppShellLifecycleState extends State<AppShellLifecycle> {
+  @override
+  void initState() {
+    super.initState();
+    unawaited(widget.service.initialize(
+      trayListener: widget.trayListener,
+      windowListener: widget.windowListener,
+    ));
+  }
+
+  @override
+  void dispose() {
+    if (widget.ownership == AppShellServiceOwnership.owned) {
+      widget.service.dispose();
+    } else {
+      widget.service.detach();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
 class AppWidget extends StatefulWidget {
-  const AppWidget({super.key, this.appShellService});
+  const AppWidget({
+    super.key,
+    this.appShellService,
+    this.appShellServiceOwnership = AppShellServiceOwnership.borrowed,
+  });
 
   final WindowsAppShellService? appShellService;
+  final AppShellServiceOwnership appShellServiceOwnership;
 
   @override
   State<AppWidget> createState() => _AppWidgetState();
@@ -33,6 +84,7 @@ class _AppWidgetState extends State<AppWidget>
 
   final TrayManager trayManager = TrayManager.instance;
   late final WindowsAppShellService appShellService;
+  late final AppShellServiceOwnership appShellServiceOwnership;
   bool showingExitDialog = false;
   bool _displayModeInitialized = false;
 
@@ -40,14 +92,13 @@ class _AppWidgetState extends State<AppWidget>
   void initState() {
     super.initState();
     appShellService = widget.appShellService ?? WindowsAppShellService();
+    appShellServiceOwnership = widget.appShellService == null
+        ? AppShellServiceOwnership.owned
+        : widget.appShellServiceOwnership;
     WidgetsBinding.instance.addObserver(this);
     Modular.setObservers([AppDialog.observer]);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      unawaited(appShellService.initialize(
-        trayListener: this,
-        windowListener: this,
-      ));
       unawaited(_initializeDisplayMode());
     });
   }
@@ -67,7 +118,6 @@ class _AppWidgetState extends State<AppWidget>
 
   @override
   void dispose() {
-    appShellService.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -249,7 +299,7 @@ class _AppWidgetState extends State<AppWidget>
     final Color color = parseStoredThemeColor(storedThemeColor);
     bool oledEnhance =
         setting.get(SettingBoxKey.oledEnhance, defaultValue: false);
-    var defaultDarkTheme = ThemeData(
+    final defaultDarkTheme = ThemeData(
         useMaterial3: true,
         fontFamily: themeProvider.currentFontFamily,
         brightness: Brightness.dark,
@@ -257,66 +307,63 @@ class _AppWidgetState extends State<AppWidget>
         progressIndicatorTheme: progressIndicatorTheme2024,
         sliderTheme: sliderTheme2024,
         pageTransitionsTheme: pageTransitionsTheme2024);
-    var oledDarkTheme = Utils.oledDarkTheme(defaultDarkTheme);
-    themeProvider.setTheme(
-      ThemeData(
-          useMaterial3: true,
-          fontFamily: themeProvider.currentFontFamily,
-          brightness: Brightness.light,
-          colorSchemeSeed: color,
-          progressIndicatorTheme: progressIndicatorTheme2024,
-          sliderTheme: sliderTheme2024,
-          pageTransitionsTheme: pageTransitionsTheme2024),
-      oledEnhance ? oledDarkTheme : defaultDarkTheme,
-      notify: false,
-    );
-    var app = DynamicColorBuilder(
-      builder: (theme, darkTheme) {
-        if (themeProvider.useDynamicColor) {
-          themeProvider.setTheme(
-            ThemeData(
-                useMaterial3: true,
-                fontFamily: themeProvider.currentFontFamily,
-                colorScheme: theme,
-                brightness: Brightness.light,
-                progressIndicatorTheme: progressIndicatorTheme2024,
-                sliderTheme: sliderTheme2024,
-                pageTransitionsTheme: pageTransitionsTheme2024),
-            oledEnhance
-                ? Utils.oledDarkTheme(ThemeData(
-                    useMaterial3: true,
-                    fontFamily: themeProvider.currentFontFamily,
-                    colorScheme: darkTheme,
-                    brightness: Brightness.dark,
-                    progressIndicatorTheme: progressIndicatorTheme2024,
-                    sliderTheme: sliderTheme2024,
-                    pageTransitionsTheme: pageTransitionsTheme2024))
-                : ThemeData(
-                    useMaterial3: true,
-                    fontFamily: themeProvider.currentFontFamily,
-                    colorScheme: darkTheme,
-                    brightness: Brightness.dark,
-                    progressIndicatorTheme: progressIndicatorTheme2024,
-                    sliderTheme: sliderTheme2024,
-                    pageTransitionsTheme: pageTransitionsTheme2024),
-            notify: false,
+    final defaultLightTheme = ThemeData(
+        useMaterial3: true,
+        fontFamily: themeProvider.currentFontFamily,
+        brightness: Brightness.light,
+        colorSchemeSeed: color,
+        progressIndicatorTheme: progressIndicatorTheme2024,
+        sliderTheme: sliderTheme2024,
+        pageTransitionsTheme: pageTransitionsTheme2024);
+    final app = AppShellLifecycle(
+      service: appShellService,
+      trayListener: this,
+      windowListener: this,
+      ownership: appShellServiceOwnership,
+      child: DynamicColorBuilder(
+        builder: (theme, darkTheme) {
+          final useDynamicTheme = themeProvider.useDynamicColor &&
+              theme != null &&
+              darkTheme != null;
+          final lightTheme = useDynamicTheme
+              ? ThemeData(
+                  useMaterial3: true,
+                  fontFamily: themeProvider.currentFontFamily,
+                  colorScheme: theme,
+                  brightness: Brightness.light,
+                  progressIndicatorTheme: progressIndicatorTheme2024,
+                  sliderTheme: sliderTheme2024,
+                  pageTransitionsTheme: pageTransitionsTheme2024)
+              : defaultLightTheme;
+          final dynamicDarkTheme = useDynamicTheme
+              ? ThemeData(
+                  useMaterial3: true,
+                  fontFamily: themeProvider.currentFontFamily,
+                  colorScheme: darkTheme,
+                  brightness: Brightness.dark,
+                  progressIndicatorTheme: progressIndicatorTheme2024,
+                  sliderTheme: sliderTheme2024,
+                  pageTransitionsTheme: pageTransitionsTheme2024)
+              : defaultDarkTheme;
+          final effectiveDarkTheme = oledEnhance
+              ? Utils.oledDarkTheme(dynamicDarkTheme)
+              : dynamicDarkTheme;
+          return MaterialApp.router(
+            title: AppIdentity.displayName,
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            supportedLocales: const [
+              Locale.fromSubtags(
+                  languageCode: 'zh', scriptCode: 'Hans', countryCode: "CN")
+            ],
+            locale: const Locale.fromSubtags(
+                languageCode: 'zh', scriptCode: 'Hans', countryCode: "CN"),
+            theme: lightTheme,
+            darkTheme: effectiveDarkTheme,
+            themeMode: themeProvider.themeMode,
+            routerConfig: Modular.routerConfig,
           );
-        }
-        return MaterialApp.router(
-          title: AppIdentity.displayName,
-          localizationsDelegates: GlobalMaterialLocalizations.delegates,
-          supportedLocales: const [
-            Locale.fromSubtags(
-                languageCode: 'zh', scriptCode: 'Hans', countryCode: "CN")
-          ],
-          locale: const Locale.fromSubtags(
-              languageCode: 'zh', scriptCode: 'Hans', countryCode: "CN"),
-          theme: themeProvider.light,
-          darkTheme: themeProvider.dark,
-          themeMode: themeProvider.themeMode,
-          routerConfig: Modular.routerConfig,
-        );
-      },
+        },
+      ),
     );
     return app;
   }

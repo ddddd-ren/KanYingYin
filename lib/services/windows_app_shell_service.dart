@@ -2,11 +2,13 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
+import 'package:kanyingyin/utils/logger.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
 const Color _fallbackThemeColor = Color(0xFF00D4AA);
 
+/// 解析应用壳持久化的主题配置，不访问平台或存储。
 Color parseStoredThemeColor(Object? storedValue) {
   if (storedValue == null || storedValue == 'default') {
     return _fallbackThemeColor;
@@ -70,75 +72,181 @@ abstract interface class WindowsAppShellPlatform {
 }
 
 class WindowsAppShellService {
-  WindowsAppShellService({WindowsAppShellPlatform? platform})
-      : _platform = platform ?? _PluginWindowsAppShellPlatform();
+  WindowsAppShellService({
+    WindowsAppShellPlatform? platform,
+    void Function(Object error, StackTrace stackTrace)? onError,
+  })  : _platform = platform ?? _PluginWindowsAppShellPlatform(),
+        _onError = onError ?? _logError;
 
   final WindowsAppShellPlatform _platform;
+  final void Function(Object error, StackTrace stackTrace) _onError;
   Future<void>? _initialization;
   TrayListener? _trayListener;
   WindowListener? _windowListener;
   Brightness? _lastBrightness;
-  bool _listenersAttached = false;
+  bool _trayListenerAttached = false;
+  bool _windowListenerAttached = false;
+  bool _initialized = false;
   bool _disposed = false;
+  int _generation = 0;
 
   Future<void> initialize({
     required TrayListener trayListener,
     required WindowListener windowListener,
   }) {
     if (_disposed || !_platform.isDesktop) return Future<void>.value();
-    return _initialization ??= _initialize(trayListener, windowListener);
+    if (_initialized) return Future<void>.value();
+    final initialization = _initialization;
+    if (initialization != null) return initialization;
+
+    final generation = _generation;
+    final nextInitialization =
+        _initialize(trayListener, windowListener, generation);
+    _initialization = nextInitialization;
+    return nextInitialization;
   }
 
   Future<void> _initialize(
     TrayListener trayListener,
     WindowListener windowListener,
+    int generation,
   ) async {
-    _trayListener = trayListener;
-    _windowListener = windowListener;
-    _platform.addTrayListener(trayListener);
-    _platform.addWindowListener(windowListener);
-    _listenersAttached = true;
+    var succeeded = _attachListeners(trayListener, windowListener);
 
-    await _platform.setPreventClose();
-    if (_disposed) return;
+    try {
+      succeeded &= await _runCapability(
+        generation,
+        _platform.setPreventClose,
+      );
+      if (!_isActive(generation)) return;
 
-    final iconPath = _platform.isWindows
-        ? 'assets/images/logo/logo_lanczos.ico'
-        : Platform.environment.containsKey('FLATPAK_ID') ||
-                Platform.environment.containsKey('SNAP')
-            ? 'com.kanyingyin.player'
-            : 'assets/images/logo/logo_rounded.png';
-    await _platform.setTrayIcon(iconPath);
-    if (_disposed) return;
+      final iconPath = _platform.isWindows
+          ? 'assets/images/logo/logo_lanczos.ico'
+          : Platform.environment.containsKey('FLATPAK_ID') ||
+                  Platform.environment.containsKey('SNAP')
+              ? 'com.kanyingyin.player'
+              : 'assets/images/logo/logo_rounded.png';
+      succeeded &= await _runCapability(
+        generation,
+        () => _platform.setTrayIcon(iconPath),
+      );
+      if (!_isActive(generation)) return;
 
-    if (!_platform.isLinux) {
-      await _platform.setTrayTooltip(AppIdentity.displayName);
-      if (_disposed) return;
+      if (!_platform.isLinux) {
+        succeeded &= await _runCapability(
+          generation,
+          () => _platform.setTrayTooltip(AppIdentity.displayName),
+        );
+        if (!_isActive(generation)) return;
+      }
+
+      succeeded &= await _runCapability(
+        generation,
+        () => _platform.setTrayMenu(const [
+          TrayMenuEntry(key: 'show_window', label: '显示窗口'),
+          TrayMenuEntry.separator(),
+          TrayMenuEntry(key: 'exit', label: '退出看影音'),
+        ]),
+      );
+      if (_isActive(generation)) _initialized = succeeded;
+    } finally {
+      if (_generation == generation) _initialization = null;
     }
-
-    await _platform.setTrayMenu(const [
-      TrayMenuEntry(key: 'show_window', label: '显示窗口'),
-      TrayMenuEntry.separator(),
-      TrayMenuEntry(key: 'exit', label: '退出看影音'),
-    ]);
   }
 
   Future<void> syncBrightness(Brightness brightness) async {
     if (_disposed || !_platform.isWindows || _lastBrightness == brightness) {
       return;
     }
-    _lastBrightness = brightness;
-    await _platform.setBrightness(brightness);
+    try {
+      await _platform.setBrightness(brightness);
+      if (!_disposed) _lastBrightness = brightness;
+    } catch (error, stackTrace) {
+      _onError(error, stackTrace);
+    }
+  }
+
+  bool _attachListeners(
+    TrayListener trayListener,
+    WindowListener windowListener,
+  ) {
+    var succeeded = true;
+    if (!_trayListenerAttached) {
+      try {
+        _platform.addTrayListener(trayListener);
+        _trayListener = trayListener;
+        _trayListenerAttached = true;
+      } catch (error, stackTrace) {
+        succeeded = false;
+        _onError(error, stackTrace);
+      }
+    }
+    if (!_windowListenerAttached) {
+      try {
+        _platform.addWindowListener(windowListener);
+        _windowListener = windowListener;
+        _windowListenerAttached = true;
+      } catch (error, stackTrace) {
+        succeeded = false;
+        _onError(error, stackTrace);
+      }
+    }
+    return succeeded;
+  }
+
+  Future<bool> _runCapability(
+    int generation,
+    Future<void> Function() capability,
+  ) async {
+    if (!_isActive(generation)) return false;
+    try {
+      await capability();
+      return _isActive(generation);
+    } catch (error, stackTrace) {
+      _onError(error, stackTrace);
+      return false;
+    }
+  }
+
+  bool _isActive(int generation) => !_disposed && _generation == generation;
+
+  void detach() {
+    _generation++;
+    _initialized = false;
+    _initialization = null;
+
+    if (_trayListenerAttached) {
+      _trayListenerAttached = false;
+      try {
+        _platform.removeTrayListener(_trayListener!);
+      } catch (error, stackTrace) {
+        _onError(error, stackTrace);
+      }
+    }
+    if (_windowListenerAttached) {
+      _windowListenerAttached = false;
+      try {
+        _platform.removeWindowListener(_windowListener!);
+      } catch (error, stackTrace) {
+        _onError(error, stackTrace);
+      }
+    }
+    _trayListener = null;
+    _windowListener = null;
   }
 
   void dispose() {
     if (_disposed) return;
     _disposed = true;
-    if (!_listenersAttached) return;
+    detach();
+  }
 
-    _platform.removeTrayListener(_trayListener!);
-    _platform.removeWindowListener(_windowListener!);
-    _listenersAttached = false;
+  static void _logError(Object error, StackTrace stackTrace) {
+    AppLogger().e(
+      'Windows app shell capability failed',
+      error: error,
+      stackTrace: stackTrace,
+    );
   }
 }
 

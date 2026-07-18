@@ -68,7 +68,7 @@ class _PlayerItemState extends State<PlayerItem>
       Modular.get<IVideoPageController>();
   final AudioController _audioController = AudioController();
   late PlayerShortcutHandler _shortcutHandler;
-  late Map<PlayerShortcutAction, void Function()> keyboardActions;
+  late Map<PlayerShortcutAction, PlayerShortcutCallback> keyboardActions;
   final PlayerOverlayCoordinator _overlayCoordinator =
       PlayerOverlayCoordinator();
   PlayerOverlay _lastOverlay = PlayerOverlay.none;
@@ -183,7 +183,14 @@ class _PlayerItemState extends State<PlayerItem>
     });
     _shortcutHandler = PlayerShortcutHandler.fromConfig(
       shortcuts: shortcuts,
-      dispatch: (action) => keyboardActions[action]?.call(),
+      actions: keyboardActions,
+      onError: (error, stackTrace) {
+        AppLogger().e(
+          'PlayerItem: shortcut action failed',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      },
     );
   }
 
@@ -222,7 +229,7 @@ class _PlayerItemState extends State<PlayerItem>
   void _initPlayerMenu() {
     Utils.initPlayerMenu({
       for (final entry in keyboardActions.entries)
-        entry.key.command: entry.value,
+        entry.key.command: () => _shortcutHandler.dispatchAction(entry.key),
     });
   }
 

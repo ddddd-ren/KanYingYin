@@ -78,9 +78,8 @@ class PlayerOverlayPresenter extends StatefulWidget {
 }
 
 class _PlayerOverlayPresenterState extends State<PlayerOverlayPresenter> {
-  NavigatorState? _sheetNavigator;
-  bool _sheetOpen = false;
-  bool _showScheduled = false;
+  _PlayerOverlayRequest? _activeRequest;
+  int _requestGeneration = 0;
 
   @override
   void initState() {
@@ -93,64 +92,105 @@ class _PlayerOverlayPresenterState extends State<PlayerOverlayPresenter> {
   void didUpdateWidget(PlayerOverlayPresenter oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.coordinator == widget.coordinator) return;
+    _requestGeneration++;
     oldWidget.coordinator.removeListener(_handleOverlayChanged);
+    _closeOwnedSheet();
     widget.coordinator.addListener(_handleOverlayChanged);
     _handleOverlayChanged();
   }
 
   void _handleOverlayChanged() {
-    if (widget.coordinator.visible == PlayerOverlay.videoInfo) {
-      _scheduleVideoInfo();
+    final generation = ++_requestGeneration;
+    final coordinator = widget.coordinator;
+    if (coordinator.visible == PlayerOverlay.videoInfo) {
+      _scheduleVideoInfo(generation, coordinator);
     } else {
       _closeOwnedSheet();
     }
   }
 
-  void _scheduleVideoInfo() {
-    if (!mounted || _sheetOpen || _showScheduled) return;
-    _showScheduled = true;
+  void _scheduleVideoInfo(
+    int generation,
+    PlayerOverlayCoordinator coordinator,
+  ) {
+    if (!mounted || _activeRequest != null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showScheduled = false;
-      if (!mounted || widget.coordinator.visible != PlayerOverlay.videoInfo) {
+      if (!mounted ||
+          generation != _requestGeneration ||
+          !identical(widget.coordinator, coordinator) ||
+          coordinator.visible != PlayerOverlay.videoInfo ||
+          _activeRequest != null) {
         return;
       }
-      unawaited(_showVideoInfo());
+      unawaited(_showVideoInfo(generation, coordinator));
     });
   }
 
-  Future<void> _showVideoInfo() async {
-    _sheetOpen = true;
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: widget.isScrollControlled,
-      constraints: widget.constraints,
-      clipBehavior: widget.clipBehavior,
-      builder: (context) {
-        _sheetNavigator = Navigator.of(context);
-        if (widget.coordinator.visible != PlayerOverlay.videoInfo) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _closeOwnedSheet();
-          });
+  Future<void> _showVideoInfo(
+    int generation,
+    PlayerOverlayCoordinator coordinator,
+  ) async {
+    final request = _PlayerOverlayRequest(generation, coordinator);
+    _activeRequest = request;
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: widget.isScrollControlled,
+        constraints: widget.constraints,
+        clipBehavior: widget.clipBehavior,
+        builder: (context) {
+          request
+            ..navigator = Navigator.of(context)
+            ..route = ModalRoute.of(context);
+          if (request.closeRequested ||
+              request.generation != _requestGeneration ||
+              !identical(widget.coordinator, request.coordinator) ||
+              request.coordinator.visible != PlayerOverlay.videoInfo) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _closeRequest(request);
+            });
+          }
+          return widget.videoInfoBuilder(context);
+        },
+      );
+    } finally {
+      if (identical(_activeRequest, request)) {
+        _activeRequest = null;
+      }
+      if (mounted) {
+        final isCurrentRequest = request.generation == _requestGeneration &&
+            identical(widget.coordinator, request.coordinator);
+        if (isCurrentRequest &&
+            request.coordinator.visible == PlayerOverlay.videoInfo) {
+          request.coordinator.closeVideoInfo();
+        } else if (widget.coordinator.visible == PlayerOverlay.videoInfo) {
+          _scheduleVideoInfo(_requestGeneration, widget.coordinator);
         }
-        return widget.videoInfoBuilder(context);
-      },
-    );
-    _sheetOpen = false;
-    _sheetNavigator = null;
-    if (mounted && widget.coordinator.visible == PlayerOverlay.videoInfo) {
-      widget.coordinator.closeVideoInfo();
+      }
     }
   }
 
   void _closeOwnedSheet() {
-    final navigator = _sheetNavigator;
-    if (navigator == null) return;
-    _sheetNavigator = null;
-    navigator.pop();
+    final request = _activeRequest;
+    if (request == null) return;
+    request.closeRequested = true;
+    _closeRequest(request);
+  }
+
+  void _closeRequest(_PlayerOverlayRequest request) {
+    final navigator = request.navigator;
+    final route = request.route;
+    if (navigator == null || route == null || !route.isActive) return;
+    if (route.isCurrent) {
+      navigator.pop();
+    } else {
+      navigator.removeRoute(route);
+    }
   }
 
   @override
   void dispose() {
+    _requestGeneration++;
     widget.coordinator.removeListener(_handleOverlayChanged);
     _closeOwnedSheet();
     super.dispose();
@@ -158,4 +198,14 @@ class _PlayerOverlayPresenterState extends State<PlayerOverlayPresenter> {
 
   @override
   Widget build(BuildContext context) => widget.child;
+}
+
+class _PlayerOverlayRequest {
+  _PlayerOverlayRequest(this.generation, this.coordinator);
+
+  final int generation;
+  final PlayerOverlayCoordinator coordinator;
+  NavigatorState? navigator;
+  ModalRoute<dynamic>? route;
+  bool closeRequested = false;
 }

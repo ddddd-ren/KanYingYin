@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -11,7 +12,15 @@ void main() {
         'forward': ['Arrow Right'],
         'playorpause': [' ']
       },
-      dispatch: (action) => actions.add(action),
+      actions: {
+        PlayerShortcutAction.forward: () =>
+            actions.add(PlayerShortcutAction.forward),
+        PlayerShortcutAction.forwardRepeat: () =>
+            actions.add(PlayerShortcutAction.forwardRepeat),
+        PlayerShortcutAction.forwardUp: () =>
+            actions.add(PlayerShortcutAction.forwardUp),
+      },
+      onError: (_, __) {},
     );
     expect(handler.handleKey('Arrow Right', PlayerShortcutPhase.down), isTrue);
     expect(
@@ -29,7 +38,7 @@ void main() {
       'unknown': ['X'],
       'bad': null,
       'forward': <Object?>['', 42],
-    }, dispatch: (_) {});
+    }, actions: const {}, onError: (_, __) {});
     expect(handler.handleKey('X', PlayerShortcutPhase.down), isFalse);
     expect(handler.handleKey('', PlayerShortcutPhase.down), isFalse);
     expect(handler.handleKey('42', PlayerShortcutPhase.down), isFalse);
@@ -45,7 +54,11 @@ void main() {
       shortcuts: const {
         'forward': <Object?>['Arrow Right', '', 42],
       },
-      dispatch: actions.add,
+      actions: {
+        PlayerShortcutAction.forward: () =>
+            actions.add(PlayerShortcutAction.forward),
+      },
+      onError: (_, __) {},
     );
     expect(
       handler.handleKey('Arrow Right', PlayerShortcutPhase.down),
@@ -83,7 +96,10 @@ void main() {
     final actual = <PlayerShortcutAction>[];
     final handler = PlayerShortcutHandler(
       shortcuts: shortcuts,
-      dispatch: actual.add,
+      actions: {
+        for (final action in expected.values) action: () => actual.add(action),
+      },
+      onError: (_, __) {},
     );
     index = 0;
     for (final action in expected.values) {
@@ -100,11 +116,63 @@ void main() {
   test('PlayerItem 实际委托快捷键分发', () {
     final source = File('lib/pages/player/player_item.dart').readAsStringSync();
     expect(source, contains('PlayerShortcutHandler'));
-    expect(source, contains('Map<PlayerShortcutAction, void Function()>'));
+    expect(
+        source, contains('Map<PlayerShortcutAction, PlayerShortcutCallback>'));
+    expect(source, contains('onError:'));
+    expect(source, contains('PlayerItem: shortcut action failed'));
     expect(source, isNot(contains('handleShortcutLongPress')));
     expect(source, contains('_shortcutHandler.handleKey('));
     expect(source, contains('PlayerShortcutPhase.down'));
     expect(source, contains('PlayerShortcutPhase.repeat'));
     expect(source, contains('PlayerShortcutPhase.up'));
+  });
+
+  test('快捷键处理器保持表现层依赖隔离', () {
+    final source = File(
+      'lib/features/player/presentation/player_shortcut_handler.dart',
+    ).readAsStringSync();
+    expect(source, isNot(contains('pages/')));
+    expect(source, isNot(contains('player_controller')));
+    expect(source, isNot(contains('flutter_modular')));
+    expect(source, isNot(contains('services/')));
+    expect(source, isNot(contains('repositories/')));
+  });
+
+  test('同步回调异常交给显式错误边界且仍消费按键', () {
+    final errors = <Object>[];
+    final handler = PlayerShortcutHandler(
+      shortcuts: const {
+        'forward': ['Arrow Right']
+      },
+      actions: {
+        PlayerShortcutAction.forward: () => throw StateError('同步失败'),
+      },
+      onError: (error, stackTrace) => errors.add(error),
+    );
+    expect(handler.handleKey('Arrow Right', PlayerShortcutPhase.down), isTrue);
+    expect(errors.single, isA<StateError>());
+  });
+
+  test('异步回调异常交给显式错误边界且不会泄漏到 Zone', () async {
+    final errors = <Object>[];
+    final uncaught = <Object>[];
+    await runZonedGuarded(() async {
+      final handler = PlayerShortcutHandler(
+        shortcuts: const {
+          'forward': ['Arrow Right']
+        },
+        actions: {
+          PlayerShortcutAction.forward: () => Future<void>.error('异步失败'),
+        },
+        onError: (error, stackTrace) => errors.add(error),
+      );
+      expect(
+        handler.handleKey('Arrow Right', PlayerShortcutPhase.down),
+        isTrue,
+      );
+      await Future<void>.delayed(Duration.zero);
+    }, (error, stackTrace) => uncaught.add(error));
+    expect(errors, ['异步失败']);
+    expect(uncaught, isEmpty);
   });
 }

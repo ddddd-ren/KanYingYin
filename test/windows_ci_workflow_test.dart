@@ -84,6 +84,88 @@ void main() {
       );
     }
   });
+
+  test('手动发布必须检出并验证用户指定的既有 tag', () {
+    expect(
+      releaseWorkflow,
+      contains(
+        '  workflow_dispatch:\n'
+        '    inputs:\n'
+        '      release_tag:\n'
+        '        description: 发布既有标签，例如 v1.2.3\n'
+        '        required: true',
+      ),
+    );
+
+    final checkout = _stepBlock(releaseWorkflow, '检出代码');
+    expect(checkout, contains('fetch-depth: 0'));
+    expect(
+      checkout,
+      contains(
+        r"ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}",
+      ),
+    );
+
+    final versionCheck = _stepBlock(releaseWorkflow, '校验应用版本与标签');
+    expect(
+      versionCheck,
+      contains(
+        r"RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}",
+      ),
+    );
+    expect(versionCheck, contains(r'$env:RELEASE_TAG'));
+    expect(versionCheck, contains('git show-ref --verify'));
+    expect(versionCheck, contains('git rev-parse HEAD'));
+    expect(versionCheck, contains('git rev-list -n 1'));
+  });
+
+  test('PowerShell 不直接内插 ref 且严格校验三段版本', () {
+    for (final block in _powerShellStepBlocks(releaseWorkflow)) {
+      expect(block, isNot(contains(r'${{ github.ref')));
+    }
+
+    final versionCheck = _stepBlock(releaseWorkflow, '校验应用版本与标签');
+    expect(
+      versionCheck,
+      contains(r"'^v[0-9]+\.[0-9]+\.[0-9]+$'"),
+    );
+    expect(
+      versionCheck,
+      contains(r"'(?m)^version:\s*([0-9]+\.[0-9]+\.[0-9]+)(?:\+[0-9]+)?\s*$'"),
+    );
+    expect(versionCheck, contains(r'$expectedMsix = "$appVersion.0"'));
+    expect(versionCheck, isNot(contains(r'$parts[0..3]')));
+  });
+
+  test('GitHub Release 只能发布 SignPath 签名输出', () {
+    expect(
+      releaseWorkflow,
+      isNot(contains('      SIGNPATH_API_TOKEN:')),
+    );
+
+    final signPath = _stepBlock(releaseWorkflow, 'SignPath 签名 MSIX');
+    expect(signPath, contains('signpath/github-action-submit-signing-request'));
+    expect(signPath, contains(r'api-token: ${{ secrets.SIGNPATH_API_TOKEN }}'));
+    expect(signPath, isNot(contains('if:')));
+
+    final signedOutput = _stepBlock(releaseWorkflow, '准备签名后的 MSIX');
+    expect(
+      signedOutput,
+      contains("'build/windows/msix_signed_output'"),
+    );
+    expect(signedOutput, contains(r'"看影音-$env:APP_VERSION.msix"'));
+
+    final release = _stepBlock(releaseWorkflow, '发布 GitHub Release');
+    expect(release, contains(r'files: 看影音-${{ env.APP_VERSION }}.msix'));
+    expect(
+      releaseWorkflow.indexOf('SignPath 签名 MSIX'),
+      lessThan(releaseWorkflow.indexOf('准备签名后的 MSIX')),
+    );
+    expect(
+      releaseWorkflow.indexOf('准备签名后的 MSIX'),
+      lessThan(releaseWorkflow.indexOf('发布 GitHub Release')),
+    );
+  });
 }
 
 List<String> _topLevelJobNames(String workflow) {
@@ -97,5 +179,29 @@ List<String> _topLevelJobNames(String workflow) {
       .skip(jobsLine + 1)
       .where((line) => RegExp(r'^  [A-Za-z0-9_-]+:\s*$').hasMatch(line))
       .map((line) => line.trim().replaceFirst(RegExp(r':$'), ''))
+      .toList(growable: false);
+}
+
+String _stepBlock(String workflow, String name) {
+  final lines = const LineSplitter().convert(workflow);
+  final start = lines.indexOf('      - name: $name');
+  if (start < 0) {
+    return '';
+  }
+  final end = lines.indexWhere(
+    (line) => line.startsWith('      - name:'),
+    start + 1,
+  );
+  return lines.sublist(start, end < 0 ? lines.length : end).join('\n');
+}
+
+List<String> _powerShellStepBlocks(String workflow) {
+  final names = RegExp(r'^      - name: (.+)$', multiLine: true)
+      .allMatches(workflow)
+      .map((match) => match.group(1)!)
+      .toList(growable: false);
+  return names
+      .map((name) => _stepBlock(workflow, name))
+      .where((block) => block.contains('shell: pwsh'))
       .toList(growable: false);
 }

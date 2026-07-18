@@ -12,7 +12,7 @@ void main() {
   setUpAll(() async {
     hiveDirectory = await Directory.systemTemp.createTemp('tmdb-settings');
     Hive.init(hiveDirectory.path);
-    GStorage.setting = await Hive.openBox<dynamic>('tmdb-settings');
+    GStorage.setting = await Hive.openBox<Object?>('tmdb-settings');
   });
 
   tearDownAll(() async {

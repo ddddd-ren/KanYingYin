@@ -7,13 +7,13 @@ import 'package:kanyingyin/utils/storage.dart';
 
 void main() {
   late Directory hiveDirectory;
-  late Box<dynamic> box;
+  late Box<Object?> box;
 
   setUp(() async {
     hiveDirectory =
         await Directory.systemTemp.createTemp('local_library_preferences_');
     Hive.init(hiveDirectory.path);
-    box = await Hive.openBox<dynamic>('settings');
+    box = await Hive.openBox<Object?>('settings');
   });
 
   tearDown(() async {

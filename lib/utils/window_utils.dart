@@ -56,7 +56,7 @@ class WindowUtils {
           const platform = MethodChannel('com.kanyingyin.player/intent');
           try {
             final int sdkVersion =
-                await platform.invokeMethod('getAndroidSdkVersion');
+                await platform.invokeMethod<int>('getAndroidSdkVersion') ?? 0;
             if (sdkVersion < 29) {
               mode = SystemUiMode.manual;
             }

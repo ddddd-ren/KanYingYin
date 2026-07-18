@@ -73,7 +73,7 @@ class _LocalPageState extends State<LocalPage>
       seriesTitle: group.title,
       directoryFiles: group.playlistFilesForPlayback,
       playlistAlreadyIsolated: true,
-      autoLoadSubtitle: GStorage.setting.get(
+      autoLoadSubtitle: GStorage.setting.getTyped<bool>(
         SettingBoxKey.localAutoLoadSubtitle,
         defaultValue: true,
       ),
@@ -99,7 +99,7 @@ class _LocalPageState extends State<LocalPage>
       seriesTitle: series.displayTitle,
       directoryFiles: directoryFiles,
       playlistAlreadyIsolated: true,
-      autoLoadSubtitle: GStorage.setting.get(
+      autoLoadSubtitle: GStorage.setting.getTyped<bool>(
         SettingBoxKey.localAutoLoadSubtitle,
         defaultValue: true,
       ),

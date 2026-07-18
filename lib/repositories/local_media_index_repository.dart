@@ -39,7 +39,7 @@ class LocalMediaIndexRepository implements ILocalMediaIndexRepository {
       if (value is! List) return <LocalMediaIndexItem>[];
 
       final items = value
-          .whereType<Map>()
+          .whereType<Map<Object?, Object?>>()
           .map((item) => LocalMediaIndexItem.fromJson(
                 Map<String, dynamic>.from(item),
               ))

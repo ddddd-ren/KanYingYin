@@ -49,10 +49,10 @@ class SubtitleStyleSettings {
 }
 
 class SubtitlePreferences {
-  SubtitlePreferences({Box<dynamic>? storage})
+  SubtitlePreferences({Box<Object?>? storage})
       : _storage = storage ?? GStorage.setting;
 
-  final Box<dynamic> _storage;
+  final Box<Object?> _storage;
 
   SubtitleStyleSettings loadStyle() {
     return SubtitleStyleSettings(

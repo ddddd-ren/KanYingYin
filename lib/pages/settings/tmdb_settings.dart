@@ -26,9 +26,15 @@ class _TmdbSettingsPageState extends State<TmdbSettingsPage> {
   void initState() {
     super.initState();
     _apiKeyController = TextEditingController(
-      text: GStorage.setting.get(_apiKeySetting, defaultValue: ''),
+      text: GStorage.setting.getTyped<String>(
+        _apiKeySetting,
+        defaultValue: '',
+      ),
     );
-    _autoScrape = GStorage.setting.get(_autoScrapeSetting, defaultValue: true);
+    _autoScrape = GStorage.setting.getTyped<bool>(
+      _autoScrapeSetting,
+      defaultValue: true,
+    );
     _options = TmdbScrapeOptions.fromMap(
       GStorage.setting.get('tmdbScrapeOptions'),
     );

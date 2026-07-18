@@ -10,12 +10,12 @@ import 'package:kanyingyin/modules/bangumi/bangumi_tag.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 class GStorage {
-  static late final Box<dynamic> setting;
+  static late final Box<Object?> setting;
 
   /// Hive directory path, initialized during init()
   static String? _hivePath;
 
-  static Future init() async {
+  static Future<void> init() async {
     _hivePath =
         '${(await getApplicationSupportDirectory()).path}/${AppIdentity.storageNamespace}/hive';
 
@@ -33,7 +33,7 @@ class GStorage {
     Hive.registerAdapter(BangumiTagAdapter());
 
     // Open each box with automatic recovery on corruption
-    setting = await _openBoxSafe<dynamic>('setting');
+    setting = await _openBoxSafe<Object?>('setting');
   }
 
   /// Open a Hive box with automatic recovery on corruption.
@@ -85,6 +85,20 @@ class GStorage {
 
   // Prevent instantiation
   GStorage._();
+}
+
+extension TypedSettingsBox on Box<Object?> {
+  T getTyped<T>(Object? key, {required T defaultValue}) {
+    final value = get(key, defaultValue: defaultValue);
+    return value is T ? value : defaultValue;
+  }
+
+  List<T> getTypedList<T>(Object? key, {required List<T> defaultValue}) {
+    final value = get(key, defaultValue: defaultValue);
+    if (value is! List<Object?>) return defaultValue;
+    final typedValues = value.whereType<T>().toList();
+    return typedValues.length == value.length ? typedValues : defaultValue;
+  }
 }
 
 class SettingBoxKey {

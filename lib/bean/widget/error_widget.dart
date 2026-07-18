@@ -50,7 +50,7 @@ class GeneralErrorButton extends StatelessWidget {
     required this.text,
   });
 
-  final Function() onPressed;
+  final VoidCallback onPressed;
   final String text;
 
   @override

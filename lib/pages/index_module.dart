@@ -32,20 +32,21 @@ class IndexModule extends Module {
   List<Module> get imports => menu.moduleList;
 
   @override
-  void binds(i) {
-    i.addSingleton(MediaRecognitionSettings.new);
+  void binds(Injector i) {
+    i.addSingleton<MediaRecognitionSettings>(MediaRecognitionSettings.new);
     i.addSingleton<ILocalMediaIndexRepository>(LocalMediaIndexRepository.new);
     i.addSingleton<ILocalMediaSourceRepository>(LocalMediaSourceRepository.new);
     i.addSingleton<ILocalLibraryPreferences>(LocalLibraryPreferences.new);
-    i.addSingleton(() => LocalLibraryMetadataCoordinator(
-          mediaIndexRepository: Modular.get<ILocalMediaIndexRepository>(),
-        ));
-    i.addSingleton(CloudMediaIndexRepository.new);
+    i.addSingleton<LocalLibraryMetadataCoordinator>(
+        () => LocalLibraryMetadataCoordinator(
+              mediaIndexRepository: Modular.get<ILocalMediaIndexRepository>(),
+            ));
+    i.addSingleton<CloudMediaIndexRepository>(CloudMediaIndexRepository.new);
     i.addSingleton<CloudCredentialStore>(SecureCloudCredentialStore.new);
-    i.addSingleton(() => CloudSourceRepository(
+    i.addSingleton<CloudSourceRepository>(() => CloudSourceRepository(
           credentialStore: Modular.get<CloudCredentialStore>(),
         ));
-    i.addSingleton(() => CloudLibraryController(
+    i.addSingleton<CloudLibraryController>(() => CloudLibraryController(
           repository: Modular.get<CloudSourceRepository>(),
           credentialStore: Modular.get<CloudCredentialStore>(),
           mediaIndexRepository: Modular.get<CloudMediaIndexRepository>(),
@@ -61,17 +62,17 @@ class IndexModule extends Module {
               Modular.get<MediaRecognitionSettings>().localMinSizeBytes,
         ));
 
-    i.addSingleton(LocalVideoController.new);
+    i.addSingleton<LocalVideoController>(LocalVideoController.new);
     i.addSingleton<IVideoPageController>(
         () => Modular.get<LocalVideoController>());
-    i.addSingleton(SubtitlePreferences.new);
-    i.addSingleton(TrueHdFallbackPolicy.new);
-    i.addSingleton(() => PlayerController(
+    i.addSingleton<SubtitlePreferences>(SubtitlePreferences.new);
+    i.addSingleton<TrueHdFallbackPolicy>(TrueHdFallbackPolicy.new);
+    i.addSingleton<PlayerController>(() => PlayerController(
           subtitlePreferences: Modular.get<SubtitlePreferences>(),
           trueHdFallbackPolicy: Modular.get<TrueHdFallbackPolicy>(),
         ));
-    i.addSingleton(ShadersController.new);
-    i.addSingleton(() => LocalController(
+    i.addSingleton<ShadersController>(ShadersController.new);
+    i.addSingleton<LocalController>(() => LocalController(
           scanner: LocalMediaScanner(
             minRecognizedVideoSizeBytesProvider: () =>
                 Modular.get<MediaRecognitionSettings>().localMinSizeBytes,

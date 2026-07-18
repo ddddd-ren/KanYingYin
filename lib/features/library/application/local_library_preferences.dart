@@ -12,13 +12,13 @@ abstract interface class ILocalLibraryPreferences {
 }
 
 final class LocalLibraryPreferences implements ILocalLibraryPreferences {
-  LocalLibraryPreferences({Box<dynamic>? box}) : _providedBox = box;
+  LocalLibraryPreferences({Box<Object?>? box}) : _providedBox = box;
 
   static const int maxRecentDirectories = 10;
 
-  final Box<dynamic>? _providedBox;
+  final Box<Object?>? _providedBox;
 
-  Box<dynamic> get _box => _providedBox ?? GStorage.setting;
+  Box<Object?> get _box => _providedBox ?? GStorage.setting;
 
   @override
   String get lastLocalDirectory => _readPath(SettingBoxKey.lastLocalDirectory);

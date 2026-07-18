@@ -36,7 +36,11 @@ void main() {
         contains('reloadCloudLibraryIndex(\n'
             '            throwOnFailure: true,'));
     expect(
-        indexModule, contains('i.addSingleton(MediaRecognitionSettings.new)'));
+        indexModule,
+        contains(
+          'i.addSingleton<MediaRecognitionSettings>('
+          'MediaRecognitionSettings.new)',
+        ));
     expect(
       indexModule,
       contains('minRecognizedVideoSizeBytesProvider: () =>\n'

@@ -45,7 +45,7 @@ class AppDialog {
     BuildContext? context,
     bool showActionButton = false,
     String? actionLabel,
-    Function()? onActionPressed,
+    VoidCallback? onActionPressed,
     Duration duration = const Duration(seconds: 2),
   }) {
     final ctx = context ?? observer.scaffoldContext;
@@ -87,12 +87,12 @@ class AppDialog {
     BuildContext? context,
     String? msg,
     bool barrierDismissible = false,
-    Function()? onDismiss,
+    VoidCallback? onDismiss,
   }) async {
     final ctx = context ?? observer.currentContext;
     if (ctx != null && ctx.mounted) {
       try {
-        await showDialog(
+        await showDialog<void>(
           context: ctx,
           barrierDismissible: barrierDismissible,
           builder: (BuildContext context) {
@@ -220,10 +220,10 @@ class AppDialog {
       progressNotifier.value = (elapsed / totalMs).clamp(0.0, 1.0);
       if (elapsed >= totalMs) {
         t.cancel();
-        AppDialog.dismiss();
+        AppDialog.dismiss<void>();
       }
     });
-    AppDialog.show(
+    AppDialog.show<void>(
       clickMaskDismiss: false,
       onDismiss: () {
         countdownTimer?.cancel();

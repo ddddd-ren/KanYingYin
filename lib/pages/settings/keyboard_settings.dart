@@ -14,7 +14,7 @@ class KeyboardSettingsPage extends StatefulWidget {
 }
 
 class _KeyboardSettingsPageState extends State<KeyboardSettingsPage> {
-  Box setting = GStorage.setting;
+  Box<Object?> setting = GStorage.setting;
 
   String? listeningFunction;
   int? listeningIndex;
@@ -27,12 +27,11 @@ class _KeyboardSettingsPageState extends State<KeyboardSettingsPage> {
     super.initState();
     // 根据默认快捷键生成可用快捷键列表，并读取已设置值
     shortcuts = {
-      for (var key in defaultShortcuts.keys)
-        key: (setting
-                .get('shortcut_$key',
-                    defaultValue: defaultShortcuts[key]?.toList() ?? <String>[])
-                ?.cast<String>() ??
-            [])
+      for (final key in defaultShortcuts.keys)
+        key: setting.getTypedList<String>(
+          'shortcut_$key',
+          defaultValue: defaultShortcuts[key]?.toList() ?? <String>[],
+        ),
     };
   }
 

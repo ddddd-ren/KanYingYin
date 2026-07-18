@@ -8,7 +8,7 @@ class NetworkSettingsConfigFactory {
   NetworkSettingsConfigFactory._();
 
   static NetworkConfig create({
-    Box<dynamic>? setting,
+    Box<Object?>? setting,
     Duration connectTimeout = const Duration(seconds: 12),
     Duration receiveTimeout = const Duration(seconds: 12),
     Duration? sendTimeout,

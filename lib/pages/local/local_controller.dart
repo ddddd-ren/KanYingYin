@@ -1463,7 +1463,7 @@ abstract class _LocalController with Store {
           'LocalController: auto-scraped $matched series with TMDB',
         );
       }
-    }).catchError((e) {
+    }).catchError((Object e) {
       AppLogger().w(
         'LocalController: automatic TMDB scrape failed',
         error: e,

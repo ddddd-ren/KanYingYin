@@ -29,7 +29,7 @@ class VideoPage extends StatefulWidget {
 
 class _VideoPageState extends State<VideoPage>
     with TickerProviderStateMixin, WindowListener {
-  Box setting = GStorage.setting;
+  Box<Object?> setting = GStorage.setting;
   final PlayerController playerController = Modular.get<PlayerController>();
   final LocalVideoController localVideoController =
       Modular.get<LocalVideoController>();
@@ -77,8 +77,10 @@ class _VideoPageState extends State<VideoPage>
       curve: StyleString.decelerateCurve,
     ));
 
-    disableAnimations =
-        setting.get(SettingBoxKey.playerDisableAnimations, defaultValue: false);
+    disableAnimations = setting.getTyped<bool>(
+      SettingBoxKey.playerDisableAnimations,
+      defaultValue: false,
+    );
     localVideoController.activatePlayerLifecycle();
     localVideoController.showTabBody = true;
     currentRoad = localVideoController.currentRoad;
@@ -219,7 +221,7 @@ class _VideoPageState extends State<VideoPage>
 
   void onBackPressed(BuildContext context) async {
     if (AppDialog.observer.hasAppDialog) {
-      AppDialog.dismiss();
+      AppDialog.dismiss<void>();
       return;
     }
     if (localVideoController.isPip && Utils.isDesktop()) {

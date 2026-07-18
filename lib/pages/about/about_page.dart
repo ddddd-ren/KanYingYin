@@ -21,9 +21,11 @@ class _AboutPageState extends State<AboutPage> {
   final exitBehaviorTitles = <String>['退出看影音', '最小化至托盘', '每次都询问'];
   late dynamic defaultThemeMode;
   late dynamic defaultThemeColor;
-  Box setting = GStorage.setting;
-  late int exitBehavior =
-      setting.get(SettingBoxKey.exitBehavior, defaultValue: 2);
+  Box<Object?> setting = GStorage.setting;
+  late int exitBehavior = setting.getTyped<int>(
+    SettingBoxKey.exitBehavior,
+    defaultValue: 2,
+  );
   double _cacheSizeMB = -1;
   final MenuController menuController = MenuController();
 
@@ -35,7 +37,7 @@ class _AboutPageState extends State<AboutPage> {
 
   void onBackPressed(BuildContext context) {
     if (AppDialog.observer.hasAppDialog) {
-      AppDialog.dismiss();
+      AppDialog.dismiss<void>();
       return;
     }
   }
@@ -90,7 +92,7 @@ class _AboutPageState extends State<AboutPage> {
   }
 
   void _showCacheDialog() {
-    AppDialog.show(
+    AppDialog.show<void>(
       builder: (context) {
         return AlertDialog(
           title: const Text('缓存管理'),
@@ -98,7 +100,7 @@ class _AboutPageState extends State<AboutPage> {
           actions: [
             TextButton(
               onPressed: () {
-                AppDialog.dismiss();
+                AppDialog.dismiss<void>();
               },
               child: Text(
                 '取消',
@@ -110,7 +112,7 @@ class _AboutPageState extends State<AboutPage> {
                 try {
                   _clearCache();
                 } catch (_) {}
-                AppDialog.dismiss();
+                AppDialog.dismiss<void>();
               },
               child: const Text('确认'),
             ),
@@ -136,13 +138,13 @@ class _AboutPageState extends State<AboutPage> {
           sections: [
             SettingsSection(
               tiles: [
-                SettingsTile(
+                SettingsTile<void>(
                   title: Text(
                     '界面与操作参考 Kazumi',
                     style: TextStyle(fontFamily: fontFamily),
                   ),
                 ),
-                SettingsTile.navigation(
+                SettingsTile<void>.navigation(
                   onPressed: (_) {
                     Modular.to.pushNamed('/settings/about/license');
                   },
@@ -157,7 +159,7 @@ class _AboutPageState extends State<AboutPage> {
               SettingsSection(
                 title: Text('默认行为', style: TextStyle(fontFamily: fontFamily)),
                 tiles: [
-                  SettingsTile.navigation(
+                  SettingsTile<void>.navigation(
                     onPressed: (_) {
                       if (menuController.isOpen) {
                         menuController.close();
@@ -205,7 +207,7 @@ class _AboutPageState extends State<AboutPage> {
               ),
             SettingsSection(
               tiles: [
-                SettingsTile.navigation(
+                SettingsTile<void>.navigation(
                   onPressed: (_) {
                     Modular.to.pushNamed('/settings/about/logs');
                   },
@@ -215,7 +217,7 @@ class _AboutPageState extends State<AboutPage> {
             ),
             SettingsSection(
               tiles: [
-                SettingsTile.navigation(
+                SettingsTile<void>.navigation(
                   onPressed: (_) {
                     _showCacheDialog();
                   },

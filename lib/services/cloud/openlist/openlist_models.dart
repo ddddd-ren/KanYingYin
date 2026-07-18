@@ -64,7 +64,7 @@ class OpenListListPage {
       throw const FormatException('OpenList 列表结构不兼容');
     }
     return OpenListListPage(
-      files: content.whereType<Map>().map((item) {
+      files: content.whereType<Map<Object?, Object?>>().map((item) {
         final data = Map<String, dynamic>.from(item);
         return OpenListFile.fromJson(
           data,

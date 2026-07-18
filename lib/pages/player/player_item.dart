@@ -62,7 +62,7 @@ class _PlayerItemState extends State<PlayerItem>
         WindowListener,
         WidgetsBindingObserver,
         SingleTickerProviderStateMixin {
-  Box setting = GStorage.setting;
+  Box<Object?> setting = GStorage.setting;
   final PlayerController playerController = Modular.get<PlayerController>();
   final IVideoPageController videoPageController =
       Modular.get<IVideoPageController>();
@@ -114,7 +114,7 @@ class _PlayerItemState extends State<PlayerItem>
     if (!Platform.isAndroid) {
       return;
     }
-    final bool autoEnterPIPEnabled = setting.get(
+    final bool autoEnterPIPEnabled = setting.getTyped<bool>(
       SettingBoxKey.androidAutoEnterPIP,
       defaultValue: false,
     );
@@ -291,8 +291,10 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   Future<void> handleShortcutForwardRepeat() async {
-    final double defaultShortcutForwardPlaySpeed = setting
-        .get(SettingBoxKey.defaultShortcutForwardPlaySpeed, defaultValue: 2.0);
+    final double defaultShortcutForwardPlaySpeed = setting.getTyped<double>(
+      SettingBoxKey.defaultShortcutForwardPlaySpeed,
+      defaultValue: 2.0,
+    );
     if (playerController.playerSpeed < defaultShortcutForwardPlaySpeed) {
       playerController.showPlaySpeed = true;
       setPlaybackSpeed(defaultShortcutForwardPlaySpeed);
@@ -519,11 +521,13 @@ class _PlayerItemState extends State<PlayerItem>
 
     // mediacodec_embed 不支持超分辨率
     if (Platform.isAndroid && shaderIndex != 1) {
-      final String androidVideoRenderer =
-          setting.get(SettingBoxKey.androidVideoRenderer, defaultValue: 'auto');
+      final String androidVideoRenderer = setting.getTyped<String>(
+        SettingBoxKey.androidVideoRenderer,
+        defaultValue: 'auto',
+      );
 
       if (androidVideoRenderer == 'mediacodec_embed') {
-        await AppDialog.show(builder: (context) {
+        await AppDialog.show<void>(builder: (context) {
           return AlertDialog(
             title: const Text('兼容性提示'),
             content: const Text('MediaCodec 渲染器不支持超分辨率功能。\n\n'
@@ -531,7 +535,7 @@ class _PlayerItemState extends State<PlayerItem>
             actions: [
               TextButton(
                 onPressed: () {
-                  AppDialog.dismiss();
+                  AppDialog.dismiss<void>();
                 },
                 child: const Text('确定'),
               ),
@@ -543,13 +547,15 @@ class _PlayerItemState extends State<PlayerItem>
     }
 
     final bool isHighMode = shaderIndex == 3;
-    final bool alreadyShown =
-        setting.get(SettingBoxKey.superResolutionWarn, defaultValue: false);
+    final bool alreadyShown = setting.getTyped<bool>(
+      SettingBoxKey.superResolutionWarn,
+      defaultValue: false,
+    );
 
     if (isHighMode && !alreadyShown) {
       bool confirmed = false;
 
-      await AppDialog.show(builder: (context) {
+      await AppDialog.show<void>(builder: (context) {
         bool dontAskAgain = false;
 
         return StatefulBuilder(builder: (context, setState) {
@@ -580,7 +586,7 @@ class _PlayerItemState extends State<PlayerItem>
                   if (dontAskAgain) {
                     await setting.put(SettingBoxKey.superResolutionWarn, true);
                   }
-                  AppDialog.dismiss();
+                  AppDialog.dismiss<void>();
                 },
                 child: const Text('取消'),
               ),
@@ -590,7 +596,7 @@ class _PlayerItemState extends State<PlayerItem>
                   if (dontAskAgain) {
                     await setting.put(SettingBoxKey.superResolutionWarn, true);
                   }
-                  AppDialog.dismiss();
+                  AppDialog.dismiss<void>();
                 },
                 child: const Text('确认'),
               ),
@@ -1127,12 +1133,20 @@ class _PlayerItemState extends State<PlayerItem>
       duration: StyleString.animationDuration,
       vsync: this,
     );
-    haEnable = setting.get(SettingBoxKey.hAenable, defaultValue: true);
-    autoPlayNext = setting.get(SettingBoxKey.autoPlayNext, defaultValue: true);
-    backgroundPlayback =
-        setting.get(SettingBoxKey.backgroundPlayback, defaultValue: false);
-    brightnessVolumeGesture =
-        setting.get(SettingBoxKey.brightnessVolumeGesture, defaultValue: true);
+    haEnable =
+        setting.getTyped<bool>(SettingBoxKey.hAenable, defaultValue: true);
+    autoPlayNext = setting.getTyped<bool>(
+      SettingBoxKey.autoPlayNext,
+      defaultValue: true,
+    );
+    backgroundPlayback = setting.getTyped<bool>(
+      SettingBoxKey.backgroundPlayback,
+      defaultValue: false,
+    );
+    brightnessVolumeGesture = setting.getTyped<bool>(
+      SettingBoxKey.brightnessVolumeGesture,
+      defaultValue: true,
+    );
     unawaited(_bindAudioService());
     playerTimer = getPlayerTimer();
     windowManager.addListener(this);

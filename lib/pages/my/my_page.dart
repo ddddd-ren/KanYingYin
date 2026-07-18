@@ -18,7 +18,7 @@ class _MyPageState extends State<MyPage> {
 
   void onBackPressed(BuildContext context) {
     if (AppDialog.observer.hasAppDialog) {
-      AppDialog.dismiss();
+      AppDialog.dismiss<void>();
       return;
     }
     navigationBarState.updateSelectedIndex(0);
@@ -55,7 +55,7 @@ class _MyPageState extends State<MyPage> {
             SettingsSection(
               title: Text('本地媒体库', style: TextStyle(fontFamily: fontFamily)),
               tiles: [
-                SettingsTile.navigation(
+                SettingsTile<void>.navigation(
                   onPressed: (_) {
                     Modular.to.pushNamed('/settings/tmdb');
                   },
@@ -65,7 +65,7 @@ class _MyPageState extends State<MyPage> {
                   description: Text('配置本地媒体海报与信息刮削',
                       style: TextStyle(fontFamily: fontFamily)),
                 ),
-                SettingsTile.navigation(
+                SettingsTile<void>.navigation(
                   onPressed: (_) {
                     Modular.to.pushNamed('/settings/cloud-sources');
                   },
@@ -75,7 +75,7 @@ class _MyPageState extends State<MyPage> {
                   description: Text('添加和管理 OpenList 媒体来源',
                       style: TextStyle(fontFamily: fontFamily)),
                 ),
-                SettingsTile.navigation(
+                SettingsTile<void>.navigation(
                   onPressed: (_) {
                     Modular.to.pushNamed('/settings/media-recognition');
                   },
@@ -89,7 +89,7 @@ class _MyPageState extends State<MyPage> {
             SettingsSection(
               title: Text('播放器设置', style: TextStyle(fontFamily: fontFamily)),
               tiles: [
-                SettingsTile.navigation(
+                SettingsTile<void>.navigation(
                   onPressed: (_) {
                     Modular.to.pushNamed('/settings/player');
                   },
@@ -98,7 +98,7 @@ class _MyPageState extends State<MyPage> {
                   description: Text('设置播放器相关参数',
                       style: TextStyle(fontFamily: fontFamily)),
                 ),
-                SettingsTile.navigation(
+                SettingsTile<void>.navigation(
                   onPressed: (_) {
                     Modular.to.pushNamed('/settings/keyboard');
                   },
@@ -112,7 +112,7 @@ class _MyPageState extends State<MyPage> {
             SettingsSection(
               title: Text('应用与外观', style: TextStyle(fontFamily: fontFamily)),
               tiles: [
-                SettingsTile.navigation(
+                SettingsTile<void>.navigation(
                   onPressed: (_) {
                     Modular.to.pushNamed('/settings/theme');
                   },
@@ -121,7 +121,7 @@ class _MyPageState extends State<MyPage> {
                   description: Text('设置应用主题和刷新率',
                       style: TextStyle(fontFamily: fontFamily)),
                 ),
-                SettingsTile.navigation(
+                SettingsTile<void>.navigation(
                   onPressed: (_) {
                     Modular.to.pushNamed('/settings/interface');
                   },
@@ -135,7 +135,7 @@ class _MyPageState extends State<MyPage> {
             SettingsSection(
               title: Text('其他', style: TextStyle(fontFamily: fontFamily)),
               tiles: [
-                SettingsTile.navigation(
+                SettingsTile<void>.navigation(
                   onPressed: (_) {
                     Modular.to.pushNamed('/settings/about/');
                   },

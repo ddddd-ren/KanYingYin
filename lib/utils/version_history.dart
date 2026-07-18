@@ -12,6 +12,16 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.0.12',
+    date: '2026-07-19',
+    changes: [
+      '本测试版提升了启动和窗口显示的稳定性',
+      '媒体库的添加、扫描和管理操作更加可靠',
+      '播放器字幕、音轨、快捷键和提示浮层的使用更加稳定',
+      '改进 Windows 安装准备流程，方便后续测试版交付',
+    ],
+  ),
+  VersionHistory(
     version: '1.0.0',
     date: '2026-07-17',
     changes: [

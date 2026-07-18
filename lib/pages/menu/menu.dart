@@ -200,8 +200,10 @@ class _ScaffoldMenu extends State<ScaffoldMenu> {
 
   bool get _showCustomWindowControls =>
       Utils.isDesktop() &&
-      !GStorage.setting
-          .get(SettingBoxKey.showWindowButton, defaultValue: false);
+      !GStorage.setting.getTyped<bool>(
+        SettingBoxKey.showWindowButton,
+        defaultValue: false,
+      );
 
   Widget _desktopTitleBar(BuildContext context) {
     return ColoredBox(

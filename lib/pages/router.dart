@@ -22,8 +22,10 @@ class MenuRoute {
     return menuList.map((e) => e.module).toList();
   }
 
-  List<ModuleRoute> get routes {
-    return menuList.map((e) => ModuleRoute(e.path, module: e.module)).toList();
+  List<ModuleRoute<void>> get routes {
+    return menuList
+        .map((e) => ModuleRoute<void>(e.path, module: e.module))
+        .toList();
   }
 
   String getPath(int index) {

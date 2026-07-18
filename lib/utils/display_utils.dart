@@ -51,9 +51,8 @@ class DisplayUtils {
     if (Platform.isAndroid) {
       const platform = MethodChannel('com.kanyingyin.player/intent');
       try {
-        final bool result =
-            await platform.invokeMethod('checkIfInMultiWindowMode');
-        return result;
+        return await platform.invokeMethod<bool>('checkIfInMultiWindowMode') ??
+            false;
       } on PlatformException catch (e) {
         AppLogger().e("Failed to check multi window mode: '${e.message}'.");
         return false;
@@ -66,8 +65,7 @@ class DisplayUtils {
     if (Platform.isLinux) {
       const platform = MethodChannel('com.kanyingyin.player/intent');
       try {
-        final bool result = await platform.invokeMethod('isRunningOnX11');
-        return result;
+        return await platform.invokeMethod<bool>('isRunningOnX11') ?? false;
       } on PlatformException catch (e) {
         AppLogger().e("Failed to check X11 environment: '${e.message}'.");
         return false;
@@ -80,9 +78,7 @@ class DisplayUtils {
     if (Platform.isAndroid) {
       const platform = MethodChannel('com.kanyingyin.player/intent');
       try {
-        final int sdkVersion =
-            await platform.invokeMethod('getAndroidSdkVersion');
-        return sdkVersion;
+        return await platform.invokeMethod<int>('getAndroidSdkVersion') ?? 0;
       } on PlatformException catch (e) {
         AppLogger().e("Failed to get Android SDK version: '${e.message}'.");
         return 0;

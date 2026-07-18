@@ -41,10 +41,14 @@ class ProxyManager {
   /// 如果 Bangumi 直连超时，会自动探测常见本机代理端口并启用。
   static Future<void> initializeProxy() async {
     final setting = GStorage.setting;
-    final bool proxyEnable =
-        setting.get(SettingBoxKey.proxyEnable, defaultValue: false);
-    final String proxyUrl =
-        setting.get(SettingBoxKey.proxyUrl, defaultValue: '');
+    final bool proxyEnable = setting.getTyped<bool>(
+      SettingBoxKey.proxyEnable,
+      defaultValue: false,
+    );
+    final String proxyUrl = setting.getTyped<String>(
+      SettingBoxKey.proxyUrl,
+      defaultValue: '',
+    );
 
     if (proxyEnable) {
       final parsedProxy = ProxyUtils.parseProxyUrl(proxyUrl);

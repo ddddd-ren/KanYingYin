@@ -51,7 +51,7 @@ class _MediaRecognitionSettingsPageState
           SettingsSection(
             title: Text('本地识别限制', style: TextStyle(fontFamily: fontFamily)),
             tiles: [
-              SettingsTile.navigation(
+              SettingsTile<void>.navigation(
                 enabled: !_isBusy,
                 onPressed: (_) =>
                     _showSizeChoices(MediaRecognitionTarget.local),
@@ -64,7 +64,7 @@ class _MediaRecognitionSettingsPageState
                 )),
               ),
               if (_scanningTarget == MediaRecognitionTarget.local)
-                SettingsTile(
+                SettingsTile<void>(
                   title: const Text('正在重新扫描本地媒体库'),
                   description: const LinearProgressIndicator(),
                 ),
@@ -73,7 +73,7 @@ class _MediaRecognitionSettingsPageState
           SettingsSection(
             title: Text('网盘识别限制', style: TextStyle(fontFamily: fontFamily)),
             tiles: [
-              SettingsTile.navigation(
+              SettingsTile<void>.navigation(
                 enabled: !_isBusy,
                 onPressed: (_) =>
                     _showSizeChoices(MediaRecognitionTarget.cloud),
@@ -86,7 +86,7 @@ class _MediaRecognitionSettingsPageState
                 )),
               ),
               if (_scanningTarget == MediaRecognitionTarget.cloud)
-                SettingsTile(
+                SettingsTile<void>(
                   title: const Text('正在重新扫描网盘媒体库'),
                   description: const LinearProgressIndicator(),
                 ),

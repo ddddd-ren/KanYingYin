@@ -66,7 +66,7 @@ class PlayerItemPanel extends StatefulWidget {
 }
 
 class _PlayerItemPanelState extends State<PlayerItemPanel> {
-  Box setting = GStorage.setting;
+  Box<Object?> setting = GStorage.setting;
   late bool haEnable;
   late Animation<Offset> topOffsetAnimation;
   late Animation<Offset> bottomOffsetAnimation;
@@ -82,7 +82,7 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
   // 选择倍速
   void showSetSpeedSheet() {
     final double currentSpeed = playerController.playerSpeed;
-    AppDialog.show(builder: (context) {
+    AppDialog.show<void>(builder: (context) {
       return AlertDialog(
         title: const Text('播放速度'),
         content: StatefulBuilder(
@@ -96,7 +96,7 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
                   FilledButton(
                     onPressed: () async {
                       await widget.setPlaybackSpeed(i);
-                      AppDialog.dismiss();
+                      AppDialog.dismiss<void>();
                     },
                     child: Text(i.toString()),
                   )
@@ -104,7 +104,7 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
                   FilledButton.tonal(
                     onPressed: () async {
                       await widget.setPlaybackSpeed(i);
-                      AppDialog.dismiss();
+                      AppDialog.dismiss<void>();
                     },
                     child: Text(i.toString()),
                   ),
@@ -114,7 +114,7 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
         }),
         actions: <Widget>[
           TextButton(
-            onPressed: () => AppDialog.dismiss(),
+            onPressed: () => AppDialog.dismiss<void>(),
             child: Text(
               '取消',
               style: TextStyle(color: Theme.of(context).colorScheme.outline),
@@ -123,7 +123,7 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
           TextButton(
             onPressed: () async {
               await widget.setPlaybackSpeed(1.0);
-              AppDialog.dismiss();
+              AppDialog.dismiss<void>();
             },
             child: const Text('默认速度'),
           ),
@@ -133,7 +133,7 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
   }
 
   void showForwardChange() {
-    AppDialog.show(builder: (context) {
+    AppDialog.show<void>(builder: (context) {
       String input = "";
       return AlertDialog(
         title: const Text('跳过秒数'),
@@ -155,7 +155,7 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
         }),
         actions: <Widget>[
           TextButton(
-            onPressed: () => AppDialog.dismiss(),
+            onPressed: () => AppDialog.dismiss<void>(),
             child: Text(
               '取消',
               style: TextStyle(color: Theme.of(context).colorScheme.outline),
@@ -165,9 +165,9 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
             onPressed: () async {
               if (input != "") {
                 playerController.setButtonForwardTime(int.parse(input));
-                AppDialog.dismiss();
+                AppDialog.dismiss<void>();
               } else {
-                AppDialog.dismiss();
+                AppDialog.dismiss<void>();
               }
             },
             child: const Text('确定'),
@@ -201,7 +201,8 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
       parent: widget.animationController,
       curve: Curves.easeInOut,
     ));
-    haEnable = setting.get(SettingBoxKey.hAenable, defaultValue: true);
+    haEnable =
+        setting.getTyped<bool>(SettingBoxKey.hAenable, defaultValue: true);
     cacheSvgIcons();
   }
 

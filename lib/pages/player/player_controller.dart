@@ -244,7 +244,7 @@ abstract class _PlayerController with Store {
   @observable
   double playerSpeed = 1.0;
 
-  Box setting = GStorage.setting;
+  Box<Object?> setting = GStorage.setting;
   bool hAenable = true;
   late String hardwareDecoder;
   bool androidEnableOpenSLES = true;
@@ -412,15 +412,23 @@ abstract class _PlayerController with Store {
     buffer = Duration.zero;
     duration = Duration.zero;
     completed = false;
-    playerSpeed =
-        setting.get(SettingBoxKey.defaultPlaySpeed, defaultValue: 1.0);
-    aspectRatioType =
-        setting.get(SettingBoxKey.defaultAspectRatioType, defaultValue: 1);
+    playerSpeed = setting.getTyped<double>(
+      SettingBoxKey.defaultPlaySpeed,
+      defaultValue: 1.0,
+    );
+    aspectRatioType = setting.getTyped<int>(
+      SettingBoxKey.defaultAspectRatioType,
+      defaultValue: 1,
+    );
 
-    buttonSkipTime =
-        setting.get(SettingBoxKey.buttonSkipTime, defaultValue: 80);
-    arrowKeySkipTime =
-        setting.get(SettingBoxKey.arrowKeySkipTime, defaultValue: 10);
+    buttonSkipTime = setting.getTyped<int>(
+      SettingBoxKey.buttonSkipTime,
+      defaultValue: 80,
+    );
+    arrowKeySkipTime = setting.getTyped<int>(
+      SettingBoxKey.arrowKeySkipTime,
+      defaultValue: 10,
+    );
     try {
       await _disposePlayerResources();
     } catch (_) {}
@@ -565,13 +573,18 @@ abstract class _PlayerController with Store {
       required PlaybackInitParams initParams,
       int offset = 0,
       String? subtitlePath}) async {
-    superResolutionType =
-        setting.get(SettingBoxKey.defaultSuperResolutionType, defaultValue: 1);
-    hAenable = setting.get(SettingBoxKey.hAenable, defaultValue: true);
-    androidEnableOpenSLES =
-        setting.get(SettingBoxKey.androidEnableOpenSLES, defaultValue: true);
+    superResolutionType = setting.getTyped<int>(
+      SettingBoxKey.defaultSuperResolutionType,
+      defaultValue: 1,
+    );
+    hAenable =
+        setting.getTyped<bool>(SettingBoxKey.hAenable, defaultValue: true);
+    androidEnableOpenSLES = setting.getTyped<bool>(
+      SettingBoxKey.androidEnableOpenSLES,
+      defaultValue: true,
+    );
     hardwareDecoder = normalizeHardwareDecoder(
-      setting.get(
+      setting.getTyped<String>(
         SettingBoxKey.hardwareDecoder,
         defaultValue: defaultHardwareDecoder,
       ),
@@ -579,11 +592,16 @@ abstract class _PlayerController with Store {
     if (hardwareDecoder == 'no') {
       hAenable = false;
     }
-    autoPlay = setting.get(SettingBoxKey.autoPlay, defaultValue: true);
-    lowMemoryMode =
-        setting.get(SettingBoxKey.lowMemoryMode, defaultValue: false);
-    playerDebugMode =
-        setting.get(SettingBoxKey.playerDebugMode, defaultValue: false);
+    autoPlay =
+        setting.getTyped<bool>(SettingBoxKey.autoPlay, defaultValue: true);
+    lowMemoryMode = setting.getTyped<bool>(
+      SettingBoxKey.lowMemoryMode,
+      defaultValue: false,
+    );
+    playerDebugMode = setting.getTyped<bool>(
+      SettingBoxKey.playerDebugMode,
+      defaultValue: false,
+    );
 
     mediaPlayer = Player(
       configuration: PlayerConfiguration(
@@ -623,11 +641,15 @@ abstract class _PlayerController with Store {
     }
 
     // 设置 HTTP 代理
-    final bool proxyEnable =
-        setting.get(SettingBoxKey.proxyEnable, defaultValue: false);
+    final bool proxyEnable = setting.getTyped<bool>(
+      SettingBoxKey.proxyEnable,
+      defaultValue: false,
+    );
     if (proxyEnable) {
-      final String proxyUrl =
-          setting.get(SettingBoxKey.proxyUrl, defaultValue: '');
+      final String proxyUrl = setting.getTyped<String>(
+        SettingBoxKey.proxyUrl,
+        defaultValue: '',
+      );
       final formattedProxy = ProxyUtils.getFormattedProxyUrl(proxyUrl);
       if (formattedProxy != null) {
         await pp.setProperty("http-proxy", formattedProxy);
@@ -641,8 +663,10 @@ abstract class _PlayerController with Store {
 
     String? videoRenderer;
     if (Platform.isAndroid) {
-      final String androidVideoRenderer =
-          setting.get(SettingBoxKey.androidVideoRenderer, defaultValue: 'auto');
+      final String androidVideoRenderer = setting.getTyped<String>(
+        SettingBoxKey.androidVideoRenderer,
+        defaultValue: 'auto',
+      );
 
       if (androidVideoRenderer == 'auto') {
         // Android 14 及以上使用基于 Vulkan 的 MPV GPU-NEXT 视频输出，着色器性能更好
@@ -677,8 +701,10 @@ abstract class _PlayerController with Store {
     mediaPlayer!.setPlaylistMode(PlaylistMode.none);
 
     // error handle
-    bool showPlayerError =
-        setting.get(SettingBoxKey.showPlayerError, defaultValue: true);
+    bool showPlayerError = setting.getTyped<bool>(
+      SettingBoxKey.showPlayerError,
+      defaultValue: true,
+    );
     await playerErrorSubscription?.cancel();
     playerErrorSubscription = mediaPlayer!.stream.error.listen((event) async {
       if (!_isMediaOperationActive(mediaToken, lifecycleToken)) return;
@@ -1426,7 +1452,7 @@ abstract class _PlayerController with Store {
   void lanunchExternalPlayer() async {
     if ((Platform.isAndroid || Platform.isWindows) && referer.isEmpty) {
       if (await ExternalPlayer.launchURLWithMIME(videoUrl, 'video/mp4')) {
-        AppDialog.dismiss();
+        AppDialog.dismiss<void>();
         AppDialog.showToast(
           message: '尝试唤起外部播放器',
         );
@@ -1437,7 +1463,7 @@ abstract class _PlayerController with Store {
       }
     } else if (Platform.isMacOS || Platform.isIOS) {
       if (await ExternalPlayer.launchURLWithReferer(videoUrl, referer)) {
-        AppDialog.dismiss();
+        AppDialog.dismiss<void>();
         AppDialog.showToast(
           message: '尝试唤起外部播放器',
         );
@@ -1447,7 +1473,7 @@ abstract class _PlayerController with Store {
         );
       }
     } else if (Platform.isLinux && referer.isEmpty) {
-      AppDialog.dismiss();
+      AppDialog.dismiss<void>();
       if (await canLaunchUrlString(videoUrl)) {
         launchUrlString(videoUrl);
         AppDialog.showToast(

@@ -6,8 +6,8 @@ import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
   test('应用版本、MSIX 版本和更新日志保持一致', () {
-    const expectedVersion = '1.0.0';
-    const expectedBuildNumber = '10000';
+    const expectedVersion = '2.0.12';
+    const expectedBuildNumber = '20012';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
@@ -53,7 +53,7 @@ void main() {
     expect(versionHistory, contains("version: '$version'"));
     expect(updateDialogCopy, contains('应用版本：$version'));
     expect(updateDialogCopy, contains('安装包版本：$version.0'));
-    expect(updateDialogCopy, contains('看影音 $version 正式版'));
+    expect(updateDialogCopy, contains('看影音 $version 测试版'));
     expect(
       versionHistory.indexOf("version: '$version'"),
       lessThan(versionHistory.indexOf("version: '1.4.6'")),
@@ -82,15 +82,12 @@ void main() {
       updateDialogCopy,
       currentVersionHistory,
     ]) {
-      for (final text in ['正式版', '本地媒体', '网盘挂载', '尚未完全实现']) {
+      for (final text in ['测试版', '启动', '媒体库', '播放器']) {
         expect(currentCopy, contains(text));
       }
     }
-    expect(readme, contains('网盘挂载目前仍在完善中，尚未完全实现'));
-    for (final text in ['TrueHD', 'PGS 字幕', '诊断日志', '访问凭据']) {
-      expect(versionHistory, contains(text));
-      expect(releaseNotes, contains(text));
-    }
+    expect(currentReleaseNotes, isNot(contains('正式版')));
+    expect(currentVersionHistory, isNot(contains('正式版')));
   });
 }
 

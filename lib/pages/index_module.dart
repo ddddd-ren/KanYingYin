@@ -1,6 +1,8 @@
 import 'package:kanyingyin/pages/index_page.dart';
 import 'package:kanyingyin/features/library/application/local_library_metadata_coordinator.dart';
 import 'package:kanyingyin/features/library/application/local_library_preferences.dart';
+import 'package:kanyingyin/features/player/application/subtitle_preferences.dart';
+import 'package:kanyingyin/features/player/application/truehd_fallback_policy.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/pages/router.dart';
 import 'package:kanyingyin/pages/init_page.dart';
@@ -62,7 +64,12 @@ class IndexModule extends Module {
     i.addSingleton(LocalVideoController.new);
     i.addSingleton<IVideoPageController>(
         () => Modular.get<LocalVideoController>());
-    i.addSingleton(PlayerController.new);
+    i.addSingleton(SubtitlePreferences.new);
+    i.addSingleton(TrueHdFallbackPolicy.new);
+    i.addSingleton(() => PlayerController(
+          subtitlePreferences: Modular.get<SubtitlePreferences>(),
+          trueHdFallbackPolicy: Modular.get<TrueHdFallbackPolicy>(),
+        ));
     i.addSingleton(ShadersController.new);
     i.addSingleton(() => LocalController(
           scanner: LocalMediaScanner(

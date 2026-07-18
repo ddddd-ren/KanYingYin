@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/library/application/local_library_metadata_coordinator.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
@@ -91,6 +93,48 @@ void main() {
     );
   });
 
+  test('缩略图生成 await 后取消不提交结果', () async {
+    final probe = _DelayedThumbnailProbe();
+    final applied = <LocalThumbnailUpdate>[];
+    var cancelled = false;
+    final coordinator = LocalLibraryMetadataCoordinator(
+      mediaProbe: probe,
+      existingThumbnailPath: (_) => null,
+      thumbnailPathForVideo: (path) => '$path.jpg',
+    );
+
+    final pending = coordinator.generateThumbnails(
+      <LocalFileItem>[_video('A.mkv')],
+      isCancelled: () => cancelled,
+      onResult: applied.add,
+    );
+    await probe.started.future;
+    cancelled = true;
+    probe.complete('generated.jpg');
+    final result = await pending;
+
+    expect(result.cancelled, isTrue);
+    expect(result.updated, 0);
+    expect(applied, isEmpty);
+  });
+
+  test('缩略图空结果不提交更新', () async {
+    final applied = <LocalThumbnailUpdate>[];
+    final coordinator = LocalLibraryMetadataCoordinator(
+      mediaProbe: _Probe(),
+      existingThumbnailPath: (_) => null,
+      thumbnailPathForVideo: (path) => '$path.jpg',
+    );
+
+    final result = await coordinator.generateThumbnails(
+      <LocalFileItem>[_video('A.mkv')],
+      onResult: applied.add,
+    );
+
+    expect(result.updated, 0);
+    expect(applied, isEmpty);
+  });
+
   test('派生索引刷新复用注入仓储', () async {
     final repository = _Repository();
     final refresher = _Refresher();
@@ -101,8 +145,33 @@ void main() {
 
     final result = await coordinator.refreshDerivedMetadata();
 
-    expect(result.refreshedCount, 3);
+    expect(result.result.refreshedCount, 3);
+    expect(result.cancelled, isFalse);
     expect(refresher.repository, same(repository));
+  });
+
+  test('派生索引刷新 await 后取消返回取消状态', () async {
+    final refresher = _DelayedRefresher();
+    var cancelled = false;
+    final coordinator = LocalLibraryMetadataCoordinator(
+      mediaIndexRepository: _Repository(),
+      metadataRefresher: refresher,
+    );
+
+    final pending = coordinator.refreshDerivedMetadata(
+      isCancelled: () => cancelled,
+    );
+    await refresher.started.future;
+    cancelled = true;
+    refresher.complete(const LocalMediaIndexMetadataRefreshResult(
+      checkedCount: 1,
+      refreshedCount: 1,
+      skippedCount: 0,
+    ));
+    final result = await pending;
+
+    expect(result.cancelled, isTrue);
+    expect(result.result.refreshedCount, 0);
   });
 
   test('海报批处理原样转发进度和结果', () async {
@@ -117,9 +186,73 @@ void main() {
       onProgress: progress.add,
     );
 
-    expect(result.success, 1);
+    expect(result.result.success, 1);
+    expect(result.cancelled, isFalse);
     expect(progress.single.phase, PosterScrapePhase.searching);
     expect(progress.single.fileName, 'A.mkv');
+  });
+
+  test('海报取消后抑制进度和结果', () async {
+    final scraper = _DelayedPosterScraper();
+    final progress = <PosterScrapeProgress>[];
+    var cancelled = false;
+    final coordinator = LocalLibraryMetadataCoordinator(
+      posterScraper: scraper,
+    );
+
+    final pending = coordinator.fetchPosters(
+      <LocalFileItem>[_video('A.mkv')],
+      isCancelled: () => cancelled,
+      onProgress: progress.add,
+    );
+    await scraper.started.future;
+    cancelled = true;
+    scraper.emitProgress();
+    scraper.complete(const PosterScrapeResult(
+      success: 1,
+      failed: 0,
+      skipped: 0,
+      total: 1,
+    ));
+    final result = await pending;
+
+    expect(progress, isEmpty);
+    expect(result.cancelled, isTrue);
+    expect(result.result, same(PosterScrapeResult.empty));
+  });
+
+  test('媒体探测异常保持向上传递', () async {
+    final coordinator = LocalLibraryMetadataCoordinator(
+      mediaProbe: _ThrowingProbe(throwOnProbe: true),
+    );
+
+    await expectLater(
+      coordinator.probeMediaInfo(<LocalFileItem>[_video('A.mkv')]),
+      throwsStateError,
+    );
+  });
+
+  test('缩略图异常保持向上传递', () async {
+    final coordinator = LocalLibraryMetadataCoordinator(
+      mediaProbe: _ThrowingProbe(throwOnThumbnail: true),
+      existingThumbnailPath: (_) => null,
+    );
+
+    await expectLater(
+      coordinator.generateThumbnails(<LocalFileItem>[_video('A.mkv')]),
+      throwsStateError,
+    );
+  });
+
+  test('海报异常保持向上传递', () async {
+    final coordinator = LocalLibraryMetadataCoordinator(
+      posterScraper: _ThrowingPosterScraper(),
+    );
+
+    await expectLater(
+      coordinator.fetchPosters(<LocalFileItem>[_video('A.mkv')]),
+      throwsStateError,
+    );
   });
 }
 
@@ -176,6 +309,23 @@ class _Refresher extends LocalMediaIndexMetadataRefresher {
   }
 }
 
+class _DelayedRefresher extends LocalMediaIndexMetadataRefresher {
+  final started = Completer<void>();
+  final _result = Completer<LocalMediaIndexMetadataRefreshResult>();
+
+  @override
+  Future<LocalMediaIndexMetadataRefreshResult> refreshRepository(
+    ILocalMediaIndexRepository repository,
+  ) {
+    started.complete();
+    return _result.future;
+  }
+
+  void complete(LocalMediaIndexMetadataRefreshResult result) {
+    _result.complete(result);
+  }
+}
+
 class _Repository implements ILocalMediaIndexRepository {
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -201,5 +351,85 @@ class _PosterScraper implements ILocalPosterScraper {
       skipped: 0,
       total: 1,
     );
+  }
+}
+
+class _DelayedThumbnailProbe implements ILocalMediaProbe {
+  final started = Completer<void>();
+  final _result = Completer<String?>();
+
+  @override
+  Future<String?> captureThumbnail(String filePath, String outputPath) {
+    started.complete();
+    return _result.future;
+  }
+
+  @override
+  Future<LocalMediaInfo> probe(String filePath) async {
+    return const LocalMediaInfo();
+  }
+
+  void complete(String? path) => _result.complete(path);
+}
+
+class _DelayedPosterScraper implements ILocalPosterScraper {
+  final started = Completer<void>();
+  final _result = Completer<PosterScrapeResult>();
+  PosterScrapeProgressCallback? _onProgress;
+
+  @override
+  Future<PosterScrapeResult> scrapeMissingPosters(
+    List<LocalFileItem> items, {
+    PosterScrapeProgressCallback? onProgress,
+    FallbackCoverProvider? fallbackCover,
+  }) {
+    _onProgress = onProgress;
+    started.complete();
+    return _result.future;
+  }
+
+  void emitProgress() {
+    _onProgress?.call(const PosterScrapeProgress(
+      phase: PosterScrapePhase.searching,
+      current: 1,
+      total: 1,
+      fileName: 'A.mkv',
+      progress: 1,
+    ));
+  }
+
+  void complete(PosterScrapeResult result) => _result.complete(result);
+}
+
+class _ThrowingProbe implements ILocalMediaProbe {
+  const _ThrowingProbe({
+    this.throwOnProbe = false,
+    this.throwOnThumbnail = false,
+  });
+
+  final bool throwOnProbe;
+  final bool throwOnThumbnail;
+
+  @override
+  Future<String?> captureThumbnail(String filePath, String outputPath) async {
+    if (throwOnThumbnail) throw StateError('缩略图失败');
+    return null;
+  }
+
+  @override
+  Future<LocalMediaInfo> probe(String filePath) async {
+    if (throwOnProbe) throw StateError('探测失败');
+    return const LocalMediaInfo();
+  }
+}
+
+class _ThrowingPosterScraper implements ILocalPosterScraper {
+  @override
+  Future<PosterScrapeResult> scrapeMissingPosters(
+    List<LocalFileItem> items, {
+    PosterScrapeProgressCallback? onProgress,
+    FallbackCoverProvider? fallbackCover,
+  }) {
+    throw StateError('海报失败');
   }
 }

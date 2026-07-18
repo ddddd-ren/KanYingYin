@@ -73,6 +73,40 @@ final class LocalThumbnailUpdate {
   final String thumbnailPath;
 }
 
+final class LocalPosterBatchResult {
+  const LocalPosterBatchResult({
+    required this.result,
+    this.cancelled = false,
+  });
+
+  final PosterScrapeResult result;
+  final bool cancelled;
+
+  static const cancelledResult = LocalPosterBatchResult(
+    result: PosterScrapeResult.empty,
+    cancelled: true,
+  );
+}
+
+final class LocalDerivedMetadataBatchResult {
+  const LocalDerivedMetadataBatchResult({
+    required this.result,
+    this.cancelled = false,
+  });
+
+  final LocalMediaIndexMetadataRefreshResult result;
+  final bool cancelled;
+
+  static const cancelledResult = LocalDerivedMetadataBatchResult(
+    result: LocalMediaIndexMetadataRefreshResult(
+      checkedCount: 0,
+      refreshedCount: 0,
+      skippedCount: 0,
+    ),
+    cancelled: true,
+  );
+}
+
 final class LocalLibraryMetadataCoordinator {
   LocalLibraryMetadataCoordinator({
     ILocalMediaProbe? mediaProbe,
@@ -182,23 +216,51 @@ final class LocalLibraryMetadataCoordinator {
     return LocalLibraryBatchResult(processed: processed, updated: updated);
   }
 
-  Future<PosterScrapeResult> fetchPosters(
+  Future<LocalPosterBatchResult> fetchPosters(
     List<LocalFileItem> items, {
     PosterScrapeProgressCallback? onProgress,
     FallbackCoverProvider? fallbackCover,
-  }) {
-    return _posterScraper.scrapeMissingPosters(
+    LocalLibraryCancellationCheck? isCancelled,
+  }) async {
+    if (isCancelled?.call() ?? false) {
+      return LocalPosterBatchResult.cancelledResult;
+    }
+    final result = await _posterScraper.scrapeMissingPosters(
       items,
-      onProgress: onProgress,
-      fallbackCover: fallbackCover,
+      onProgress: onProgress == null
+          ? null
+          : (progress) {
+              if (!(isCancelled?.call() ?? false)) {
+                onProgress(progress);
+              }
+            },
+      fallbackCover: fallbackCover == null
+          ? null
+          : (item) {
+              if (isCancelled?.call() ?? false) return null;
+              return fallbackCover(item);
+            },
     );
+    if (isCancelled?.call() ?? false) {
+      return LocalPosterBatchResult.cancelledResult;
+    }
+    return LocalPosterBatchResult(result: result);
   }
 
-  Future<LocalMediaIndexMetadataRefreshResult> refreshDerivedMetadata() {
+  Future<LocalDerivedMetadataBatchResult> refreshDerivedMetadata({
+    LocalLibraryCancellationCheck? isCancelled,
+  }) async {
+    if (isCancelled?.call() ?? false) {
+      return LocalDerivedMetadataBatchResult.cancelledResult;
+    }
     final repository = _mediaIndexRepository;
     if (repository == null) {
       throw StateError('未配置本地媒体索引仓储');
     }
-    return _metadataRefresher.refreshRepository(repository);
+    final result = await _metadataRefresher.refreshRepository(repository);
+    if (isCancelled?.call() ?? false) {
+      return LocalDerivedMetadataBatchResult.cancelledResult;
+    }
+    return LocalDerivedMetadataBatchResult(result: result);
   }
 }

@@ -20,6 +20,8 @@ import 'package:kanyingyin/shaders/shaders_controller.dart';
 import 'package:kanyingyin/services/local_subtitle_importer.dart';
 import 'package:kanyingyin/services/local_subtitle_matcher.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
+import 'package:kanyingyin/features/player/application/subtitle_preferences.dart';
+import 'package:kanyingyin/features/player/application/truehd_fallback_policy.dart';
 import 'package:kanyingyin/pages/player/models/embedded_track_info.dart';
 import 'package:kanyingyin/utils/external_player.dart';
 import 'package:kanyingyin/utils/media_uri_utils.dart';
@@ -141,46 +143,21 @@ class CloudPlaybackRefreshTransaction {
       );
 }
 
-class SubtitleStyleSettings {
-  static const double defaultFontSize = 36.0;
-  static const int defaultColorValue = 0xffffffff;
-  static const int defaultBorderColorValue = 0xff000000;
-  static const double defaultBorderSize = 2.0;
-  static const bool defaultShadowEnabled = true;
-  static const double defaultShadowOffset = 2.0;
-  static const double defaultPosition = 90.0;
-  static const bool defaultForceStyle = false;
-
-  final double fontSize;
-  final int colorValue;
-  final int borderColorValue;
-  final double borderSize;
-  final bool shadowEnabled;
-  final double shadowOffset;
-  final double position;
-  final bool forceStyle;
-
-  const SubtitleStyleSettings({
-    required this.fontSize,
-    required this.colorValue,
-    required this.borderColorValue,
-    required this.borderSize,
-    required this.shadowEnabled,
-    required this.shadowOffset,
-    required this.position,
-    required this.forceStyle,
-  });
-
-  Color get color => Color(colorValue);
-
-  Color get borderColor => Color(borderColorValue);
-}
-
 // ignore: library_private_types_in_public_api
 class PlayerController = _PlayerController with _$PlayerController;
 
 abstract class _PlayerController with Store {
+  _PlayerController({
+    SubtitlePreferences? subtitlePreferences,
+    TrueHdFallbackPolicy? trueHdFallbackPolicy,
+  })  : _subtitlePreferences = subtitlePreferences ?? SubtitlePreferences(),
+        _trueHdFallbackPolicy =
+            trueHdFallbackPolicy ?? const TrueHdFallbackPolicy();
+
   static const Duration _playerOpenTimeout = Duration(seconds: 25);
+
+  final SubtitlePreferences _subtitlePreferences;
+  final TrueHdFallbackPolicy _trueHdFallbackPolicy;
 
   final ShadersController shadersController = Modular.get<ShadersController>();
 
@@ -414,7 +391,7 @@ abstract class _PlayerController with Store {
     currentEpisode = params.episode;
     currentRoad = params.currentRoad;
     referer = params.referer;
-    _loadSubtitleStyleSettings();
+    _applyStoredSubtitleStyle();
     if (isNewMedia) {
       lastSubtitlePath = params.subtitlePath ?? '';
     }
@@ -809,35 +786,11 @@ abstract class _PlayerController with Store {
   }
 
   bool _isTrueHdRelatedPlaybackError(String errorStr) {
-    final lower = errorStr.toLowerCase();
-    if (lower.contains('truehd') || lower.contains('mlp')) {
-      return true;
-    }
-    if (!_hasTrueHdAudioTrack()) {
-      return false;
-    }
-    final hasAudioKeyword = lower.contains('audio') || lower.contains('ao');
-    final hasDecoderKeyword = lower.contains('decoder') ||
-        lower.contains('decode') ||
-        lower.contains('codec') ||
-        lower.contains('failed');
-    return hasAudioKeyword && hasDecoderKeyword;
-  }
-
-  bool _hasTrueHdAudioTrack() {
     final player = mediaPlayer;
-    if (player == null) return false;
-    return player.state.tracks.audio.any(_isTrueHdAudioTrack);
-  }
-
-  bool _isTrueHdAudioTrack(AudioTrack track) {
-    final values = [
-      track.codec,
-      track.decoder,
-      track.title,
-      track.language,
-    ].whereType<String>().join(' ').toLowerCase();
-    return values.contains('truehd') || values.contains('mlp');
+    return _trueHdFallbackPolicy.isRelatedError(
+      errorStr,
+      player?.state.tracks.audio ?? const <AudioTrack>[],
+    );
   }
 
   Future<bool> _switchToCompatibleAudioTrackForTrueHd() async {
@@ -848,12 +801,10 @@ abstract class _PlayerController with Store {
     final player = mediaPlayer;
     if (player == null) return false;
     final currentId = player.state.track.audio.id;
-    final fallbackTrack = player.state.tracks.audio.where((track) {
-      if (track.id == 'auto' || track.id == 'no' || track.id == currentId) {
-        return false;
-      }
-      return !_isTrueHdAudioTrack(track);
-    }).firstOrNull;
+    final fallbackTrack = _trueHdFallbackPolicy.chooseFallback(
+      player.state.tracks.audio,
+      currentTrackId: currentId,
+    );
 
     if (fallbackTrack == null) {
       AppLogger()
@@ -1179,7 +1130,7 @@ abstract class _PlayerController with Store {
     subtitleForceStyle = forceStyle ?? subtitleForceStyle;
 
     if (save) {
-      await _saveSubtitleStyleSettings();
+      await _subtitlePreferences.saveStyle(subtitleStyleSettings);
     }
     await _syncSubtitleStyleToPlayer();
   }
@@ -1214,15 +1165,8 @@ abstract class _PlayerController with Store {
     if (!isLocalPlayback && _subtitleStorageKey == null) return;
     if (_subtitleDelayStorageKey.isEmpty) return;
     try {
-      final stored = setting.get(
-        SettingBoxKey.subtitleDelayByVideo,
-        defaultValue: const <String, dynamic>{},
-      );
-      if (stored is! Map) return;
-      final value = stored[_subtitleDelayStorageKey];
-      if (value is num) {
-        subtitleDelaySeconds = value.toDouble().clamp(-30.0, 30.0).toDouble();
-      }
+      subtitleDelaySeconds =
+          _subtitlePreferences.loadDelay(_subtitleDelayStorageKey);
     } catch (e) {
       AppLogger()
           .w('PlayerController: failed to load subtitle delay', error: e);
@@ -1233,20 +1177,10 @@ abstract class _PlayerController with Store {
     if (!isLocalPlayback && _subtitleStorageKey == null) return;
     if (_subtitleDelayStorageKey.isEmpty) return;
     try {
-      final stored = setting.get(
-        SettingBoxKey.subtitleDelayByVideo,
-        defaultValue: const <String, dynamic>{},
+      await _subtitlePreferences.saveDelay(
+        _subtitleDelayStorageKey,
+        subtitleDelaySeconds,
       );
-      final delays = <String, dynamic>{
-        if (stored is Map)
-          for (final entry in stored.entries) entry.key.toString(): entry.value,
-      };
-      if (subtitleDelaySeconds == 0.0) {
-        delays.remove(_subtitleDelayStorageKey);
-      } else {
-        delays[_subtitleDelayStorageKey] = subtitleDelaySeconds;
-      }
-      await setting.put(SettingBoxKey.subtitleDelayByVideo, delays);
     } catch (e) {
       AppLogger()
           .w('PlayerController: failed to save subtitle delay', error: e);
@@ -1318,56 +1252,16 @@ abstract class _PlayerController with Store {
     }
   }
 
-  void _loadSubtitleStyleSettings() {
-    subtitleFontSize = _settingDouble(
-      SettingBoxKey.subtitleFontSize,
-      SubtitleStyleSettings.defaultFontSize,
-    ).clamp(18.0, 72.0).toDouble();
-    subtitleColorValue = _settingInt(
-      SettingBoxKey.subtitleColor,
-      SubtitleStyleSettings.defaultColorValue,
-    );
-    subtitleBorderColorValue = _settingInt(
-      SettingBoxKey.subtitleBorderColor,
-      SubtitleStyleSettings.defaultBorderColorValue,
-    );
-    subtitleBorderSize = _settingDouble(
-      SettingBoxKey.subtitleBorderSize,
-      SubtitleStyleSettings.defaultBorderSize,
-    ).clamp(0.0, 8.0).toDouble();
-    subtitleShadowEnabled = setting.get(
-      SettingBoxKey.subtitleShadowEnabled,
-      defaultValue: SubtitleStyleSettings.defaultShadowEnabled,
-    );
-    subtitleShadowOffset = _settingDouble(
-      SettingBoxKey.subtitleShadowOffset,
-      SubtitleStyleSettings.defaultShadowOffset,
-    ).clamp(0.0, 8.0).toDouble();
-    subtitlePosition = _settingDouble(
-      SettingBoxKey.subtitlePosition,
-      SubtitleStyleSettings.defaultPosition,
-    ).clamp(60.0, 100.0).toDouble();
-    subtitleForceStyle = setting.get(
-      SettingBoxKey.subtitleForceStyle,
-      defaultValue: SubtitleStyleSettings.defaultForceStyle,
-    );
-  }
-
-  Future<void> _saveSubtitleStyleSettings() async {
-    await setting.put(SettingBoxKey.subtitleFontSize, subtitleFontSize);
-    await setting.put(SettingBoxKey.subtitleColor, subtitleColorValue);
-    await setting.put(
-      SettingBoxKey.subtitleBorderColor,
-      subtitleBorderColorValue,
-    );
-    await setting.put(SettingBoxKey.subtitleBorderSize, subtitleBorderSize);
-    await setting.put(
-      SettingBoxKey.subtitleShadowEnabled,
-      subtitleShadowEnabled,
-    );
-    await setting.put(SettingBoxKey.subtitleShadowOffset, subtitleShadowOffset);
-    await setting.put(SettingBoxKey.subtitlePosition, subtitlePosition);
-    await setting.put(SettingBoxKey.subtitleForceStyle, subtitleForceStyle);
+  void _applyStoredSubtitleStyle() {
+    final style = _subtitlePreferences.loadStyle();
+    subtitleFontSize = style.fontSize;
+    subtitleColorValue = style.colorValue;
+    subtitleBorderColorValue = style.borderColorValue;
+    subtitleBorderSize = style.borderSize;
+    subtitleShadowEnabled = style.shadowEnabled;
+    subtitleShadowOffset = style.shadowOffset;
+    subtitlePosition = style.position;
+    subtitleForceStyle = style.forceStyle;
   }
 
   Future<void> _syncSubtitleStyleToPlayer() async {
@@ -1405,19 +1299,6 @@ abstract class _PlayerController with Store {
 
   String _mpvColor(Color color) {
     return '#${color.toARGB32().toRadixString(16).padLeft(8, '0')}';
-  }
-
-  double _settingDouble(String key, double defaultValue) {
-    final value = setting.get(key, defaultValue: defaultValue);
-    if (value is num) return value.toDouble();
-    return defaultValue;
-  }
-
-  int _settingInt(String key, int defaultValue) {
-    final value = setting.get(key, defaultValue: defaultValue);
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    return defaultValue;
   }
 
   Future<void> setShader(int type, {bool synchronized = true}) async {

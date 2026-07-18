@@ -259,19 +259,32 @@ class LibraryMediaGrid extends StatelessWidget {
           mainAxisExtent: extent,
         ),
         itemCount: data.items.length,
-        itemBuilder: (context, index) => _LibraryMediaTile(
-          item: data.items[index],
-          onPlay: onPlay,
-          onShowActions: onShowActions,
-        ),
+        findChildIndexCallback: (key) {
+          if (key is! ValueKey<String>) return null;
+          final index = data.items.indexWhere((item) => item.id == key.value);
+          return index < 0 ? null : index;
+        },
+        itemBuilder: (context, index) {
+          final item = data.items[index];
+          return _LibraryMediaTile(
+            key: ValueKey<String>(item.id),
+            item: item,
+            onPlay: onPlay,
+            onShowActions: onShowActions,
+          );
+        },
       );
     });
   }
 }
 
 class _LibraryMediaTile extends StatefulWidget {
-  const _LibraryMediaTile(
-      {required this.item, this.onPlay, this.onShowActions});
+  const _LibraryMediaTile({
+    super.key,
+    required this.item,
+    this.onPlay,
+    this.onShowActions,
+  });
   final LibraryMediaItemViewData item;
   final LibraryMediaAction? onPlay;
   final LibraryMediaAction? onShowActions;
@@ -282,6 +295,14 @@ class _LibraryMediaTile extends StatefulWidget {
 
 class _LibraryMediaTileState extends State<_LibraryMediaTile> {
   bool _hovered = false;
+
+  @override
+  void didUpdateWidget(covariant _LibraryMediaTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.item.id != widget.item.id) {
+      _hovered = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

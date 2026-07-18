@@ -2,11 +2,15 @@ class VersionHistory {
   final String version;
   final String date;
   final List<String> changes;
+  final bool isPrerelease;
+
+  String get releaseLabel => isPrerelease ? '测试版' : '正式版';
 
   const VersionHistory({
     required this.version,
     required this.date,
     required this.changes,
+    this.isPrerelease = false,
   });
 }
 
@@ -14,6 +18,7 @@ const List<VersionHistory> versionHistoryList = [
   VersionHistory(
     version: '2.0.12',
     date: '2026-07-19',
+    isPrerelease: true,
     changes: [
       '本测试版提升了启动和窗口显示的稳定性',
       '媒体库的添加、扫描和管理操作更加可靠',

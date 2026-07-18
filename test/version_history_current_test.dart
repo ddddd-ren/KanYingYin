@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
+import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
@@ -27,5 +29,28 @@ void main() {
 
   test('版本历史不存在当前版本时不显示错误的旧版本', () {
     expect(versionHistoryForCurrent('9.9.9'), isEmpty);
+  });
+
+  testWidgets('二点零点十二更新弹窗明确显示测试版和更新内容', (tester) async {
+    final entries = versionHistoryForCurrent('2.0.12');
+
+    expect(entries.single.isPrerelease, isTrue);
+    expect(entries.single.releaseLabel, '测试版');
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: VersionChangelogContent(versions: entries)),
+    ));
+
+    expect(find.text('v2.0.12  测试版  2026-07-19'), findsOneWidget);
+    for (final change in entries.single.changes) {
+      expect(find.textContaining(change), findsOneWidget);
+    }
+  });
+
+  test('历史版本默认保持正式版兼容语义', () {
+    const entry =
+        VersionHistory(version: '1.0.0', date: '2026-01-01', changes: []);
+
+    expect(entry.isPrerelease, isFalse);
+    expect(entry.releaseLabel, '正式版');
   });
 }

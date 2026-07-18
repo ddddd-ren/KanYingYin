@@ -132,6 +132,50 @@ jobs:
           $final = Join-Path $env:GITHUB_WORKSPACE "看影音-$env:APP_VERSION.msix"
           Copy-Item -LiteralPath $signed.FullName -Destination $final -Force
 
+      - name: 验证签名后的 MSIX
+        shell: pwsh
+        run: |
+          $signedFiles = @(Get-ChildItem -LiteralPath 'build/windows/msix_signed_output' -Filter '*.msix' -Recurse)
+          if ($signedFiles.Count -ne 1) { throw "SignPath 必须恰好返回 1 个 MSIX，实际为 $($signedFiles.Count) 个" }
+          $final = Join-Path $env:GITHUB_WORKSPACE "看影音-$env:APP_VERSION.msix"
+          if (-not (Test-Path -LiteralPath $final -PathType Leaf)) { throw '签名后的最终 MSIX 不存在' }
+
+          $windowsSdkBin = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits/10/bin'
+          $signTool = (Get-Command 'signtool.exe' -ErrorAction SilentlyContinue).Source
+          if (-not $signTool) {
+            $signTool = Get-ChildItem -LiteralPath $windowsSdkBin -Filter 'signtool.exe' -Recurse |
+              Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+              Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          }
+          $makeAppx = (Get-Command 'MakeAppx.exe' -ErrorAction SilentlyContinue).Source
+          if (-not $makeAppx) {
+            $makeAppx = Get-ChildItem -LiteralPath $windowsSdkBin -Filter 'MakeAppx.exe' -Recurse |
+              Where-Object { $_.FullName -match '\\x64\\MakeAppx\.exe$' } |
+              Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          }
+          if (-not $signTool -or -not $makeAppx) { throw '未找到 Windows SDK 签名验证工具' }
+
+          & $signTool verify /pa /v $final
+          if ($LASTEXITCODE -ne 0) { throw 'signtool 验证签名失败' }
+
+          $extract = Join-Path $env:RUNNER_TEMP 'kanyingyin-signed-msix'
+          if (Test-Path -LiteralPath $extract) { Remove-Item -LiteralPath $extract -Recurse -Force }
+          & $makeAppx unpack /p $final /d $extract /o
+          if ($LASTEXITCODE -ne 0) { throw 'MakeAppx 解包签名 MSIX 失败' }
+          $manifestPath = Join-Path $extract 'AppxManifest.xml'
+          if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw '签名 MSIX 中未找到 AppxManifest.xml' }
+          [xml]$manifestXml = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8
+          $identity = $manifestXml.Package.Identity
+          if ($identity.Name -ne 'com.kanyingyin.player') { throw "清单 Identity Name 不匹配: $($identity.Name)" }
+          if ($identity.Publisher -ne 'CN=KanYingYin') { throw "清单 Publisher 不匹配: $($identity.Publisher)" }
+          if ($identity.Version -ne $env:MSIX_VERSION) { throw "清单 Version 不匹配: $($identity.Version)" }
+
+          $signature = Get-AuthenticodeSignature -LiteralPath $final
+          if ($signature.Status -ne 'Valid') { throw "Authenticode 签名状态无效: $($signature.Status)" }
+          if ($null -eq $signature.SignerCertificate -or $signature.SignerCertificate.Subject -ne 'CN=KanYingYin') {
+            throw "签名者不匹配: $($signature.SignerCertificate.Subject)"
+          }
+
       - name: 发布 GitHub Release
         uses: softprops/action-gh-release@v2
         with:

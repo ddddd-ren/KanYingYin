@@ -405,7 +405,33 @@ class LocalMediaIndexer implements ILocalMediaIndexer {
       total: files.length,
       phase: LocalMediaIndexPhase.saving,
     ));
+    if (isCancelled?.call() == true) {
+      return LocalMediaIndexResult(
+        sourcePath: sourcePath,
+        items: _repository.getBySourcePath(sourcePath),
+        addedCount: addedCount,
+        updatedCount: updatedCount,
+        reusedCount: reusedCount,
+        removedCount: 0,
+        skippedCount: skippedCount,
+        cancelled: true,
+        failures: failures,
+      );
+    }
     await _repository.saveForSource(sourcePath, indexed);
+    if (isCancelled?.call() == true) {
+      return LocalMediaIndexResult(
+        sourcePath: sourcePath,
+        items: indexed,
+        addedCount: addedCount,
+        updatedCount: updatedCount,
+        reusedCount: reusedCount,
+        removedCount: previous.length,
+        skippedCount: skippedCount,
+        cancelled: true,
+        failures: failures,
+      );
+    }
     await _repository.saveDirectoryFingerprints(
       sourcePath,
       directoryFingerprints,

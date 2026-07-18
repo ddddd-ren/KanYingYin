@@ -546,6 +546,20 @@ void main() {
     expect(source, contains('LibraryPathBar('));
     expect(source, contains('LibrarySourceMenu('));
     expect(source, contains('LibrarySourceMenuViewData('));
+    expect(
+      source,
+      matches(RegExp(
+        r'enabled:\s*!localController\.isLoading\s*&&\s*'
+        r'!localController\.isIndexingLibrary',
+      )),
+    );
+    expect(
+      RegExp(
+        r'if \(localController\.isLoading \|\|\s*'
+        r'localController\.isIndexingLibrary\) return;',
+      ).allMatches(source),
+      hasLength(2),
+    );
     expect(source, contains('LibraryMediaGrid('));
     expect(source, contains('heroTag:'));
   });

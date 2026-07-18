@@ -26,10 +26,7 @@ void main() {
       if (await dir.exists()) await dir.delete(recursive: true);
     });
     final videoPath = '${dir.path}${Platform.pathSeparator}video.mkv';
-    var savedLastDirectory = '';
-    final preferences = CallbackLocalLibraryPreferences(
-      saveLastLocalDirectory: (path) => savedLastDirectory = path,
-    );
+    final preferences = _FakeLocalLibraryPreferences();
     final coordinator = LocalLibraryMetadataCoordinator(
       mediaProbe: _FakeMediaProbe(<String, LocalMediaInfo>{
         videoPath: const LocalMediaInfo(width: 1920, height: 1080),
@@ -45,7 +42,7 @@ void main() {
     await controller.navigateTo(dir.path);
     final updated = await controller.fetchMediaInfo();
 
-    expect(savedLastDirectory, dir.path);
+    expect(preferences.lastLocalDirectory, dir.path);
     expect(updated, 1);
     expect(controller.items.single.formattedResolution, '1920x1080');
   });
@@ -112,9 +109,7 @@ void main() {
     final controller = LocalController(
       scanner: scanner,
       mediaSourceRepository: _MemoryMediaSourceRepository(),
-      preferences: _preferences(
-        saveLastLocalDirectory: (_) => throw Exception('storage unavailable'),
-      ),
+      preferences: _FakeLocalLibraryPreferences(throwOnLastDirectory: true),
     );
 
     await controller.navigateTo(dir.path);
@@ -141,9 +136,7 @@ void main() {
     final controller = LocalController(
       scanner: scanner,
       mediaSourceRepository: _MemoryMediaSourceRepository(),
-      preferences: _preferences(
-        saveDefaultPath: (_) => throw Exception('settings unavailable'),
-      ),
+      preferences: _FakeLocalLibraryPreferences(throwOnDefaultPath: true),
     );
 
     final selected = await controller.setRootDirectory(dir.path);
@@ -295,15 +288,11 @@ void main() {
       }
     });
 
-    final saved = <List<String>>[];
+    final preferences = _FakeLocalLibraryPreferences();
     final controller = LocalController(
       scanner: _ImmediateScanner(const []),
       mediaSourceRepository: _MemoryMediaSourceRepository(),
-      preferences: _preferences(
-        saveRecentDirectories: (paths) {
-          saved.add(List<String>.of(paths));
-        },
-      ),
+      preferences: preferences,
     );
 
     await controller.navigateTo(firstDir.path);
@@ -312,7 +301,8 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(controller.pathHistory, [firstDir.path, secondDir.path]);
-    expect(saved.last, [firstDir.path, secondDir.path]);
+    expect(preferences.savedRecentDirectories.last,
+        [firstDir.path, secondDir.path]);
   });
 
   test('LocalController waits for refresh when toggling sort', () async {
@@ -400,6 +390,66 @@ void main() {
       firstDir.path,
       secondDir.path,
     ]);
+  });
+
+  test('LocalController 刷新挂起期间导航后不提交旧海报封面', () async {
+    final firstDir = await Directory.systemTemp.createTemp('poster_race_a_');
+    final secondDir = await Directory.systemTemp.createTemp('poster_race_b_');
+    addTearDown(() async {
+      if (await firstDir.exists()) await firstDir.delete(recursive: true);
+      if (await secondDir.exists()) await secondDir.delete(recursive: true);
+    });
+    final firstVideo = '${firstDir.path}${Platform.pathSeparator}a.mkv';
+    final secondVideo = '${secondDir.path}${Platform.pathSeparator}b.mkv';
+    await File('${firstDir.path}${Platform.pathSeparator}cover.jpg')
+        .writeAsBytes(<int>[1]);
+    final repository = _MemoryMediaIndexRepository();
+    await repository.saveForSource(firstDir.path, <LocalMediaIndexItem>[
+      LocalMediaIndexItem(
+        path: firstVideo,
+        name: 'a.mkv',
+        parentPath: firstDir.path,
+        sourcePath: firstDir.path,
+        size: 1,
+        modified: DateTime(2026),
+        seriesName: 'A',
+        indexedAt: DateTime(2026),
+      ),
+    ]);
+    final scanner = _PosterRefreshRaceScanner(
+      firstPath: firstDir.path,
+      secondPath: secondDir.path,
+      firstItem: _item(path: firstVideo),
+      secondItem: _item(path: secondVideo),
+    );
+    final scraper = _DelayedPosterScraper();
+    final controller = LocalController(
+      scanner: scanner,
+      mediaIndexRepository: repository,
+      mediaSourceRepository: _MemoryMediaSourceRepository(),
+      metadataCoordinator: LocalLibraryMetadataCoordinator(
+        posterScraper: scraper,
+        mediaIndexRepository: repository,
+      ),
+      preferences: _preferences(),
+    );
+
+    await controller.navigateTo(firstDir.path);
+    final pending = controller.fetchPosters();
+    await scraper.started.future;
+    scraper.complete(const PosterScrapeResult(
+      success: 1,
+      failed: 0,
+      skipped: 0,
+      total: 1,
+    ));
+    await scanner.refreshStarted.future;
+    await controller.navigateTo(secondDir.path);
+    scanner.completeRefresh();
+    await pending;
+
+    expect(controller.currentPath, secondDir.path);
+    expect(repository.getByPath(firstVideo)?.cover, isNull);
   });
 
   test('LocalController updates media info for current directory videos',
@@ -679,16 +729,49 @@ LocalFileItem _dirItem({required String path}) {
   );
 }
 
-CallbackLocalLibraryPreferences _preferences({
-  FutureOr<void> Function(String path)? saveLastLocalDirectory,
-  FutureOr<void> Function(String path)? saveDefaultPath,
-  FutureOr<void> Function(List<String> paths)? saveRecentDirectories,
-}) {
-  return CallbackLocalLibraryPreferences(
-    saveLastLocalDirectory: saveLastLocalDirectory,
-    saveDefaultPath: saveDefaultPath,
-    saveRecentDirectories: saveRecentDirectories,
-  );
+_FakeLocalLibraryPreferences _preferences() {
+  return _FakeLocalLibraryPreferences();
+}
+
+class _FakeLocalLibraryPreferences implements ILocalLibraryPreferences {
+  _FakeLocalLibraryPreferences({
+    this.throwOnLastDirectory = false,
+    this.throwOnDefaultPath = false,
+  });
+
+  final bool throwOnLastDirectory;
+  final bool throwOnDefaultPath;
+  String _lastLocalDirectory = '';
+  String _defaultPath = '';
+  List<String> _recentDirectories = <String>[];
+  final savedRecentDirectories = <List<String>>[];
+
+  @override
+  String get lastLocalDirectory => _lastLocalDirectory;
+
+  @override
+  String get defaultPath => _defaultPath;
+
+  @override
+  List<String> get recentDirectories => List<String>.of(_recentDirectories);
+
+  @override
+  Future<void> saveLastLocalDirectory(String path) async {
+    if (throwOnLastDirectory) throw Exception('storage unavailable');
+    _lastLocalDirectory = path;
+  }
+
+  @override
+  Future<void> saveDefaultPath(String path) async {
+    if (throwOnDefaultPath) throw Exception('settings unavailable');
+    _defaultPath = path;
+  }
+
+  @override
+  Future<void> saveRecentDirectories(List<String> paths) async {
+    _recentDirectories = List<String>.of(paths);
+    savedRecentDirectories.add(List<String>.of(paths));
+  }
 }
 
 class _DelayedScanner implements ILocalMediaScanner {
@@ -798,6 +881,56 @@ class _PathScanner implements ILocalMediaScanner {
       items: itemsByPath[path] ?? const [],
       skippedCount: 0,
     );
+  }
+}
+
+class _PosterRefreshRaceScanner implements ILocalMediaScanner {
+  _PosterRefreshRaceScanner({
+    required this.firstPath,
+    required this.secondPath,
+    required this.firstItem,
+    required this.secondItem,
+  });
+
+  final String firstPath;
+  final String secondPath;
+  final LocalFileItem firstItem;
+  final LocalFileItem secondItem;
+  final refreshStarted = Completer<void>();
+  final _refreshResult = Completer<LocalScanResult>();
+  var _firstScanCount = 0;
+
+  @override
+  Future<LocalScanResult> scan(
+    String path, {
+    required LocalSortMode sortMode,
+    required bool ascending,
+  }) {
+    if (path == secondPath) {
+      return Future<LocalScanResult>.value(LocalScanResult(
+        currentPath: path,
+        items: <LocalFileItem>[secondItem],
+        skippedCount: 0,
+      ));
+    }
+    _firstScanCount++;
+    if (_firstScanCount == 1) {
+      return Future<LocalScanResult>.value(LocalScanResult(
+        currentPath: path,
+        items: <LocalFileItem>[firstItem],
+        skippedCount: 0,
+      ));
+    }
+    refreshStarted.complete();
+    return _refreshResult.future;
+  }
+
+  void completeRefresh() {
+    _refreshResult.complete(LocalScanResult(
+      currentPath: firstPath,
+      items: <LocalFileItem>[firstItem],
+      skippedCount: 0,
+    ));
   }
 }
 

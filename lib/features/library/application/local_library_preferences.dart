@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/utils/storage.dart';
 
@@ -72,65 +70,4 @@ final class LocalLibraryPreferences implements ILocalLibraryPreferences {
     }
     return normalized;
   }
-}
-
-/// 为不需要初始化 Hive 的调用方提供强类型适配器。
-final class CallbackLocalLibraryPreferences
-    implements ILocalLibraryPreferences {
-  CallbackLocalLibraryPreferences({
-    String Function()? loadLastLocalDirectory,
-    String Function()? loadDefaultPath,
-    List<String> Function()? loadRecentDirectories,
-    FutureOr<void> Function(String path)? saveLastLocalDirectory,
-    FutureOr<void> Function(String path)? saveDefaultPath,
-    FutureOr<void> Function(List<String> paths)? saveRecentDirectories,
-  })  : _loadLastLocalDirectory = loadLastLocalDirectory ?? _emptyPath,
-        _loadDefaultPath = loadDefaultPath ?? _emptyPath,
-        _loadRecentDirectories =
-            loadRecentDirectories ?? _emptyRecentDirectories,
-        _saveLastLocalDirectory = saveLastLocalDirectory ?? _ignorePath,
-        _saveDefaultPath = saveDefaultPath ?? _ignorePath,
-        _saveRecentDirectories =
-            saveRecentDirectories ?? _ignoreRecentDirectories;
-
-  final String Function() _loadLastLocalDirectory;
-  final String Function() _loadDefaultPath;
-  final List<String> Function() _loadRecentDirectories;
-  final FutureOr<void> Function(String path) _saveLastLocalDirectory;
-  final FutureOr<void> Function(String path) _saveDefaultPath;
-  final FutureOr<void> Function(List<String> paths) _saveRecentDirectories;
-
-  @override
-  String get lastLocalDirectory => _loadLastLocalDirectory().trim();
-
-  @override
-  String get defaultPath => _loadDefaultPath().trim();
-
-  @override
-  List<String> get recentDirectories =>
-      LocalLibraryPreferences.normalizeRecentDirectories(
-        _loadRecentDirectories(),
-      );
-
-  @override
-  Future<void> saveLastLocalDirectory(String path) async {
-    await _saveLastLocalDirectory(path.trim());
-  }
-
-  @override
-  Future<void> saveDefaultPath(String path) async {
-    await _saveDefaultPath(path.trim());
-  }
-
-  @override
-  Future<void> saveRecentDirectories(List<String> paths) async {
-    await _saveRecentDirectories(
-      LocalLibraryPreferences.normalizeRecentDirectories(paths),
-    );
-  }
-
-  static String _emptyPath() => '';
-  static List<String> _emptyRecentDirectories() => const <String>[];
-  static void _ignorePath(String _) {}
-  static void _ignoreRecentDirectories(List<String> _) {}
 }

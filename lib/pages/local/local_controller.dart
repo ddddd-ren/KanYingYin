@@ -402,9 +402,15 @@ abstract class _LocalController with Store {
     ));
 
     PosterScrapeResult result = PosterScrapeResult.empty;
+    var cancelled = false;
     try {
-      result = await _metadataCoordinator.fetchPosters(
+      final batchResult = await _metadataCoordinator.fetchPosters(
         targetItems,
+        isCancelled: () => !_isCurrentPosterRequest(
+          posterRequestId,
+          posterPath,
+          navigationRequestId,
+        ),
         onProgress: (progress) {
           if (_isCurrentPosterRequest(
             posterRequestId,
@@ -418,6 +424,8 @@ abstract class _LocalController with Store {
           return _fallbackCoverForPoster(item, targetItems);
         },
       );
+      result = batchResult.result;
+      cancelled = batchResult.cancelled;
     } catch (e) {
       AppLogger().e('LocalController: fetchPosters error: $e');
     } finally {
@@ -427,13 +435,21 @@ abstract class _LocalController with Store {
       }
     }
 
-    if (_isCurrentPosterRequest(
-      posterRequestId,
-      posterPath,
-      navigationRequestId,
-    )) {
+    if (!cancelled &&
+        _isCurrentPosterRequest(
+          posterRequestId,
+          posterPath,
+          navigationRequestId,
+        )) {
+      final refreshNavigationRequestId = _navigationRequestId + 1;
       await refresh();
-      await _syncIndexedCovers(targetItems);
+      if (_isCurrentPosterRequest(
+        posterRequestId,
+        posterPath,
+        refreshNavigationRequestId,
+      )) {
+        await _syncIndexedCovers(targetItems);
+      }
     }
     return result.toMap();
   }
@@ -1445,7 +1461,8 @@ abstract class _LocalController with Store {
   Future<LocalMediaIndexMetadataRefreshResult>
       _refreshLocalLibraryDerivedMetadataSafe() async {
     try {
-      final result = await _metadataCoordinator.refreshDerivedMetadata();
+      final batchResult = await _metadataCoordinator.refreshDerivedMetadata();
+      final result = batchResult.result;
       if (result.refreshedCount > 0) {
         AppLogger().i(
           'LocalController: refreshed ${result.refreshedCount} local media index metadata items',

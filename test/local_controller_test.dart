@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/features/library/application/local_library_metadata_coordinator.dart';
+import 'package:kanyingyin/features/library/application/local_library_preferences.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/local_media_source.dart';
@@ -18,6 +20,36 @@ import 'package:kanyingyin/services/local_poster_scraper.dart';
 import 'package:kanyingyin/services/local_thumbnail_cache.dart';
 
 void main() {
+  test('LocalController 使用偏好组件和元数据协调器', () async {
+    final dir = await Directory.systemTemp.createTemp('local_components_');
+    addTearDown(() async {
+      if (await dir.exists()) await dir.delete(recursive: true);
+    });
+    final videoPath = '${dir.path}${Platform.pathSeparator}video.mkv';
+    var savedLastDirectory = '';
+    final preferences = CallbackLocalLibraryPreferences(
+      saveLastLocalDirectory: (path) => savedLastDirectory = path,
+    );
+    final coordinator = LocalLibraryMetadataCoordinator(
+      mediaProbe: _FakeMediaProbe(<String, LocalMediaInfo>{
+        videoPath: const LocalMediaInfo(width: 1920, height: 1080),
+      }),
+    );
+    final controller = LocalController(
+      scanner: _ImmediateScanner(<LocalFileItem>[_item(path: videoPath)]),
+      mediaSourceRepository: _MemoryMediaSourceRepository(),
+      preferences: preferences,
+      metadataCoordinator: coordinator,
+    );
+
+    await controller.navigateTo(dir.path);
+    final updated = await controller.fetchMediaInfo();
+
+    expect(savedLastDirectory, dir.path);
+    expect(updated, 1);
+    expect(controller.items.single.formattedResolution, '1920x1080');
+  });
+
   test('LocalController ignores stale navigation results', () async {
     final firstDir = await Directory.systemTemp.createTemp('kanyingyin_first_');
     final secondDir =
@@ -35,8 +67,7 @@ void main() {
     final controller = LocalController(
       scanner: scanner,
       mediaSourceRepository: _MemoryMediaSourceRepository(),
-      saveLastDirectory: (_) {},
-      saveRecentDirectories: (_) {},
+      preferences: _preferences(),
     );
 
     final firstNavigation = controller.navigateTo(firstDir.path);
@@ -81,8 +112,9 @@ void main() {
     final controller = LocalController(
       scanner: scanner,
       mediaSourceRepository: _MemoryMediaSourceRepository(),
-      saveLastDirectory: (_) => throw Exception('storage unavailable'),
-      saveRecentDirectories: (_) {},
+      preferences: _preferences(
+        saveLastLocalDirectory: (_) => throw Exception('storage unavailable'),
+      ),
     );
 
     await controller.navigateTo(dir.path);
@@ -109,9 +141,9 @@ void main() {
     final controller = LocalController(
       scanner: scanner,
       mediaSourceRepository: _MemoryMediaSourceRepository(),
-      saveLastDirectory: (_) {},
-      saveDefaultDirectory: (_) => throw Exception('settings unavailable'),
-      saveRecentDirectories: (_) {},
+      preferences: _preferences(
+        saveDefaultPath: (_) => throw Exception('settings unavailable'),
+      ),
     );
 
     final selected = await controller.setRootDirectory(dir.path);
@@ -135,9 +167,7 @@ void main() {
     final controller = LocalController(
       scanner: _ImmediateScanner(const []),
       mediaSourceRepository: sourceRepository,
-      saveLastDirectory: (_) {},
-      saveDefaultDirectory: (_) {},
-      saveRecentDirectories: (_) {},
+      preferences: _preferences(),
     );
 
     final selected = await controller.setRootDirectory(dir.path);
@@ -167,8 +197,7 @@ void main() {
         skippedCount: 3,
       )),
       mediaSourceRepository: sourceRepository,
-      saveLastDirectory: (_) {},
-      saveRecentDirectories: (_) {},
+      preferences: _preferences(),
     );
 
     await controller.navigateTo(dir.path);
@@ -198,9 +227,7 @@ void main() {
     final controller = LocalController(
       scanner: _ImmediateScanner(const []),
       mediaSourceRepository: _MemoryMediaSourceRepository(),
-      saveLastDirectory: (_) {},
-      saveDefaultDirectory: (_) {},
-      saveRecentDirectories: (_) {},
+      preferences: _preferences(),
     );
 
     await controller.setRootDirectory(dir.path);
@@ -217,9 +244,7 @@ void main() {
     final controller = LocalController(
       scanner: _ImmediateScanner(const []),
       mediaSourceRepository: _MemoryMediaSourceRepository(),
-      saveLastDirectory: (_) {},
-      saveDefaultDirectory: (_) {},
-      saveRecentDirectories: (_) {},
+      preferences: _preferences(),
     );
 
     await controller.setRootDirectory(dir.path);
@@ -246,8 +271,7 @@ void main() {
         _item(path: '${dir.path}${Platform.pathSeparator}video.mkv'),
       ]),
       mediaSourceRepository: _MemoryMediaSourceRepository(),
-      saveLastDirectory: (_) {},
-      saveRecentDirectories: (_) {},
+      preferences: _preferences(),
     );
 
     await controller.navigateTo(dir.path);
@@ -275,10 +299,11 @@ void main() {
     final controller = LocalController(
       scanner: _ImmediateScanner(const []),
       mediaSourceRepository: _MemoryMediaSourceRepository(),
-      saveLastDirectory: (_) {},
-      saveRecentDirectories: (paths) {
-        saved.add(List<String>.of(paths));
-      },
+      preferences: _preferences(
+        saveRecentDirectories: (paths) {
+          saved.add(List<String>.of(paths));
+        },
+      ),
     );
 
     await controller.navigateTo(firstDir.path);
@@ -302,8 +327,7 @@ void main() {
     final controller = LocalController(
       scanner: scanner,
       mediaSourceRepository: _MemoryMediaSourceRepository(),
-      saveLastDirectory: (_) {},
-      saveRecentDirectories: (_) {},
+      preferences: _preferences(),
     );
 
     await controller.navigateTo(dir.path);
@@ -349,10 +373,11 @@ void main() {
     final posterScraper = _DelayedPosterScraper();
     final controller = LocalController(
       scanner: scanner,
-      posterScraper: posterScraper,
+      metadataCoordinator: LocalLibraryMetadataCoordinator(
+        posterScraper: posterScraper,
+      ),
       mediaSourceRepository: _MemoryMediaSourceRepository(),
-      saveLastDirectory: (_) {},
-      saveRecentDirectories: (_) {},
+      preferences: _preferences(),
     );
 
     await controller.navigateTo(firstDir.path);
@@ -391,16 +416,17 @@ void main() {
       scanner: _ImmediateScanner([
         _item(path: videoPath),
       ]),
-      mediaProbe: _FakeMediaProbe({
-        videoPath: const LocalMediaInfo(
-          duration: Duration(minutes: 24, seconds: 12),
-          width: 1920,
-          height: 1080,
-        ),
-      }),
+      metadataCoordinator: LocalLibraryMetadataCoordinator(
+        mediaProbe: _FakeMediaProbe({
+          videoPath: const LocalMediaInfo(
+            duration: Duration(minutes: 24, seconds: 12),
+            width: 1920,
+            height: 1080,
+          ),
+        }),
+      ),
       mediaSourceRepository: _MemoryMediaSourceRepository(),
-      saveLastDirectory: (_) {},
-      saveRecentDirectories: (_) {},
+      preferences: _preferences(),
     );
 
     await controller.navigateTo(dir.path);
@@ -426,10 +452,11 @@ void main() {
       scanner: _ImmediateScanner([
         _item(path: videoPath),
       ]),
-      mediaProbe: _FakeMediaProbe(const {}),
+      metadataCoordinator: LocalLibraryMetadataCoordinator(
+        mediaProbe: _FakeMediaProbe(const {}),
+      ),
       mediaSourceRepository: _MemoryMediaSourceRepository(),
-      saveLastDirectory: (_) {},
-      saveRecentDirectories: (_) {},
+      preferences: _preferences(),
     );
 
     await controller.navigateTo(dir.path);
@@ -461,9 +488,7 @@ void main() {
       mediaIndexer: _FakeMediaIndexer(indexRepository),
       mediaIndexRepository: indexRepository,
       mediaSourceRepository: sourceRepository,
-      saveLastDirectory: (_) {},
-      saveDefaultDirectory: (_) {},
-      saveRecentDirectories: (_) {},
+      preferences: _preferences(),
     );
 
     await controller.setRootDirectory(dir.path);
@@ -483,8 +508,7 @@ void main() {
     final controller = LocalController(
       scanner: _ImmediateScanner(const []),
       mediaSourceRepository: _MemoryMediaSourceRepository(),
-      saveLastDirectory: (_) {},
-      saveRecentDirectories: (_) {},
+      preferences: _preferences(),
     );
     controller.isIndexingLibrary = true;
 
@@ -504,9 +528,7 @@ void main() {
       scanner: _ImmediateScanner(const []),
       mediaIndexer: _ThrowingMediaIndexer(),
       mediaSourceRepository: sourceRepository,
-      saveLastDirectory: (_) {},
-      saveDefaultDirectory: (_) {},
-      saveRecentDirectories: (_) {},
+      preferences: _preferences(),
     );
     await controller.setRootDirectory(dir.path);
 
@@ -528,9 +550,7 @@ void main() {
       mediaIndexer: _CancelledMediaIndexer(),
       mediaIndexRepository: _MemoryMediaIndexRepository(),
       mediaSourceRepository: _MemoryMediaSourceRepository(),
-      saveLastDirectory: (_) {},
-      saveDefaultDirectory: (_) {},
-      saveRecentDirectories: (_) {},
+      preferences: _preferences(),
     );
     await controller.setRootDirectory(dir.path);
 
@@ -550,8 +570,7 @@ void main() {
         storage: _ThrowingCloudSourceStorage(),
         credentialStore: MemoryCloudCredentialStore(),
       ),
-      saveLastDirectory: (_) {},
-      saveRecentDirectories: (_) {},
+      preferences: _preferences(),
     );
 
     await expectLater(
@@ -596,10 +615,7 @@ void main() {
       scanner: _ImmediateScanner(const []),
       mediaIndexRepository: indexRepository,
       mediaSourceRepository: _MemoryMediaSourceRepository(),
-      loadRecentDirectories: () => const <String>[],
-      saveLastDirectory: (_) {},
-      saveDefaultDirectory: (_) {},
-      saveRecentDirectories: (_) {},
+      preferences: _preferences(),
     );
 
     final refreshed = await controller.refreshLocalLibraryDerivedMetadata();
@@ -629,9 +645,7 @@ void main() {
       scanner: _ImmediateScanner(const []),
       mediaIndexRepository: repository,
       mediaSourceRepository: _MemoryMediaSourceRepository(),
-      saveLastDirectory: (_) {},
-      saveDefaultDirectory: (_) {},
-      saveRecentDirectories: (_) {},
+      preferences: _preferences(),
     );
     await controller.refreshLocalLibraryDerivedMetadata();
 
@@ -662,6 +676,18 @@ LocalFileItem _dirItem({required String path}) {
     modified: DateTime(2026),
     isDirectory: true,
     isVideo: false,
+  );
+}
+
+CallbackLocalLibraryPreferences _preferences({
+  FutureOr<void> Function(String path)? saveLastLocalDirectory,
+  FutureOr<void> Function(String path)? saveDefaultPath,
+  FutureOr<void> Function(List<String> paths)? saveRecentDirectories,
+}) {
+  return CallbackLocalLibraryPreferences(
+    saveLastLocalDirectory: saveLastLocalDirectory,
+    saveDefaultPath: saveDefaultPath,
+    saveRecentDirectories: saveRecentDirectories,
   );
 }
 

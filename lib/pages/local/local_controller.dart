@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:kanyingyin/features/library/application/local_library_metadata_coordinator.dart';
+import 'package:kanyingyin/features/library/application/local_library_preferences.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/local_media_source.dart';
@@ -22,8 +24,6 @@ import 'package:kanyingyin/services/local_media_indexer.dart';
 import 'package:kanyingyin/services/local_media_index_metadata_refresher.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/services/local_media_scanner.dart';
-import 'package:kanyingyin/services/local_media_probe.dart';
-import 'package:kanyingyin/services/local_poster_scraper.dart';
 import 'package:kanyingyin/services/tmdb/local_tmdb_scrape_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scraper.dart';
@@ -31,7 +31,6 @@ import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/local_cover_finder.dart';
 import 'package:kanyingyin/services/local_series_grouper.dart';
 import 'package:kanyingyin/services/poster_service.dart';
-import 'package:kanyingyin/services/local_thumbnail_cache.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:mobx/mobx.dart';
@@ -61,8 +60,8 @@ abstract class _LocalController with Store {
     ILocalMediaScanner? scanner,
     ILocalMediaIndexer? mediaIndexer,
     LocalMediaLibraryBuilder? mediaLibraryBuilder,
-    ILocalMediaProbe? mediaProbe,
-    ILocalPosterScraper? posterScraper,
+    ILocalLibraryPreferences? preferences,
+    LocalLibraryMetadataCoordinator? metadataCoordinator,
     ILocalMediaIndexRepository? mediaIndexRepository,
     ILocalMediaSourceRepository? mediaSourceRepository,
     ILocalSeriesTitleOverrideRepository? seriesTitleOverrideRepository,
@@ -71,18 +70,13 @@ abstract class _LocalController with Store {
     CloudCacheRootProvider? cloudCacheRootProvider,
     Future<void> Function(String sourceId)? scanCloudSource,
     CloudTmdbMetadataService? cloudTmdbMetadataService,
-    LocalMediaIndexMetadataRefresher? mediaIndexMetadataRefresher,
     LocalTmdbScrapeService? tmdbScrapeService,
-    FutureOr<void> Function(String path)? saveLastDirectory,
-    FutureOr<void> Function(String path)? saveDefaultDirectory,
-    FutureOr<List<String>> Function()? loadRecentDirectories,
-    FutureOr<void> Function(List<String> paths)? saveRecentDirectories,
   }) : this._(
           scanner: scanner,
           mediaIndexer: mediaIndexer,
           mediaLibraryBuilder: mediaLibraryBuilder,
-          mediaProbe: mediaProbe,
-          posterScraper: posterScraper,
+          preferences: preferences,
+          metadataCoordinator: metadataCoordinator,
           mediaIndexRepository:
               mediaIndexRepository ?? LocalMediaIndexRepository(),
           mediaSourceRepository: mediaSourceRepository,
@@ -92,20 +86,15 @@ abstract class _LocalController with Store {
           cloudCacheRootProvider: cloudCacheRootProvider,
           scanCloudSource: scanCloudSource,
           cloudTmdbMetadataService: cloudTmdbMetadataService,
-          mediaIndexMetadataRefresher: mediaIndexMetadataRefresher,
           tmdbScrapeService: tmdbScrapeService,
-          saveLastDirectory: saveLastDirectory,
-          saveDefaultDirectory: saveDefaultDirectory,
-          loadRecentDirectories: loadRecentDirectories,
-          saveRecentDirectories: saveRecentDirectories,
         );
 
   _LocalController._({
     ILocalMediaScanner? scanner,
     ILocalMediaIndexer? mediaIndexer,
     LocalMediaLibraryBuilder? mediaLibraryBuilder,
-    ILocalMediaProbe? mediaProbe,
-    ILocalPosterScraper? posterScraper,
+    ILocalLibraryPreferences? preferences,
+    LocalLibraryMetadataCoordinator? metadataCoordinator,
     required ILocalMediaIndexRepository mediaIndexRepository,
     ILocalMediaSourceRepository? mediaSourceRepository,
     ILocalSeriesTitleOverrideRepository? seriesTitleOverrideRepository,
@@ -114,22 +103,18 @@ abstract class _LocalController with Store {
     CloudCacheRootProvider? cloudCacheRootProvider,
     Future<void> Function(String sourceId)? scanCloudSource,
     CloudTmdbMetadataService? cloudTmdbMetadataService,
-    LocalMediaIndexMetadataRefresher? mediaIndexMetadataRefresher,
     LocalTmdbScrapeService? tmdbScrapeService,
-    FutureOr<void> Function(String path)? saveLastDirectory,
-    FutureOr<void> Function(String path)? saveDefaultDirectory,
-    FutureOr<List<String>> Function()? loadRecentDirectories,
-    FutureOr<void> Function(List<String> paths)? saveRecentDirectories,
   })  : _scanner = scanner ?? LocalMediaScanner(),
         _mediaIndexRepository = mediaIndexRepository,
-        _mediaIndexMetadataRefresher =
-            mediaIndexMetadataRefresher ?? LocalMediaIndexMetadataRefresher(),
         _mediaIndexer =
             mediaIndexer ?? LocalMediaIndexer(repository: mediaIndexRepository),
         _libraryBuilder =
             mediaLibraryBuilder ?? const LocalMediaLibraryBuilder(),
-        _mediaProbe = mediaProbe ?? MediaKitLocalMediaProbe(),
-        _posterScraper = posterScraper ?? LocalPosterScraper(),
+        _preferences = preferences ?? LocalLibraryPreferences(),
+        _metadataCoordinator = metadataCoordinator ??
+            LocalLibraryMetadataCoordinator(
+              mediaIndexRepository: mediaIndexRepository,
+            ),
         _seriesGrouper = const LocalSeriesGrouper(),
         _tmdbScrapeService = tmdbScrapeService ??
             LocalTmdbScrapeService(
@@ -149,22 +134,14 @@ abstract class _LocalController with Store {
         _cloudCacheRootProvider =
             cloudCacheRootProvider ?? defaultCloudCacheRoot,
         _scanCloudSource = scanCloudSource,
-        _cloudTmdbMetadataService = cloudTmdbMetadataService,
-        _saveLastDirectory = saveLastDirectory ?? _saveLastDirectoryToStorage,
-        _saveDefaultDirectory =
-            saveDefaultDirectory ?? _saveDefaultDirectoryToStorage,
-        _loadRecentDirectories =
-            loadRecentDirectories ?? _loadRecentDirectoriesFromStorage,
-        _saveRecentDirectories =
-            saveRecentDirectories ?? _saveRecentDirectoriesToStorage;
+        _cloudTmdbMetadataService = cloudTmdbMetadataService;
 
   final ILocalMediaScanner _scanner;
   final ILocalMediaIndexRepository _mediaIndexRepository;
-  final LocalMediaIndexMetadataRefresher _mediaIndexMetadataRefresher;
   final ILocalMediaIndexer _mediaIndexer;
   final LocalMediaLibraryBuilder _libraryBuilder;
-  final ILocalMediaProbe _mediaProbe;
-  final ILocalPosterScraper _posterScraper;
+  final ILocalLibraryPreferences _preferences;
+  final LocalLibraryMetadataCoordinator _metadataCoordinator;
   final LocalSeriesGrouper _seriesGrouper;
   final LocalTmdbScrapeService _tmdbScrapeService;
   final PosterService _posterService;
@@ -175,10 +152,6 @@ abstract class _LocalController with Store {
   final CloudCacheRootProvider _cloudCacheRootProvider;
   final Future<void> Function(String sourceId)? _scanCloudSource;
   CloudTmdbMetadataService? _cloudTmdbMetadataService;
-  final FutureOr<void> Function(String path) _saveLastDirectory;
-  final FutureOr<void> Function(String path) _saveDefaultDirectory;
-  final FutureOr<List<String>> Function() _loadRecentDirectories;
-  final FutureOr<void> Function(List<String> paths) _saveRecentDirectories;
 
   static const int _maxRecentDirectories = 10;
 
@@ -314,15 +287,8 @@ abstract class _LocalController with Store {
     await _refreshLocalLibraryDerivedMetadataSafe();
     _reloadLocalLibraryIndexSafe();
     unawaited(reloadCloudLibraryIndex());
-    final setting = GStorage.setting;
-    final lastDir = setting.get(
-      SettingBoxKey.lastLocalDirectory,
-      defaultValue: '',
-    ) as String;
-    final userDefaultPath = setting.get(
-      SettingBoxKey.localDefaultPath,
-      defaultValue: '',
-    ) as String;
+    final lastDir = _preferences.lastLocalDirectory;
+    final userDefaultPath = _preferences.defaultPath;
 
     String? resolvedPath;
     if (userDefaultPath.isNotEmpty && Directory(userDefaultPath).existsSync()) {
@@ -437,7 +403,7 @@ abstract class _LocalController with Store {
 
     PosterScrapeResult result = PosterScrapeResult.empty;
     try {
-      result = await _posterScraper.scrapeMissingPosters(
+      result = await _metadataCoordinator.fetchPosters(
         targetItems,
         onProgress: (progress) {
           if (_isCurrentPosterRequest(
@@ -532,37 +498,34 @@ abstract class _LocalController with Store {
     mediaInfoCurrent = 0;
     mediaInfoTotal = videoItems.length;
     mediaInfoCurrentFile = '';
-    var updated = 0;
-
     try {
-      for (var i = 0; i < videoItems.length; i++) {
-        if (path != currentPath ||
-            navigationRequestId != _navigationRequestId) {
-          break;
-        }
-        final item = videoItems[i];
-        mediaInfoCurrent = i + 1;
-        mediaInfoCurrentFile = item.name;
-        final info = await _mediaProbe.probe(item.path);
-        if (info.isEmpty) continue;
-        final index =
-            items.indexWhere((currentItem) => currentItem.path == item.path);
-        if (index < 0) continue;
-        items[index] = items[index].copyWith(
-          duration: info.duration,
-          videoWidth: info.width,
-          videoHeight: info.height,
-        );
-        updated++;
-      }
+      final result = await _metadataCoordinator.probeMediaInfo(
+        videoItems,
+        isCancelled: () =>
+            path != currentPath || navigationRequestId != _navigationRequestId,
+        onProgress: (progress) {
+          mediaInfoCurrent = progress.current;
+          mediaInfoCurrentFile = progress.fileName;
+        },
+        onResult: (update) {
+          final index = items.indexWhere(
+            (currentItem) => currentItem.path == update.item.path,
+          );
+          if (index < 0) return;
+          items[index] = items[index].copyWith(
+            duration: update.info.duration,
+            videoWidth: update.info.width,
+            videoHeight: update.info.height,
+          );
+        },
+      );
+      return result.updated;
     } finally {
       isFetchingMediaInfo = false;
       mediaInfoCurrentFile = '';
       mediaInfoCurrent = 0;
       mediaInfoTotal = 0;
     }
-
-    return updated;
   }
 
   @action
@@ -581,40 +544,30 @@ abstract class _LocalController with Store {
     thumbnailCurrent = 0;
     thumbnailTotal = videoItems.length;
     thumbnailCurrentFile = '';
-    var updated = 0;
-
     try {
-      for (var i = 0; i < videoItems.length; i++) {
-        if (path != currentPath ||
-            navigationRequestId != _navigationRequestId) {
-          break;
-        }
-        final item = videoItems[i];
-        thumbnailCurrent = i + 1;
-        thumbnailCurrentFile = item.name;
-
-        final cachedPath = LocalThumbnailCache.existingPathForVideo(item.path);
-        final thumbnailPath = cachedPath ??
-            await _mediaProbe.captureThumbnail(
-              item.path,
-              LocalThumbnailCache.pathForVideo(item.path),
-            );
-        if (thumbnailPath == null) continue;
-
-        final index =
-            items.indexWhere((currentItem) => currentItem.path == item.path);
-        if (index < 0) continue;
-        items[index] = items[index].copyWith(cover: thumbnailPath);
-        updated++;
-      }
+      final result = await _metadataCoordinator.generateThumbnails(
+        videoItems,
+        isCancelled: () =>
+            path != currentPath || navigationRequestId != _navigationRequestId,
+        onProgress: (progress) {
+          thumbnailCurrent = progress.current;
+          thumbnailCurrentFile = progress.fileName;
+        },
+        onResult: (update) {
+          final index = items.indexWhere(
+            (currentItem) => currentItem.path == update.item.path,
+          );
+          if (index < 0) return;
+          items[index] = items[index].copyWith(cover: update.thumbnailPath);
+        },
+      );
+      return result.updated;
     } finally {
       isFetchingThumbnails = false;
       thumbnailCurrentFile = '';
       thumbnailCurrent = 0;
       thumbnailTotal = 0;
     }
-
-    return updated;
   }
 
   Future<bool> setRootDirectory(String path) async {
@@ -1266,7 +1219,7 @@ abstract class _LocalController with Store {
 
   Future<void> _loadRecentDirectoriesSafe() async {
     try {
-      final paths = await _loadRecentDirectories();
+      final paths = _preferences.recentDirectories;
       pathHistory = ObservableList.of(
         paths
             .where((path) => path.isNotEmpty && Directory(path).existsSync())
@@ -1282,7 +1235,7 @@ abstract class _LocalController with Store {
     final paths = pathHistory.toList();
     _recentDirectoriesWriteQueue = _recentDirectoriesWriteQueue
         .catchError((_) {})
-        .then((_) => _saveRecentDirectories(paths));
+        .then((_) => _preferences.saveRecentDirectories(paths));
     try {
       await _recentDirectoriesWriteQueue;
     } catch (e) {
@@ -1293,7 +1246,7 @@ abstract class _LocalController with Store {
 
   Future<void> _trySaveLastDirectory(String path) async {
     try {
-      await _saveLastDirectory(path);
+      await _preferences.saveLastLocalDirectory(path);
     } catch (e) {
       AppLogger().w(
         'LocalController: failed to save last directory: $path',
@@ -1304,7 +1257,7 @@ abstract class _LocalController with Store {
 
   Future<void> _trySaveDefaultDirectory(String path) async {
     try {
-      await _saveDefaultDirectory(path);
+      await _preferences.saveDefaultPath(path);
     } catch (e) {
       AppLogger().w(
         'LocalController: failed to save default directory: $path',
@@ -1492,9 +1445,7 @@ abstract class _LocalController with Store {
   Future<LocalMediaIndexMetadataRefreshResult>
       _refreshLocalLibraryDerivedMetadataSafe() async {
     try {
-      final result = await _mediaIndexMetadataRefresher.refreshRepository(
-        _mediaIndexRepository,
-      );
+      final result = await _metadataCoordinator.refreshDerivedMetadata();
       if (result.refreshedCount > 0) {
         AppLogger().i(
           'LocalController: refreshed ${result.refreshedCount} local media index metadata items',
@@ -1524,29 +1475,5 @@ abstract class _LocalController with Store {
         error: e,
       );
     }
-  }
-
-  static Future<void> _saveLastDirectoryToStorage(String path) async {
-    await GStorage.setting.put(SettingBoxKey.lastLocalDirectory, path);
-  }
-
-  static Future<void> _saveDefaultDirectoryToStorage(String path) async {
-    await GStorage.setting.put(SettingBoxKey.localDefaultPath, path);
-  }
-
-  static Future<List<String>> _loadRecentDirectoriesFromStorage() async {
-    final value = GStorage.setting.get(
-      SettingBoxKey.localRecentDirectories,
-      defaultValue: const <String>[],
-    );
-    if (value is List) {
-      return value.whereType<String>().toList();
-    }
-    return const <String>[];
-  }
-
-  static Future<void> _saveRecentDirectoriesToStorage(
-      List<String> paths) async {
-    await GStorage.setting.put(SettingBoxKey.localRecentDirectories, paths);
   }
 }

@@ -126,18 +126,6 @@ class PlayerShortcutHandler {
   bool handleKey(String keyLabel, PlayerShortcutPhase phase) =>
       dispatchKey(keyLabel, phase).consumed;
 
-  bool handleShortcutDown(String keyLabel) =>
-      handleKey(keyLabel, PlayerShortcutPhase.down);
-
-  bool handleShortcutLongPress(String keyLabel, String mode) {
-    final phase = switch (mode.toLowerCase()) {
-      'repeat' => PlayerShortcutPhase.repeat,
-      'up' => PlayerShortcutPhase.up,
-      _ => null,
-    };
-    return phase != null && handleKey(keyLabel, phase);
-  }
-
   static Map<String, List<String>> _copy(Map<String, List<String>> source) =>
       <String, List<String>>{
         for (final entry in source.entries)

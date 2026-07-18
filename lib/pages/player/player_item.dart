@@ -68,9 +68,10 @@ class _PlayerItemState extends State<PlayerItem>
       Modular.get<IVideoPageController>();
   final AudioController _audioController = AudioController();
   late PlayerShortcutHandler _shortcutHandler;
-  late Map<String, void Function()> keyboardActions;
+  late Map<PlayerShortcutAction, void Function()> keyboardActions;
   final PlayerOverlayCoordinator _overlayCoordinator =
       PlayerOverlayCoordinator();
+  PlayerOverlay _lastOverlay = PlayerOverlay.none;
 
   // 硬件解码
   late bool haEnable;
@@ -182,55 +183,52 @@ class _PlayerItemState extends State<PlayerItem>
     });
     _shortcutHandler = PlayerShortcutHandler.fromConfig(
       shortcuts: shortcuts,
-      dispatch: (action) => keyboardActions[action.command]?.call(),
+      dispatch: (action) => keyboardActions[action]?.call(),
     );
   }
 
   void _initKeyboardActions() {
     //快捷键功能对应表
     keyboardActions = {
-      'playorpause': () => playerController.playOrPause(),
-      'forward': () async => handleShortcutForwardDown(),
-      'rewind': () async => handleShortcutRewind(),
-      'next': () async => handlePreNextEpisode('next'),
-      'prev': () async => handlePreNextEpisode('prev'),
-      'volumeup': () async => handleShortcutVolumeChange('up'),
-      'volumedown': () async => handleShortcutVolumeChange('down'),
-      'togglemute': () async => handleShortcutVolumeChange('mute'),
-      'fullscreen': () => handleShortcutFullscreen(),
-      'screenshot': () async => handleScreenshot(),
-      'skip': () async => skipOP(),
-      'exitfullscreen': () => handleShortcutExitFullscreen(),
-      'speed1': () async => setPlaybackSpeed(1.0),
-      'speed2': () async => setPlaybackSpeed(2.0),
-      'speed3': () async => setPlaybackSpeed(3.0),
-      'speedup': () async => handleSpeedChange('up'),
-      'speeddown': () async => handleSpeedChange('down'),
+      PlayerShortcutAction.playOrPause: () => playerController.playOrPause(),
+      PlayerShortcutAction.forward: () async => handleShortcutForwardDown(),
+      PlayerShortcutAction.rewind: () async => handleShortcutRewind(),
+      PlayerShortcutAction.next: () async => handlePreNextEpisode('next'),
+      PlayerShortcutAction.prev: () async => handlePreNextEpisode('prev'),
+      PlayerShortcutAction.volumeUp: () async =>
+          handleShortcutVolumeChange('up'),
+      PlayerShortcutAction.volumeDown: () async =>
+          handleShortcutVolumeChange('down'),
+      PlayerShortcutAction.toggleMute: () async =>
+          handleShortcutVolumeChange('mute'),
+      PlayerShortcutAction.fullscreen: () => handleShortcutFullscreen(),
+      PlayerShortcutAction.screenshot: () async => handleScreenshot(),
+      PlayerShortcutAction.skip: () async => skipOP(),
+      PlayerShortcutAction.exitFullscreen: () => handleShortcutExitFullscreen(),
+      PlayerShortcutAction.speed1: () async => setPlaybackSpeed(1.0),
+      PlayerShortcutAction.speed2: () async => setPlaybackSpeed(2.0),
+      PlayerShortcutAction.speed3: () async => setPlaybackSpeed(3.0),
+      PlayerShortcutAction.speedUp: () async => handleSpeedChange('up'),
+      PlayerShortcutAction.speedDown: () async => handleSpeedChange('down'),
       // 开始对应长按功能
       // 如需对应长按功能，例如对功能'func'对应长按，请分别添加'funcRepeat'和'funcUp'。
-      'forwardRepeat': () async => handleShortcutForwardRepeat(),
-      'forwardUp': () async => handleShortcutForwardUp(),
+      PlayerShortcutAction.forwardRepeat: () async =>
+          handleShortcutForwardRepeat(),
+      PlayerShortcutAction.forwardUp: () async => handleShortcutForwardUp(),
     };
   }
 
   //初始化播放器菜单
   void _initPlayerMenu() {
-    Utils.initPlayerMenu(keyboardActions);
+    Utils.initPlayerMenu({
+      for (final entry in keyboardActions.entries)
+        entry.key.command: entry.value,
+    });
   }
 
   //销毁播放器菜单
   void _disposePlayerMenu() {
     Utils.disposePlayerMenu();
-  }
-
-  //快捷键按下
-  bool handleShortcutDown(String keyLabel) {
-    return _shortcutHandler.handleShortcutDown(keyLabel);
-  }
-
-  // 快捷键长按
-  bool handleShortcutLongPress(String keyLabel, String mode) {
-    return _shortcutHandler.handleShortcutLongPress(keyLabel, mode);
   }
 
   //上一集下一集动作
@@ -936,6 +934,13 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   void _handleOverlayChanged() {
+    final current = _overlayCoordinator.visible;
+    if (_lastOverlay == PlayerOverlay.subtitleSettings &&
+        current != PlayerOverlay.subtitleSettings) {
+      playerController.canHidePlayerPanel = true;
+      startHideTimer();
+    }
+    _lastOverlay = current;
     if (mounted) setState(() {});
   }
 
@@ -954,8 +959,6 @@ class _PlayerItemState extends State<PlayerItem>
   void closeSubtitleSettingsOverlay() {
     if (_overlayCoordinator.visible != PlayerOverlay.subtitleSettings) return;
     _overlayCoordinator.closeSubtitleSettings();
-    playerController.canHidePlayerPanel = true;
-    startHideTimer();
   }
 
   void toggleSubtitleSettingsOverlay() {
@@ -1002,51 +1005,39 @@ class _PlayerItemState extends State<PlayerItem>
     );
   }
 
-  void showVideoInfo() async {
-    if (_overlayCoordinator.visible == PlayerOverlay.subtitleSettings) {
-      closeSubtitleSettingsOverlay();
-    }
+  void showVideoInfo() {
     _overlayCoordinator.openVideoInfo();
-    await showModalBottomSheet<void>(
-        isScrollControlled: true,
-        constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 3 / 4,
-            maxWidth: (Utils.isDesktop() || Utils.isTablet())
-                ? MediaQuery.of(context).size.width * 9 / 16
-                : MediaQuery.of(context).size.width),
-        clipBehavior: Clip.antiAlias,
-        context: context,
-        builder: (context) {
-          return DefaultTabController(
-            length: 2,
-            child: Scaffold(
-              body: Column(
+  }
+
+  Widget _buildVideoInfo(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        body: Column(
+          children: [
+            const PreferredSize(
+              preferredSize: Size.fromHeight(kToolbarHeight),
+              child: Material(
+                child: TabBar(
+                  tabs: [
+                    Tab(text: '状态'),
+                    Tab(text: '日志'),
+                  ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: TabBarView(
                 children: [
-                  const PreferredSize(
-                    preferredSize: Size.fromHeight(kToolbarHeight),
-                    child: Material(
-                      child: TabBar(
-                        tabs: [
-                          Tab(text: '状态'),
-                          Tab(text: '日志'),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: TabBarView(
-                      children: [
-                        videoInfoBody,
-                        videoDebugLogBody,
-                      ],
-                    ),
-                  ),
+                  videoInfoBody,
+                  videoDebugLogBody,
                 ],
               ),
             ),
-          );
-        });
-    _overlayCoordinator.closeVideoInfo();
+          ],
+        ),
+      ),
+    );
   }
 
   /// Used to decide which panel is used.
@@ -1224,6 +1215,17 @@ class _PlayerItemState extends State<PlayerItem>
                       : (MediaQuery.of(context).size.width * 9.0 / (16.0)),
                   width: MediaQuery.of(context).size.width,
                   child: Stack(alignment: Alignment.center, children: [
+                    PlayerOverlayPresenter(
+                      coordinator: _overlayCoordinator,
+                      videoInfoBuilder: _buildVideoInfo,
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 3 / 4,
+                        maxWidth: (Utils.isDesktop() || Utils.isTablet())
+                            ? MediaQuery.of(context).size.width * 9 / 16
+                            : MediaQuery.of(context).size.width,
+                      ),
+                      child: const SizedBox.shrink(),
+                    ),
                     Center(
                         child: Focus(
                             // workaround for #461
@@ -1237,13 +1239,20 @@ class _PlayerItemState extends State<PlayerItem>
                                       ? event.logicalKey.keyLabel
                                       : event.logicalKey.debugName ?? '';
                               if (event is KeyDownEvent) {
-                                handled = handleShortcutDown(keyLabel);
+                                handled = _shortcutHandler.handleKey(
+                                  keyLabel,
+                                  PlayerShortcutPhase.down,
+                                );
                               } else if (event is KeyRepeatEvent) {
-                                handled =
-                                    handleShortcutLongPress(keyLabel, "Repeat");
+                                handled = _shortcutHandler.handleKey(
+                                  keyLabel,
+                                  PlayerShortcutPhase.repeat,
+                                );
                               } else if (event is KeyUpEvent) {
-                                handled =
-                                    handleShortcutLongPress(keyLabel, "Up");
+                                handled = _shortcutHandler.handleKey(
+                                  keyLabel,
+                                  PlayerShortcutPhase.up,
+                                );
                               }
                               return handled
                                   ? KeyEventResult.handled

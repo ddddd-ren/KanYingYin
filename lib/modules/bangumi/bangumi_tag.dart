@@ -18,10 +18,24 @@ class BangumiTag {
   });
 
   factory BangumiTag.fromJson(Map<String, dynamic> json) {
+    String optionalString(String field) {
+      final value = json[field];
+      if (value == null) return '';
+      if (value is String) return value;
+      throw FormatException('Bangumi 标签字段格式错误: $field');
+    }
+
+    int optionalInt(String field) {
+      final value = json[field];
+      if (value == null) return 0;
+      if (value is int) return value;
+      throw FormatException('Bangumi 标签字段格式错误: $field');
+    }
+
     return BangumiTag(
-      name: json['name']?.toString() ?? '',
-      count: json['count'] is int ? json['count'] as int : 0,
-      totalCount: json['total_cont'] is int ? json['total_cont'] as int : 0,
+      name: optionalString('name'),
+      count: optionalInt('count'),
+      totalCount: optionalInt('total_cont'),
     );
   }
 

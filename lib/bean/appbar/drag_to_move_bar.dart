@@ -32,7 +32,8 @@ class DragToMoveArea extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onPanStart: (_) => (Utils.isDesktop()) ? windowManager.startDragging() : null,
+      onPanStart: (_) =>
+          (Utils.isDesktop()) ? windowManager.startDragging() : null,
       child: child,
     );
   }

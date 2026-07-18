@@ -239,8 +239,7 @@ class CloudMediaLibraryAggregator {
     return CloudMediaLibrary(series: result, filters: filters);
   }
 
-  static CloudMediaIndexItem? _metadataItem(
-      List<CloudMediaIndexItem> items) {
+  static CloudMediaIndexItem? _metadataItem(List<CloudMediaIndexItem> items) {
     for (final item in items) {
       if (item.tmdbTitle?.trim().isNotEmpty == true ||
           item.tmdbOverview?.trim().isNotEmpty == true ||
@@ -253,8 +252,7 @@ class CloudMediaLibraryAggregator {
     return null;
   }
 
-  static String _cloudGroupTitle(
-      CloudMediaIndexItem item, String? tmdbTitle) {
+  static String _cloudGroupTitle(CloudMediaIndexItem item, String? tmdbTitle) {
     final scrapedName = tmdbTitle?.trim() ?? '';
     final name = scrapedName.isNotEmpty
         ? scrapedName

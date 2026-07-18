@@ -47,7 +47,8 @@ void main() {
     ]);
     await writer.flush();
 
-    final active = File('${tempDir.path}${Platform.pathSeparator}kanyingyin.log');
+    final active =
+        File('${tempDir.path}${Platform.pathSeparator}kanyingyin.log');
     final lines = await active.readAsLines();
     expect(lines, hasLength(100));
     expect(lines.toSet(), hasLength(100));

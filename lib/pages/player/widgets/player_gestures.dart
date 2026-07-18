@@ -45,8 +45,7 @@ class PlayerGestures extends StatelessWidget {
               onHorizontalDragUpdate: (DragUpdateDetails details) {
                 playerController.showSeekTime = true;
                 onDragStart();
-                final double scale =
-                    180000 / MediaQuery.sizeOf(context).width;
+                final double scale = 180000 / MediaQuery.sizeOf(context).width;
                 int ms = (playerController.currentPosition.inMilliseconds +
                         (details.delta.dx * scale).round())
                     .clamp(0, playerController.duration.inMilliseconds);
@@ -67,10 +66,8 @@ class PlayerGestures extends StatelessWidget {
                 if (!brightnessVolumeGesture) {
                   return;
                 }
-                final double totalWidth =
-                    MediaQuery.sizeOf(context).width;
-                final double totalHeight =
-                    MediaQuery.sizeOf(context).height;
+                final double totalWidth = MediaQuery.sizeOf(context).width;
+                final double totalHeight = MediaQuery.sizeOf(context).height;
                 final double tapPosition = details.localPosition.dx;
                 final double sectionWidth = totalWidth / 2;
                 final double delta = details.delta.dy;
@@ -88,8 +85,7 @@ class PlayerGestures extends StatelessWidget {
                   playerController.volumeSeeking = true;
                   playerController.showVolume = true;
                   final double level = (totalHeight) * 0.03;
-                  final double volume =
-                      playerController.volume - delta / level;
+                  final double volume = playerController.volume - delta / level;
                   playerController.setVolume(volume);
                 }
               },

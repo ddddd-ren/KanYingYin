@@ -110,6 +110,21 @@ void main() {
     expect(entries.single.changes.join('\n'), contains('批量刮削'));
   });
 
+  testWidgets('二点一十二更新弹窗说明网盘沉浸式海报卡', (tester) async {
+    final entries = versionHistoryForCurrent('2.1.12');
+
+    expect(entries.single.isPrerelease, isTrue);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: VersionChangelogContent(versions: entries)),
+    ));
+
+    expect(find.text('v2.1.12  测试版  2026-07-19'), findsOneWidget);
+    expect(entries.single.changes.join('\n'), contains('沉浸式大海报卡片'));
+    expect(entries.single.changes.join('\n'), contains('真实网盘名称'));
+    expect(entries.single.changes.join('\n'), contains('已确认的字幕状态'));
+    expect(entries.single.changes.join('\n'), contains('不会修改任何网盘文件'));
+  });
+
   test('历史版本默认保持正式版兼容语义', () {
     const entry =
         VersionHistory(version: '1.0.0', date: '2026-01-01', changes: []);

@@ -177,22 +177,40 @@ class CloudResourceTmdbService {
     TmdbMetadata candidate, {
     TmdbScrapeOptions options = const TmdbScrapeOptions.defaults(),
   }) async {
+    return (await selectWithOutcome(target, candidate, options: options))
+        .record;
+  }
+
+  Future<CloudResourceTmdbSelectionOutcome> selectWithOutcome(
+    CloudResourceTmdbTarget target,
+    TmdbMetadata candidate, {
+    TmdbScrapeOptions options = const TmdbScrapeOptions.defaults(),
+  }) async {
     final metadata = await _client.details(
       candidate.id,
       candidate.mediaType,
       language: options.language,
     );
     String? posterCachePath;
+    var posterCached = true;
     if (_posterCache != null &&
         options.fetchPoster &&
         metadata.posterUrl != null) {
       final imageUrl = _imageUrl(metadata.posterUrl!);
-      final resolved = await _posterCache.resolve(
-        sourceId: target.sourceId,
-        stableId: target.stableKey,
-        url: imageUrl,
-      );
-      if (resolved != imageUrl) posterCachePath = resolved;
+      try {
+        final resolved = await _posterCache.resolve(
+          sourceId: target.sourceId,
+          stableId: target.stableKey,
+          url: imageUrl,
+        );
+        if (resolved != imageUrl) {
+          posterCachePath = resolved;
+        } else {
+          posterCached = false;
+        }
+      } on Object {
+        posterCached = false;
+      }
     }
     final record = CloudResourceTmdbRecord.matched(
       sourceId: target.sourceId,
@@ -206,8 +224,52 @@ class CloudResourceTmdbService {
       customTitle: target.customTitle,
     );
     await _repository.upsert(record);
-    await _syncIndex(target, metadata, posterCachePath);
-    return record;
+    var indexSynced = true;
+    try {
+      await _syncIndex(target, metadata, posterCachePath);
+    } on Object {
+      indexSynced = false;
+    }
+    return CloudResourceTmdbSelectionOutcome(
+      record: record,
+      posterCached: posterCached,
+      indexSynced: indexSynced,
+    );
+  }
+
+  Future<bool> syncRecordToIndex(
+    CloudResourceTmdbTarget target,
+    CloudResourceTmdbRecord record,
+  ) async {
+    final id = record.tmdbId;
+    final mediaType = record.mediaType;
+    final title = record.title;
+    if (record.status != CloudResourceTmdbStatus.matched ||
+        id == null ||
+        mediaType == null ||
+        title == null ||
+        title.trim().isEmpty) {
+      return false;
+    }
+    final metadata = TmdbMetadata(
+      id: id,
+      mediaType: mediaType,
+      title: title,
+      originalTitle: record.originalTitle,
+      overview: record.overview,
+      rating: record.rating,
+      posterUrl: record.posterUrl,
+      backdropUrl: record.backdropUrl,
+      language: 'zh-CN',
+      matchedAt: record.checkedAt,
+      matchConfidence: 1,
+    );
+    try {
+      await _syncIndex(target, metadata, record.posterCachePath);
+      return true;
+    } on Object {
+      return false;
+    }
   }
 
   static String queryName(String displayName, {required bool isDirectory}) {

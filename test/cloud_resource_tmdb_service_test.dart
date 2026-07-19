@@ -329,6 +329,90 @@ void main() {
 
     expect(client.queries, <String>['影片一', '影片二', '影片三', '影片一']);
   });
+
+  test('海报缓存失败仍保存文字元数据', () async {
+    final cacheRoot = await Directory.systemTemp.createTemp('tmdb-poster-');
+    addTearDown(() => cacheRoot.delete(recursive: true));
+    final repository = CloudResourceTmdbRepository(
+      storage: MemoryCloudResourceTmdbStorage(),
+    );
+    final service = CloudResourceTmdbService(
+      repository: repository,
+      indexRepository: CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      ),
+      client: _FakeTmdbClient(
+        searches: const <TmdbMediaType, List<TmdbMetadata>>{},
+        detail: _candidate(TmdbMediaType.movie).copyWith(
+          title: '中文标题',
+          overview: '中文简介',
+          posterUrl: '/poster.jpg',
+        ),
+      ),
+      posterCache: CloudPosterCache(
+        cacheRoot: cacheRoot,
+        downloader: (_) => throw StateError('图片下载失败'),
+      ),
+    );
+    final target = _target(
+      path: '/影视/独立视频.mkv',
+      name: '独立视频.mkv',
+      kind: CloudResourceKind.standaloneVideo,
+    );
+
+    final outcome = await service.selectWithOutcome(
+      target,
+      _candidate(TmdbMediaType.movie),
+    );
+
+    expect(outcome.record.title, '中文标题');
+    expect(outcome.record.posterUrl, '/poster.jpg');
+    expect(outcome.record.posterCachePath, isNull);
+    expect(outcome.posterCached, isFalse);
+    final stored = await repository.get(target.stableKey);
+    expect(stored?.tmdbId, outcome.record.tmdbId);
+    expect(stored?.title, outcome.record.title);
+  });
+
+  test('索引同步失败返回部分成功且保留资源记录', () async {
+    final repository = CloudResourceTmdbRepository(
+      storage: MemoryCloudResourceTmdbStorage(),
+    );
+    final indexStorage = _FailingCloudMediaIndexStorage();
+    final indexRepository = CloudMediaIndexRepository(storage: indexStorage);
+    await indexRepository.replaceSource(
+      'source-a',
+      <CloudMediaIndexItem>[_item('/影视/独立视频.mkv')],
+      const <String, String>{},
+      const <String, List<CloudFileEntry>>{},
+      const <String>[],
+    );
+    indexStorage.failWrites = true;
+    final service = CloudResourceTmdbService(
+      repository: repository,
+      indexRepository: indexRepository,
+      client: _FakeTmdbClient(
+        searches: const <TmdbMediaType, List<TmdbMetadata>>{},
+        detail: _candidate(TmdbMediaType.movie),
+      ),
+    );
+    final target = _target(
+      path: '/影视/独立视频.mkv',
+      name: '独立视频.mkv',
+      kind: CloudResourceKind.standaloneVideo,
+    );
+
+    final outcome = await service.selectWithOutcome(
+      target,
+      _candidate(TmdbMediaType.movie),
+    );
+
+    expect(outcome.record.tmdbId, 42);
+    expect(outcome.indexSynced, isFalse);
+    final stored = await repository.get(target.stableKey);
+    expect(stored?.tmdbId, outcome.record.tmdbId);
+    expect(stored?.title, outcome.record.title);
+  });
 }
 
 CloudResourceTmdbTarget _target({
@@ -426,5 +510,23 @@ class _FakeTmdbClient implements ITmdbClient {
     searchedTypes.add(mediaType);
     queries.add(query);
     return searches[mediaType] ?? const <TmdbMetadata>[];
+  }
+}
+
+class _FailingCloudMediaIndexStorage implements CloudMediaIndexStorage {
+  Map<String, Object?> _value = <String, Object?>{};
+  bool failWrites = false;
+
+  @override
+  Object get synchronizationIdentity => this;
+
+  @override
+  Future<Map<String, Object?>> read() async =>
+      Map<String, Object?>.from(_value);
+
+  @override
+  Future<void> write(Map<String, Object?> value) async {
+    if (failWrites) throw StateError('索引写入失败');
+    _value = Map<String, Object?>.from(value);
   }
 }

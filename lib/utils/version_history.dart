@@ -16,6 +16,17 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.16',
+    date: '2026-07-20',
+    isPrerelease: true,
+    changes: [
+      '本测试版让网盘资源递归汇总全部媒体根目录，直接显示与本地媒体库一致的海报墙，不再需要逐层打开文件夹',
+      '打开页面时会先显示上次媒体库索引，并在后台扫描刷新；新资源扫描完成后会原位出现，已有资源仍可播放',
+      '多季度电视剧会按季度显示对应的 TMDB 季度海报和真实分集；非视频及未超过识别大小的视频不显示，字幕仍自动关联',
+      '所有改动只更新看影音中的索引和展示，不会修改网盘文件、目录、远程 ID 或播放路径；应用启动、本地媒体库和播放器保持原有行为',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.15',
     date: '2026-07-20',
     isPrerelease: true,

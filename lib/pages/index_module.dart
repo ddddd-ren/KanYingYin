@@ -27,12 +27,14 @@ import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
+import 'package:kanyingyin/repositories/cloud_series_match_rule_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_cache_directories.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_indexer.dart';
 import 'package:kanyingyin/services/cloud/cloud_poster_cache.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
+import 'package:kanyingyin/services/cloud/cloud_series_match_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/utils/storage.dart';
@@ -56,6 +58,18 @@ class IndexModule extends Module {
     i.addSingleton<CloudResourceTmdbRepository>(
       CloudResourceTmdbRepository.new,
     );
+    i.addSingleton<CloudSeriesMatchRuleRepository>(
+      CloudSeriesMatchRuleRepository.new,
+    );
+    i.addSingleton<CloudSeriesMatchService>(
+      () => CloudSeriesMatchService(
+        ruleRepository: Modular.get<CloudSeriesMatchRuleRepository>(),
+        recordRepository: Modular.get<CloudResourceTmdbRepository>(),
+        indexRepository: Modular.get<CloudMediaIndexRepository>(),
+        minRecognizedVideoSizeBytesProvider: () =>
+            Modular.get<MediaRecognitionSettings>().cloudMinSizeBytes,
+      ),
+    );
     i.addSingleton<CloudCredentialStore>(SecureCloudCredentialStore.new);
     i.addSingleton<CloudSourceRepository>(() => CloudSourceRepository(
           credentialStore: Modular.get<CloudCredentialStore>(),
@@ -65,8 +79,12 @@ class IndexModule extends Module {
           credentialStore: Modular.get<CloudCredentialStore>(),
           mediaIndexRepository: Modular.get<CloudMediaIndexRepository>(),
           resourceTmdbRepository: Modular.get<CloudResourceTmdbRepository>(),
+          seriesMatchRuleRepository:
+              Modular.get<CloudSeriesMatchRuleRepository>(),
           mediaIndexer: CloudMediaIndexer(
             repository: Modular.get<CloudMediaIndexRepository>(),
+            seriesMatchRuleRepository:
+                Modular.get<CloudSeriesMatchRuleRepository>(),
             minRecognizedVideoSizeBytesProvider: () =>
                 Modular.get<MediaRecognitionSettings>().cloudMinSizeBytes,
           ),
@@ -85,6 +103,7 @@ class IndexModule extends Module {
         ),
         apiKeyProvider: _tmdbApiKey,
         optionsProvider: _tmdbScrapeOptions,
+        seriesMatchService: Modular.get<CloudSeriesMatchService>(),
       ),
     );
     i.addSingleton<CloudResourcesController>(
@@ -92,6 +111,8 @@ class IndexModule extends Module {
         repository: Modular.get<CloudSourceRepository>(),
         credentialStore: Modular.get<CloudCredentialStore>(),
         tmdbCoordinator: Modular.get<CloudResourceTmdbCoordinator>(),
+        minRecognizedVideoSizeBytesProvider: () =>
+            Modular.get<MediaRecognitionSettings>().cloudMinSizeBytes,
       ),
     );
     i.addSingleton<ILocalMediaIndexer>(() => LocalMediaIndexer(

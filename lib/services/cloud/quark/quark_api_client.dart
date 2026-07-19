@@ -5,6 +5,7 @@ import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_models.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_request_policy.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_response_parser.dart';
+import 'package:kanyingyin/modules/cloud/quark/quark_transfer_task.dart';
 
 typedef QuarkRequestDelay = Future<void> Function(Duration duration);
 
@@ -22,7 +23,37 @@ abstract interface class QuarkApi {
   Future<void> close();
 }
 
-class QuarkApiClient implements QuarkApi {
+abstract interface class QuarkShareApi {
+  Future<String> getShareToken({
+    required String shareId,
+    required String passcode,
+  });
+
+  Future<QuarkDirectoryPage> listSharePage({
+    required String shareId,
+    required String shareToken,
+    required String directoryId,
+    required int page,
+    int size = 50,
+  });
+
+  Future<String> saveShare({
+    required String shareId,
+    required String shareToken,
+    required List<String> fileIds,
+    required List<String> fileTokens,
+    required String targetDirectoryId,
+  });
+
+  Future<QuarkTransferTask> queryTask({
+    required String taskId,
+    required int retryIndex,
+  });
+
+  Future<void> close();
+}
+
+class QuarkApiClient implements QuarkApi, QuarkShareApi {
   QuarkApiClient({
     required String cookie,
     Dio? dio,
@@ -50,6 +81,14 @@ class QuarkApiClient implements QuarkApi {
       Uri.https('drive.quark.cn', '/1/clouddrive/file/sort');
   static final Uri _downloadUri =
       Uri.https('drive.quark.cn', '/1/clouddrive/file/download');
+  static final Uri _shareTokenUri =
+      Uri.https('drive-pc.quark.cn', '/1/clouddrive/share/sharepage/token');
+  static final Uri _shareDetailUri =
+      Uri.https('drive-pc.quark.cn', '/1/clouddrive/share/sharepage/detail');
+  static final Uri _shareSaveUri =
+      Uri.https('drive-pc.quark.cn', '/1/clouddrive/share/sharepage/save');
+  static final Uri _taskUri =
+      Uri.https('drive-pc.quark.cn', '/1/clouddrive/task');
 
   final String _cookie;
   final Dio _dio;
@@ -98,6 +137,97 @@ class QuarkApiClient implements QuarkApi {
       },
     );
     return _parser.parsePlayback(json);
+  }
+
+  @override
+  Future<String> getShareToken({
+    required String shareId,
+    required String passcode,
+  }) async {
+    final json = await _request(
+      'POST',
+      _shareTokenUri,
+      queryParameters: const <String, Object?>{'pr': 'ucpro', 'fr': 'pc'},
+      data: <String, Object?>{'pwd_id': shareId, 'passcode': passcode},
+    );
+    return _parser.parseShareToken(json);
+  }
+
+  @override
+  Future<QuarkDirectoryPage> listSharePage({
+    required String shareId,
+    required String shareToken,
+    required String directoryId,
+    required int page,
+    int size = 50,
+  }) async {
+    final json = await _request(
+      'GET',
+      _shareDetailUri,
+      queryParameters: <String, Object?>{
+        'pr': 'ucpro',
+        'fr': 'pc',
+        'pwd_id': shareId,
+        'stoken': shareToken,
+        'pdir_fid': directoryId,
+        'force': 0,
+        '_page': page,
+        '_size': size,
+        '_fetch_banner': 0,
+        '_fetch_share': 0,
+        '_fetch_total': 1,
+        '_sort': 'file_type:asc,updated_at:desc',
+        'ver': 2,
+      },
+    );
+    return _parser.parseDirectoryPage(json);
+  }
+
+  @override
+  Future<String> saveShare({
+    required String shareId,
+    required String shareToken,
+    required List<String> fileIds,
+    required List<String> fileTokens,
+    required String targetDirectoryId,
+  }) async {
+    final json = await _request(
+      'POST',
+      _shareSaveUri,
+      queryParameters: const <String, Object?>{
+        'pr': 'ucpro',
+        'fr': 'pc',
+        'app': 'clouddrive',
+      },
+      data: <String, Object?>{
+        'fid_list': fileIds,
+        'fid_token_list': fileTokens,
+        'to_pdir_fid': targetDirectoryId,
+        'pwd_id': shareId,
+        'stoken': shareToken,
+        'pdir_fid': '0',
+        'scene': 'link',
+      },
+    );
+    return _parser.parseSaveTaskId(json);
+  }
+
+  @override
+  Future<QuarkTransferTask> queryTask({
+    required String taskId,
+    required int retryIndex,
+  }) async {
+    final json = await _request(
+      'GET',
+      _taskUri,
+      queryParameters: <String, Object?>{
+        'pr': 'ucpro',
+        'fr': 'pc',
+        'task_id': taskId,
+        'retry_index': retryIndex,
+      },
+    );
+    return _parser.parseTask(json);
   }
 
   Future<Object?> _request(

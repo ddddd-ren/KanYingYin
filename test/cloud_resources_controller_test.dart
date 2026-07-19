@@ -340,6 +340,57 @@ void main() {
       expect(fixture.controller.visibleEntries.single.name, '电影.mkv');
       fixture.controller.dispose();
     });
+
+    test('修改显示剧名不改变远程引用且客户端只读取目录', () async {
+      final coordinator = _RecordingTmdbCoordinator();
+      final client = _FakeCloudClient(
+        entriesById: <String, List<CloudFileEntry>>{
+          'root-fid': const <CloudFileEntry>[
+            CloudFileEntry(
+              id: 'folder-fid',
+              remotePath: '/影视/原目录',
+              name: '原目录',
+              size: 0,
+              modifiedAt: null,
+              isDirectory: true,
+            ),
+          ],
+        },
+      );
+      final fixture = await _Fixture.create(
+        sources: const <CloudSource>[
+          CloudSource(
+            id: 'source-a',
+            type: CloudSourceType.quark,
+            name: '夸克媒体库',
+            baseUrl: 'https://pan.quark.cn',
+            rootPaths: <String>['/影视'],
+            rootRefs: <CloudRemoteRef>[
+              CloudRemoteRef(id: 'root-fid', path: '/影视'),
+            ],
+          ),
+        ],
+        clients: <String, _FakeCloudClient>{'source-a': client},
+        tmdbCoordinator: coordinator,
+      );
+      await fixture.controller.load();
+      final folder = fixture.controller.entries.single;
+
+      await fixture.controller.saveCustomTitle(folder, '新剧名');
+
+      expect(fixture.controller.tmdbTargetFor(folder).remote.id, 'folder-fid');
+      expect(
+        fixture.controller.tmdbTargetFor(folder).remote.path,
+        '/影视/原目录',
+      );
+      expect(
+        client.listed,
+        <CloudRemoteRef>[
+          const CloudRemoteRef(id: 'root-fid', path: '/影视'),
+        ],
+      );
+      fixture.controller.dispose();
+    });
   });
 }
 

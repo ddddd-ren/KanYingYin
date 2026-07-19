@@ -260,6 +260,10 @@ void main() {
         await tmdbRepository.getBySource('source-b'), <CloudResourceTmdbRecord>[
       retained,
     ]);
+    expect(
+      (await tmdbRepository.getBySource('source-b')).single.customTitle,
+      '自定义剧名',
+    );
     controller.dispose();
   });
 
@@ -294,6 +298,9 @@ void main() {
         await tmdbRepository.getBySource('source-a'), <CloudResourceTmdbRecord>[
       record,
     ]);
+    final restored = (await tmdbRepository.getBySource('source-a')).single;
+    expect(restored.customTitle, '自定义剧名');
+    expect(restored.remotePath, '/A');
     controller.dispose();
   });
 }
@@ -322,7 +329,7 @@ CloudResourceTmdbRecord _resourceRecord(String sourceId, String path) {
       matchConfidence: 1,
     ),
     checkedAt: DateTime.utc(2026, 7, 19),
-  );
+  ).withCustomTitle('自定义剧名');
 }
 
 CloudMediaIndexItem _item(String sourceId, String remotePath) =>

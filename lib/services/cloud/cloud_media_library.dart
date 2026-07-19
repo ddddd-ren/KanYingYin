@@ -2,6 +2,7 @@ import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
+import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 
 enum MediaSourceKind { local, cloud }
 
@@ -14,6 +15,7 @@ class MediaLibraryEpisode {
     required this.sourceName,
     required this.isAvailable,
     this.localItem,
+    this.remoteId,
     this.remotePath,
     this.tmdbTitle,
     this.tmdbOriginalTitle,
@@ -23,6 +25,7 @@ class MediaLibraryEpisode {
     this.tmdbBackdropUrl,
     this.posterCachePath,
     this.subtitleRemotePaths = const <String>[],
+    this.subtitleRemoteRefs = const <CloudRemoteRef>[],
   });
 
   factory MediaLibraryEpisode.local({
@@ -48,6 +51,7 @@ class MediaLibraryEpisode {
     required String sourceId,
     required String sourceName,
     required bool isAvailable,
+    required String remoteId,
     required String remotePath,
     String? tmdbTitle,
     String? tmdbOriginalTitle,
@@ -57,8 +61,12 @@ class MediaLibraryEpisode {
     String? tmdbBackdropUrl,
     String? posterCachePath,
     List<String> subtitleRemotePaths = const <String>[],
+    List<CloudRemoteRef> subtitleRemoteRefs = const <CloudRemoteRef>[],
   }) {
-    if (sourceId.isEmpty || remotePath.isEmpty || stableId.isEmpty) {
+    if (sourceId.isEmpty ||
+        remoteId.isEmpty ||
+        remotePath.isEmpty ||
+        stableId.isEmpty) {
       throw ArgumentError('云媒体必须提供来源、稳定标识和远程路径');
     }
     return MediaLibraryEpisode._(
@@ -68,6 +76,7 @@ class MediaLibraryEpisode {
       sourceId: sourceId,
       sourceName: sourceName,
       isAvailable: isAvailable,
+      remoteId: remoteId,
       remotePath: remotePath,
       tmdbTitle: tmdbTitle,
       tmdbOriginalTitle: tmdbOriginalTitle,
@@ -77,6 +86,7 @@ class MediaLibraryEpisode {
       tmdbBackdropUrl: tmdbBackdropUrl,
       posterCachePath: posterCachePath,
       subtitleRemotePaths: subtitleRemotePaths,
+      subtitleRemoteRefs: subtitleRemoteRefs,
     );
   }
 
@@ -87,6 +97,7 @@ class MediaLibraryEpisode {
   final String sourceName;
   final bool isAvailable;
   final LocalMediaIndexItem? localItem;
+  final String? remoteId;
   final String? remotePath;
   final String? tmdbTitle;
   final String? tmdbOriginalTitle;
@@ -96,6 +107,7 @@ class MediaLibraryEpisode {
   final String? tmdbBackdropUrl;
   final String? posterCachePath;
   final List<String> subtitleRemotePaths;
+  final List<CloudRemoteRef> subtitleRemoteRefs;
 }
 
 class MediaLibrarySeries {
@@ -212,6 +224,7 @@ class CloudMediaLibraryAggregator {
                   sourceId: item.sourceId,
                   sourceName: source?.name ?? item.sourceId,
                   isAvailable: source?.enabled == true,
+                  remoteId: item.remoteId,
                   remotePath: item.remotePath,
                   tmdbTitle: item.tmdbTitle,
                   tmdbOriginalTitle: item.tmdbOriginalTitle,
@@ -221,6 +234,7 @@ class CloudMediaLibraryAggregator {
                   tmdbBackdropUrl: item.tmdbBackdropUrl,
                   posterCachePath: item.posterCachePath,
                   subtitleRemotePaths: item.subtitlePaths,
+                  subtitleRemoteRefs: item.subtitleRefs,
                 ))
             .toList(growable: false),
       ));

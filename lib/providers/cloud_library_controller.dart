@@ -12,6 +12,7 @@ import 'package:kanyingyin/services/cloud/cloud_media_indexer.dart';
 import 'package:kanyingyin/services/cloud/cloud_poster_cache.dart';
 import 'package:kanyingyin/services/cloud/cloud_subtitle_cache.dart';
 import 'package:kanyingyin/services/cloud/openlist/openlist_client.dart';
+import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 
 typedef CloudClientFactory = CloudDriveClient Function(
   CloudSource source,
@@ -123,9 +124,9 @@ class CloudLibraryController extends ChangeNotifier {
       );
       final testCredential = await _testCredential(source, credential);
       await client.authenticate(source, testCredential);
-      await client.listDirectory(
-        source.rootPaths.isEmpty ? '/' : source.rootPaths.first,
-      );
+      await client.listDirectory(source.remoteRoots.isEmpty
+          ? const CloudRemoteRef(id: '/', path: '/')
+          : source.remoteRoots.first);
     } on CloudDriveException catch (error) {
       errorMessage = switch (error.type) {
         CloudDriveErrorType.authentication => '用户名或密码错误',
@@ -200,7 +201,9 @@ class CloudLibraryController extends ChangeNotifier {
         credentialStore,
         source.allowSelfSignedCertificate,
       );
-      final entries = await client.listDirectory(remotePath);
+      final entries = await client.listDirectory(
+        CloudRemoteRef(id: remotePath, path: remotePath),
+      );
       final directories = entries.where((entry) => entry.isDirectory).toList()
         ..sort((first, second) => first.name.compareTo(second.name));
       return directories;

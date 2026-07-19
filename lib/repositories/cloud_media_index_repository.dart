@@ -1,5 +1,6 @@
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
+import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:synchronized/synchronized.dart';
 
@@ -321,6 +322,14 @@ class CloudMediaIndexRepository {
       subtitlePaths: json['subtitlePaths'] is List
           ? (json['subtitlePaths'] as List).whereType<String>().toList()
           : const <String>[],
+      subtitleRefs: json['subtitleRefs'] is List
+          ? (json['subtitleRefs'] as List)
+              .whereType<Map>()
+              .map((value) => CloudRemoteRef.fromJson(
+                    Map<String, dynamic>.from(value),
+                  ))
+              .toList(growable: false)
+          : const <CloudRemoteRef>[],
       tmdbId: json['tmdbId'] is int ? json['tmdbId'] as int : null,
       tmdbTitle: json['tmdbTitle'] as String?,
       tmdbOriginalTitle: json['tmdbOriginalTitle'] as String?,
@@ -347,6 +356,8 @@ class CloudMediaIndexRepository {
         'episodeNumber': item.episodeNumber,
         'mediaType': item.mediaType.name,
         'subtitlePaths': item.subtitlePaths,
+        'subtitleRefs':
+            item.subtitleRefs.map((value) => value.toJson()).toList(),
         'tmdbId': item.tmdbId,
         'tmdbTitle': item.tmdbTitle,
         'tmdbOriginalTitle': item.tmdbOriginalTitle,

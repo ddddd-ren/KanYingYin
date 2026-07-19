@@ -9,6 +9,7 @@ import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 
 void main() {
   const source = CloudSource(
@@ -706,15 +707,15 @@ class _PersistingFakeClient implements CloudDriveClient {
   Future<void> close() async {}
 
   @override
-  Future<CloudFileEntry> getFile(String remotePath) =>
+  Future<CloudFileEntry> getFile(CloudRemoteRef file) =>
       throw UnimplementedError();
 
   @override
-  Future<List<CloudFileEntry>> listDirectory(String remotePath) async =>
+  Future<List<CloudFileEntry>> listDirectory(CloudRemoteRef directory) async =>
       const <CloudFileEntry>[];
 
   @override
-  Future<CloudPlaybackResource> resolvePlayback(String remotePath) =>
+  Future<CloudPlaybackResource> resolvePlayback(CloudRemoteRef file) =>
       throw UnimplementedError();
 }
 
@@ -729,15 +730,15 @@ class _OrderedScanClient implements CloudDriveClient {
   Future<void> close() async {}
 
   @override
-  Future<CloudFileEntry> getFile(String remotePath) =>
+  Future<CloudFileEntry> getFile(CloudRemoteRef file) =>
       throw UnimplementedError();
 
   @override
-  Future<List<CloudFileEntry>> listDirectory(String remotePath) async =>
+  Future<List<CloudFileEntry>> listDirectory(CloudRemoteRef directory) async =>
       const <CloudFileEntry>[];
 
   @override
-  Future<CloudPlaybackResource> resolvePlayback(String remotePath) =>
+  Future<CloudPlaybackResource> resolvePlayback(CloudRemoteRef file) =>
       throw UnimplementedError();
 }
 

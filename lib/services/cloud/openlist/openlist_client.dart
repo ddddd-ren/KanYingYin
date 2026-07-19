@@ -6,6 +6,7 @@ import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/openlist/openlist_models.dart';
 
 class OpenListClient implements CloudDriveClient {
@@ -95,9 +96,10 @@ class OpenListClient implements CloudDriveClient {
 
   @override
   Future<List<CloudFileEntry>> listDirectory(
-    String remotePath, {
+    Object directory, {
     String password = '',
   }) async {
+    final remotePath = _pathOf(directory);
     const perPage = 100;
     var page = 1;
     final result = <CloudFileEntry>[];
@@ -142,17 +144,23 @@ class OpenListClient implements CloudDriveClient {
   }
 
   @override
-  Future<CloudFileEntry> getFile(String remotePath) async =>
-      (await _fetchFile(remotePath)).entry;
+  Future<CloudFileEntry> getFile(Object file) async =>
+      (await _fetchFile(_pathOf(file))).entry;
 
   @override
-  Future<CloudPlaybackResource> resolvePlayback(String remotePath) async {
-    final file = await _fetchFile(remotePath);
+  Future<CloudPlaybackResource> resolvePlayback(Object reference) async {
+    final file = await _fetchFile(_pathOf(reference));
     if (file.rawUrl == null) {
       throw const CloudDriveException(CloudDriveErrorType.incompatible);
     }
     return CloudPlaybackResource(uri: file.rawUrl!, headers: file.headers);
   }
+
+  static String _pathOf(Object reference) => switch (reference) {
+        CloudRemoteRef(:final path) => path,
+        String path => path,
+        _ => throw ArgumentError.value(reference, 'reference'),
+      };
 
   Future<Map<String, dynamic>> _post(
     String path,

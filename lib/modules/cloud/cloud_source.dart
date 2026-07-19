@@ -1,3 +1,5 @@
+import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+
 enum CloudSourceType { openList, quark }
 
 enum CloudScanStatus { never, scanning, completed, failed }
@@ -9,6 +11,7 @@ class CloudSource {
     required this.name,
     required this.baseUrl,
     required this.rootPaths,
+    this.rootRefs = const <CloudRemoteRef>[],
     this.enabled = true,
     this.allowSelfSignedCertificate = false,
     this.lastScannedAt,
@@ -23,6 +26,7 @@ class CloudSource {
   final String name;
   final String baseUrl;
   final List<String> rootPaths;
+  final List<CloudRemoteRef> rootRefs;
   final bool enabled;
   final bool allowSelfSignedCertificate;
   final DateTime? lastScannedAt;
@@ -30,6 +34,13 @@ class CloudSource {
   final int indexedVideoCount;
   final int matchedSubtitleCount;
   final int lastScanFailureCount;
+
+  /// 旧 OpenList 配置没有文件 ID，继续使用路径作为稳定引用。
+  List<CloudRemoteRef> get remoteRoots => rootRefs.isNotEmpty
+      ? rootRefs
+      : rootPaths
+          .map((path) => CloudRemoteRef(id: path, path: path))
+          .toList(growable: false);
 
   factory CloudSource.fromJson(Map<String, dynamic> json) => CloudSource(
         id: _stringValue(json['id']),
@@ -43,6 +54,14 @@ class CloudSource {
                 ? json['rootPaths'] as List
                 : const <Object>[])
             .whereType<String>()
+            .toList(growable: false),
+        rootRefs: (json['rootRefs'] is List
+                ? json['rootRefs'] as List
+                : const <Object>[])
+            .whereType<Map>()
+            .map((value) => CloudRemoteRef.fromJson(
+                  Map<String, dynamic>.from(value),
+                ))
             .toList(growable: false),
         enabled: json['enabled'] is bool ? json['enabled'] as bool : true,
         allowSelfSignedCertificate: json['allowSelfSignedCertificate'] is bool
@@ -72,6 +91,7 @@ class CloudSource {
     String? name,
     String? baseUrl,
     List<String>? rootPaths,
+    List<CloudRemoteRef>? rootRefs,
     bool? enabled,
     bool? allowSelfSignedCertificate,
     DateTime? lastScannedAt,
@@ -86,6 +106,7 @@ class CloudSource {
         name: name ?? this.name,
         baseUrl: baseUrl ?? this.baseUrl,
         rootPaths: rootPaths ?? this.rootPaths,
+        rootRefs: rootRefs ?? this.rootRefs,
         enabled: enabled ?? this.enabled,
         allowSelfSignedCertificate:
             allowSelfSignedCertificate ?? this.allowSelfSignedCertificate,
@@ -102,6 +123,8 @@ class CloudSource {
         'name': name,
         'baseUrl': baseUrl,
         'rootPaths': rootPaths,
+        if (rootRefs.isNotEmpty)
+          'rootRefs': rootRefs.map((value) => value.toJson()).toList(),
         'enabled': enabled,
         'allowSelfSignedCertificate': allowSelfSignedCertificate,
         'lastScannedAt': lastScannedAt?.toIso8601String(),
@@ -119,6 +142,7 @@ class CloudSource {
       other.name == name &&
       other.baseUrl == baseUrl &&
       _listEquals(other.rootPaths, rootPaths) &&
+      _listEquals(other.rootRefs, rootRefs) &&
       other.enabled == enabled &&
       other.allowSelfSignedCertificate == allowSelfSignedCertificate &&
       other.lastScannedAt == lastScannedAt &&
@@ -134,6 +158,7 @@ class CloudSource {
         name,
         baseUrl,
         Object.hashAll(rootPaths),
+        Object.hashAll(rootRefs),
         enabled,
         allowSelfSignedCertificate,
         lastScannedAt,
@@ -143,7 +168,7 @@ class CloudSource {
         lastScanFailureCount,
       );
 
-  static bool _listEquals(List<String> first, List<String> second) {
+  static bool _listEquals<T>(List<T> first, List<T> second) {
     if (first.length != second.length) return false;
     for (var index = 0; index < first.length; index++) {
       if (first[index] != second[index]) return false;

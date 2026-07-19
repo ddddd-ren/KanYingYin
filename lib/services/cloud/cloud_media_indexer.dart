@@ -8,6 +8,7 @@ import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/local_episode_parser.dart';
 import 'package:kanyingyin/services/local_subtitle_matcher.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
@@ -102,9 +103,17 @@ class CloudMediaIndexer {
     int minSizeBytes,
   ) async {
     final previous = await _repository.snapshot(source.id);
-    final roots = source.rootPaths.map(_normalizePath).toList(growable: false);
-    final queue = Queue<String>.from(roots);
-    final queued = <String>{...queue};
+    final rootRefs = source.remoteRoots
+        .map((root) => CloudRemoteRef(
+              id: root.id,
+              path: _normalizePath(root.path),
+            ))
+        .toList(growable: false);
+    final roots = rootRefs.map((root) => root.path).toList(growable: false);
+    final queue = Queue<CloudRemoteRef>.from(rootRefs);
+    final queued = <String>{
+      for (final root in rootRefs) '${root.id}|${root.path}',
+    };
     final directoryEntries = <String, List<CloudFileEntry>>{};
     final fingerprints = <String, String>{};
     final failedPaths = <String>[];
@@ -118,28 +127,31 @@ class CloudMediaIndexer {
         hasCachedPathsOutsideRoots;
 
     while (queue.isNotEmpty && !token.isCancelled) {
-      final batch = <String>[];
+      final batch = <CloudRemoteRef>[];
       while (
           queue.isNotEmpty && batch.length < maxConcurrentDirectoryRequests) {
         batch.add(queue.removeFirst());
       }
-      final results = await Future.wait(batch.map((path) async {
+      final results = await Future.wait(batch.map((reference) async {
         try {
-          return _DirectoryResult(path, await client.listDirectory(path));
+          return _DirectoryResult(
+            reference,
+            await client.listDirectory(reference),
+          );
         } on Object {
-          return _DirectoryResult(path, null);
+          return _DirectoryResult(reference, null);
         }
       }));
       if (token.isCancelled) break;
       for (final result in results) {
         onProgress?.call(CloudMediaScanProgress(
           scanned: scanned,
-          currentPath: result.path,
+          currentPath: result.reference.path,
         ));
         if (result.entries == null) {
-          failedPaths.add(result.path);
+          failedPaths.add(result.reference.path);
           _copyCachedSubtree(
-            result.path,
+            result.reference.path,
             previous,
             directoryEntries,
             fingerprints,
@@ -165,18 +177,22 @@ class CloudMediaIndexer {
             isDirectory: entry.isDirectory,
           ));
         }
-        final fingerprint = _fingerprint(result.path, entries, minSizeBytes);
-        fingerprints[result.path] = fingerprint;
-        if (previous.fingerprints[result.path] == fingerprint) {
+        final directoryPath = result.reference.path;
+        final fingerprint = _fingerprint(directoryPath, entries, minSizeBytes);
+        fingerprints[directoryPath] = fingerprint;
+        if (previous.fingerprints[directoryPath] == fingerprint) {
           skipped++;
         } else {
           changed = true;
         }
-        directoryEntries[result.path] = List<CloudFileEntry>.from(entries);
+        directoryEntries[directoryPath] = List<CloudFileEntry>.from(entries);
         for (final entry in entries) {
           final path = _normalizePath(entry.remotePath);
           if (entry.isDirectory) {
-            if (queued.add(path)) queue.add(path);
+            final key = '${entry.id}|$path';
+            if (queued.add(key)) {
+              queue.add(CloudRemoteRef(id: entry.id, path: path));
+            }
           }
         }
       }
@@ -234,6 +250,7 @@ class CloudMediaIndexer {
     final items = <String, CloudMediaIndexItem>{};
     for (final entry in videos) {
       final episode = _episodeParser.parse(entry.remotePath);
+      final subtitleRefs = _matchSubtitles(entry, subtitles);
       items[_normalizePath(entry.remotePath)] = CloudMediaIndexItem(
         sourceId: source.id,
         remoteId: entry.id,
@@ -249,7 +266,8 @@ class CloudMediaIndexer {
             : episode == null
                 ? CloudMediaType.movie
                 : CloudMediaType.episode,
-        subtitlePaths: _matchSubtitles(entry, subtitles),
+        subtitlePaths: subtitleRefs.map((reference) => reference.path).toList(),
+        subtitleRefs: subtitleRefs,
       );
     }
     if (changed || failedPaths.isNotEmpty) {
@@ -294,13 +312,13 @@ class CloudMediaIndexer {
         .trim();
   }
 
-  List<String> _matchSubtitles(
+  List<CloudRemoteRef> _matchSubtitles(
     CloudFileEntry video,
     List<CloudFileEntry> subtitles,
   ) {
     final videoEpisode = _episodeParser.parse(video.remotePath);
     final videoBase = p.basenameWithoutExtension(video.name).toLowerCase();
-    final matches = <({String path, int priority})>[];
+    final matches = <({CloudRemoteRef reference, int priority})>[];
     for (final subtitle in subtitles) {
       final videoDirectory = _normalizePath(p.posix.dirname(video.remotePath));
       final subtitleParent =
@@ -331,15 +349,20 @@ class CloudMediaIndexer {
               videoEpisode.seasonNumber == subtitleEpisode.seasonNumber);
       if (!sameName && !episodeMatch) continue;
       matches.add((
-        path: _normalizePath(subtitle.remotePath),
+        reference: CloudRemoteRef(
+          id: subtitle.id,
+          path: _normalizePath(subtitle.remotePath),
+        ),
         priority: sameName ? 0 : 1
       ));
     }
     matches.sort((a, b) {
       final priority = a.priority.compareTo(b.priority);
-      return priority != 0 ? priority : a.path.compareTo(b.path);
+      return priority != 0
+          ? priority
+          : a.reference.path.compareTo(b.reference.path);
     });
-    return matches.map((item) => item.path).toList(growable: false);
+    return matches.map((item) => item.reference).toList(growable: false);
   }
 
   static String _fingerprint(
@@ -423,7 +446,7 @@ class CloudMediaIndexer {
 }
 
 class _DirectoryResult {
-  const _DirectoryResult(this.path, this.entries);
-  final String path;
+  const _DirectoryResult(this.reference, this.entries);
+  final CloudRemoteRef reference;
   final List<CloudFileEntry>? entries;
 }

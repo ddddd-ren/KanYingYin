@@ -1,6 +1,7 @@
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
+import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 
 enum CloudDriveErrorType {
   authentication,
@@ -38,11 +39,11 @@ class CloudPlaybackResource {
 abstract interface class CloudDriveClient {
   Future<void> authenticate(CloudSource source, CloudCredential credential);
 
-  Future<List<CloudFileEntry>> listDirectory(String remotePath);
+  Future<List<CloudFileEntry>> listDirectory(CloudRemoteRef directory);
 
-  Future<CloudFileEntry> getFile(String remotePath);
+  Future<CloudFileEntry> getFile(CloudRemoteRef file);
 
-  Future<CloudPlaybackResource> resolvePlayback(String remotePath);
+  Future<CloudPlaybackResource> resolvePlayback(CloudRemoteRef file);
 
   Future<void> close();
 }

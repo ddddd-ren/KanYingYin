@@ -299,6 +299,47 @@ void main() {
       expect(coordinator.contexts.last.isConfiguredRoot, isFalse);
       fixture.controller.dispose();
     });
+
+    test('TMDB 失败不改写目录错误且视频仍可播放', () async {
+      final fixture = await _Fixture.create(
+        sources: const <CloudSource>[
+          CloudSource(
+            id: 'source-a',
+            type: CloudSourceType.quark,
+            name: '夸克媒体库',
+            baseUrl: 'https://pan.quark.cn',
+            rootPaths: <String>['/影视'],
+            rootRefs: <CloudRemoteRef>[
+              CloudRemoteRef(id: 'root-fid', path: '/影视'),
+            ],
+          ),
+        ],
+        clients: <String, _FakeCloudClient>{
+          'source-a': _FakeCloudClient(
+            entriesById: <String, List<CloudFileEntry>>{
+              'root-fid': const <CloudFileEntry>[
+                CloudFileEntry(
+                  id: 'video-fid',
+                  remotePath: '/影视/电影.mkv',
+                  name: '电影.mkv',
+                  size: 100,
+                  modifiedAt: null,
+                  isDirectory: false,
+                ),
+              ],
+            },
+          ),
+        },
+        tmdbCoordinator: _FailingTmdbCoordinator(),
+      );
+
+      await fixture.controller.load();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(fixture.controller.errorMessage, isNull);
+      expect(fixture.controller.visibleEntries.single.name, '电影.mkv');
+      fixture.controller.dispose();
+    });
   });
 }
 
@@ -355,6 +396,13 @@ class _RecordingTmdbCoordinator extends CloudResourceTmdbCoordinator {
   @override
   Future<void> loadAndSchedule(CloudResourceDirectoryContext context) async {
     contexts.add(context);
+  }
+}
+
+class _FailingTmdbCoordinator extends _RecordingTmdbCoordinator {
+  @override
+  Future<void> loadAndSchedule(CloudResourceDirectoryContext context) async {
+    throw StateError('模拟 TMDB 失败');
   }
 }
 

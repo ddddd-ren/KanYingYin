@@ -64,6 +64,7 @@ class IndexModule extends Module {
           repository: Modular.get<CloudSourceRepository>(),
           credentialStore: Modular.get<CloudCredentialStore>(),
           mediaIndexRepository: Modular.get<CloudMediaIndexRepository>(),
+          resourceTmdbRepository: Modular.get<CloudResourceTmdbRepository>(),
           mediaIndexer: CloudMediaIndexer(
             repository: Modular.get<CloudMediaIndexRepository>(),
             minRecognizedVideoSizeBytesProvider: () =>

@@ -4,8 +4,11 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
+import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
+import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/services/cloud/cloud_cache_directories.dart';
@@ -224,6 +227,102 @@ void main() {
         CloudCacheDirectories.subtitleSource(root, sourceId);
     expect(sourceDirectory.existsSync(), isFalse);
   });
+
+  test('删除来源清理资源 TMDB 记录并保留其他来源', () async {
+    final credentials = MemoryCloudCredentialStore();
+    final sourceRepository = CloudSourceRepository(
+      storage: MemoryCloudSourceStorage(),
+      credentialStore: credentials,
+    );
+    await sourceRepository.save(_source('source-a'));
+    final tmdbRepository = CloudResourceTmdbRepository(
+      storage: MemoryCloudResourceTmdbStorage(),
+    );
+    final removed = _resourceRecord('source-a', '/A');
+    final retained = _resourceRecord('source-b', '/B');
+    await tmdbRepository.upsert(removed);
+    await tmdbRepository.upsert(retained);
+    final controller = CloudLibraryController(
+      repository: sourceRepository,
+      credentialStore: credentials,
+      mediaIndexRepository: CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      ),
+      resourceTmdbRepository: tmdbRepository,
+      posterCacheCleaner: (_) async {},
+      subtitleCacheCleaner: (_) async {},
+    );
+
+    await controller.delete('source-a');
+
+    expect(await tmdbRepository.getBySource('source-a'), isEmpty);
+    expect(
+        await tmdbRepository.getBySource('source-b'), <CloudResourceTmdbRecord>[
+      retained,
+    ]);
+    controller.dispose();
+  });
+
+  test('来源删除失败时恢复资源 TMDB 记录', () async {
+    final storage = _FailingCloudSourceStorage();
+    final credentials = MemoryCloudCredentialStore();
+    final sourceRepository = CloudSourceRepository(
+      storage: storage,
+      credentialStore: credentials,
+    );
+    await sourceRepository.save(_source('source-a'));
+    final tmdbRepository = CloudResourceTmdbRepository(
+      storage: MemoryCloudResourceTmdbStorage(),
+    );
+    final record = _resourceRecord('source-a', '/A');
+    await tmdbRepository.upsert(record);
+    final controller = CloudLibraryController(
+      repository: sourceRepository,
+      credentialStore: credentials,
+      mediaIndexRepository: CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      ),
+      resourceTmdbRepository: tmdbRepository,
+      posterCacheCleaner: (_) async {},
+      subtitleCacheCleaner: (_) async {},
+    );
+    storage.failNextWrite = true;
+
+    await expectLater(controller.delete('source-a'), throwsStateError);
+
+    expect(
+        await tmdbRepository.getBySource('source-a'), <CloudResourceTmdbRecord>[
+      record,
+    ]);
+    controller.dispose();
+  });
+}
+
+CloudSource _source(String id) => CloudSource(
+      id: id,
+      type: CloudSourceType.openList,
+      name: id,
+      baseUrl: 'https://drive.example.com',
+      rootPaths: const <String>['/'],
+    );
+
+CloudResourceTmdbRecord _resourceRecord(String sourceId, String path) {
+  return CloudResourceTmdbRecord.matched(
+    sourceId: sourceId,
+    remoteId: path,
+    remotePath: path,
+    displayName: path,
+    resourceKind: CloudResourceKind.directory,
+    metadata: TmdbMetadata(
+      id: 42,
+      mediaType: TmdbMediaType.tv,
+      title: '标题',
+      language: 'zh-CN',
+      matchedAt: DateTime.utc(2026, 7, 19),
+      matchConfidence: 1,
+    ),
+    checkedAt: DateTime.utc(2026, 7, 19),
+  );
 }
 
 CloudMediaIndexItem _item(String sourceId, String remotePath) =>
@@ -259,6 +358,19 @@ class _FailingCloudMediaIndexStorage extends MemoryCloudMediaIndexStorage {
       throw StateError('模拟云索引写入失败');
     }
     await super.write(value);
+  }
+}
+
+class _FailingCloudSourceStorage extends MemoryCloudSourceStorage {
+  bool failNextWrite = false;
+
+  @override
+  Future<void> write(List<Map<String, dynamic>> sources) async {
+    if (failNextWrite) {
+      failNextWrite = false;
+      throw StateError('模拟来源删除失败');
+    }
+    await super.write(sources);
   }
 }
 

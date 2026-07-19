@@ -11,6 +11,7 @@ void main() {
       sourceId: 'openlist',
       sourceName: '家庭网盘',
       isAvailable: true,
+      remoteId: 'episode-1',
       remotePath: '/Show/E01.mkv',
     );
     final series = MediaLibrarySeries(

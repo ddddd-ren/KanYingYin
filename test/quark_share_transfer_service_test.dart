@@ -226,8 +226,9 @@ class _FakeShareApi implements QuarkShareApi {
     required int retryIndex,
   }) async {
     if (tasks.isNotEmpty) _lastTask = tasks.removeAt(0);
-    if (_lastTask != null && (repeatLastTask || tasks.isEmpty))
+    if (_lastTask != null && (repeatLastTask || tasks.isEmpty)) {
       return _lastTask!;
+    }
     return _lastTask!;
   }
 }

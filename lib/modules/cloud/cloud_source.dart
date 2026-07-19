@@ -12,6 +12,7 @@ class CloudSource {
     required this.baseUrl,
     required this.rootPaths,
     this.rootRefs = const <CloudRemoteRef>[],
+    this.defaultTransferDirectory,
     this.enabled = true,
     this.allowSelfSignedCertificate = false,
     this.lastScannedAt,
@@ -27,6 +28,7 @@ class CloudSource {
   final String baseUrl;
   final List<String> rootPaths;
   final List<CloudRemoteRef> rootRefs;
+  final CloudRemoteRef? defaultTransferDirectory;
   final bool enabled;
   final bool allowSelfSignedCertificate;
   final DateTime? lastScannedAt;
@@ -58,11 +60,19 @@ class CloudSource {
         rootRefs: (json['rootRefs'] is List
                 ? json['rootRefs'] as List
                 : const <Object>[])
-            .whereType<Map>()
+            .whereType<Map<Object?, Object?>>()
             .map((value) => CloudRemoteRef.fromJson(
                   Map<String, dynamic>.from(value),
                 ))
             .toList(growable: false),
+        defaultTransferDirectory:
+            json['defaultTransferDirectory'] is Map<Object?, Object?>
+                ? CloudRemoteRef.fromJson(
+                    Map<String, dynamic>.from(
+                      json['defaultTransferDirectory'] as Map<Object?, Object?>,
+                    ),
+                  )
+                : null,
         enabled: json['enabled'] is bool ? json['enabled'] as bool : true,
         allowSelfSignedCertificate: json['allowSelfSignedCertificate'] is bool
             ? json['allowSelfSignedCertificate'] as bool
@@ -92,6 +102,7 @@ class CloudSource {
     String? baseUrl,
     List<String>? rootPaths,
     List<CloudRemoteRef>? rootRefs,
+    CloudRemoteRef? defaultTransferDirectory,
     bool? enabled,
     bool? allowSelfSignedCertificate,
     DateTime? lastScannedAt,
@@ -107,6 +118,8 @@ class CloudSource {
         baseUrl: baseUrl ?? this.baseUrl,
         rootPaths: rootPaths ?? this.rootPaths,
         rootRefs: rootRefs ?? this.rootRefs,
+        defaultTransferDirectory:
+            defaultTransferDirectory ?? this.defaultTransferDirectory,
         enabled: enabled ?? this.enabled,
         allowSelfSignedCertificate:
             allowSelfSignedCertificate ?? this.allowSelfSignedCertificate,
@@ -125,6 +138,8 @@ class CloudSource {
         'rootPaths': rootPaths,
         if (rootRefs.isNotEmpty)
           'rootRefs': rootRefs.map((value) => value.toJson()).toList(),
+        if (defaultTransferDirectory != null)
+          'defaultTransferDirectory': defaultTransferDirectory!.toJson(),
         'enabled': enabled,
         'allowSelfSignedCertificate': allowSelfSignedCertificate,
         'lastScannedAt': lastScannedAt?.toIso8601String(),
@@ -143,6 +158,7 @@ class CloudSource {
       other.baseUrl == baseUrl &&
       _listEquals(other.rootPaths, rootPaths) &&
       _listEquals(other.rootRefs, rootRefs) &&
+      other.defaultTransferDirectory == defaultTransferDirectory &&
       other.enabled == enabled &&
       other.allowSelfSignedCertificate == allowSelfSignedCertificate &&
       other.lastScannedAt == lastScannedAt &&
@@ -159,6 +175,7 @@ class CloudSource {
         baseUrl,
         Object.hashAll(rootPaths),
         Object.hashAll(rootRefs),
+        defaultTransferDirectory,
         enabled,
         allowSelfSignedCertificate,
         lastScannedAt,

@@ -72,7 +72,7 @@ class _MyPageState extends State<MyPage> {
                   leading: const Icon(Icons.cloud_outlined),
                   title:
                       Text('网盘数据源', style: TextStyle(fontFamily: fontFamily)),
-                  description: Text('添加和管理 OpenList 媒体来源',
+                  description: Text('添加和管理 OpenList、夸克网盘媒体来源',
                       style: TextStyle(fontFamily: fontFamily)),
                 ),
                 SettingsTile<void>.navigation(

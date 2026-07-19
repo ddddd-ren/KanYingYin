@@ -317,6 +317,7 @@ void main() {
         sourceId: '',
         sourceName: 'bad',
         isAvailable: true,
+        remoteId: 'id',
         remotePath: '',
       ),
       throwsArgumentError,

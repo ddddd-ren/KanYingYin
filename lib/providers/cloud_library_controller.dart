@@ -75,6 +75,7 @@ class CloudLibraryController extends ChangeNotifier {
       <String, Completer<void>>{};
 
   List<CloudSource> sources = <CloudSource>[];
+  final Set<String> _usableQuarkSourceIds = <String>{};
   bool loading = false;
   bool saving = false;
   bool testing = false;
@@ -97,6 +98,18 @@ class CloudLibraryController extends ChangeNotifier {
     _notify();
     try {
       sources = await _repository.getAll();
+      _usableQuarkSourceIds.clear();
+      for (final source in sources) {
+        if (source.type != CloudSourceType.quark || !source.enabled) continue;
+        try {
+          final credential = await _credentialStore.read(source.id);
+          if (credential?.cookie?.trim().isNotEmpty == true) {
+            _usableQuarkSourceIds.add(source.id);
+          }
+        } on Object {
+          // 单个来源凭据损坏不能阻止其他来源和本地媒体库工作。
+        }
+      }
       errorMessage = null;
     } catch (_) {
       errorMessage = '网盘数据源加载失败';
@@ -105,6 +118,9 @@ class CloudLibraryController extends ChangeNotifier {
       _notify();
     }
   }
+
+  bool isQuarkSourceUsable(String sourceId) =>
+      _usableQuarkSourceIds.contains(sourceId);
 
   Future<void> testConnection({
     required CloudSource source,
@@ -162,6 +178,18 @@ class CloudLibraryController extends ChangeNotifier {
   Future<List<CloudFileEntry>> browseDirectories(
       CloudSource source, String remotePath,
       {CloudCredential? credential}) async {
+    return browseRemoteDirectories(
+      source,
+      CloudRemoteRef(id: remotePath, path: remotePath),
+      credential: credential,
+    );
+  }
+
+  Future<List<CloudFileEntry>> browseRemoteDirectories(
+    CloudSource source,
+    CloudRemoteRef directory, {
+    CloudCredential? credential,
+  }) async {
     browsing = true;
     errorMessage = null;
     _notify();
@@ -173,9 +201,7 @@ class CloudLibraryController extends ChangeNotifier {
         await credentialStore.write(source.id, credential);
       }
       client = _providerRegistry.createClient(source, credentialStore);
-      final entries = await client.listDirectory(
-        CloudRemoteRef(id: remotePath, path: remotePath),
-      );
+      final entries = await client.listDirectory(directory);
       final directories = entries.where((entry) => entry.isDirectory).toList()
         ..sort((first, second) => first.name.compareTo(second.name));
       return directories;

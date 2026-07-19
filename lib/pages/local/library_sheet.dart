@@ -29,6 +29,7 @@ class LibrarySheetContent extends StatefulWidget {
     required this.onPlay,
     required this.onRefresh,
     this.onPlayCloud,
+    this.headerActions = const <Widget>[],
   });
 
   final LocalController controller;
@@ -39,6 +40,7 @@ class LibrarySheetContent extends StatefulWidget {
     MediaLibrarySeries series,
     MediaLibraryEpisode episode,
   )? onPlayCloud;
+  final List<Widget> headerActions;
 
   @override
   State<LibrarySheetContent> createState() => _LibrarySheetContentState();
@@ -194,6 +196,13 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
             style: tt.bodySmall?.copyWith(color: cs.outline),
           ),
           const SizedBox(height: 18),
+          if (widget.headerActions.isNotEmpty) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: widget.headerActions,
+            ),
+            const SizedBox(height: 8),
+          ],
           FilledButton.icon(
             onPressed: cloudSource == null
                 ? widget.controller.isIndexingLibrary
@@ -225,6 +234,7 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
               ],
             ),
           ),
+          ...widget.headerActions,
           IconButton(
             tooltip: '重新扫描',
             onPressed:

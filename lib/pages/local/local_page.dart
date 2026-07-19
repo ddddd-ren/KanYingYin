@@ -15,6 +15,8 @@ import 'package:kanyingyin/pages/local/local_directory_picker.dart';
 import 'package:kanyingyin/pages/local/library_sheet.dart';
 import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
 import 'package:kanyingyin/pages/local/tmdb_scrape_options_sheet.dart';
+import 'package:kanyingyin/pages/cloud/quark/quark_share_import_action.dart';
+import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/services/local_custom_cover_service.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/services/local_series_grouper.dart';
@@ -491,6 +493,11 @@ class _LocalPageState extends State<LocalPage>
             _playLibraryEpisode(series, episode);
           },
           onRefresh: () => _refreshLocalLibraryIndex(context),
+          headerActions: <Widget>[
+            QuarkShareImportAction(
+              controller: Modular.get<CloudLibraryController>(),
+            ),
+          ],
           onPlayCloud: (series, episode) async {
             final request = _cloudPlaybackNavigation.tryBegin();
             if (request == null) return;

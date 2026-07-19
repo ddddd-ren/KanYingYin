@@ -54,8 +54,17 @@ void main() {
     );
     expect(
       indexModule,
-      contains('minRecognizedVideoSizeBytesProvider: () =>\n'
-          '                Modular.get<MediaRecognitionSettings>().cloudMinSizeBytes'),
+      matches(
+        RegExp(
+          r'i\.addSingleton<CloudMediaIndexer>[\s\S]*?'
+          r'minRecognizedVideoSizeBytesProvider:\s*\(\)\s*=>\s*'
+          r'Modular\.get<MediaRecognitionSettings>\(\)\.cloudMinSizeBytes',
+        ),
+      ),
+    );
+    expect(
+      indexModule,
+      contains('mediaIndexer: Modular.get<CloudMediaIndexer>()'),
     );
     expect(
       indexModule,

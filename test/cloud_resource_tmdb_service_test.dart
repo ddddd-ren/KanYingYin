@@ -130,18 +130,79 @@ void main() {
     expect(record.tmdbId, 42);
     expect(record.title, '手动选择标题');
   });
+
+  test('自定义剧名成为 TMDB 查询词且不改变远程路径', () async {
+    final client = _FakeTmdbClient(
+      searches: const <TmdbMediaType, List<TmdbMetadata>>{},
+      detail: _candidate(TmdbMediaType.tv),
+    );
+    final harness = _service(client);
+    final target = _target(
+      path: '/影视/原目录',
+      name: '原目录',
+      kind: CloudResourceKind.directory,
+      customTitle: '自定义剧名',
+    );
+
+    await harness.service.searchCandidates(target);
+
+    expect(client.queries.first, '自定义剧名');
+    expect(target.remote.path, '/影视/原目录');
+  });
+
+  test('匹配和未匹配记录都保留自定义剧名', () async {
+    final matchingClient = _FakeTmdbClient(
+      searches: <TmdbMediaType, List<TmdbMetadata>>{
+        TmdbMediaType.tv: <TmdbMetadata>[_candidate(TmdbMediaType.tv)],
+      },
+      detail: _candidate(TmdbMediaType.tv),
+    );
+    final matching = _service(matchingClient);
+    final matchedTarget = _target(
+      path: '/影视/流浪地球',
+      name: '原目录',
+      kind: CloudResourceKind.directory,
+      customTitle: '流浪地球',
+    );
+
+    final outcome = await matching.service.match(matchedTarget);
+    expect(outcome.selected?.customTitle, '流浪地球');
+    expect(
+      (await matching.repository.get(matchedTarget.stableKey))?.customTitle,
+      '流浪地球',
+    );
+
+    final unmatchedClient = _FakeTmdbClient(
+      searches: const <TmdbMediaType, List<TmdbMetadata>>{},
+      detail: _candidate(TmdbMediaType.tv),
+    );
+    final unmatched = _service(unmatchedClient);
+    final unmatchedTarget = _target(
+      path: '/影视/未知',
+      name: '原目录',
+      kind: CloudResourceKind.directory,
+      customTitle: '未知剧名',
+    );
+    await unmatched.service.match(unmatchedTarget);
+    expect(
+      (await unmatched.repository.get(unmatchedTarget.stableKey))?.customTitle,
+      '未知剧名',
+    );
+  });
 }
 
 CloudResourceTmdbTarget _target({
   required String path,
   required String name,
   required CloudResourceKind kind,
+  String? customTitle,
 }) {
   return CloudResourceTmdbTarget(
     sourceId: 'source-a',
     remote: CloudRemoteRef(id: path, path: path),
     displayName: name,
     resourceKind: kind,
+    customTitle: customTitle,
   );
 }
 
@@ -205,6 +266,7 @@ class _FakeTmdbClient implements ITmdbClient {
   final Map<TmdbMediaType, List<TmdbMetadata>> searches;
   final TmdbMetadata detail;
   final List<TmdbMediaType> searchedTypes = <TmdbMediaType>[];
+  final List<String> queries = <String>[];
 
   @override
   Future<TmdbMetadata> details(
@@ -222,6 +284,7 @@ class _FakeTmdbClient implements ITmdbClient {
     String language = 'zh-CN',
   }) async {
     searchedTypes.add(mediaType);
+    queries.add(query);
     return searches[mediaType] ?? const <TmdbMetadata>[];
   }
 }

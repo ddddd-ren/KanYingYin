@@ -99,7 +99,52 @@ void main() {
     expect(fixture.client.queries, contains('Season 1'));
     expect(fixture.client.queries, isNot(contains('E01')));
   });
+
+  test('没有 TMDB Key 也能保存和恢复自定义剧名', () async {
+    final fixture = _Fixture(apiKey: '');
+    final target = _target();
+
+    await fixture.coordinator.saveCustomTitle(target, '  新剧名  ');
+    expect(
+      fixture.coordinator.records[target.stableKey]?.effectiveTitle,
+      '新剧名',
+    );
+    expect(fixture.client.searchCalls, 0);
+
+    await fixture.coordinator.clearCustomTitle(target);
+    expect(
+      fixture.coordinator.records[target.stableKey]?.customTitle,
+      isNull,
+    );
+    expect(fixture.client.searchCalls, 0);
+  });
+
+  test('失败状态更新不丢失自定义剧名', () async {
+    final fixture = _Fixture(
+      apiKey: 'key',
+      client: _FakeTmdbClient(throwOnSearch: true),
+    );
+    final target = _target();
+    await fixture.coordinator.saveCustomTitle(target, '新剧名');
+
+    await fixture.coordinator.loadAndSchedule(
+      _context(<CloudFileEntry>[
+        _directory('folder-a', '/影视/A', 'A'),
+      ]),
+    );
+
+    final stored = await fixture.repository.get(target.stableKey);
+    expect(stored?.status, CloudResourceTmdbStatus.failed);
+    expect(stored?.customTitle, '新剧名');
+  });
 }
+
+CloudResourceTmdbTarget _target() => const CloudResourceTmdbTarget(
+      sourceId: 'source-a',
+      remote: CloudRemoteRef(id: 'folder-a', path: '/影视/A'),
+      displayName: 'A',
+      resourceKind: CloudResourceKind.directory,
+    );
 
 CloudResourceDirectoryContext _context(
   List<CloudFileEntry> entries, {
@@ -171,9 +216,13 @@ class _Fixture {
 }
 
 class _FakeTmdbClient implements ITmdbClient {
-  _FakeTmdbClient({this.delay = Duration.zero});
+  _FakeTmdbClient({
+    this.delay = Duration.zero,
+    this.throwOnSearch = false,
+  });
 
   final Duration delay;
+  final bool throwOnSearch;
   final List<String> queries = <String>[];
   var searchCalls = 0;
   var concurrentCalls = 0;
@@ -202,6 +251,7 @@ class _FakeTmdbClient implements ITmdbClient {
         : maximumConcurrentCalls;
     try {
       if (delay > Duration.zero) await Future<void>.delayed(delay);
+      if (throwOnSearch) throw StateError('模拟 TMDB 失败');
       return const <TmdbMetadata>[];
     } finally {
       concurrentCalls--;

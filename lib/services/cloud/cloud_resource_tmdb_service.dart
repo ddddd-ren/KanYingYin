@@ -15,12 +15,19 @@ class CloudResourceTmdbTarget {
     required this.remote,
     required this.displayName,
     required this.resourceKind,
+    this.customTitle,
   });
 
   final String sourceId;
   final CloudRemoteRef remote;
   final String displayName;
   final CloudResourceKind resourceKind;
+  final String? customTitle;
+
+  String get queryDisplayName {
+    final custom = customTitle?.trim();
+    return custom == null || custom.isEmpty ? displayName : custom;
+  }
 
   String get stableKey => cloudResourceTmdbKey(
         sourceId: sourceId,
@@ -68,6 +75,7 @@ class CloudResourceTmdbService {
         displayName: target.displayName,
         resourceKind: target.resourceKind,
         checkedAt: _now(),
+        customTitle: target.customTitle,
       );
       await _repository.upsert(record);
       return const CloudResourceTmdbOutcome(candidates: <TmdbMetadata>[]);
@@ -131,6 +139,7 @@ class CloudResourceTmdbService {
       metadata: metadata,
       posterCachePath: posterCachePath,
       checkedAt: _now(),
+      customTitle: target.customTitle,
     );
     await _repository.upsert(record);
     await _syncIndex(target, metadata, posterCachePath);
@@ -163,7 +172,7 @@ class CloudResourceTmdbService {
     TmdbScrapeOptions options,
   ) async {
     final query = queryName(
-      target.displayName,
+      target.queryDisplayName,
       isDirectory: target.resourceKind == CloudResourceKind.directory,
     );
     final types = switch (options.mediaTypeMode) {

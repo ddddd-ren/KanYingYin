@@ -23,7 +23,6 @@ class CloudResourcePosterWall extends StatelessWidget {
     required this.collection,
     required this.scrapingKeys,
     this.subtitleVideoKeys = const <String>{},
-    required this.onOpenDirectory,
     required this.onOpenGroup,
     required this.onEditTitle,
     required this.onScrape,
@@ -34,7 +33,6 @@ class CloudResourcePosterWall extends StatelessWidget {
   final CloudResourceCollection collection;
   final Set<String> scrapingKeys;
   final Set<String> subtitleVideoKeys;
-  final CloudResourceEntryAction onOpenDirectory;
   final CloudResourceGroupAction onOpenGroup;
   final CloudResourceEntryAction onEditTitle;
   final CloudResourceEntryAction onScrape;
@@ -42,40 +40,12 @@ class CloudResourcePosterWall extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (collection.folders.isEmpty && collection.groups.isEmpty) {
+    if (collection.groups.isEmpty) {
       return const Center(
-        child: Text('当前目录没有符合识别条件的视频或文件夹'),
+        child: Text('该来源暂时没有符合识别条件的视频'),
       );
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (collection.folders.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-            child: Wrap(
-              key: const ValueKey<String>('cloud-folder-navigation'),
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final folder in collection.folders)
-                  ActionChip(
-                    avatar: const Icon(Icons.folder_outlined, size: 18),
-                    label: Text(folder.name),
-                    tooltip: '打开 ${folder.name}',
-                    onPressed: () => onOpenDirectory(folder),
-                  ),
-              ],
-            ),
-          ),
-        if (collection.groups.isEmpty)
-          const Expanded(
-            child: Center(child: Text('当前目录没有符合识别条件的视频')),
-          )
-        else
-          Expanded(child: _mediaGrid(context)),
-      ],
-    );
+    return _mediaGrid(context);
   }
 
   Widget _mediaGrid(BuildContext context) {

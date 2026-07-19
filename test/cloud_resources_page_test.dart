@@ -11,10 +11,12 @@ import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart'
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_poster_wall.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_page.dart';
+import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_indexer.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
@@ -33,7 +35,8 @@ void main() {
         home: CloudResourcesPage(controller: fixture.controller),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('还没有可用的网盘来源'), findsOneWidget);
     expect(find.text('添加 OpenList'), findsOneWidget);
@@ -41,7 +44,7 @@ void main() {
     fixture.controller.dispose();
   });
 
-  testWidgets('显示来源、文件夹和视频且不显示字幕', (tester) async {
+  testWidgets('显示来源和视频且隐藏文件夹与字幕文件', (tester) async {
     final fixture = await _PageFixture.create(
       source: const CloudSource(
         id: 'quark-source',
@@ -90,14 +93,19 @@ void main() {
 
     expect(find.text('网盘资源'), findsOneWidget);
     expect(find.text('夸克媒体库'), findsOneWidget);
-    expect(find.text('动漫'), findsOneWidget);
+    expect(find.text('动漫'), findsNothing);
     expect(find.text('第01集.mkv'), findsOneWidget);
     expect(find.text('第01集.ass'), findsNothing);
     expect(find.textContaining('700.0 MB'), findsOneWidget);
     expect(find.textContaining('2026-07-19'), findsOneWidget);
     expect(find.text('有字幕'), findsOneWidget);
     expect(find.text('无字幕'), findsNothing);
-    expect(find.widgetWithText(TextField, '搜索当前目录'), findsOneWidget);
+    expect(
+      find.widgetWithText(TextField, '搜索全部网盘资源'),
+      findsOneWidget,
+    );
+    expect(find.text('已汇总全部媒体根目录'), findsOneWidget);
+    expect(find.byTooltip('返回上级'), findsNothing);
     fixture.controller.dispose();
   });
 
@@ -229,9 +237,9 @@ void main() {
 
     expect(
       find.byKey(const ValueKey<String>('cloud-folder-navigation')),
-      findsOneWidget,
+      findsNothing,
     );
-    expect(find.text('子目录'), findsOneWidget);
+    expect(find.text('子目录'), findsNothing);
     expect(find.byType(ImmersiveMediaCard), findsNWidgets(2));
     expect(find.text('Show.S01E02.mkv'), findsNothing);
     expect(find.text('Show.S01E02.ass'), findsNothing);
@@ -244,13 +252,25 @@ void main() {
         matching: find.byType(ImmersiveMediaCard),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(
+      find.byKey(const ValueKey<String>('cloud-season-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey<String>('cloud-season-2')),
+      findsOneWidget,
+    );
+    expect(find.text('第 1 季'), findsOneWidget);
+    expect(find.text('第 2 季'), findsOneWidget);
     expect(find.text('S01E01'), findsOneWidget);
     expect(find.text('S01E02'), findsOneWidget);
     expect(find.text('S02E01'), findsOneWidget);
 
     await tester.tap(find.text('Show.S01E02.mkv'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(target?.remoteId, 'episode-2');
     expect(target?.remotePath, '/影视/Show.S01E02.mkv');
     expect(target?.subtitleRemoteId, 'subtitle-2');
@@ -353,9 +373,9 @@ void main() {
     );
     for (final tooltip in <String>[
       '自动整理当前来源',
-      '刮削当前目录',
+      '刮削当前来源',
       '移除当前来源',
-      '刷新当前目录',
+      '刷新当前来源',
     ]) {
       final button = find
           .ancestor(
@@ -428,7 +448,7 @@ void main() {
     fixture.controller.dispose();
   });
 
-  testWidgets('文件夹使用导航入口而独立视频使用媒体卡', (tester) async {
+  testWidgets('文件夹不显示且独立视频使用媒体卡', (tester) async {
     final collection = CloudResourceCollectionGrouper().group(
       sourceId: 'source',
       entries: const <CloudFileEntry>[
@@ -461,7 +481,6 @@ void main() {
             collection: collection,
             scrapingKeys: const <String>{},
             subtitleVideoKeys: const <String>{},
-            onOpenDirectory: (_) {},
             onOpenGroup: (_) {},
             onEditTitle: (_) {},
             onScrape: (_) {},
@@ -475,10 +494,10 @@ void main() {
     expect(find.byType(ImmersiveMediaCard), findsOneWidget);
     expect(
       find.byKey(const ValueKey<String>('cloud-folder-navigation')),
-      findsOneWidget,
+      findsNothing,
     );
-    expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
-    expect(find.text('普通目录'), findsOneWidget);
+    expect(find.byIcon(Icons.folder_outlined), findsNothing);
+    expect(find.text('普通目录'), findsNothing);
     expect(find.text('电影.mkv'), findsOneWidget);
   });
 
@@ -513,7 +532,6 @@ void main() {
               collection: collection,
               scrapingKeys: const <String>{},
               subtitleVideoKeys: const <String>{},
-              onOpenDirectory: (_) {},
               onOpenGroup: (_) {},
               onEditTitle: (_) {},
               onScrape: (_) {},
@@ -579,7 +597,6 @@ void main() {
             collection: collection,
             scrapingKeys: <String>{scrapingKey},
             subtitleVideoKeys: const <String>{},
-            onOpenDirectory: (_) {},
             onOpenGroup: (group) => playedId = group.anchor.id,
             onEditTitle: (_) {},
             onScrape: (_) {},
@@ -604,18 +621,18 @@ void main() {
     expect(playedId, second.id);
   });
 
-  testWidgets('进入已匹配文件夹显示系列头部', (tester) async {
-    final record = _matchedFolderRecord();
+  testWidgets('来源级页面不再显示目录系列头部', (tester) async {
+    final record = _matchedVideoRecord();
     final fixture = await _PageFixture.create(
       source: _quarkSource,
       entries: const <CloudFileEntry>[
         CloudFileEntry(
-          id: 'folder-fid',
-          remotePath: '/影视/动漫',
-          name: '动漫',
-          size: 0,
+          id: 'video-fid',
+          remotePath: '/影视/动漫.mkv',
+          name: '动漫.mkv',
+          size: 1024,
           modifiedAt: null,
-          isDirectory: true,
+          isDirectory: false,
         ),
       ],
       record: record,
@@ -625,14 +642,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(ActionChip, '动漫'));
-    await tester.pumpAndSettle();
-
     expect(
       find.byKey(const ValueKey<String>('cloud-series-header')),
-      findsOneWidget,
+      findsNothing,
     );
-    expect(find.text('系列简介'), findsOneWidget);
+    expect(find.text('中文片名'), findsOneWidget);
+    expect(find.text('已汇总全部媒体根目录'), findsOneWidget);
     fixture.controller.dispose();
   });
 
@@ -690,35 +705,35 @@ void main() {
       entries: const <CloudFileEntry>[
         CloudFileEntry(
           id: 'matched',
-          remotePath: '/影视/成功',
-          name: '成功',
-          size: 0,
+          remotePath: '/影视/成功.mkv',
+          name: '成功.mkv',
+          size: 100,
           modifiedAt: null,
-          isDirectory: true,
+          isDirectory: false,
         ),
         CloudFileEntry(
           id: 'pending',
-          remotePath: '/影视/待确认',
-          name: '待确认',
-          size: 0,
+          remotePath: '/影视/待确认.mkv',
+          name: '待确认.mkv',
+          size: 100,
           modifiedAt: null,
-          isDirectory: true,
+          isDirectory: false,
         ),
         CloudFileEntry(
           id: 'empty',
-          remotePath: '/影视/无结果',
-          name: '无结果',
-          size: 0,
+          remotePath: '/影视/无结果.mkv',
+          name: '无结果.mkv',
+          size: 100,
           modifiedAt: null,
-          isDirectory: true,
+          isDirectory: false,
         ),
         CloudFileEntry(
           id: 'failed',
-          remotePath: '/影视/失败',
-          name: '失败',
-          size: 0,
+          remotePath: '/影视/失败.mkv',
+          name: '失败.mkv',
+          size: 100,
           modifiedAt: null,
-          isDirectory: true,
+          isDirectory: false,
         ),
       ],
       tmdbCoordinator: coordinator,
@@ -728,7 +743,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('刮削当前目录'));
+    await tester.tap(find.byTooltip('刮削当前来源'));
     await tester.pumpAndSettle();
 
     expect(
@@ -742,7 +757,7 @@ void main() {
     fixture.controller.dispose();
   });
 
-  testWidgets('只含单集视频的季目录可刮削当前目录并提取系列名', (tester) async {
+  testWidgets('递归发现的单集视频可直接执行来源级刮削', (tester) async {
     final coordinator = _ManualTmdbCoordinator();
     final fixture = await _PageFixture.create(
       source: _quarkSource,
@@ -785,22 +800,27 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('弥留之国的爱丽丝'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('第一季'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('刮削当前目录'));
+    expect(find.text('Alice in Borderland'), findsOneWidget);
+    await tester.tap(find.byTooltip('刮削当前来源'));
     await tester.pumpAndSettle();
 
-    expect(coordinator.scrapedTarget?.remote.id, 'season-fid');
-    expect(coordinator.scrapedTarget?.remote.path, '/影视/弥留之国的爱丽丝/第一季');
-    expect(coordinator.scrapedTarget?.displayName, 'Alice in Borderland');
+    expect(coordinator.scrapedTarget?.remote.id, 'episode-fid');
     expect(
-        coordinator.scrapedTarget?.resourceKind, CloudResourceKind.directory);
+      coordinator.scrapedTarget?.remote.path,
+      '/影视/弥留之国的爱丽丝/第一季/Alice in Borderland S01E01.mkv',
+    );
+    expect(
+      coordinator.scrapedTarget?.displayName,
+      'Alice in Borderland S01E01.mkv',
+    );
+    expect(
+      coordinator.scrapedTarget?.resourceKind,
+      CloudResourceKind.standaloneVideo,
+    );
     fixture.controller.dispose();
   });
 
-  testWidgets('空的网盘子目录仍提示没有需要刮削的资源', (tester) async {
+  testWidgets('来源没有视频时提示没有需要刮削的资源', (tester) async {
     final coordinator = _ManualTmdbCoordinator();
     final fixture = await _PageFixture.create(
       source: _quarkSource,
@@ -824,12 +844,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('空目录'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('刮削当前目录'));
+    await tester.tap(find.byTooltip('刮削当前来源'));
     await tester.pump();
 
-    expect(find.text('当前目录没有需要刮削的资源'), findsOneWidget);
+    expect(find.text('当前来源没有需要刮削的资源'), findsOneWidget);
     expect(coordinator.scrapedTarget, isNull);
     fixture.controller.dispose();
   });
@@ -989,39 +1007,25 @@ class _PageFixture {
         CloudSourceType.quark: (_, __, ___) => resolvedClient,
       },
     );
+    final indexRepository = CloudMediaIndexRepository(
+      storage: MemoryCloudMediaIndexStorage(),
+    );
+    final minSizeProvider = minRecognizedVideoSizeBytesProvider ?? (() => 0);
     return _PageFixture(
       CloudResourcesController(
         repository: repository,
         credentialStore: credentials,
         providerRegistry: registry,
+        mediaIndexRepository: indexRepository,
+        mediaIndexer: CloudMediaIndexer(
+          repository: indexRepository,
+          minRecognizedVideoSizeBytesProvider: minSizeProvider,
+        ),
         tmdbCoordinator: tmdbCoordinator,
-        minRecognizedVideoSizeBytesProvider:
-            minRecognizedVideoSizeBytesProvider ?? () => 0,
+        minRecognizedVideoSizeBytesProvider: minSizeProvider,
       ),
     );
   }
-}
-
-CloudResourceTmdbRecord _matchedFolderRecord() {
-  return CloudResourceTmdbRecord.matched(
-    sourceId: 'quark-source',
-    remoteId: 'folder-fid',
-    remotePath: '/影视/动漫',
-    displayName: '动漫',
-    resourceKind: CloudResourceKind.directory,
-    metadata: TmdbMetadata(
-      id: 42,
-      mediaType: TmdbMediaType.tv,
-      title: '中文片名',
-      overview: '系列简介',
-      rating: 8.7,
-      releaseDate: '2025-01-01',
-      language: 'zh-CN',
-      matchedAt: DateTime.utc(2026, 7, 19),
-      matchConfidence: 1,
-    ),
-    checkedAt: DateTime.utc(2026, 7, 19),
-  );
 }
 
 CloudResourceTmdbRecord _matchedVideoRecord() {
@@ -1033,7 +1037,7 @@ CloudResourceTmdbRecord _matchedVideoRecord() {
     resourceKind: CloudResourceKind.standaloneVideo,
     metadata: TmdbMetadata(
       id: 42,
-      mediaType: TmdbMediaType.tv,
+      mediaType: TmdbMediaType.movie,
       title: '中文片名',
       overview: '系列简介',
       rating: 8.7,

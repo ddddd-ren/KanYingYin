@@ -69,6 +69,7 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
   int get completedCount => _completedCount;
   int get totalCount => _totalCount;
   bool get isScraping => _scrapingKeys.isNotEmpty;
+  TmdbScrapeOptions get options => _optionsProvider();
 
   Future<void> loadAndSchedule(CloudResourceDirectoryContext context) async {
     final generation = ++_generation;
@@ -109,14 +110,15 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
   }
 
   Future<CloudResourceTmdbOutcome> scrape(
-    CloudResourceTmdbTarget target,
-  ) async {
+    CloudResourceTmdbTarget target, {
+    TmdbScrapeOptions? options,
+  }) async {
     final apiKey = _requiredApiKey();
     return _tracked(target, () async {
       final service = await _serviceFor(apiKey);
       final outcome = await service.match(
         target,
-        options: _optionsProvider(),
+        options: options ?? _optionsProvider(),
       );
       await _refreshRecord(target);
       return outcome;
@@ -124,29 +126,31 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
   }
 
   Future<CloudResourceTmdbOutcome> rematch(
-    CloudResourceTmdbTarget target,
-  ) async {
+    CloudResourceTmdbTarget target, {
+    TmdbScrapeOptions? options,
+  }) async {
     final apiKey = _requiredApiKey();
     return _tracked(target, () async {
       final service = await _serviceFor(apiKey);
       return service.searchCandidates(
         target,
-        options: _optionsProvider(),
+        options: options ?? _optionsProvider(),
       );
     });
   }
 
   Future<CloudResourceTmdbRecord> select(
     CloudResourceTmdbTarget target,
-    TmdbMetadata candidate,
-  ) async {
+    TmdbMetadata candidate, {
+    TmdbScrapeOptions? options,
+  }) async {
     final apiKey = _requiredApiKey();
     return _tracked(target, () async {
       final service = await _serviceFor(apiKey);
       final record = await service.select(
         target,
         candidate,
-        options: _optionsProvider(),
+        options: options ?? _optionsProvider(),
       );
       _records[record.stableKey] = record;
       return record;

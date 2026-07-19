@@ -16,6 +16,17 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.17',
+    date: '2026-07-20',
+    isPrerelease: true,
+    changes: [
+      '本测试版的网盘扫描会从视频所在文件夹识别剧名和季度，支持“剧名 第2季”和“剧名/第二季”两种常见目录结构',
+      '支持第2季、第二季、Season 2 和 S02 等季度写法；文件名包含明确季号时以文件名为准，避免目录标错导致分集归错季度',
+      '只有数字集号的视频也能按剧集写入媒体库索引，TMDB 会使用识别出的剧名，并继续按季度显示对应海报和选集',
+      '所有识别只更新看影音中的索引和展示，不会修改网盘文件或目录；应用启动、本地媒体库和播放器保持原有行为',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.16',
     date: '2026-07-20',
     isPrerelease: true,

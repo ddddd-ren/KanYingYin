@@ -57,6 +57,17 @@ void main() {
     expect(changes, contains('不会修改网盘文件'));
   });
 
+  test('二点一十七说明按文件夹识别剧名和季度', () {
+    final entries = versionHistoryForCurrent('2.1.17');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('文件夹'));
+    expect(changes, contains('季度'));
+    expect(changes, contains('文件名'));
+    expect(changes, contains('不会修改网盘文件'));
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

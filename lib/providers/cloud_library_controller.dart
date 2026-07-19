@@ -199,28 +199,23 @@ class CloudLibraryController extends ChangeNotifier {
     saving = true;
     _notify();
     try {
-      await _repository.save(source);
-      if (credential != null &&
-          ((credential.username?.isNotEmpty ?? false) ||
-              (credential.password?.isNotEmpty ?? false))) {
+      final existingSource = await _repository.getById(source.id);
+      final normalizedSource = _providerRegistry.normalizeSource(source);
+      await _repository.save(normalizedSource);
+      if (credential != null) {
         final existing = await _credentialStore.read(source.id);
-        final username = credential.username?.isNotEmpty == true
-            ? credential.username
-            : existing?.username;
-        final password = credential.password?.isNotEmpty == true
-            ? credential.password
-            : existing?.password;
-        final credentialsChanged =
-            username != existing?.username || password != existing?.password;
-        await _credentialStore.write(
-          source.id,
-          CloudCredential(
-            username: username,
-            password: password,
-            cookie: existing?.cookie,
-            token: credentialsChanged ? null : existing?.token,
-          ),
+        final endpointUnchanged = existingSource == null ||
+            _providerRegistry.normalizeEndpoint(existingSource) ==
+                _providerRegistry.normalizeEndpoint(normalizedSource);
+        final merged = _providerRegistry.mergeCredential(
+          source: normalizedSource,
+          form: credential,
+          existing: existing,
+          endpointUnchanged: endpointUnchanged,
         );
+        if (!merged.isEmpty) {
+          await _credentialStore.write(source.id, merged);
+        }
       }
       await load();
     } finally {

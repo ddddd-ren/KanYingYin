@@ -25,9 +25,9 @@ void main() {
 
   test('日志脱敏隐藏请求头和常见凭据字段', () {
     final result = sanitizer.sanitize(
-      'Authorization: Bearer authorizationValue Cookie: cookieValue '
-      'token=tokenValue api_key=apiValue signature=signatureValue '
-      'password=passwordValue',
+      'Authorization: Bearer authorizationValue token=tokenValue '
+      'api_key=apiValue signature=signatureValue password=passwordValue '
+      'Cookie: cookieValue',
     );
 
     for (final secret in [
@@ -41,5 +41,18 @@ void main() {
       expect(result, isNot(contains(secret)));
     }
     expect('[REDACTED]'.allMatches(result), hasLength(6));
+  });
+
+  test('完整隐藏包含分号和空格的 Cookie 请求头', () {
+    const cookie =
+        'session=fixture-one; user_name=fixture user; __puus=fixture-three';
+    final result =
+        sanitizer.sanitize('Cookie: $cookie\nAccept: application/json');
+
+    expect(result, contains('Cookie: [REDACTED]'));
+    expect(result, contains('Accept: application/json'));
+    expect(result, isNot(contains('fixture-one')));
+    expect(result, isNot(contains('fixture user')));
+    expect(result, isNot(contains('fixture-three')));
   });
 }

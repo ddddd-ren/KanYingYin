@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.4',
+    date: '2026-07-19',
+    isPrerelease: true,
+    changes: [
+      '本测试版新增原生夸克网盘媒体库，可使用网页版 Cookie 添加数据源并选择媒体目录',
+      '夸克网盘中的视频和外部字幕可扫描到现有媒体库，并通过现有播放器在线播放',
+      '新增手动导入夸克分享，转存完成后会自动刷新媒体库',
+      'Cookie 保存在 Windows 安全存储中，OpenList 和本地媒体功能继续保留',
+      '应用启动、本地媒体库与现有播放器功能保持可用',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.3',
     date: '2026-07-19',
     isPrerelease: true,

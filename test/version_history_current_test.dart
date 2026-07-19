@@ -31,8 +31,8 @@ void main() {
     expect(versionHistoryForCurrent('9.9.9'), isEmpty);
   });
 
-  testWidgets('二点一点三更新弹窗明确显示测试版和更新内容', (tester) async {
-    final entries = versionHistoryForCurrent('2.1.3');
+  testWidgets('二点一点四更新弹窗明确显示测试版和更新内容', (tester) async {
+    final entries = versionHistoryForCurrent('2.1.4');
 
     expect(entries.single.isPrerelease, isTrue);
     expect(entries.single.releaseLabel, '测试版');
@@ -40,7 +40,7 @@ void main() {
       home: Scaffold(body: VersionChangelogContent(versions: entries)),
     ));
 
-    expect(find.text('v2.1.3  测试版  2026-07-19'), findsOneWidget);
+    expect(find.text('v2.1.4  测试版  2026-07-19'), findsOneWidget);
     for (final change in entries.single.changes) {
       expect(find.textContaining(change), findsOneWidget);
     }

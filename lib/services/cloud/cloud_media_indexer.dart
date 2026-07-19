@@ -9,11 +9,13 @@ import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_series_match_rule_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_path_parser.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_series_identity_resolver.dart';
 import 'package:kanyingyin/services/local_episode_parser.dart';
 import 'package:kanyingyin/services/local_subtitle_matcher.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
+import 'package:kanyingyin/utils/logger.dart';
 import 'package:path/path.dart' as p;
 
 class CloudScanCancellationToken {
@@ -60,6 +62,7 @@ class CloudMediaIndexer {
 
   CloudMediaIndexer({
     required CloudMediaIndexRepository repository,
+    CloudMediaPathParser? mediaPathParser,
     LocalEpisodeParser? episodeParser,
     CloudSeriesMatchRuleRepository? seriesMatchRuleRepository,
     CloudSeriesIdentityResolver? seriesIdentityResolver,
@@ -68,6 +71,7 @@ class CloudMediaIndexer {
   })  : assert(maxConcurrentDirectoryRequests >= 2 &&
             maxConcurrentDirectoryRequests <= 4),
         _repository = repository,
+        _mediaPathParser = mediaPathParser ?? CloudMediaPathParser(),
         _episodeParser = episodeParser ?? LocalEpisodeParser(),
         _seriesMatchRuleRepository = seriesMatchRuleRepository,
         _seriesIdentityResolver =
@@ -76,6 +80,7 @@ class CloudMediaIndexer {
             minRecognizedVideoSizeBytesProvider;
 
   final CloudMediaIndexRepository _repository;
+  final CloudMediaPathParser _mediaPathParser;
   final LocalEpisodeParser _episodeParser;
   final CloudSeriesMatchRuleRepository? _seriesMatchRuleRepository;
   final CloudSeriesIdentityResolver _seriesIdentityResolver;
@@ -258,7 +263,14 @@ class CloudMediaIndexer {
     }
     final items = <String, CloudMediaIndexItem>{};
     for (final entry in videos) {
-      final episode = _episodeParser.parse(entry.remotePath);
+      final pathMatch = _mediaPathParser.parse(entry.remotePath);
+      if (pathMatch.hasSeasonConflict) {
+        AppLogger().w(
+          '网盘剧集季号冲突，采用文件名季号：${entry.remotePath} '
+          '文件名=${pathMatch.seasonNumber} '
+          '文件夹=${pathMatch.folderSeasonNumber}',
+        );
+      }
       final subtitleRefs = _matchSubtitles(entry, subtitles);
       items[_normalizePath(entry.remotePath)] = CloudMediaIndexItem(
         sourceId: source.id,
@@ -267,14 +279,14 @@ class CloudMediaIndexer {
         name: entry.name,
         size: entry.size,
         modifiedAt: entry.modifiedAt,
-        seriesName: _seriesName(entry.name, episode?.seriesName),
-        seasonNumber: episode?.seasonNumber,
-        episodeNumber: episode?.episodeNumber,
+        seriesName: _seriesName(entry.name, pathMatch.seriesName),
+        seasonNumber: pathMatch.seasonNumber,
+        episodeNumber: pathMatch.episodeNumber,
         mediaType: _isSpecial(entry.remotePath)
             ? CloudMediaType.special
-            : episode == null
-                ? CloudMediaType.movie
-                : CloudMediaType.episode,
+            : pathMatch.isEpisode
+                ? CloudMediaType.episode
+                : CloudMediaType.movie,
         subtitlePaths: subtitleRefs.map((reference) => reference.path).toList(),
         subtitleRefs: subtitleRefs,
       );

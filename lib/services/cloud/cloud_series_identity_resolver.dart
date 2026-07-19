@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:kanyingyin/services/local_episode_parser.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_path_parser.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
 import 'package:path/path.dart' as p;
 
@@ -25,10 +25,10 @@ class CloudSeriesEpisodeIdentity {
 }
 
 class CloudSeriesIdentityResolver {
-  CloudSeriesIdentityResolver({LocalEpisodeParser? episodeParser})
-      : _episodeParser = episodeParser ?? LocalEpisodeParser();
+  CloudSeriesIdentityResolver({CloudMediaPathParser? mediaPathParser})
+      : _mediaPathParser = mediaPathParser ?? CloudMediaPathParser();
 
-  final LocalEpisodeParser _episodeParser;
+  final CloudMediaPathParser _mediaPathParser;
 
   CloudSeriesEpisodeIdentity? resolve({
     required String sourceId,
@@ -45,17 +45,18 @@ class CloudSeriesIdentityResolver {
         )) {
       return null;
     }
-    final episode = _episodeParser.parse(normalizedPath);
-    if (episode == null || episode.episodeNumber <= 0) return null;
-    final normalizedSeriesName = normalizeSeriesName(episode.seriesName);
+    final episode = _mediaPathParser.parse(normalizedPath);
+    if (!episode.isEpisode || episode.episodeNumber == null) return null;
+    final seriesName = episode.seriesName!.trim();
+    final normalizedSeriesName = normalizeSeriesName(seriesName);
     if (normalizedSeriesName.isEmpty) return null;
     return CloudSeriesEpisodeIdentity(
       sourceId: sourceId.trim(),
       parentPath: p.posix.dirname(normalizedPath),
-      seriesName: episode.seriesName.trim(),
+      seriesName: seriesName,
       normalizedSeriesName: normalizedSeriesName,
       seasonNumber: episode.seasonNumber,
-      episodeNumber: episode.episodeNumber,
+      episodeNumber: episode.episodeNumber!,
     );
   }
 

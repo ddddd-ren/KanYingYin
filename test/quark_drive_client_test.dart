@@ -128,6 +128,7 @@ void main() {
     expect(resource.headers['Cookie'], 'session=cookie-fixture');
     expect(resource.headers['Referer'], 'https://pan.quark.cn');
     expect(resource.headers['User-Agent'], isNotEmpty);
+    expect(resource.networkRoute, PlaybackNetworkRoute.direct);
   });
 }
 

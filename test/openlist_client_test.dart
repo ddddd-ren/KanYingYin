@@ -262,6 +262,10 @@ void main() {
       expect(file.name, '示例.mp4');
       expect(playback.uri.toString(), 'https://cdn.example.com/secret-link');
       expect(playback.headers['Referer'], 'https://drive.example.com/');
+      expect(
+        playback.networkRoute,
+        PlaybackNetworkRoute.inheritProxy,
+      );
       expect(api.requests.where((r) => r.path == '/api/fs/get'), hasLength(2));
       expect((await credentials.read(source.id))?.toJson().toString(),
           isNot(contains('secret-link')));

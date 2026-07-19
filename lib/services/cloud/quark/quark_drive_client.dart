@@ -120,6 +120,7 @@ class QuarkDriveClient implements CloudDriveClient {
     }
     return CloudPlaybackResource(
       uri: playback.uri,
+      networkRoute: PlaybackNetworkRoute.direct,
       headers: _requestPolicy.headersFor(
         playback.uri,
         cookie: cookie,

@@ -542,6 +542,172 @@ void main() {
       expect(progress.last.phase, CloudResourceAutoOrganizePhase.scraping);
       expect(progress.last.completedTargets, 4);
       expect(progress.last.totalTargets, 4);
+      expect(client.closeCount, 2);
+      fixture.controller.dispose();
+    });
+
+    test('自动批量整理跳过已匹配和七天内无结果并重试过期记录', () async {
+      final now = DateTime.now();
+      final records = <CloudResourceTmdbRecord>[
+        CloudResourceTmdbRecord.matched(
+          sourceId: 'source-a',
+          remoteId: 'cached-matched',
+          remotePath: '/影视/已匹配.mkv',
+          displayName: '已匹配.mkv',
+          resourceKind: CloudResourceKind.standaloneVideo,
+          metadata: _autoCandidate,
+          checkedAt: now,
+        ),
+        CloudResourceTmdbRecord.unmatched(
+          sourceId: 'source-a',
+          remoteId: 'recent-unmatched',
+          remotePath: '/影视/近期无结果.mkv',
+          displayName: '近期无结果.mkv',
+          resourceKind: CloudResourceKind.standaloneVideo,
+          checkedAt: now,
+        ),
+        CloudResourceTmdbRecord.unmatched(
+          sourceId: 'source-a',
+          remoteId: 'stale-unmatched',
+          remotePath: '/影视/过期无结果.mkv',
+          displayName: '过期无结果.mkv',
+          resourceKind: CloudResourceKind.standaloneVideo,
+          checkedAt: now.subtract(const Duration(days: 8)),
+        ),
+      ];
+      final coordinator = _SkippingAutoOrganizeTmdbCoordinator(records);
+      final client = _FakeCloudClient(
+        entriesById: <String, List<CloudFileEntry>>{
+          'root-fid': const <CloudFileEntry>[
+            CloudFileEntry(
+              id: 'cached-matched',
+              remotePath: '/影视/已匹配.mkv',
+              name: '已匹配.mkv',
+              size: 100,
+              modifiedAt: null,
+              isDirectory: false,
+            ),
+            CloudFileEntry(
+              id: 'recent-unmatched',
+              remotePath: '/影视/近期无结果.mkv',
+              name: '近期无结果.mkv',
+              size: 100,
+              modifiedAt: null,
+              isDirectory: false,
+            ),
+            CloudFileEntry(
+              id: 'stale-unmatched',
+              remotePath: '/影视/过期无结果.mkv',
+              name: '过期无结果.mkv',
+              size: 100,
+              modifiedAt: null,
+              isDirectory: false,
+            ),
+          ],
+        },
+      );
+      final fixture = await _Fixture.create(
+        sources: const <CloudSource>[
+          CloudSource(
+            id: 'source-a',
+            type: CloudSourceType.quark,
+            name: '夸克媒体库',
+            baseUrl: 'https://pan.quark.cn',
+            rootPaths: <String>['/影视'],
+            rootRefs: <CloudRemoteRef>[
+              CloudRemoteRef(id: 'root-fid', path: '/影视'),
+            ],
+          ),
+        ],
+        clients: <String, _FakeCloudClient>{'source-a': client},
+        tmdbCoordinator: coordinator,
+      );
+      await fixture.controller.load();
+
+      final summary = await fixture.controller.autoOrganizeSelectedSource();
+
+      expect(summary.skipped, 2);
+      expect(summary.noResult, 1);
+      expect(summary.matched, 0);
+      expect(summary.pending, 0);
+      expect(summary.failed, 0);
+      expect(coordinator.scrapedIds, <String>['stale-unmatched']);
+      expect(client.closeCount, 2);
+      fixture.controller.dispose();
+    });
+
+    test('没有 TMDB API Key 时不为自动整理再次读取网盘', () async {
+      final coordinator = _RecordingTmdbCoordinator();
+      final client = _FakeCloudClient();
+      final fixture = await _Fixture.create(
+        sources: const <CloudSource>[
+          CloudSource(
+            id: 'source-a',
+            type: CloudSourceType.quark,
+            name: '夸克媒体库',
+            baseUrl: 'https://pan.quark.cn',
+            rootPaths: <String>['/影视'],
+            rootRefs: <CloudRemoteRef>[
+              CloudRemoteRef(id: 'root-fid', path: '/影视'),
+            ],
+          ),
+        ],
+        clients: <String, _FakeCloudClient>{'source-a': client},
+        tmdbCoordinator: coordinator,
+      );
+      await fixture.controller.load();
+      final listedBefore = client.listed.length;
+
+      await expectLater(
+        fixture.controller.autoOrganizeSelectedSource(),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('请先在设置中填写 TMDB API Key'),
+          ),
+        ),
+      );
+
+      expect(client.listed, hasLength(listedBefore));
+      expect(client.closeCount, 1);
+      fixture.controller.dispose();
+    });
+
+    test('当前目录正在后台刮削时不启动自动整理扫描', () async {
+      final coordinator = _BusyAutoOrganizeTmdbCoordinator();
+      final client = _FakeCloudClient();
+      final fixture = await _Fixture.create(
+        sources: const <CloudSource>[
+          CloudSource(
+            id: 'source-a',
+            type: CloudSourceType.quark,
+            name: '夸克媒体库',
+            baseUrl: 'https://pan.quark.cn',
+            rootPaths: <String>['/影视'],
+            rootRefs: <CloudRemoteRef>[
+              CloudRemoteRef(id: 'root-fid', path: '/影视'),
+            ],
+          ),
+        ],
+        clients: <String, _FakeCloudClient>{'source-a': client},
+        tmdbCoordinator: coordinator,
+      );
+      await fixture.controller.load();
+      final listedBefore = client.listed.length;
+
+      await expectLater(
+        fixture.controller.autoOrganizeSelectedSource(),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('当前目录正在刮削'),
+          ),
+        ),
+      );
+
+      expect(client.listed, hasLength(listedBefore));
       fixture.controller.dispose();
     });
   });
@@ -688,6 +854,39 @@ class _AutoOrganizeTmdbCoordinator extends _RecordingTmdbCoordinator {
   }
 }
 
+class _SkippingAutoOrganizeTmdbCoordinator extends _RecordingTmdbCoordinator {
+  _SkippingAutoOrganizeTmdbCoordinator(List<CloudResourceTmdbRecord> records)
+      : cachedRecords = <String, CloudResourceTmdbRecord>{
+          for (final record in records) record.stableKey: record,
+        };
+
+  final Map<String, CloudResourceTmdbRecord> cachedRecords;
+  final List<String> scrapedIds = <String>[];
+
+  @override
+  bool get hasApiKey => true;
+
+  @override
+  Map<String, CloudResourceTmdbRecord> get records => cachedRecords;
+
+  @override
+  Future<CloudResourceTmdbOutcome> scrape(
+    CloudResourceTmdbTarget target, {
+    TmdbScrapeOptions? options,
+  }) async {
+    scrapedIds.add(target.remote.id);
+    return const CloudResourceTmdbOutcome(candidates: <TmdbMetadata>[]);
+  }
+}
+
+class _BusyAutoOrganizeTmdbCoordinator extends _RecordingTmdbCoordinator {
+  @override
+  bool get hasApiKey => true;
+
+  @override
+  bool get isScraping => true;
+}
+
 final _autoCandidate = TmdbMetadata(
   id: 42,
   mediaType: TmdbMediaType.movie,
@@ -704,13 +903,14 @@ class _FakeCloudClient implements CloudDriveClient {
 
   final Map<String, List<CloudFileEntry>> entriesById;
   final List<CloudRemoteRef> listed = <CloudRemoteRef>[];
+  int closeCount = 0;
 
   @override
   Future<void> authenticate(CloudSource source, CloudCredential credential) =>
       throw UnimplementedError();
 
   @override
-  Future<void> close() async {}
+  Future<void> close() async => closeCount++;
 
   @override
   Future<CloudFileEntry> getFile(CloudRemoteRef file) =>

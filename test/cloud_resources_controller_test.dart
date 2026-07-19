@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
+import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
@@ -10,7 +12,11 @@ import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
+import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
 void main() {
   group('CloudResourcesController', () {
@@ -391,8 +397,83 @@ void main() {
       );
       fixture.controller.dispose();
     });
+
+    test('生成结构化草稿并透传显式搜索和候选选择', () async {
+      final coordinator = _RecordingTmdbCoordinator();
+      final client = _FakeCloudClient(
+        entriesById: <String, List<CloudFileEntry>>{
+          'root-fid': const <CloudFileEntry>[
+            CloudFileEntry(
+              id: 'episode-fid',
+              remotePath: '/影视/Alice in Borderland S01E01.mkv',
+              name: 'Alice in Borderland S01E01.mkv',
+              size: 100,
+              modifiedAt: null,
+              isDirectory: false,
+            ),
+          ],
+        },
+      );
+      final fixture = await _Fixture.create(
+        sources: const <CloudSource>[
+          CloudSource(
+            id: 'source-a',
+            type: CloudSourceType.quark,
+            name: '夸克媒体库',
+            baseUrl: 'https://pan.quark.cn',
+            rootPaths: <String>['/影视'],
+            rootRefs: <CloudRemoteRef>[
+              CloudRemoteRef(id: 'root-fid', path: '/影视'),
+            ],
+          ),
+        ],
+        clients: <String, _FakeCloudClient>{'source-a': client},
+        tmdbCoordinator: coordinator,
+      );
+      await fixture.controller.load();
+      final episode = fixture.controller.entries.single;
+      await fixture.controller.saveCustomTitle(episode, '弥留之国的爱丽丝');
+
+      final draft = fixture.controller.tmdbDraftFor(episode);
+      expect(draft.searchTitle, '弥留之国的爱丽丝');
+      expect(draft.seasonNumber, 1);
+      expect(draft.episodeNumber, 1);
+
+      const request = CloudResourceTmdbSearchRequest(
+        queryTitle: 'Alice in Borderland',
+        queryYear: 2020,
+        mediaTypeMode: TmdbMediaTypeMode.tv,
+        options: TmdbScrapeOptions.defaults(),
+      );
+      await fixture.controller.searchTmdb(episode, request);
+      expect(coordinator.searchRequest, same(request));
+
+      final candidate = TmdbRankedCandidate(
+        metadata: TmdbMetadata(
+          id: 42,
+          mediaType: TmdbMediaType.tv,
+          title: '弥留之国的爱丽丝',
+          language: 'zh-CN',
+          matchedAt: _matchedAt,
+          matchConfidence: 1,
+        ),
+        score: 1,
+        titleMatched: true,
+        yearMatched: true,
+        typeMatched: true,
+      );
+      await fixture.controller.applyTmdbCandidate(
+        episode,
+        candidate,
+        options: const TmdbScrapeOptions.defaults(),
+      );
+      expect(coordinator.appliedCandidate, same(candidate));
+      fixture.controller.dispose();
+    });
   });
 }
+
+final _matchedAt = DateTime.utc(2026, 7, 19);
 
 class _Fixture {
   const _Fixture({required this.controller, required this.clients});
@@ -443,10 +524,48 @@ class _RecordingTmdbCoordinator extends CloudResourceTmdbCoordinator {
 
   final List<CloudResourceDirectoryContext> contexts =
       <CloudResourceDirectoryContext>[];
+  CloudResourceTmdbSearchRequest? searchRequest;
+  TmdbRankedCandidate? appliedCandidate;
 
   @override
   Future<void> loadAndSchedule(CloudResourceDirectoryContext context) async {
     contexts.add(context);
+  }
+
+  @override
+  Future<CloudResourceTmdbSearchOutcome> searchPrepared(
+    CloudResourceTmdbTarget target,
+    CloudResourceTmdbSearchRequest request,
+  ) async {
+    searchRequest = request;
+    return const CloudResourceTmdbSearchOutcome(
+      ranked: TmdbRankedResult(
+        candidates: <TmdbRankedCandidate>[],
+        shouldAutoMatch: false,
+      ),
+    );
+  }
+
+  @override
+  Future<CloudResourceTmdbSelectionOutcome> selectPrepared(
+    CloudResourceTmdbTarget target,
+    TmdbRankedCandidate candidate, {
+    required TmdbScrapeOptions options,
+  }) async {
+    appliedCandidate = candidate;
+    return CloudResourceTmdbSelectionOutcome(
+      record: CloudResourceTmdbRecord.matched(
+        sourceId: target.sourceId,
+        remoteId: target.remote.id,
+        remotePath: target.remote.path,
+        displayName: target.displayName,
+        resourceKind: target.resourceKind,
+        metadata: candidate.metadata,
+        checkedAt: _matchedAt,
+      ),
+      posterCached: true,
+      indexSynced: true,
+    );
   }
 }
 

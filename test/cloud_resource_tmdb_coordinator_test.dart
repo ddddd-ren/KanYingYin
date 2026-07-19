@@ -6,9 +6,12 @@ import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
 void main() {
   test('TMDB Key 缺失时只读缓存不发请求', () async {
@@ -137,6 +140,48 @@ void main() {
     expect(stored?.status, CloudResourceTmdbStatus.failed);
     expect(stored?.customTitle, '新剧名');
   });
+
+  test('选择后索引未同步会在再次加载资源目录时重试', () async {
+    final repository = CloudResourceTmdbRepository(
+      storage: MemoryCloudResourceTmdbStorage(),
+    );
+    final service = _RetryTmdbService(repository);
+    final coordinator = CloudResourceTmdbCoordinator(
+      repository: repository,
+      serviceFactory: (_) => service,
+      apiKeyProvider: () => 'key',
+      now: () => DateTime.utc(2026, 7, 19),
+    );
+    final target = _target();
+    final candidate = TmdbRankedCandidate(
+      metadata: TmdbMetadata(
+        id: 42,
+        mediaType: TmdbMediaType.tv,
+        title: '标题',
+        language: 'zh-CN',
+        matchedAt: DateTime.utc(2026, 7, 19),
+        matchConfidence: 1,
+      ),
+      score: 1,
+      titleMatched: true,
+      yearMatched: false,
+      typeMatched: true,
+    );
+
+    final outcome = await coordinator.selectPrepared(
+      target,
+      candidate,
+      options: const TmdbScrapeOptions.defaults(),
+    );
+    expect(outcome.indexSynced, isFalse);
+
+    await coordinator.loadAndSchedule(
+      _context(<CloudFileEntry>[
+        _directory('folder-a', '/影视/A', 'A'),
+      ]),
+    );
+    expect(service.syncCalls, 1);
+  });
 }
 
 CloudResourceTmdbTarget _target() => const CloudResourceTmdbTarget(
@@ -256,5 +301,52 @@ class _FakeTmdbClient implements ITmdbClient {
     } finally {
       concurrentCalls--;
     }
+  }
+}
+
+class _RetryTmdbService extends CloudResourceTmdbService {
+  _RetryTmdbService(this.repository)
+      : super(
+          repository: repository,
+          indexRepository: CloudMediaIndexRepository(
+            storage: MemoryCloudMediaIndexStorage(),
+          ),
+          client: _FakeTmdbClient(),
+          now: (() => DateTime.utc(2026, 7, 19)),
+        );
+
+  final CloudResourceTmdbRepository repository;
+  var syncCalls = 0;
+
+  @override
+  Future<CloudResourceTmdbSelectionOutcome> selectWithOutcome(
+    CloudResourceTmdbTarget target,
+    TmdbMetadata candidate, {
+    TmdbScrapeOptions options = const TmdbScrapeOptions.defaults(),
+  }) async {
+    final record = CloudResourceTmdbRecord.matched(
+      sourceId: target.sourceId,
+      remoteId: target.remote.id,
+      remotePath: target.remote.path,
+      displayName: target.displayName,
+      resourceKind: target.resourceKind,
+      metadata: candidate,
+      checkedAt: DateTime.utc(2026, 7, 19),
+    );
+    await repository.upsert(record);
+    return CloudResourceTmdbSelectionOutcome(
+      record: record,
+      posterCached: true,
+      indexSynced: false,
+    );
+  }
+
+  @override
+  Future<bool> syncRecordToIndex(
+    CloudResourceTmdbTarget target,
+    CloudResourceTmdbRecord record,
+  ) async {
+    syncCalls++;
+    return true;
   }
 }

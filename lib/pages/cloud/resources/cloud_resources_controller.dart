@@ -8,12 +8,15 @@ import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_name_parser.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
 import 'package:kanyingyin/services/local_episode_parser.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:path/path.dart' as p;
 
@@ -307,6 +310,38 @@ class CloudResourcesController extends ChangeNotifier {
 
   CloudResourceTmdbRecord? tmdbRecordFor(CloudFileEntry entry) {
     return tmdbRecords[tmdbTargetFor(entry).stableKey];
+  }
+
+  TmdbMatchDraft tmdbDraftFor(CloudFileEntry entry) {
+    final record = tmdbRecordFor(entry);
+    return const CloudMediaNameParser().parse(
+      originalName: entry.name,
+      isDirectory: entry.isDirectory,
+      preferredTitle: record?.customTitle ?? record?.title,
+    );
+  }
+
+  Future<CloudResourceTmdbSearchOutcome> searchTmdb(
+    CloudFileEntry entry,
+    CloudResourceTmdbSearchRequest request,
+  ) {
+    final coordinator = _tmdbCoordinator;
+    if (coordinator == null) throw StateError('TMDB 刮削服务不可用');
+    return coordinator.searchPrepared(tmdbTargetFor(entry), request);
+  }
+
+  Future<CloudResourceTmdbSelectionOutcome> applyTmdbCandidate(
+    CloudFileEntry entry,
+    TmdbRankedCandidate candidate, {
+    required TmdbScrapeOptions options,
+  }) {
+    final coordinator = _tmdbCoordinator;
+    if (coordinator == null) throw StateError('TMDB 刮削服务不可用');
+    return coordinator.selectPrepared(
+      tmdbTargetFor(entry),
+      candidate,
+      options: options,
+    );
   }
 
   Future<CloudResourceTmdbOutcome> scrapeTmdb(

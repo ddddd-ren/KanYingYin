@@ -8,8 +8,10 @@ import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
 typedef CloudResourceTmdbServiceFactory = FutureOr<CloudResourceTmdbService>
@@ -54,6 +56,8 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
   final Map<String, CloudResourceTmdbRecord> _records =
       <String, CloudResourceTmdbRecord>{};
   final Set<String> _scrapingKeys = <String>{};
+  final Map<String, CloudResourceTmdbTarget> _pendingIndexSyncTargets =
+      <String, CloudResourceTmdbTarget>{};
 
   int _generation = 0;
   int _completedCount = 0;
@@ -85,6 +89,8 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
 
     final apiKey = _apiKeyProvider().trim();
     if (apiKey.isEmpty) return;
+    final service = await _serviceFor(apiKey);
+    await _retryPendingIndexSync(context, service);
     final targets = _targetsToSchedule(context, _now());
     _totalCount = targets.length;
     if (targets.isEmpty) {
@@ -139,6 +145,35 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
     });
   }
 
+  Future<CloudResourceTmdbSearchOutcome> searchPrepared(
+    CloudResourceTmdbTarget target,
+    CloudResourceTmdbSearchRequest request,
+  ) async {
+    final apiKey = _requiredApiKey();
+    return _tracked(target, () async {
+      final service = await _serviceFor(apiKey);
+      return service.searchPrepared(target, request);
+    });
+  }
+
+  Future<CloudResourceTmdbSelectionOutcome> selectPrepared(
+    CloudResourceTmdbTarget target,
+    TmdbRankedCandidate candidate, {
+    required TmdbScrapeOptions options,
+  }) async {
+    final apiKey = _requiredApiKey();
+    return _tracked(target, () async {
+      final service = await _serviceFor(apiKey);
+      final outcome = await service.selectWithOutcome(
+        target,
+        candidate.metadata,
+        options: options,
+      );
+      _rememberSelection(target, outcome);
+      return outcome;
+    });
+  }
+
   Future<CloudResourceTmdbRecord> select(
     CloudResourceTmdbTarget target,
     TmdbMetadata candidate, {
@@ -147,14 +182,50 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
     final apiKey = _requiredApiKey();
     return _tracked(target, () async {
       final service = await _serviceFor(apiKey);
-      final record = await service.select(
+      final outcome = await service.selectWithOutcome(
         target,
         candidate,
         options: options ?? _optionsProvider(),
       );
-      _records[record.stableKey] = record;
-      return record;
+      _rememberSelection(target, outcome);
+      return outcome.record;
     });
+  }
+
+  void _rememberSelection(
+    CloudResourceTmdbTarget target,
+    CloudResourceTmdbSelectionOutcome outcome,
+  ) {
+    _records[outcome.record.stableKey] = outcome.record;
+    if (outcome.indexSynced) {
+      _pendingIndexSyncTargets.remove(target.stableKey);
+    } else {
+      _pendingIndexSyncTargets[target.stableKey] = target;
+    }
+  }
+
+  Future<void> _retryPendingIndexSync(
+    CloudResourceDirectoryContext context,
+    CloudResourceTmdbService service,
+  ) async {
+    if (_pendingIndexSyncTargets.isEmpty) return;
+    final visibleKeys = context.entries
+        .map(
+          (entry) => cloudResourceTmdbKey(
+            sourceId: context.source.id,
+            remoteId: entry.id,
+            remotePath: entry.remotePath,
+          ),
+        )
+        .toSet();
+    for (final key in visibleKeys) {
+      final target = _pendingIndexSyncTargets[key];
+      final record = _records[key];
+      if (target == null || record == null) continue;
+      if (await service.syncRecordToIndex(target, record)) {
+        _pendingIndexSyncTargets.remove(key);
+      }
+    }
   }
 
   Future<CloudResourceTmdbRecord> saveCustomTitle(

@@ -20,6 +20,7 @@ class CloudResourceTmdbTarget {
     required this.displayName,
     required this.resourceKind,
     this.customTitle,
+    this.size,
   });
 
   final String sourceId;
@@ -27,6 +28,7 @@ class CloudResourceTmdbTarget {
   final String displayName;
   final CloudResourceKind resourceKind;
   final String? customTitle;
+  final int? size;
 
   String get queryDisplayName {
     final custom = customTitle?.trim();

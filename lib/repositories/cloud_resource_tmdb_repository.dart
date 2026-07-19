@@ -99,6 +99,17 @@ class CloudResourceTmdbRepository {
     });
   }
 
+  Future<void> upsertAll(Iterable<CloudResourceTmdbRecord> updates) {
+    return _mutationLock.synchronized(() async {
+      final records = await _getAll();
+      final byKey = <String, CloudResourceTmdbRecord>{
+        for (final record in records) record.stableKey: record,
+        for (final record in updates) record.stableKey: record,
+      };
+      await _write(byKey.values.toList(growable: false));
+    });
+  }
+
   Future<void> removeSource(String sourceId) {
     return _mutationLock.synchronized(() async {
       final records = await _getAll();

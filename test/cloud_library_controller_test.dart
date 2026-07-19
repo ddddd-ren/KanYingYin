@@ -4,9 +4,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
+import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
+import 'package:kanyingyin/modules/cloud/cloud_series_match_rule.dart';
+import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
+import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
+import 'package:kanyingyin/repositories/cloud_series_match_rule_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
@@ -593,9 +598,28 @@ void main() {
       const {'/': <CloudFileEntry>[]},
       const ['/'],
     );
+    final tmdbRepository = CloudResourceTmdbRepository(
+      storage: MemoryCloudResourceTmdbStorage(),
+    );
+    await tmdbRepository.upsert(
+      CloudResourceTmdbRecord.unchecked(
+        sourceId: source.id,
+        remoteId: 'episode',
+        remotePath: '/Show/Show.S01E01.mkv',
+        displayName: 'Show.S01E01.mkv',
+        resourceKind: CloudResourceKind.standaloneVideo,
+        checkedAt: DateTime.utc(2026, 7, 20),
+      ),
+    );
+    final ruleRepository = CloudSeriesMatchRuleRepository(
+      storage: MemoryCloudSeriesMatchRuleStorage(),
+    );
+    await ruleRepository.upsert(_seriesRule(source.id));
     final controller = CloudLibraryController(
       repository: repository,
       mediaIndexRepository: indexRepository,
+      resourceTmdbRepository: tmdbRepository,
+      seriesMatchRuleRepository: ruleRepository,
       posterCacheCleaner: (_) async {},
       subtitleCacheCleaner: (_) async {},
     );
@@ -604,9 +628,14 @@ void main() {
     await expectLater(controller.delete(source.id), throwsStateError);
 
     expect(controller.deleting, isFalse);
-    expect(controller.errorMessage, '删除网盘数据源失败，原有媒体索引已恢复');
+    expect(
+      controller.errorMessage,
+      '删除网盘数据源失败，原有索引、刮削信息和系列规则已恢复',
+    );
     expect(controller.sources, contains(source));
     expect(await indexRepository.getBySource(source.id), hasLength(1));
+    expect(await tmdbRepository.getBySource(source.id), hasLength(1));
+    expect(await ruleRepository.getBySource(source.id), hasLength(1));
   });
 
   test('删除来源先清理目标索引和两类缓存且保留其他来源', () async {
@@ -636,11 +665,17 @@ void main() {
         const ['/'],
       );
     }
+    final ruleRepository = CloudSeriesMatchRuleRepository(
+      storage: MemoryCloudSeriesMatchRuleStorage(),
+    );
+    await ruleRepository.upsert(_seriesRule(source.id));
+    await ruleRepository.upsert(_seriesRule(other.id));
     final cleanups = <String>[];
     final controller = CloudLibraryController(
       repository: repository,
       credentialStore: credentialStore,
       mediaIndexRepository: indexRepository,
+      seriesMatchRuleRepository: ruleRepository,
       posterCacheCleaner: (sourceId) async {
         expect(await indexRepository.getBySource(sourceId), isEmpty);
         cleanups.add('poster:$sourceId');
@@ -656,8 +691,10 @@ void main() {
     expect(cleanups, ['poster:${source.id}', 'subtitle:${source.id}']);
     expect(await repository.getById(source.id), isNull);
     expect(await indexRepository.getBySource(source.id), isEmpty);
+    expect(await ruleRepository.getBySource(source.id), isEmpty);
     expect(await repository.getById(other.id), other);
     expect(await indexRepository.getBySource(other.id), hasLength(1));
+    expect(await ruleRepository.getBySource(other.id), hasLength(1));
     expect(controller.errorMessage, isNull);
   });
 
@@ -726,6 +763,21 @@ CloudMediaIndexItem _indexItem(String sourceId) => CloudMediaIndexItem(
       seasonNumber: 1,
       episodeNumber: 1,
       mediaType: CloudMediaType.episode,
+    );
+
+CloudSeriesMatchRule _seriesRule(String sourceId) => CloudSeriesMatchRule(
+      sourceId: sourceId,
+      parentPath: '/Show',
+      normalizedSeriesName: 'show',
+      metadata: TmdbMetadata(
+        id: 42,
+        mediaType: TmdbMediaType.tv,
+        title: '剧集',
+        language: 'zh-CN',
+        matchedAt: DateTime.utc(2026, 7, 20),
+        matchConfidence: 1,
+      ),
+      updatedAt: DateTime.utc(2026, 7, 20),
     );
 
 class _FailingCloudMediaIndexStorage extends MemoryCloudMediaIndexStorage {

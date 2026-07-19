@@ -57,6 +57,26 @@ void main() {
       contains('minRecognizedVideoSizeBytesProvider: () =>\n'
           '                Modular.get<MediaRecognitionSettings>().cloudMinSizeBytes'),
     );
+    expect(
+      indexModule,
+      contains('i.addSingleton<CloudSeriesMatchRuleRepository>('),
+    );
+    expect(indexModule, contains('i.addSingleton<CloudSeriesMatchService>('));
+    expect(
+      indexModule,
+      matches(
+        RegExp(
+          r'seriesMatchRuleRepository:\s+'
+          r'Modular\.get<CloudSeriesMatchRuleRepository>\(\)',
+        ),
+      ),
+    );
+    expect(
+      indexModule,
+      contains(
+        'seriesMatchService: Modular.get<CloudSeriesMatchService>()',
+      ),
+    );
   });
 
   test('网盘部分或全部扫描失败时转换为强类型异常', () {

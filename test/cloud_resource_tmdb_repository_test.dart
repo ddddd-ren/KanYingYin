@@ -61,6 +61,73 @@ void main() {
     expect(stored?.tmdbId, original.tmdbId);
     expect(stored?.stableKey, original.stableKey);
   });
+
+  test('批量更新在一次写入中保存全部记录', () async {
+    final storage = _RecordingTmdbStorage();
+    final repository = CloudResourceTmdbRepository(storage: storage);
+    final first = _record('source-a', 'first', '/first');
+    final second = _record('source-a', 'second', '/second');
+
+    await repository.upsertAll(<CloudResourceTmdbRecord>[first, second]);
+
+    expect(storage.writeCount, 1);
+    expect(await repository.get(first.stableKey), first);
+    expect(await repository.get(second.stableKey), second);
+  });
+
+  test('批量写入失败时不会留下部分记录', () async {
+    final original = _record('source-a', 'original', '/original');
+    final storage = _RecordingTmdbStorage(
+      initialRecords: <Map<String, Object?>>[original.toJson()],
+      failNextWrite: true,
+    );
+    final repository = CloudResourceTmdbRepository(storage: storage);
+
+    await expectLater(
+      repository.upsertAll(<CloudResourceTmdbRecord>[
+        _record('source-a', 'first', '/first'),
+        _record('source-a', 'second', '/second'),
+      ]),
+      throwsStateError,
+    );
+
+    expect(await repository.getBySource('source-a'), <CloudResourceTmdbRecord>[
+      original,
+    ]);
+  });
+}
+
+class _RecordingTmdbStorage implements CloudResourceTmdbStorage {
+  _RecordingTmdbStorage({
+    List<Map<String, Object?>> initialRecords = const <Map<String, Object?>>[],
+    this.failNextWrite = false,
+  }) : _records = initialRecords
+            .map((record) => Map<String, Object?>.from(record))
+            .toList();
+
+  List<Map<String, Object?>> _records;
+  bool failNextWrite;
+  int writeCount = 0;
+
+  @override
+  Object get synchronizationIdentity => this;
+
+  @override
+  Future<List<Map<String, Object?>>> read() async => _records
+      .map((record) => Map<String, Object?>.from(record))
+      .toList(growable: false);
+
+  @override
+  Future<void> write(List<Map<String, Object?>> records) async {
+    writeCount++;
+    if (failNextWrite) {
+      failNextWrite = false;
+      throw StateError('模拟批量写入失败');
+    }
+    _records = records
+        .map((record) => Map<String, Object?>.from(record))
+        .toList(growable: false);
+  }
 }
 
 CloudResourceTmdbRecord _matchedRecord() => CloudResourceTmdbRecord.matched(

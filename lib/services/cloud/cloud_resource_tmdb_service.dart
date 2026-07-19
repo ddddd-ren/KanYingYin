@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
@@ -6,6 +8,7 @@ import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_poster_cache.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_name_parser.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
@@ -51,24 +54,40 @@ class CloudResourceTmdbService {
     required ITmdbClient client,
     CloudPosterCache? posterCache,
     DateTime Function()? now,
+    Duration searchCacheTtl = const Duration(minutes: 10),
+    int maximumCachedSearches = 50,
   })  : _repository = repository,
         _indexRepository = indexRepository,
         _client = client,
         _posterCache = posterCache,
-        _now = now ?? DateTime.now;
+        _now = now ?? DateTime.now,
+        _searchCacheTtl = searchCacheTtl,
+        _maximumCachedSearches = maximumCachedSearches {
+    if (maximumCachedSearches <= 0) {
+      throw ArgumentError.value(
+        maximumCachedSearches,
+        'maximumCachedSearches',
+      );
+    }
+  }
 
   final CloudResourceTmdbRepository _repository;
   final CloudMediaIndexRepository _indexRepository;
   final ITmdbClient _client;
   final CloudPosterCache? _posterCache;
   final DateTime Function() _now;
+  final Duration _searchCacheTtl;
+  final int _maximumCachedSearches;
+  final LinkedHashMap<String, _CachedSearch> _searchCache =
+      LinkedHashMap<String, _CachedSearch>();
 
   Future<CloudResourceTmdbOutcome> match(
     CloudResourceTmdbTarget target, {
     TmdbScrapeOptions options = const TmdbScrapeOptions.defaults(),
   }) async {
-    final search = await _search(target, options);
-    if (search.candidates.isEmpty) {
+    final request = _requestFor(target, options);
+    final search = await searchPrepared(target, request);
+    if (search.ranked.candidates.isEmpty) {
       final record = CloudResourceTmdbRecord.unmatched(
         sourceId: target.sourceId,
         remoteId: target.remote.id,
@@ -82,21 +101,22 @@ class CloudResourceTmdbService {
       return const CloudResourceTmdbOutcome(candidates: <TmdbMetadata>[]);
     }
 
-    final parsed = _parseQuery(search.query);
-    final result = const TmdbMatcher().choose(
-      queryTitle: parsed.title,
-      queryYear: parsed.year,
-      expectedType: search.mediaType,
-      candidates: search.candidates,
-      minimumScore: options.minimumScore,
-      minimumLead: options.minimumLead,
-    );
-    if (!result.shouldAutoMatch || result.best == null) {
-      return CloudResourceTmdbOutcome(candidates: search.candidates);
+    if (!search.ranked.shouldAutoMatch || search.ranked.best == null) {
+      return CloudResourceTmdbOutcome(
+        candidates: search.ranked.candidates
+            .map((candidate) => candidate.metadata)
+            .toList(growable: false),
+      );
     }
-    final selected = await select(target, result.best!, options: options);
+    final selected = await select(
+      target,
+      search.ranked.best!.metadata,
+      options: options,
+    );
     return CloudResourceTmdbOutcome(
-      candidates: search.candidates,
+      candidates: search.ranked.candidates
+          .map((candidate) => candidate.metadata)
+          .toList(growable: false),
       selected: selected,
     );
   }
@@ -105,8 +125,51 @@ class CloudResourceTmdbService {
     CloudResourceTmdbTarget target, {
     TmdbScrapeOptions options = const TmdbScrapeOptions.defaults(),
   }) async {
-    final search = await _search(target, options);
-    return CloudResourceTmdbOutcome(candidates: search.candidates);
+    final search = await searchPrepared(target, _requestFor(target, options));
+    return CloudResourceTmdbOutcome(
+      candidates: search.ranked.candidates
+          .map((candidate) => candidate.metadata)
+          .toList(growable: false),
+    );
+  }
+
+  Future<CloudResourceTmdbSearchOutcome> searchPrepared(
+    CloudResourceTmdbTarget target,
+    CloudResourceTmdbSearchRequest request,
+  ) async {
+    final query = request.queryTitle.trim();
+    if (query.isEmpty) {
+      throw ArgumentError.value(request.queryTitle, 'queryTitle');
+    }
+    final types = switch (request.mediaTypeMode) {
+      TmdbMediaTypeMode.movie => const <TmdbMediaType>[TmdbMediaType.movie],
+      TmdbMediaTypeMode.tv => const <TmdbMediaType>[TmdbMediaType.tv],
+      TmdbMediaTypeMode.auto =>
+        target.resourceKind == CloudResourceKind.directory
+            ? const <TmdbMediaType>[
+                TmdbMediaType.tv,
+                TmdbMediaType.movie,
+              ]
+            : const <TmdbMediaType>[
+                TmdbMediaType.movie,
+                TmdbMediaType.tv,
+              ],
+    };
+    final candidates = await _searchWithCache(
+      query,
+      types,
+      request.options.language,
+      request.mediaTypeMode,
+    );
+    final ranked = const TmdbMatcher().rank(
+      queryTitle: query,
+      queryYear: request.queryYear,
+      expectedTypes: types.toSet(),
+      candidates: candidates,
+      minimumScore: request.options.minimumScore,
+      minimumLead: request.options.minimumLead,
+    );
+    return CloudResourceTmdbSearchOutcome(ranked: ranked);
   }
 
   Future<CloudResourceTmdbRecord> select(
@@ -157,41 +220,54 @@ class CloudResourceTmdbService {
         : '${draft.searchTitle} (${draft.year})';
   }
 
-  Future<_SearchResult> _search(
+  CloudResourceTmdbSearchRequest _requestFor(
     CloudResourceTmdbTarget target,
     TmdbScrapeOptions options,
-  ) async {
-    final query = queryName(
-      target.queryDisplayName,
+  ) {
+    final draft = const CloudMediaNameParser().parse(
+      originalName: target.displayName,
       isDirectory: target.resourceKind == CloudResourceKind.directory,
+      preferredTitle: target.customTitle,
     );
-    final types = switch (options.mediaTypeMode) {
-      TmdbMediaTypeMode.movie => const <TmdbMediaType>[TmdbMediaType.movie],
-      TmdbMediaTypeMode.tv => const <TmdbMediaType>[TmdbMediaType.tv],
-      TmdbMediaTypeMode.auto =>
-        target.resourceKind == CloudResourceKind.directory
-            ? const <TmdbMediaType>[TmdbMediaType.tv, TmdbMediaType.movie]
-            : const <TmdbMediaType>[TmdbMediaType.movie, TmdbMediaType.tv],
-    };
+    return CloudResourceTmdbSearchRequest(
+      queryTitle: draft.searchTitle,
+      queryYear: draft.year,
+      mediaTypeMode: options.mediaTypeMode,
+      options: options,
+    );
+  }
+
+  Future<List<TmdbMetadata>> _searchWithCache(
+    String query,
+    List<TmdbMediaType> types,
+    String language,
+    TmdbMediaTypeMode mode,
+  ) async {
+    final key = '${query.toLowerCase().replaceAll(RegExp(r'\s+'), ' ')}|'
+        '${mode.name}|$language';
+    final cached = _searchCache.remove(key);
+    if (cached != null &&
+        _now().difference(cached.createdAt) < _searchCacheTtl) {
+      _searchCache[key] = cached;
+      return cached.candidates;
+    }
+    final candidates = <TmdbMetadata>[];
     for (final type in types) {
-      final candidates = await _client.search(
+      candidates.addAll(await _client.search(
         query,
         type,
-        language: options.language,
-      );
-      if (candidates.isNotEmpty) {
-        return _SearchResult(
-          query: query,
-          mediaType: type,
-          candidates: candidates,
-        );
-      }
+        language: language,
+      ));
     }
-    return _SearchResult(
-      query: query,
-      mediaType: types.first,
-      candidates: const <TmdbMetadata>[],
+    final result = List<TmdbMetadata>.unmodifiable(candidates);
+    _searchCache[key] = _CachedSearch(
+      createdAt: _now(),
+      candidates: result,
     );
+    while (_searchCache.length > _maximumCachedSearches) {
+      _searchCache.remove(_searchCache.keys.first);
+    }
+    return result;
   }
 
   Future<void> _syncIndex(
@@ -229,15 +305,6 @@ class CloudResourceTmdbService {
     );
   }
 
-  static _ParsedQuery _parseQuery(String query) {
-    final match = RegExp(r'(?:^|\s)[(（](\d{4})[)）](?:\s|$)').firstMatch(query);
-    final title = query.replaceAll(RegExp(r'\s*[(（]\d{4}[)）]\s*'), ' ').trim();
-    return _ParsedQuery(
-      title: title,
-      year: match == null ? null : int.tryParse(match.group(1)!),
-    );
-  }
-
   static String _normalizePath(String value) {
     var path = value.trim().replaceAll('\\', '/');
     path = path.replaceAll(RegExp(r'/+'), '/');
@@ -254,21 +321,9 @@ class CloudResourceTmdbService {
       : 'https://image.tmdb.org/t/p/w500$value';
 }
 
-class _SearchResult {
-  const _SearchResult({
-    required this.query,
-    required this.mediaType,
-    required this.candidates,
-  });
+class _CachedSearch {
+  const _CachedSearch({required this.createdAt, required this.candidates});
 
-  final String query;
-  final TmdbMediaType mediaType;
+  final DateTime createdAt;
   final List<TmdbMetadata> candidates;
-}
-
-class _ParsedQuery {
-  const _ParsedQuery({required this.title, required this.year});
-
-  final String title;
-  final int? year;
 }

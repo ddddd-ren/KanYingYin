@@ -1222,6 +1222,9 @@ class _PlayerItemState extends State<PlayerItem>
               child: Listener(
                 onPointerSignal: (pointerSignal) {
                   if (pointerSignal is PointerScrollEvent) {
+                    if (_overlayCoordinator.blocksPlayerMouseWheelVolume) {
+                      return;
+                    }
                     _handleMouseScroller();
                     final scrollDelta = pointerSignal.scrollDelta;
                     final double volume =

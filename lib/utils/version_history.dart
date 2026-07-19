@@ -16,6 +16,16 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.3',
+    date: '2026-07-19',
+    isPrerelease: true,
+    changes: [
+      '本测试版优化字幕设置中的鼠标滚轮操作，不再意外改变播放器音量',
+      '字幕设置打开时滚轮只滚动设置内容，关闭后恢复滚轮调节音量',
+      '播放器启动、媒体库扫描和本地播放功能保持可用',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.2',
     date: '2026-07-19',
     isPrerelease: true,

@@ -76,7 +76,8 @@ class TmdbClient implements ITmdbClient {
     if (language == 'en-US' ||
         (_hasText(primary.overview) &&
             _hasText(primary.posterUrl) &&
-            _hasText(primary.backdropUrl))) {
+            _hasText(primary.backdropUrl) &&
+            _hasCompleteSeasonArtwork(primary.seasons))) {
       return primary;
     }
     final fallback = await _detailsForLanguage(id, mediaType, 'en-US');
@@ -88,6 +89,7 @@ class TmdbClient implements ITmdbClient {
       backdropUrl: _hasText(primary.backdropUrl)
           ? primary.backdropUrl
           : fallback.backdropUrl,
+      seasons: _mergeSeasons(primary.seasons, fallback.seasons),
     );
   }
 
@@ -129,7 +131,68 @@ class TmdbClient implements ITmdbClient {
       language: language,
       matchedAt: DateTime.now(),
       matchConfidence: 0,
+      seasons: _seasonsFromJson(json, mediaType),
     );
+  }
+
+  List<TmdbSeasonMetadata> _seasonsFromJson(
+    Map<String, dynamic> json,
+    TmdbMediaType mediaType,
+  ) {
+    final rawSeasons = json['seasons'];
+    if (mediaType != TmdbMediaType.tv || rawSeasons is! List) {
+      return const <TmdbSeasonMetadata>[];
+    }
+    final seasons = rawSeasons
+        .whereType<Map<Object?, Object?>>()
+        .map(
+          (value) => _seasonFromJson(Map<String, dynamic>.from(value)),
+        )
+        .where((value) => value.seasonNumber > 0)
+        .toList(growable: false)
+      ..sort(
+        (first, second) => first.seasonNumber.compareTo(second.seasonNumber),
+      );
+    return seasons;
+  }
+
+  TmdbSeasonMetadata _seasonFromJson(Map<String, dynamic> json) {
+    return TmdbSeasonMetadata(
+      id: _asInt(json['id']),
+      seasonNumber: _asInt(json['season_number']),
+      name: _asString(json['name']) ?? '',
+      episodeCount: _asInt(json['episode_count']),
+      overview: _asString(json['overview']),
+      airDate: _asString(json['air_date']),
+      posterUrl: _asString(json['poster_path']),
+    );
+  }
+
+  List<TmdbSeasonMetadata> _mergeSeasons(
+    List<TmdbSeasonMetadata> primary,
+    List<TmdbSeasonMetadata> fallback,
+  ) {
+    final fallbackByNumber = <int, TmdbSeasonMetadata>{
+      for (final season in fallback) season.seasonNumber: season,
+    };
+    return primary.map((season) {
+      final fallbackSeason = fallbackByNumber[season.seasonNumber];
+      if (fallbackSeason == null) return season;
+      return season.copyWith(
+        name: _hasText(season.name) ? season.name : fallbackSeason.name,
+        episodeCount: season.episodeCount > 0
+            ? season.episodeCount
+            : fallbackSeason.episodeCount,
+        overview: _hasText(season.overview)
+            ? season.overview
+            : fallbackSeason.overview,
+        airDate:
+            _hasText(season.airDate) ? season.airDate : fallbackSeason.airDate,
+        posterUrl: _hasText(season.posterUrl)
+            ? season.posterUrl
+            : fallbackSeason.posterUrl,
+      );
+    }).toList(growable: false);
   }
 
   void _validateKey() {
@@ -149,6 +212,10 @@ class TmdbClient implements ITmdbClient {
       : null;
 
   bool _hasText(String? value) => value != null && value.trim().isNotEmpty;
+
+  bool _hasCompleteSeasonArtwork(List<TmdbSeasonMetadata> seasons) =>
+      seasons.isNotEmpty &&
+      seasons.every((season) => _hasText(season.posterUrl));
 
   int _asInt(Object? value) => value is num ? value.toInt() : 0;
   double? _asDouble(Object? value) => value is num ? value.toDouble() : null;

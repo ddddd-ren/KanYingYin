@@ -841,6 +841,7 @@ class _PageFixture {
     CloudResourceTmdbRecord? record,
     CloudResourceTmdbCoordinator? tmdbCoordinator,
     CloudDriveClient? client,
+    int Function()? minRecognizedVideoSizeBytesProvider,
   }) async {
     final credentials = MemoryCloudCredentialStore();
     final repository = CloudSourceRepository(
@@ -873,6 +874,8 @@ class _PageFixture {
         credentialStore: credentials,
         providerRegistry: registry,
         tmdbCoordinator: tmdbCoordinator,
+        minRecognizedVideoSizeBytesProvider:
+            minRecognizedVideoSizeBytesProvider ?? () => 0,
       ),
     );
   }

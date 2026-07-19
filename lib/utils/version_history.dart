@@ -16,6 +16,17 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.9',
+    date: '2026-07-19',
+    isPrerelease: true,
+    changes: [
+      '本测试版将夸克网盘视频改用官方专用播放接口，不再依赖会被拒绝的下载直链',
+      '播放时会自动选择最高可用清晰度，并继续携带夸克要求的登录信息',
+      '播放地址临时失效时仍会自动刷新一次，减少偶发中断',
+      'OpenList、TMDB、应用启动、本地媒体库和本地播放器保持原有行为',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.8',
     date: '2026-07-19',
     isPrerelease: true,

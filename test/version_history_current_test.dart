@@ -65,6 +65,21 @@ void main() {
     expect(entries.single.changes.join('\n'), contains('OpenList'));
   });
 
+  testWidgets('二点一九更新弹窗说明使用夸克专用播放地址', (tester) async {
+    final entries = versionHistoryForCurrent('2.1.9');
+
+    expect(entries.single.isPrerelease, isTrue);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: VersionChangelogContent(versions: entries)),
+    ));
+
+    expect(find.text('v2.1.9  测试版  2026-07-19'), findsOneWidget);
+    expect(entries.single.changes.join('\n'), contains('夸克'));
+    expect(entries.single.changes.join('\n'), contains('专用播放接口'));
+    expect(entries.single.changes.join('\n'), contains('最高可用清晰度'));
+    expect(entries.single.changes.join('\n'), contains('下载直链'));
+  });
+
   test('历史版本默认保持正式版兼容语义', () {
     const entry =
         VersionHistory(version: '1.0.0', date: '2026-01-01', changes: []);

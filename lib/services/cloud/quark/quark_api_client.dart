@@ -18,7 +18,7 @@ abstract interface class QuarkApi {
     int size = 50,
   });
 
-  Future<QuarkPlaybackLink> resolveDownload(String fileId);
+  Future<QuarkPlaybackLink> resolvePlayback(String fileId);
 
   Future<void> close();
 }
@@ -79,8 +79,8 @@ class QuarkApiClient implements QuarkApi, QuarkShareApi {
   );
   static final Uri _directoryUri =
       Uri.https('drive.quark.cn', '/1/clouddrive/file/sort');
-  static final Uri _downloadUri =
-      Uri.https('drive.quark.cn', '/1/clouddrive/file/download');
+  static final Uri _playbackUri =
+      Uri.https('drive.quark.cn', '/1/clouddrive/file/v2/play');
   static final Uri _shareTokenUri =
       Uri.https('drive-pc.quark.cn', '/1/clouddrive/share/sharepage/token');
   static final Uri _shareDetailUri =
@@ -127,16 +127,18 @@ class QuarkApiClient implements QuarkApi, QuarkShareApi {
   }
 
   @override
-  Future<QuarkPlaybackLink> resolveDownload(String fileId) async {
+  Future<QuarkPlaybackLink> resolvePlayback(String fileId) async {
     final json = await _request(
       'POST',
-      _downloadUri,
+      _playbackUri,
       queryParameters: const <String, Object?>{'pr': 'ucpro', 'fr': 'pc'},
       data: <String, Object?>{
-        'fids': <String>[fileId],
+        'fid': fileId,
+        'resolutions': 'normal,low,high,super,2k,4k',
+        'supports': 'fmp4',
       },
     );
-    return _parser.parsePlayback(json);
+    return _parser.parsePlayback(json, fileId: fileId);
   }
 
   @override

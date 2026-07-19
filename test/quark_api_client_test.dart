@@ -67,6 +67,39 @@ void main() {
     );
     expect(authAdapter.requests, hasLength(1));
   });
+
+  test('播放使用夸克专用播放接口并请求全部清晰度', () async {
+    final adapter = _QueueAdapter(<_FakeResponse>[
+      const _FakeResponse(
+        200,
+        '{"status":200,"code":0,"data":{"video_list":[{"resolution":"4k","video_info":{"url":"https://media.quark-fixture.invalid/4k"}}]}}',
+      ),
+    ]);
+    final client = QuarkApiClient(
+      cookie: 'session=cookie-fixture',
+      dio: Dio()..httpClientAdapter = adapter,
+    );
+
+    final playback = await client.resolvePlayback('fid_fixture_video');
+
+    final request = adapter.requests.single;
+    expect(request.method, 'POST');
+    expect(request.uri.path, '/1/clouddrive/file/v2/play');
+    expect(request.uri.queryParameters, <String, String>{
+      'pr': 'ucpro',
+      'fr': 'pc',
+    });
+    expect(request.data, <String, Object?>{
+      'fid': 'fid_fixture_video',
+      'resolutions': 'normal,low,high,super,2k,4k',
+      'supports': 'fmp4',
+    });
+    expect(request.headers['Cookie'], 'session=cookie-fixture');
+    expect(request.headers['Referer'], 'https://pan.quark.cn');
+    expect(playback.fileId, 'fid_fixture_video');
+    expect(playback.uri.path, '/4k');
+    await client.close();
+  });
 }
 
 class _FakeResponse {

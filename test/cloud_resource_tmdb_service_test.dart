@@ -9,8 +9,10 @@ import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_poster_cache.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
 void main() {
   test('文件夹查询名移除编码和完结标记但保留年份', () {
@@ -76,7 +78,10 @@ void main() {
     final indexed = await indexRepository.getBySource('source-a');
     expect(indexed[0].tmdbId, 42);
     expect(indexed[1].tmdbId, isNull);
-    expect(client.searchedTypes, <TmdbMediaType>[TmdbMediaType.tv]);
+    expect(client.searchedTypes, <TmdbMediaType>[
+      TmdbMediaType.tv,
+      TmdbMediaType.movie,
+    ]);
   });
 
   test('自动模式首选类型无候选时尝试另一类型', () async {
@@ -188,6 +193,141 @@ void main() {
       (await unmatched.repository.get(unmatchedTarget.stableKey))?.customTitle,
       '未知剧名',
     );
+  });
+
+  test('准备搜索的自动类型同时查询电影和电视剧', () async {
+    final client = _FakeTmdbClient(
+      searches: <TmdbMediaType, List<TmdbMetadata>>{
+        TmdbMediaType.movie: <TmdbMetadata>[
+          _candidate(TmdbMediaType.movie),
+        ],
+        TmdbMediaType.tv: <TmdbMetadata>[_candidate(TmdbMediaType.tv)],
+      },
+      detail: _candidate(TmdbMediaType.tv),
+    );
+    final harness = _service(client);
+
+    final outcome = await harness.service.searchPrepared(
+      _target(
+        path: '/影视/流浪地球',
+        name: '流浪地球',
+        kind: CloudResourceKind.directory,
+      ),
+      const CloudResourceTmdbSearchRequest(
+        queryTitle: '流浪地球',
+        queryYear: 2019,
+        mediaTypeMode: TmdbMediaTypeMode.auto,
+        options: TmdbScrapeOptions.defaults(),
+      ),
+    );
+
+    expect(client.searchedTypes, <TmdbMediaType>[
+      TmdbMediaType.tv,
+      TmdbMediaType.movie,
+    ]);
+    expect(outcome.ranked.candidates, hasLength(2));
+  });
+
+  test('候选缓存命中后按新年份重评分且过期后重新请求', () async {
+    var now = DateTime.utc(2026, 7, 19, 12);
+    final client = _FakeTmdbClient(
+      searches: <TmdbMediaType, List<TmdbMetadata>>{
+        TmdbMediaType.movie: <TmdbMetadata>[
+          _candidate(TmdbMediaType.movie),
+        ],
+      },
+      detail: _candidate(TmdbMediaType.movie),
+    );
+    final service = CloudResourceTmdbService(
+      repository: CloudResourceTmdbRepository(
+        storage: MemoryCloudResourceTmdbStorage(),
+      ),
+      indexRepository: CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      ),
+      client: client,
+      now: () => now,
+    );
+    final target = _target(
+      path: '/影视/独立视频.mkv',
+      name: '独立视频.mkv',
+      kind: CloudResourceKind.standaloneVideo,
+    );
+    const options = TmdbScrapeOptions.defaults();
+
+    final first = await service.searchPrepared(
+      target,
+      const CloudResourceTmdbSearchRequest(
+        queryTitle: '独立视频',
+        queryYear: 2019,
+        mediaTypeMode: TmdbMediaTypeMode.movie,
+        options: options,
+      ),
+    );
+    final second = await service.searchPrepared(
+      target,
+      const CloudResourceTmdbSearchRequest(
+        queryTitle: '独立视频',
+        queryYear: 2025,
+        mediaTypeMode: TmdbMediaTypeMode.movie,
+        options: options,
+      ),
+    );
+
+    expect(client.searchedTypes, <TmdbMediaType>[TmdbMediaType.movie]);
+    expect(first.ranked.best!.score, greaterThan(second.ranked.best!.score));
+
+    now = now.add(const Duration(minutes: 11));
+    await service.searchPrepared(
+      target,
+      const CloudResourceTmdbSearchRequest(
+        queryTitle: '独立视频',
+        mediaTypeMode: TmdbMediaTypeMode.movie,
+        options: options,
+      ),
+    );
+    expect(client.searchedTypes, <TmdbMediaType>[
+      TmdbMediaType.movie,
+      TmdbMediaType.movie,
+    ]);
+  });
+
+  test('候选缓存超过上限时淘汰最久未使用查询', () async {
+    final client = _FakeTmdbClient(
+      searches: const <TmdbMediaType, List<TmdbMetadata>>{},
+      detail: _candidate(TmdbMediaType.movie),
+    );
+    final service = CloudResourceTmdbService(
+      repository: CloudResourceTmdbRepository(
+        storage: MemoryCloudResourceTmdbStorage(),
+      ),
+      indexRepository: CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      ),
+      client: client,
+      maximumCachedSearches: 2,
+    );
+    final target = _target(
+      path: '/影视/影片.mkv',
+      name: '影片.mkv',
+      kind: CloudResourceKind.standaloneVideo,
+    );
+    const options = TmdbScrapeOptions.defaults();
+    Future<void> search(String title) => service.searchPrepared(
+          target,
+          CloudResourceTmdbSearchRequest(
+            queryTitle: title,
+            mediaTypeMode: TmdbMediaTypeMode.movie,
+            options: options,
+          ),
+        );
+
+    await search('影片一');
+    await search('影片二');
+    await search('影片三');
+    await search('影片一');
+
+    expect(client.queries, <String>['影片一', '影片二', '影片三', '影片一']);
   });
 }
 

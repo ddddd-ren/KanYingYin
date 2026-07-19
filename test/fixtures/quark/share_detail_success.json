@@ -1,0 +1,22 @@
+{
+  "status": 200,
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "list": [
+      {
+        "fid": "shared_fid_fixture",
+        "share_fid_token": "share_token_redacted_fixture",
+        "file_name": "分享目录示例",
+        "dir": true,
+        "size": 0,
+        "updated_at": 1700000001000
+      }
+    ]
+  },
+  "metadata": {
+    "_page": 1,
+    "_size": 50,
+    "_total": 1
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "status": 200,
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "list": [
+      {
+        "fid": "fid_fixture_directory",
+        "file_name": "目录示例",
+        "file": false,
+        "size": 0,
+        "created_at": 1700000000000,
+        "updated_at": 1700000001000
+      },
+      {
+        "fid": "fid_fixture_video",
+        "file_name": "视频示例.S01E01.mkv",
+        "file": true,
+        "category": 1,
+        "size": 10485760,
+        "created_at": 1700000000000,
+        "updated_at": 1700000001000
+      },
+      {
+        "fid": "fid_fixture_subtitle",
+        "file_name": "视频示例.S01E01.zh-CN.srt",
+        "file": true,
+        "category": 0,
+        "size": 2048,
+        "created_at": 1700000000000,
+        "updated_at": 1700000001000
+      }
+    ]
+  },
+  "metadata": {
+    "_page": 1,
+    "_size": 50,
+    "_total": 3
+  }
+}

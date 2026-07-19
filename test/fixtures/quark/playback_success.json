@@ -1,0 +1,11 @@
+{
+  "status": 200,
+  "code": 0,
+  "message": "ok",
+  "data": [
+    {
+      "fid": "fid_fixture_video",
+      "download_url": "https://media.quark-fixture.invalid/video/signed"
+    }
+  ]
+}

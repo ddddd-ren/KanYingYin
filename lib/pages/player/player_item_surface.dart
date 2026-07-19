@@ -7,6 +7,12 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/pages/player/player_controller.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
+bool shouldRenderFlutterSubtitleOverlay({
+  required bool hasExternalSubtitle,
+  required bool nativeSubtitleRendering,
+}) =>
+    hasExternalSubtitle && !nativeSubtitleRendering;
+
 class PlayerItemSurface extends StatefulWidget {
   const PlayerItemSurface({super.key});
 
@@ -30,7 +36,12 @@ class _PlayerItemSurfaceState extends State<PlayerItemSurface> {
         );
       }
 
-      final showSubtitle = playerController.currentSubtitlePath.isNotEmpty;
+      final videoController = playerController.videoController!;
+      final showSubtitle = shouldRenderFlutterSubtitleOverlay(
+        hasExternalSubtitle: playerController.currentSubtitlePath.isNotEmpty,
+        nativeSubtitleRendering:
+            videoController.player.platform?.configuration.libass ?? false,
+      );
       final subtitleStyle = playerController.subtitleStyleSettings;
       final outlineWidth = subtitleStyle.borderSize;
       final shadows = <Shadow>[
@@ -74,7 +85,7 @@ class _PlayerItemSurfaceState extends State<PlayerItemSurface> {
       return Stack(
         children: [
           Video(
-            controller: playerController.videoController!,
+            controller: videoController,
             controls: null,
             pauseUponEnteringBackgroundMode: false,
             fit: playerController.aspectRatioType == 1
@@ -89,7 +100,7 @@ class _PlayerItemSurfaceState extends State<PlayerItemSurface> {
           if (showSubtitle)
             Positioned.fill(
               child: _PrimarySubtitleView(
-                controller: playerController.videoController!,
+                controller: videoController,
                 textStyle: subtitleTextStyle,
                 padding: EdgeInsets.fromLTRB(
                   24.0,

@@ -9,6 +9,7 @@ import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 
 void main() {
   testWidgets('无来源时显示两种添加入口', (tester) async {
@@ -80,10 +81,95 @@ void main() {
     expect(find.text('第01集.mkv'), findsOneWidget);
     expect(find.text('第01集.ass'), findsNothing);
     expect(find.text('700.0 MB'), findsOneWidget);
+    expect(find.text('2026-07-19'), findsOneWidget);
     expect(find.widgetWithText(TextField, '搜索当前目录'), findsOneWidget);
     fixture.controller.dispose();
   });
+
+  testWidgets('点击视频使用来源 ID、远程 ID 和同名字幕播放', (tester) async {
+    CloudPlaybackTarget? target;
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      entries: const <CloudFileEntry>[
+        CloudFileEntry(
+          id: 'video-fid',
+          remotePath: '/影视/第01集.mkv',
+          name: '第01集.mkv',
+          size: 1024 * 1024 * 700,
+          modifiedAt: null,
+          isDirectory: false,
+        ),
+        CloudFileEntry(
+          id: 'subtitle-fid',
+          remotePath: '/影视/第01集.ass',
+          name: '第01集.ass',
+          size: 1024,
+          modifiedAt: null,
+          isDirectory: false,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CloudResourcesPage(
+          controller: fixture.controller,
+          onPlayTarget: (value) async => target = value,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('第01集.mkv'));
+    await tester.pump();
+
+    expect(target?.sourceId, 'quark-source');
+    expect(target?.remoteId, 'video-fid');
+    expect(target?.remotePath, '/影视/第01集.mkv');
+    expect(target?.subtitleRemoteId, 'subtitle-fid');
+    expect(target?.subtitleRemotePath, '/影视/第01集.ass');
+    fixture.controller.dispose();
+  });
+
+  testWidgets('移除来源先提示不删除远程文件', (tester) async {
+    String? deletedSourceId;
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      entries: const <CloudFileEntry>[],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CloudResourcesPage(
+          controller: fixture.controller,
+          onDeleteSource: (sourceId) async => deletedSourceId = sourceId,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('移除当前来源'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('不会删除网盘中的任何文件'),
+      findsOneWidget,
+    );
+    await tester.tap(find.widgetWithText(FilledButton, '移除'));
+    await tester.pumpAndSettle();
+    expect(deletedSourceId, 'quark-source');
+    fixture.controller.dispose();
+  });
 }
+
+const _quarkSource = CloudSource(
+  id: 'quark-source',
+  type: CloudSourceType.quark,
+  name: '夸克媒体库',
+  baseUrl: 'https://pan.quark.cn',
+  rootPaths: <String>['/影视'],
+  rootRefs: <CloudRemoteRef>[
+    CloudRemoteRef(id: 'root-fid', path: '/影视'),
+  ],
+);
 
 class _PageFixture {
   const _PageFixture(this.controller);

@@ -6,7 +6,7 @@ import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_subtitle_cache.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
-import 'package:kanyingyin/services/cloud/openlist/openlist_client.dart';
+import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:path/path.dart' as p;
 
 typedef CloudPlaybackClientFactory = CloudDriveClient Function(
@@ -248,16 +248,25 @@ class CloudPlaybackResolver {
     CloudSourceRepository? sourceRepository,
     CloudCredentialStore? credentialStore,
     CloudPlaybackClientFactory? clientFactory,
+    CloudProviderRegistry? providerRegistry,
     CloudSubtitleCache? subtitleCache,
   })  : _sourceRepository = sourceRepository ?? CloudSourceRepository(),
         _credentialStore = credentialStore ?? SecureCloudCredentialStore(),
-        _clientFactory = clientFactory ?? _createClient,
+        _providerRegistry = providerRegistry ??
+            CloudProviderRegistry(
+              clientFactories: clientFactory == null
+                  ? const <CloudSourceType, CloudProviderClientFactory>{}
+                  : <CloudSourceType, CloudProviderClientFactory>{
+                      for (final type in CloudSourceType.values)
+                        type: clientFactory,
+                    },
+            ),
         _subtitleCache =
             subtitleCache ?? CloudSubtitleCache(downloader: _downloadResource);
 
   final CloudSourceRepository _sourceRepository;
   final CloudCredentialStore _credentialStore;
-  final CloudPlaybackClientFactory _clientFactory;
+  final CloudProviderRegistry _providerRegistry;
   final CloudSubtitleCache? _subtitleCache;
 
   Future<CloudResolvedPlayback> resolve(CloudPlaybackTarget target) async {
@@ -267,11 +276,7 @@ class CloudPlaybackResolver {
     }
     CloudDriveClient? client;
     try {
-      client = _clientFactory(
-        source,
-        _credentialStore,
-        source.allowSelfSignedCertificate,
-      );
+      client = _providerRegistry.createClient(source, _credentialStore);
       final resource = await client.resolvePlayback(CloudRemoteRef(
         id: target.remoteId.isEmpty ? target.remotePath : target.remoteId,
         path: target.remotePath,
@@ -303,22 +308,6 @@ class CloudPlaybackResolver {
       await client?.close();
     }
   }
-
-  static CloudDriveClient _createClient(
-    CloudSource source,
-    CloudCredentialStore credentialStore,
-    bool allowSelfSignedCertificate,
-  ) =>
-      switch (source.type) {
-        CloudSourceType.openList => OpenListClient(
-            source: source,
-            credentialStore: credentialStore,
-            allowSelfSignedCertificate: allowSelfSignedCertificate,
-          ),
-        CloudSourceType.quark => throw const CloudDriveException(
-            CloudDriveErrorType.incompatible,
-          ),
-      };
 
   static Future<List<int>> _downloadResource(
     CloudPlaybackResource resource,

@@ -384,6 +384,73 @@ void main() {
     expect(stored?.title, outcome.record.title);
   });
 
+  test('选择电视剧候选会分别缓存主海报和季度海报', () async {
+    final cacheRoot = await Directory.systemTemp.createTemp('tmdb-seasons-');
+    addTearDown(() => cacheRoot.delete(recursive: true));
+    final posterCache = _RecordingPosterCache(cacheRoot);
+    final repository = CloudResourceTmdbRepository(
+      storage: MemoryCloudResourceTmdbStorage(),
+    );
+    final service = CloudResourceTmdbService(
+      repository: repository,
+      indexRepository: CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      ),
+      client: _FakeTmdbClient(
+        searches: const <TmdbMediaType, List<TmdbMetadata>>{},
+        detail: TmdbMetadata(
+          id: 42,
+          mediaType: TmdbMediaType.tv,
+          title: '弥留之国的爱丽丝',
+          posterUrl: '/show.jpg',
+          language: 'zh-CN',
+          matchedAt: DateTime.utc(2026, 7, 20),
+          matchConfidence: 1,
+          seasons: const <TmdbSeasonMetadata>[
+            TmdbSeasonMetadata(
+              id: 100,
+              seasonNumber: 1,
+              name: '第 1 季',
+              episodeCount: 8,
+              posterUrl: '/season-1.jpg',
+            ),
+            TmdbSeasonMetadata(
+              id: 200,
+              seasonNumber: 2,
+              name: '第 2 季',
+              episodeCount: 8,
+              posterUrl: '/season-2.jpg',
+            ),
+          ],
+        ),
+      ),
+      posterCache: posterCache,
+    );
+    final target = _target(
+      path: '/影视/Show.S01E01.mkv',
+      name: 'Show.S01E01.mkv',
+      kind: CloudResourceKind.standaloneVideo,
+    );
+
+    final outcome = await service.selectWithOutcome(
+      target,
+      _candidate(TmdbMediaType.tv),
+    );
+
+    expect(posterCache.stableIds, <String>[
+      target.stableKey,
+      '${target.stableKey}|season:1',
+      '${target.stableKey}|season:2',
+    ]);
+    expect(outcome.record.seasons[0].posterCachePath, 'cache-2.jpg');
+    expect(outcome.record.seasons[1].posterCachePath, 'cache-3.jpg');
+    expect(outcome.posterCached, isTrue);
+    expect(
+      (await repository.get(target.stableKey))?.seasons.last.posterCachePath,
+      'cache-3.jpg',
+    );
+  });
+
   test('索引同步失败返回部分成功且保留资源记录', () async {
     final repository = CloudResourceTmdbRepository(
       storage: MemoryCloudResourceTmdbStorage(),
@@ -520,6 +587,26 @@ class _FakeTmdbClient implements ITmdbClient {
     searchedTypes.add(mediaType);
     queries.add(query);
     return searches[mediaType] ?? const <TmdbMetadata>[];
+  }
+}
+
+class _RecordingPosterCache extends CloudPosterCache {
+  _RecordingPosterCache(Directory cacheRoot)
+      : super(
+          cacheRoot: cacheRoot,
+          downloader: (_) async => <int>[1],
+        );
+
+  final List<String> stableIds = <String>[];
+
+  @override
+  Future<String> resolve({
+    required String sourceId,
+    required String stableId,
+    required String url,
+  }) async {
+    stableIds.add(stableId);
+    return 'cache-${stableIds.length}.jpg';
   }
 }
 

@@ -109,6 +109,42 @@ void main() {
     expect(record.toJson(), isNot(contains('releaseDate')));
   });
 
+  test('电视剧记录 JSON 往返保留季度海报和缓存路径', () {
+    final record = CloudResourceTmdbRecord.matched(
+      sourceId: 'quark-source',
+      remoteId: 'episode-1',
+      remotePath: '/影视/Show.S01E01.mkv',
+      displayName: 'Show.S01E01.mkv',
+      resourceKind: CloudResourceKind.standaloneVideo,
+      metadata: TmdbMetadata(
+        id: 42,
+        mediaType: TmdbMediaType.tv,
+        title: '弥留之国的爱丽丝',
+        language: 'zh-CN',
+        matchedAt: DateTime.utc(2026, 7, 20),
+        matchConfidence: 1,
+        seasons: const <TmdbSeasonMetadata>[
+          TmdbSeasonMetadata(
+            id: 100,
+            seasonNumber: 1,
+            name: '第 1 季',
+            episodeCount: 8,
+            posterUrl: '/season-1.jpg',
+            posterCachePath: r'D:\cache\season-1.jpg',
+          ),
+        ],
+      ),
+      checkedAt: DateTime.utc(2026, 7, 20),
+    );
+
+    final restored = CloudResourceTmdbRecord.fromJson(record.toJson());
+
+    expect(restored.seasons.single.seasonNumber, 1);
+    expect(restored.seasons.single.posterUrl, '/season-1.jpg');
+    expect(restored.seasons.single.posterCachePath, r'D:\cache\season-1.jpg');
+    expect(restored, record);
+  });
+
   test('未检查资源也能保存自定义剧名', () {
     final record = CloudResourceTmdbRecord.unchecked(
       sourceId: 'source-a',

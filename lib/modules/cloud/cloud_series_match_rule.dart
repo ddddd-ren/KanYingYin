@@ -122,6 +122,7 @@ class CloudSeriesMatchRule {
         metadata.language,
         metadata.matchedAt.millisecondsSinceEpoch,
         metadata.matchConfidence,
+        Object.hashAll(metadata.seasons),
         posterCachePath,
         updatedAt.millisecondsSinceEpoch,
       );
@@ -140,7 +141,20 @@ bool _metadataEquals(TmdbMetadata first, TmdbMetadata second) {
       first.language == second.language &&
       first.matchedAt.millisecondsSinceEpoch ==
           second.matchedAt.millisecondsSinceEpoch &&
-      first.matchConfidence == second.matchConfidence;
+      first.matchConfidence == second.matchConfidence &&
+      _seasonListsEqual(first.seasons, second.seasons);
+}
+
+bool _seasonListsEqual(
+  List<TmdbSeasonMetadata> first,
+  List<TmdbSeasonMetadata> second,
+) {
+  if (identical(first, second)) return true;
+  if (first.length != second.length) return false;
+  for (var index = 0; index < first.length; index++) {
+    if (first[index] != second[index]) return false;
+  }
+  return true;
 }
 
 String? _stringOrNull(Object? value) {

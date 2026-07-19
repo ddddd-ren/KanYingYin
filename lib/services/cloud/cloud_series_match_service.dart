@@ -270,6 +270,7 @@ class CloudSeriesMatchService {
       language: language,
       matchedAt: record.checkedAt,
       matchConfidence: 1,
+      seasons: record.seasons,
     );
   }
 

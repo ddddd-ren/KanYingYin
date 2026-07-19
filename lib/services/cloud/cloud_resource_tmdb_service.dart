@@ -188,7 +188,7 @@ class CloudResourceTmdbService {
     TmdbMetadata candidate, {
     TmdbScrapeOptions options = const TmdbScrapeOptions.defaults(),
   }) async {
-    final metadata = await _client.details(
+    var metadata = await _client.details(
       candidate.id,
       candidate.mediaType,
       language: options.language,
@@ -213,6 +213,36 @@ class CloudResourceTmdbService {
       } on Object {
         posterCached = false;
       }
+    }
+    if (_posterCache != null &&
+        options.fetchPoster &&
+        metadata.seasons.isNotEmpty) {
+      final seasons = <TmdbSeasonMetadata>[];
+      for (final season in metadata.seasons) {
+        final posterUrl = season.posterUrl;
+        if (season.seasonNumber <= 0 || posterUrl == null) {
+          seasons.add(season);
+          continue;
+        }
+        final imageUrl = _imageUrl(posterUrl);
+        try {
+          final resolved = await _posterCache.resolve(
+            sourceId: target.sourceId,
+            stableId: '${target.stableKey}|season:${season.seasonNumber}',
+            url: imageUrl,
+          );
+          if (resolved == imageUrl) {
+            posterCached = false;
+            seasons.add(season);
+          } else {
+            seasons.add(season.copyWith(posterCachePath: resolved));
+          }
+        } on Object {
+          posterCached = false;
+          seasons.add(season);
+        }
+      }
+      metadata = metadata.copyWith(seasons: seasons);
     }
     final record = CloudResourceTmdbRecord.matched(
       sourceId: target.sourceId,

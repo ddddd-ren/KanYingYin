@@ -42,6 +42,7 @@ class CloudResourceTmdbRecord {
     this.backdropUrl,
     this.posterCachePath,
     this.customTitle,
+    this.seasons = const <TmdbSeasonMetadata>[],
   });
 
   factory CloudResourceTmdbRecord.matched({
@@ -74,6 +75,7 @@ class CloudResourceTmdbRecord {
       backdropUrl: metadata.backdropUrl,
       posterCachePath: posterCachePath,
       customTitle: customTitle,
+      seasons: metadata.seasons,
     );
   }
 
@@ -177,6 +179,16 @@ class CloudResourceTmdbRecord {
       backdropUrl: _asString(json['backdropUrl']),
       posterCachePath: _asString(json['posterCachePath']),
       customTitle: _asString(json['customTitle']),
+      seasons: json['seasons'] is List
+          ? (json['seasons'] as List)
+              .whereType<Map<Object?, Object?>>()
+              .map(
+                (item) => TmdbSeasonMetadata.fromJson(
+                  Map<String, dynamic>.from(item),
+                ),
+              )
+              .toList(growable: false)
+          : const <TmdbSeasonMetadata>[],
     );
   }
 
@@ -198,6 +210,7 @@ class CloudResourceTmdbRecord {
   final String? backdropUrl;
   final String? posterCachePath;
   final String? customTitle;
+  final List<TmdbSeasonMetadata> seasons;
 
   String get stableKey => cloudResourceTmdbKey(
         sourceId: sourceId,
@@ -252,6 +265,8 @@ class CloudResourceTmdbRecord {
       if (backdropUrl != null) 'backdropUrl': backdropUrl,
       if (posterCachePath != null) 'posterCachePath': posterCachePath,
       if (customTitle != null) 'customTitle': customTitle,
+      if (seasons.isNotEmpty)
+        'seasons': seasons.map((item) => item.toJson()).toList(growable: false),
     };
   }
 
@@ -276,7 +291,8 @@ class CloudResourceTmdbRecord {
             posterUrl == other.posterUrl &&
             backdropUrl == other.backdropUrl &&
             posterCachePath == other.posterCachePath &&
-            customTitle == other.customTitle;
+            customTitle == other.customTitle &&
+            _seasonListsEqual(seasons, other.seasons);
   }
 
   @override
@@ -299,6 +315,7 @@ class CloudResourceTmdbRecord {
         backdropUrl,
         posterCachePath,
         customTitle,
+        Object.hashAll(seasons),
       );
 
   CloudResourceTmdbRecord _copyWithCustomTitle(String? value) {
@@ -321,8 +338,21 @@ class CloudResourceTmdbRecord {
       backdropUrl: backdropUrl,
       posterCachePath: posterCachePath,
       customTitle: value,
+      seasons: seasons,
     );
   }
+}
+
+bool _seasonListsEqual(
+  List<TmdbSeasonMetadata> first,
+  List<TmdbSeasonMetadata> second,
+) {
+  if (identical(first, second)) return true;
+  if (first.length != second.length) return false;
+  for (var index = 0; index < first.length; index++) {
+    if (first[index] != second[index]) return false;
+  }
+  return true;
 }
 
 T _enumValue<T extends Enum>(List<T> values, Object? raw, T fallback) {

@@ -16,6 +16,17 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.8',
+    date: '2026-07-19',
+    isPrerelease: true,
+    changes: [
+      '夸克网盘视频改为直连播放，不再跟随应用代理进入不同网络线路',
+      '夸克播放地址打不开时会自动刷新一次，避免临时链接失效后直接中断',
+      '刷新后仍无法播放时会显示明确提示，方便检查登录状态或稍后重试',
+      'OpenList 和 TMDB 继续使用原有网络设置，本地媒体扫描和播放不受影响',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.7',
     date: '2026-07-19',
     isPrerelease: true,

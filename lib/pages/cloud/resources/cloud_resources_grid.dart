@@ -19,6 +19,7 @@ class CloudResourcesGrid extends StatelessWidget {
     required this.scrapingKeys,
     required this.onOpenDirectory,
     required this.onPlay,
+    required this.onEditTitle,
     required this.onScrape,
     required this.onRematch,
   });
@@ -29,6 +30,7 @@ class CloudResourcesGrid extends StatelessWidget {
   final Set<String> scrapingKeys;
   final CloudResourceEntryAction onOpenDirectory;
   final CloudResourceEntryAction onPlay;
+  final CloudResourceEntryAction onEditTitle;
   final CloudResourceEntryAction onScrape;
   final CloudResourceEntryAction onRematch;
 
@@ -62,6 +64,7 @@ class CloudResourcesGrid extends StatelessWidget {
               scraping: scrapingKeys.contains(key),
               onTap: () =>
                   entry.isDirectory ? onOpenDirectory(entry) : onPlay(entry),
+              onEditTitle: () => onEditTitle(entry),
               onScrape: () => onScrape(entry),
               onRematch: () => onRematch(entry),
             );
@@ -72,7 +75,7 @@ class CloudResourcesGrid extends StatelessWidget {
   }
 }
 
-enum _ResourceAction { scrape, rematch }
+enum _ResourceAction { editTitle, scrape, rematch }
 
 class _CloudResourceCard extends StatelessWidget {
   const _CloudResourceCard({
@@ -80,6 +83,7 @@ class _CloudResourceCard extends StatelessWidget {
     required this.record,
     required this.scraping,
     required this.onTap,
+    required this.onEditTitle,
     required this.onScrape,
     required this.onRematch,
   });
@@ -88,6 +92,7 @@ class _CloudResourceCard extends StatelessWidget {
   final CloudResourceTmdbRecord? record;
   final bool scraping;
   final VoidCallback onTap;
+  final VoidCallback onEditTitle;
   final VoidCallback onScrape;
   final VoidCallback onRematch;
 
@@ -119,6 +124,9 @@ class _CloudResourceCard extends StatelessWidget {
                         icon: const Icon(Icons.more_vert, size: 20),
                         onSelected: (action) {
                           switch (action) {
+                            case _ResourceAction.editTitle:
+                              onEditTitle();
+                              return;
                             case _ResourceAction.scrape:
                               onScrape();
                               return;
@@ -128,6 +136,10 @@ class _CloudResourceCard extends StatelessWidget {
                           }
                         },
                         itemBuilder: (context) => const [
+                          PopupMenuItem(
+                            value: _ResourceAction.editTitle,
+                            child: Text('修改剧名'),
+                          ),
                           PopupMenuItem(
                             value: _ResourceAction.scrape,
                             child: Text('TMDB 刮削'),
@@ -154,12 +166,12 @@ class _CloudResourceCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    metadata?.title ?? entry.name,
+                    record?.effectiveTitle ?? entry.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
-                  if (metadata != null) ...[
+                  if ((record?.effectiveTitle ?? entry.name) != entry.name) ...[
                     const SizedBox(height: 3),
                     Text(
                       entry.name,

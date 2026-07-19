@@ -183,6 +183,118 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     }
   }
 
+  Future<void> _editTitle(CloudFileEntry entry) async {
+    final record = _controller.tmdbRecordFor(entry);
+    var inputValue = record?.effectiveTitle ?? entry.name;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        String? errorText;
+        var saving = false;
+        return StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('修改剧名'),
+            content: TextFormField(
+              key: const ValueKey<String>('cloud-title-input'),
+              initialValue: inputValue,
+              autofocus: true,
+              maxLines: 1,
+              decoration: InputDecoration(
+                labelText: '显示剧名',
+                errorText: errorText,
+                helperText: '只修改看影音中的显示，不会重命名网盘文件',
+              ),
+              onChanged: (value) => inputValue = value,
+              onFieldSubmitted: saving
+                  ? null
+                  : (value) async {
+                      await _saveEditedTitle(
+                        entry,
+                        value,
+                        dialogContext,
+                        setDialogState,
+                        (value) => errorText = value,
+                        (value) => saving = value,
+                      );
+                    },
+            ),
+            actions: [
+              if (record?.customTitle != null)
+                TextButton(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          setDialogState(() => saving = true);
+                          try {
+                            await _controller.clearCustomTitle(entry);
+                            if (dialogContext.mounted) {
+                              Navigator.of(dialogContext).pop();
+                            }
+                          } on Object {
+                            if (dialogContext.mounted) {
+                              setDialogState(() {
+                                saving = false;
+                                errorText = '修改剧名失败';
+                              });
+                            }
+                          }
+                        },
+                  child: const Text('恢复 TMDB 标题'),
+                ),
+              TextButton(
+                onPressed:
+                    saving ? null : () => Navigator.of(dialogContext).pop(),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: saving
+                    ? null
+                    : () => _saveEditedTitle(
+                          entry,
+                          inputValue,
+                          dialogContext,
+                          setDialogState,
+                          (value) => errorText = value,
+                          (value) => saving = value,
+                        ),
+                child: const Text('保存'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _saveEditedTitle(
+    CloudFileEntry entry,
+    String value,
+    BuildContext dialogContext,
+    StateSetter setDialogState,
+    void Function(String? value) setError,
+    void Function(bool value) setSaving,
+  ) async {
+    final normalized = value.trim();
+    if (normalized.isEmpty) {
+      setDialogState(() => setError('剧名不能为空'));
+      return;
+    }
+    setDialogState(() {
+      setError(null);
+      setSaving(true);
+    });
+    try {
+      await _controller.saveCustomTitle(entry, normalized);
+      if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+    } on Object {
+      if (!dialogContext.mounted) return;
+      setDialogState(() {
+        setSaving(false);
+        setError('修改剧名失败');
+      });
+    }
+  }
+
   Future<void> _selectCandidate(
     CloudFileEntry entry,
     List<TmdbMetadata> candidates, {
@@ -499,6 +611,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
               scrapingKeys: _controller.tmdbScrapingKeys,
               onOpenDirectory: _openDirectory,
               onPlay: _play,
+              onEditTitle: _editTitle,
               onScrape: _scrapeEntry,
               onRematch: _rematchEntry,
             ),

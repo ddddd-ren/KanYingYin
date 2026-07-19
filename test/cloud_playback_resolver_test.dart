@@ -7,6 +7,7 @@ import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_subtitle_cache.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
@@ -644,14 +645,14 @@ class _FakeClient implements CloudDriveClient {
   Future<void> close() async => closed = true;
 
   @override
-  Future<CloudFileEntry> getFile(String remotePath) async => subtitle!;
+  Future<CloudFileEntry> getFile(CloudRemoteRef file) async => subtitle!;
 
   @override
-  Future<List<CloudFileEntry>> listDirectory(String remotePath) async =>
+  Future<List<CloudFileEntry>> listDirectory(CloudRemoteRef directory) async =>
       const [];
 
   @override
-  Future<CloudPlaybackResource> resolvePlayback(String remotePath) async {
+  Future<CloudPlaybackResource> resolvePlayback(CloudRemoteRef file) async {
     if (error != null) throw error!;
     return resource!;
   }

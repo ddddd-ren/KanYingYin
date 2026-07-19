@@ -117,10 +117,12 @@ class _LocalPageState extends State<LocalPage>
     final targets = series.episodes
         .map((item) => CloudPlaybackTarget(
               sourceId: item.sourceId,
+              remoteId: item.remoteId!,
               remotePath: item.remotePath!,
               stableId: item.stableId,
               title: item.name,
               subtitleRemotePath: item.subtitleRemotePaths.firstOrNull,
+              subtitleRemoteId: item.subtitleRemoteRefs.firstOrNull?.id,
             ))
         .toList(growable: false);
     await localVideoController.openCloudPlayback(

@@ -5,6 +5,7 @@ import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_subtitle_cache.dart';
+import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/openlist/openlist_client.dart';
 import 'package:path/path.dart' as p;
 
@@ -17,17 +18,21 @@ typedef CloudPlaybackClientFactory = CloudDriveClient Function(
 class CloudPlaybackTarget {
   const CloudPlaybackTarget({
     required this.sourceId,
+    this.remoteId = '',
     required this.remotePath,
     required this.stableId,
     required this.title,
     this.subtitleRemotePath,
+    this.subtitleRemoteId,
   });
 
   final String sourceId;
+  final String remoteId;
   final String remotePath;
   final String stableId;
   final String title;
   final String? subtitleRemotePath;
+  final String? subtitleRemoteId;
 
   String get subtitleOffsetKey => cloudSubtitleOffsetKey(sourceId, remotePath);
 }
@@ -267,12 +272,18 @@ class CloudPlaybackResolver {
         _credentialStore,
         source.allowSelfSignedCertificate,
       );
-      final resource = await client.resolvePlayback(target.remotePath);
+      final resource = await client.resolvePlayback(CloudRemoteRef(
+        id: target.remoteId.isEmpty ? target.remotePath : target.remoteId,
+        path: target.remotePath,
+      ));
       String? subtitlePath;
       final subtitleRemotePath = target.subtitleRemotePath;
       if (_subtitleCache != null && subtitleRemotePath != null) {
         try {
-          final subtitle = await client.getFile(subtitleRemotePath);
+          final subtitle = await client.getFile(CloudRemoteRef(
+            id: target.subtitleRemoteId ?? subtitleRemotePath,
+            path: subtitleRemotePath,
+          ));
           subtitlePath = await _subtitleCache.cacheBeforePlayback(
             sourceId: source.id,
             subtitle: subtitle,

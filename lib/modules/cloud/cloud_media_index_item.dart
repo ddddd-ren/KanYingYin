@@ -1,3 +1,5 @@
+import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+
 enum CloudMediaType { movie, series, episode, special, unknown }
 
 class CloudMediaIndexItem {
@@ -13,6 +15,7 @@ class CloudMediaIndexItem {
     this.episodeNumber,
     this.mediaType = CloudMediaType.unknown,
     this.subtitlePaths = const <String>[],
+    List<CloudRemoteRef> subtitleRefs = const <CloudRemoteRef>[],
     this.tmdbId,
     this.tmdbTitle,
     this.tmdbOriginalTitle,
@@ -21,7 +24,7 @@ class CloudMediaIndexItem {
     this.tmdbPosterUrl,
     this.tmdbBackdropUrl,
     this.posterCachePath,
-  });
+  }) : _subtitleRefs = subtitleRefs;
 
   final String sourceId;
   final String remoteId;
@@ -34,6 +37,14 @@ class CloudMediaIndexItem {
   final int? episodeNumber;
   final CloudMediaType mediaType;
   final List<String> subtitlePaths;
+  final List<CloudRemoteRef> _subtitleRefs;
+
+  /// 旧索引没有字幕文件 ID 时继续按路径工作。
+  List<CloudRemoteRef> get subtitleRefs => _subtitleRefs.isNotEmpty
+      ? _subtitleRefs
+      : subtitlePaths
+          .map((path) => CloudRemoteRef(id: path, path: path))
+          .toList(growable: false);
   final int? tmdbId;
   final String? tmdbTitle;
   final String? tmdbOriginalTitle;
@@ -65,6 +76,7 @@ class CloudMediaIndexItem {
         episodeNumber: episodeNumber,
         mediaType: mediaType,
         subtitlePaths: subtitlePaths,
+        subtitleRefs: subtitleRefs,
         tmdbId: tmdbId ?? this.tmdbId,
         tmdbTitle: tmdbTitle ?? this.tmdbTitle,
         tmdbOriginalTitle: tmdbOriginalTitle ?? this.tmdbOriginalTitle,
@@ -97,6 +109,7 @@ class CloudMediaIndexItem {
         episodeNumber: episodeNumber,
         mediaType: mediaType,
         subtitlePaths: subtitlePaths,
+        subtitleRefs: subtitleRefs,
         tmdbId: tmdbId,
         tmdbTitle: tmdbTitle,
         tmdbOriginalTitle: tmdbOriginalTitle,

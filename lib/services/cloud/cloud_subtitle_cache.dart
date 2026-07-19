@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/services/cloud/cloud_cache_directories.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/local_subtitle_matcher.dart';
 import 'package:path/path.dart' as p;
 
@@ -88,7 +89,10 @@ class CloudSubtitleCache {
         await file.setLastModified(DateTime.now());
         return file.path;
       }
-      final resource = await client.resolvePlayback(subtitle.remotePath);
+      final resource = await client.resolvePlayback(CloudRemoteRef(
+        id: subtitle.id,
+        path: subtitle.remotePath,
+      ));
       final bytes = await _downloader(resource);
       if (bytes.length > maxSubtitleSizeBytes || !isCurrent()) return null;
       if (await temporary.exists()) await temporary.delete();

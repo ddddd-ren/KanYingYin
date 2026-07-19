@@ -10,6 +10,7 @@ import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_indexer.dart';
 import 'package:kanyingyin/services/cloud/cloud_subtitle_cache.dart';
 import 'package:path/path.dart' as p;
@@ -1087,7 +1088,8 @@ class _FakeCloudClient implements CloudDriveClient {
   final List<String> listedPaths = <String>[];
 
   @override
-  Future<List<CloudFileEntry>> listDirectory(String remotePath) async {
+  Future<List<CloudFileEntry>> listDirectory(CloudRemoteRef directory) async {
+    final remotePath = directory.path;
     listedPaths.add(remotePath);
     concurrentLists++;
     if (concurrentLists > maxConcurrentLists) {
@@ -1104,7 +1106,7 @@ class _FakeCloudClient implements CloudDriveClient {
   }
 
   @override
-  Future<CloudPlaybackResource> resolvePlayback(String remotePath) async =>
+  Future<CloudPlaybackResource> resolvePlayback(CloudRemoteRef file) async =>
       CloudPlaybackResource(
           uri: Uri.parse('https://download.example.com$fileSafePath'));
 
@@ -1123,7 +1125,7 @@ class _FakeCloudClient implements CloudDriveClient {
   }
 
   @override
-  Future<CloudFileEntry> getFile(String remotePath) async =>
+  Future<CloudFileEntry> getFile(CloudRemoteRef file) async =>
       throw UnimplementedError();
 }
 

@@ -71,6 +71,10 @@ bool shouldRefreshCloudLink(Object error) {
           caseSensitive: false,
         ).hasMatch(error) ||
         RegExp(
+          r'\bfailed to open\b',
+          caseSensitive: false,
+        ).hasMatch(error) ||
+        RegExp(
           r'\b(?:expiredlink|expired link|signature expired)\b',
           caseSensitive: false,
         ).hasMatch(error);

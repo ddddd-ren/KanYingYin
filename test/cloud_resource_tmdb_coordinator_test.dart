@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
+import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_series_match_rule.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
@@ -87,6 +88,43 @@ void main() {
     expect(fixture.client.maximumConcurrentCalls, 2);
     expect(fixture.client.queries, containsAll(<String>['A', 'B', 'C', 'D']));
     expect(fixture.coordinator.scrapingKeys, isEmpty);
+  });
+
+  test('自动调度使用索引剧名搜索纯集数视频', () async {
+    final fixture = _Fixture(apiKey: 'key');
+    final video = _video(
+      'episode',
+      '/影视/三体/第二季/01.mkv',
+      '01.mkv',
+    );
+    final key = cloudResourceTmdbKey(
+      sourceId: 'source-a',
+      remoteId: video.id,
+      remotePath: video.remotePath,
+    );
+
+    await fixture.coordinator.loadAndSchedule(
+      _context(
+        <CloudFileEntry>[video],
+        indexedItemsByKey: <String, CloudMediaIndexItem>{
+          key: CloudMediaIndexItem(
+            sourceId: 'source-a',
+            remoteId: video.id,
+            remotePath: video.remotePath,
+            name: video.name,
+            size: video.size,
+            modifiedAt: null,
+            seriesName: '三体',
+            seasonNumber: 2,
+            episodeNumber: 1,
+            mediaType: CloudMediaType.episode,
+          ),
+        },
+      ),
+    );
+
+    expect(fixture.client.queries, isNotEmpty);
+    expect(fixture.client.queries, everyElement('三体'));
   });
 
   test('子目录只调度文件夹而不重复刮削单集', () async {
@@ -352,6 +390,8 @@ CloudResourceTmdbTarget _target() => const CloudResourceTmdbTarget(
 CloudResourceDirectoryContext _context(
   List<CloudFileEntry> entries, {
   bool isConfiguredRoot = true,
+  Map<String, CloudMediaIndexItem> indexedItemsByKey =
+      const <String, CloudMediaIndexItem>{},
 }) {
   return CloudResourceDirectoryContext(
     source: const CloudSource(
@@ -367,6 +407,7 @@ CloudResourceDirectoryContext _context(
     directory: const CloudRemoteRef(id: 'root', path: '/影视'),
     entries: entries,
     isConfiguredRoot: isConfiguredRoot,
+    indexedItemsByKey: indexedItemsByKey,
   );
 }
 

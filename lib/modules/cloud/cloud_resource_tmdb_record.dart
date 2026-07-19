@@ -37,6 +37,7 @@ class CloudResourceTmdbRecord {
     this.originalTitle,
     this.overview,
     this.rating,
+    this.releaseDate,
     this.posterUrl,
     this.backdropUrl,
     this.posterCachePath,
@@ -68,6 +69,7 @@ class CloudResourceTmdbRecord {
       originalTitle: metadata.originalTitle,
       overview: metadata.overview,
       rating: metadata.rating,
+      releaseDate: metadata.releaseDate,
       posterUrl: metadata.posterUrl,
       backdropUrl: metadata.backdropUrl,
       posterCachePath: posterCachePath,
@@ -170,6 +172,7 @@ class CloudResourceTmdbRecord {
       originalTitle: _asString(json['originalTitle']),
       overview: _asString(json['overview']),
       rating: _asDouble(json['rating']),
+      releaseDate: _asString(json['releaseDate']),
       posterUrl: _asString(json['posterUrl']),
       backdropUrl: _asString(json['backdropUrl']),
       posterCachePath: _asString(json['posterCachePath']),
@@ -190,6 +193,7 @@ class CloudResourceTmdbRecord {
   final String? originalTitle;
   final String? overview;
   final double? rating;
+  final String? releaseDate;
   final String? posterUrl;
   final String? backdropUrl;
   final String? posterCachePath;
@@ -243,6 +247,7 @@ class CloudResourceTmdbRecord {
       if (originalTitle != null) 'originalTitle': originalTitle,
       if (overview != null) 'overview': overview,
       if (rating != null) 'rating': rating,
+      if (releaseDate != null) 'releaseDate': releaseDate,
       if (posterUrl != null) 'posterUrl': posterUrl,
       if (backdropUrl != null) 'backdropUrl': backdropUrl,
       if (posterCachePath != null) 'posterCachePath': posterCachePath,
@@ -267,6 +272,7 @@ class CloudResourceTmdbRecord {
             originalTitle == other.originalTitle &&
             overview == other.overview &&
             rating == other.rating &&
+            releaseDate == other.releaseDate &&
             posterUrl == other.posterUrl &&
             backdropUrl == other.backdropUrl &&
             posterCachePath == other.posterCachePath &&
@@ -288,6 +294,7 @@ class CloudResourceTmdbRecord {
         originalTitle,
         overview,
         rating,
+        releaseDate,
         posterUrl,
         backdropUrl,
         posterCachePath,
@@ -309,6 +316,7 @@ class CloudResourceTmdbRecord {
       originalTitle: originalTitle,
       overview: overview,
       rating: rating,
+      releaseDate: releaseDate,
       posterUrl: posterUrl,
       backdropUrl: backdropUrl,
       posterCachePath: posterCachePath,

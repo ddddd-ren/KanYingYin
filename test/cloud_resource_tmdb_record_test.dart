@@ -17,6 +17,7 @@ void main() {
         originalTitle: 'The Wandering Earth',
         overview: '公开简介',
         rating: 8.1,
+        releaseDate: '2019-02-05',
         posterUrl: '/poster.jpg',
         backdropUrl: '/backdrop.jpg',
         language: 'zh-CN',
@@ -31,6 +32,8 @@ void main() {
       record.stableKey,
       'quark-source|folder-fid|/影视/流浪地球',
     );
+    expect(record.releaseDate, '2019-02-05');
+    expect(record.toJson()['releaseDate'], '2019-02-05');
     expect(CloudResourceTmdbRecord.fromJson(record.toJson()), record);
     final serialized = record.toJson().toString().toLowerCase();
     for (final secret in <String>[
@@ -71,6 +74,7 @@ void main() {
         id: 42,
         mediaType: TmdbMediaType.tv,
         title: 'TMDB 标题',
+        releaseDate: '2025-01-01',
         language: 'zh-CN',
         matchedAt: DateTime.utc(2026, 7, 19),
         matchConfidence: 1,
@@ -81,11 +85,28 @@ void main() {
     final customized = matched.withCustomTitle('  我的剧名  ');
     expect(customized.customTitle, '我的剧名');
     expect(customized.effectiveTitle, '我的剧名');
+    expect(customized.releaseDate, '2025-01-01');
     expect(CloudResourceTmdbRecord.fromJson(customized.toJson()), customized);
 
     final restored = customized.clearCustomTitle();
     expect(restored.customTitle, isNull);
     expect(restored.effectiveTitle, matched.title);
+    expect(restored.releaseDate, '2025-01-01');
+  });
+
+  test('旧版 JSON 缺少上映日期时保持兼容', () {
+    final record = CloudResourceTmdbRecord.fromJson(<String, Object?>{
+      'sourceId': 'source-a',
+      'remoteId': 'folder-a',
+      'remotePath': '/影视/A',
+      'displayName': 'A',
+      'resourceKind': 'directory',
+      'status': 'matched',
+      'checkedAtMillis': DateTime.utc(2026, 7, 19).millisecondsSinceEpoch,
+    });
+
+    expect(record.releaseDate, isNull);
+    expect(record.toJson(), isNot(contains('releaseDate')));
   });
 
   test('未检查资源也能保存自定义剧名', () {

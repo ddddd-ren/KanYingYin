@@ -225,6 +225,8 @@ abstract class _PlayerController with Store {
   bool _truehdAudioTrackFallbackAttempted = false;
   final EmbeddedTrackSelectionState _embeddedTrackSelection =
       EmbeddedTrackSelectionState();
+  final SubtitleTrackSelectionState _subtitleTrackSelection =
+      SubtitleTrackSelectionState();
 
   // 播放器面板状态
   @observable
@@ -859,6 +861,7 @@ abstract class _PlayerController with Store {
     if (!LocalSubtitleMatcher.isSupportedSubtitlePath(subtitlePath)) {
       return false;
     }
+    _subtitleTrackSelection.markManualSelection();
     try {
       await _clearSubtitleTrackForSwitch();
       final player = mediaPlayer;
@@ -958,12 +961,21 @@ abstract class _PlayerController with Store {
         .firstOrNull;
     if (track == null) return false;
     final previousId = selectedEmbeddedSubtitleTrackId;
+    if (manual) {
+      _subtitleTrackSelection.markManualSelection();
+    }
     try {
-      _setCurrentSubtitlePath('');
+      await _clearSubtitleTrackForSwitch();
       await player.setSubtitleTrack(track);
       final platform = player.platform;
       if (platform is NativePlayer) {
         await _trySetNativeSubtitleProperty(platform, 'sub-visibility', 'yes');
+        await _trySetNativeSubtitleProperty(platform, 'secondary-sid', 'no');
+        await _trySetNativeSubtitleProperty(
+          platform,
+          'secondary-sub-visibility',
+          'no',
+        );
         await _trySetNativeSubtitleProperty(platform, 'sid', track.id);
       }
       selectedEmbeddedSubtitleTrackId = track.id;
@@ -982,6 +994,7 @@ abstract class _PlayerController with Store {
 
   void _resetEmbeddedTrackState() {
     _embeddedTrackSelection.reset();
+    _subtitleTrackSelection.reset();
     availableAudioTracks.clear();
     availableEmbeddedSubtitleTracks.clear();
     selectedAudioTrackId = '';
@@ -1017,6 +1030,8 @@ abstract class _PlayerController with Store {
     )) {
       return;
     }
+    final automaticSubtitleSelection =
+        _subtitleTrackSelection.beginAutomaticSelection();
     final current = mediaPlayer?.state.track;
     final audio = selectPreferredAudioTrack(
       availableAudioTracks,
@@ -1028,6 +1043,11 @@ abstract class _PlayerController with Store {
     );
     if (audio != null && _embeddedTrackSelection.canAutomaticallySelectAudio) {
       await selectAudioTrack(audio.id, manual: false);
+    }
+    if (!_subtitleTrackSelection.canApplyAutomaticSelection(
+      automaticSubtitleSelection,
+    )) {
+      return;
     }
     if (subtitle != null && currentSubtitlePath.isEmpty) {
       await selectEmbeddedSubtitleTrack(subtitle.id, manual: false);
@@ -1108,6 +1128,7 @@ abstract class _PlayerController with Store {
 
   @action
   Future<void> clearSubtitle() async {
+    _subtitleTrackSelection.markManualSelection();
     try {
       await _disableSubtitleTrack(clearCurrentPath: true);
       AppLogger().i('PlayerController: subtitle disabled');

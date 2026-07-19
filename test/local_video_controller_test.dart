@@ -166,6 +166,33 @@ void main() {
     expect(overlay, contains('divisions: 120'));
   });
 
+  test('外部字幕与内置字幕切换保持互斥', () {
+    final controller =
+        File('lib/pages/player/player_controller.dart').readAsStringSync();
+
+    expect(
+      controller,
+      contains('final SubtitleTrackSelectionState _subtitleTrackSelection'),
+    );
+    expect(
+      controller,
+      contains('if (!_subtitleTrackSelection.canApplyAutomaticSelection('),
+    );
+    expect(
+      controller,
+      contains(
+        "await _trySetNativeSubtitleProperty(platform, 'secondary-sid', 'no')",
+      ),
+    );
+    expect(
+      controller,
+      contains(
+        'await _clearSubtitleTrackForSwitch();\n'
+        '      await player.setSubtitleTrack(track);',
+      ),
+    );
+  });
+
   test('TMDB 海报部分下载失败时显示明确提示', () {
     final page = File('lib/pages/local/local_page.dart').readAsStringSync();
     final library =

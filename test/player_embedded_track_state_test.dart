@@ -21,4 +21,25 @@ void main() {
     expect(state.canAutomaticallySelectAudio, isTrue);
     expect(state.beginAutomaticSelection(hasAudioTracks: true), isTrue);
   });
+
+  test('用户选择字幕后使尚未完成的自动字幕选择失效', () {
+    final state = SubtitleTrackSelectionState();
+    final automaticSelection = state.beginAutomaticSelection();
+
+    state.markManualSelection();
+
+    expect(state.canApplyAutomaticSelection(automaticSelection), isFalse);
+  });
+
+  test('切换媒体后允许新的自动字幕选择生效', () {
+    final state = SubtitleTrackSelectionState();
+    final previousSelection = state.beginAutomaticSelection();
+    state.markManualSelection();
+
+    state.reset();
+    final currentSelection = state.beginAutomaticSelection();
+
+    expect(state.canApplyAutomaticSelection(previousSelection), isFalse);
+    expect(state.canApplyAutomaticSelection(currentSelection), isTrue);
+  });
 }

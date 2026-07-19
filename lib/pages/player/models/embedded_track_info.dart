@@ -33,6 +33,26 @@ class EmbeddedTrackSelectionState {
   }
 }
 
+class SubtitleTrackSelectionState {
+  int _revision = 0;
+  bool _manualSelectionMade = false;
+
+  int beginAutomaticSelection() => _revision;
+
+  bool canApplyAutomaticSelection(int revision) =>
+      !_manualSelectionMade && revision == _revision;
+
+  void markManualSelection() {
+    _manualSelectionMade = true;
+    _revision++;
+  }
+
+  void reset() {
+    _manualSelectionMade = false;
+    _revision++;
+  }
+}
+
 class EmbeddedTrackInfo {
   const EmbeddedTrackInfo({
     required this.id,

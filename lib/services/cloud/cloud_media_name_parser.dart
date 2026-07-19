@@ -33,7 +33,7 @@ class CloudMediaNameParser {
     r'(?:^|[\s._(（])((?:19|20)\d{2})(?=$|[\s._)）])',
   );
   static final RegExp _releaseTokenPattern = RegExp(
-    r'字幕组|字幕|中字|国配|台剧|美剧|日剧|韩剧|web-?dl|bluray|x26[45]|h26[45]|2160p|1080p|720p|4k|8k|uhd|hdr(?:10)?',
+    r'字幕组|字幕|中字|国配|台剧|美剧|日剧|韩剧|web-?dl|bluray|x26[45]|h26[45]|hevc|ddp(?:[\s._-]*\d(?:\.\d)?)?|2160p|1080p|720p|4k|8k|uhd|hdr(?:10)?',
     caseSensitive: false,
   );
 

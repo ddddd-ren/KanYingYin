@@ -29,6 +29,15 @@ void main() {
     expect(draft.year, 2020);
   });
 
+  test('画质编码和杜比声道尾缀不进入 TMDB 搜索词', () {
+    final draft = parser.parse(
+      originalName: '流浪地球2.2160p WEB-DL HEVC DDP 5.1.mkv',
+      isDirectory: false,
+    );
+
+    expect(draft.searchTitle, '流浪地球2');
+  });
+
   test('自定义剧名优先但季集仍从原名称识别', () {
     final draft = parser.parse(
       originalName: 'Alice.in.Borderland.S02E03.1080p.mkv',

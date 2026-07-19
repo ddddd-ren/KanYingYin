@@ -41,7 +41,11 @@ class CloudResourceCardViewData {
       final year = _releaseYear(record?.releaseDate);
       if (year != null) details.add(year);
     }
-    if (!entry.isDirectory) details.add(_formatBytes(entry.size));
+    if (!entry.isDirectory) {
+      details.add(_formatBytes(entry.size));
+      final modifiedAt = entry.modifiedAt;
+      if (modifiedAt != null) details.add(_formatDate(modifiedAt));
+    }
 
     final badges = <ImmersiveMediaCardBadge>[];
     if (kind == CloudResourceCardKind.media) {
@@ -126,5 +130,11 @@ class CloudResourceCardViewData {
       return '${(bytes / 1024).toStringAsFixed(1)} KB';
     }
     return '$bytes B';
+  }
+
+  static String _formatDate(DateTime value) {
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '${value.year}-$month-$day';
   }
 }

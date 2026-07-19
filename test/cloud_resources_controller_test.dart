@@ -470,6 +470,80 @@ void main() {
       expect(coordinator.appliedCandidate, same(candidate));
       fixture.controller.dispose();
     });
+
+    test('自动批量整理继续处理单项失败并汇总全部结果', () async {
+      final coordinator = _AutoOrganizeTmdbCoordinator();
+      final client = _FakeCloudClient(
+        entriesById: <String, List<CloudFileEntry>>{
+          'root-fid': const <CloudFileEntry>[
+            CloudFileEntry(
+              id: 'matched',
+              remotePath: '/影视/匹配.mkv',
+              name: '匹配.mkv',
+              size: 100,
+              modifiedAt: null,
+              isDirectory: false,
+            ),
+            CloudFileEntry(
+              id: 'pending',
+              remotePath: '/影视/待确认.mkv',
+              name: '待确认.mkv',
+              size: 100,
+              modifiedAt: null,
+              isDirectory: false,
+            ),
+            CloudFileEntry(
+              id: 'empty',
+              remotePath: '/影视/无结果.mkv',
+              name: '无结果.mkv',
+              size: 100,
+              modifiedAt: null,
+              isDirectory: false,
+            ),
+            CloudFileEntry(
+              id: 'failed',
+              remotePath: '/影视/失败.mkv',
+              name: '失败.mkv',
+              size: 100,
+              modifiedAt: null,
+              isDirectory: false,
+            ),
+          ],
+        },
+      );
+      final fixture = await _Fixture.create(
+        sources: const <CloudSource>[
+          CloudSource(
+            id: 'source-a',
+            type: CloudSourceType.quark,
+            name: '夸克媒体库',
+            baseUrl: 'https://pan.quark.cn',
+            rootPaths: <String>['/影视'],
+            rootRefs: <CloudRemoteRef>[
+              CloudRemoteRef(id: 'root-fid', path: '/影视'),
+            ],
+          ),
+        ],
+        clients: <String, _FakeCloudClient>{'source-a': client},
+        tmdbCoordinator: coordinator,
+      );
+      await fixture.controller.load();
+      final progress = <CloudResourceAutoOrganizeProgress>[];
+
+      final summary = await fixture.controller.autoOrganizeSelectedSource(
+        onProgress: progress.add,
+      );
+
+      expect(summary.matched, 1);
+      expect(summary.pending, 1);
+      expect(summary.noResult, 1);
+      expect(summary.failed, 1);
+      expect(summary.skipped, 0);
+      expect(progress.last.phase, CloudResourceAutoOrganizePhase.scraping);
+      expect(progress.last.completedTargets, 4);
+      expect(progress.last.totalTargets, 4);
+      fixture.controller.dispose();
+    });
   });
 }
 
@@ -575,6 +649,53 @@ class _FailingTmdbCoordinator extends _RecordingTmdbCoordinator {
     throw StateError('模拟 TMDB 失败');
   }
 }
+
+class _AutoOrganizeTmdbCoordinator extends _RecordingTmdbCoordinator {
+  @override
+  bool get hasApiKey => true;
+
+  @override
+  Future<CloudResourceTmdbOutcome> scrape(
+    CloudResourceTmdbTarget target, {
+    TmdbScrapeOptions? options,
+  }) async {
+    switch (target.remote.id) {
+      case 'matched':
+        return CloudResourceTmdbOutcome(
+          candidates: <TmdbMetadata>[_autoCandidate],
+          selected: CloudResourceTmdbRecord.matched(
+            sourceId: target.sourceId,
+            remoteId: target.remote.id,
+            remotePath: target.remote.path,
+            displayName: target.displayName,
+            resourceKind: target.resourceKind,
+            metadata: _autoCandidate,
+            checkedAt: _matchedAt,
+          ),
+        );
+      case 'pending':
+        return CloudResourceTmdbOutcome(
+          candidates: <TmdbMetadata>[_autoCandidate],
+        );
+      case 'empty':
+        return const CloudResourceTmdbOutcome(
+          candidates: <TmdbMetadata>[],
+        );
+      case 'failed':
+        throw StateError('模拟单项失败');
+    }
+    throw StateError('未知测试资源');
+  }
+}
+
+final _autoCandidate = TmdbMetadata(
+  id: 42,
+  mediaType: TmdbMediaType.movie,
+  title: '中文片名',
+  language: 'zh-CN',
+  matchedAt: _matchedAt,
+  matchConfidence: 1,
+);
 
 class _FakeCloudClient implements CloudDriveClient {
   _FakeCloudClient({

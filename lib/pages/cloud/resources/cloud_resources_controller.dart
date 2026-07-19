@@ -11,6 +11,7 @@ import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_name_parser.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+import 'package:kanyingyin/services/cloud/cloud_resource_auto_organizer.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
@@ -19,6 +20,40 @@ import 'package:kanyingyin/services/local_video_file_types.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:path/path.dart' as p;
+
+enum CloudResourceAutoOrganizePhase { scanning, scraping }
+
+class CloudResourceAutoOrganizeProgress {
+  const CloudResourceAutoOrganizeProgress({
+    required this.phase,
+    required this.scannedDirectories,
+    required this.discoveredTargets,
+    required this.completedTargets,
+    required this.totalTargets,
+  });
+
+  final CloudResourceAutoOrganizePhase phase;
+  final int scannedDirectories;
+  final int discoveredTargets;
+  final int completedTargets;
+  final int totalTargets;
+}
+
+class CloudResourceAutoOrganizeSummary {
+  const CloudResourceAutoOrganizeSummary({
+    required this.matched,
+    required this.pending,
+    required this.noResult,
+    required this.failed,
+    required this.skipped,
+  });
+
+  final int matched;
+  final int pending;
+  final int noResult;
+  final int failed;
+  final int skipped;
+}
 
 class CloudResourcesController extends ChangeNotifier {
   CloudResourcesController({
@@ -48,6 +83,7 @@ class CloudResourcesController extends ChangeNotifier {
   CloudRemoteRef? currentDirectory;
   bool isVirtualRoot = false;
   bool loading = false;
+  bool autoOrganizing = false;
   String query = '';
   String? errorMessage;
 
@@ -389,6 +425,114 @@ class CloudResourcesController extends ChangeNotifier {
     final coordinator = _tmdbCoordinator;
     if (coordinator == null) throw StateError('TMDB 元数据服务不可用');
     return coordinator.clearCustomTitle(tmdbTargetFor(entry));
+  }
+
+  Future<CloudResourceAutoOrganizeSummary> autoOrganizeSelectedSource({
+    void Function(CloudResourceAutoOrganizeProgress progress)? onProgress,
+  }) async {
+    final source = selectedSource;
+    final coordinator = _tmdbCoordinator;
+    if (source == null || coordinator == null) {
+      throw StateError('当前没有可整理的网盘来源');
+    }
+    if (!coordinator.hasApiKey) {
+      throw StateError('请先在设置中填写 TMDB API Key');
+    }
+    if (coordinator.isScraping) {
+      throw StateError('当前目录正在刮削，请稍后再试');
+    }
+    if (autoOrganizing) throw StateError('自动整理正在进行');
+
+    autoOrganizing = true;
+    _notify();
+    final client = _providerRegistry.createClient(source, _credentialStore);
+    try {
+      final discovery = await const CloudResourceAutoOrganizer().discover(
+        source: source,
+        client: client,
+        onProgress: (scannedDirectories, discoveredCandidates) {
+          onProgress?.call(
+            CloudResourceAutoOrganizeProgress(
+              phase: CloudResourceAutoOrganizePhase.scanning,
+              scannedDirectories: scannedDirectories,
+              discoveredTargets: discoveredCandidates,
+              completedTargets: 0,
+              totalTargets: 0,
+            ),
+          );
+        },
+      );
+      final targets = <CloudResourceTmdbTarget>[];
+      var skipped = 0;
+      final now = DateTime.now();
+      for (final target in discovery.candidates) {
+        final record = coordinator.records[target.stableKey];
+        final sameName = record?.displayName == target.displayName;
+        final matched = record?.status == CloudResourceTmdbStatus.matched;
+        final recentlyUnmatched =
+            record?.status == CloudResourceTmdbStatus.unmatched &&
+                record!.checkedAt
+                    .add(CloudResourceTmdbCoordinator.unmatchedRetryInterval)
+                    .isAfter(now);
+        if ((sameName && (matched || recentlyUnmatched)) ||
+            coordinator.scrapingKeys.contains(target.stableKey)) {
+          skipped++;
+        } else {
+          targets.add(target);
+        }
+      }
+
+      var completed = 0;
+      var matched = 0;
+      var pending = 0;
+      var noResult = 0;
+      var failed = discovery.failedDirectories;
+      onProgress?.call(
+        CloudResourceAutoOrganizeProgress(
+          phase: CloudResourceAutoOrganizePhase.scraping,
+          scannedDirectories: discovery.scannedDirectories,
+          discoveredTargets: discovery.candidates.length,
+          completedTargets: 0,
+          totalTargets: targets.length,
+        ),
+      );
+      for (final target in targets) {
+        try {
+          final outcome = await coordinator.scrape(target);
+          if (outcome.selected != null) {
+            matched++;
+          } else if (outcome.candidates.isNotEmpty) {
+            pending++;
+          } else {
+            noResult++;
+          }
+        } on Object {
+          failed++;
+        } finally {
+          completed++;
+          onProgress?.call(
+            CloudResourceAutoOrganizeProgress(
+              phase: CloudResourceAutoOrganizePhase.scraping,
+              scannedDirectories: discovery.scannedDirectories,
+              discoveredTargets: discovery.candidates.length,
+              completedTargets: completed,
+              totalTargets: targets.length,
+            ),
+          );
+        }
+      }
+      return CloudResourceAutoOrganizeSummary(
+        matched: matched,
+        pending: pending,
+        noResult: noResult,
+        failed: failed,
+        skipped: skipped,
+      );
+    } finally {
+      await client.close();
+      autoOrganizing = false;
+      _notify();
+    }
   }
 
   void _scheduleTmdb(

@@ -373,6 +373,8 @@ class LocalVideoController implements IVideoPageController {
       subtitlePath: resolved.subtitlePath,
       subtitleStorageKey: target.subtitleOffsetKey,
       stableMediaKey: '${target.sourceId}|${target.stableId}',
+      networkRoute: resolved.networkRoute,
+      cloudProviderName: resolved.cloudProviderName,
       refreshCloudPlayback: () async {
         final refreshed = await _resolveCloudPlayback!(target);
         return _cloudParams(refreshed, episode, offset);

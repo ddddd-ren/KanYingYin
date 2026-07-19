@@ -184,6 +184,7 @@ class SettingBoxKey {
       localSeriesTitleOverrides = 'localSeriesTitleOverrides',
       cloudSources = 'cloudSources',
       cloudMediaIndex = 'cloudMediaIndex',
+      quarkImportHistory = 'quarkImportHistory',
       localDefaultPath = 'localDefaultPath',
       localMinRecognizedVideoSizeBytes = 'localMinRecognizedVideoSizeBytes',
       cloudMinRecognizedVideoSizeBytes = 'cloudMinRecognizedVideoSizeBytes',

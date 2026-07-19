@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.6',
+    date: '2026-07-19',
+    isPrerelease: true,
+    changes: [
+      '本测试版为网盘资源加入 TMDB 自动刮削，文件夹和媒体根目录中的独立视频可按名称识别',
+      '匹配后卡片会显示海报、中文标题和评分，进入剧集文件夹还能查看简介',
+      '支持手动重新匹配和刮削当前目录，剧集单集会沿用文件夹信息，避免重复请求',
+      '没有 API Key、断网或 TMDB 不可用时，网盘浏览和播放器仍可使用',
+      '应用启动、本地媒体库与原有播放器功能保持可用',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.5',
     date: '2026-07-19',
     isPrerelease: true,

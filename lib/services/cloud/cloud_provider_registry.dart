@@ -2,6 +2,7 @@ import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/openlist/openlist_client.dart';
+import 'package:kanyingyin/services/cloud/quark/quark_drive_client.dart';
 
 typedef CloudProviderClientFactory = CloudDriveClient Function(
   CloudSource source,
@@ -15,6 +16,7 @@ class CloudProviderRegistry {
         const <CloudSourceType, CloudProviderClientFactory>{},
   }) : _clientFactories = <CloudSourceType, CloudProviderClientFactory>{
           CloudSourceType.openList: _createOpenListClient,
+          CloudSourceType.quark: _createQuarkClient,
           ...clientFactories,
         };
 
@@ -142,5 +144,15 @@ class CloudProviderRegistry {
         source: source,
         credentialStore: credentialStore,
         allowSelfSignedCertificate: allowSelfSignedCertificate,
+      );
+
+  static CloudDriveClient _createQuarkClient(
+    CloudSource source,
+    CloudCredentialStore credentialStore,
+    bool allowSelfSignedCertificate,
+  ) =>
+      QuarkDriveClient(
+        source: source,
+        credentialStore: credentialStore,
       );
 }

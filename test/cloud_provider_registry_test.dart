@@ -4,6 +4,7 @@ import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/openlist/openlist_client.dart';
+import 'package:kanyingyin/services/cloud/quark/quark_drive_client.dart';
 
 void main() {
   group('CloudProviderRegistry', () {
@@ -72,7 +73,7 @@ void main() {
       expect(changed.token, isNull);
     });
 
-    test('映射提供商专属错误且夸克占位不会伪装可用', () {
+    test('映射提供商专属错误并创建夸克客户端', () async {
       const source = CloudSource(
         id: 'quark-fixture',
         type: CloudSourceType.quark,
@@ -88,10 +89,10 @@ void main() {
         ),
         '未找到 OpenList 服务',
       );
-      expect(
-        () => registry.createClient(source, MemoryCloudCredentialStore()),
-        throwsA(isA<CloudDriveException>()),
-      );
+      final client =
+          registry.createClient(source, MemoryCloudCredentialStore());
+      expect(client, isA<QuarkDriveClient>());
+      await client.close();
     });
   });
 }

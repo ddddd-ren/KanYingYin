@@ -1,5 +1,6 @@
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_models.dart';
+import 'package:kanyingyin/modules/cloud/quark/quark_transfer_task.dart';
 
 class QuarkResponseParser {
   const QuarkResponseParser();
@@ -99,6 +100,46 @@ class QuarkResponseParser {
     return QuarkPlaybackLink(fileId: fileId, uri: uri);
   }
 
+  String parseShareToken(Object? value) {
+    ensureSuccess(value);
+    final data = _requiredMap(_map(value)['data']);
+    final token = data['stoken'];
+    if (token is! String || token.isEmpty) throw _incompatible();
+    return token;
+  }
+
+  String parseSaveTaskId(Object? value) {
+    ensureSuccess(value);
+    final data = _requiredMap(_map(value)['data']);
+    final taskId = data['task_id'];
+    if (taskId is! String || taskId.isEmpty) throw _incompatible();
+    return taskId;
+  }
+
+  QuarkTransferTask parseTask(Object? value) {
+    ensureSuccess(value);
+    final data = _requiredMap(_map(value)['data']);
+    final status = _int(data['status']);
+    final taskId = data['task_id'];
+    if (status == null || taskId is! String || taskId.isEmpty) {
+      throw _incompatible();
+    }
+    final savedFileIds = <String>[];
+    final saveAs = data['save_as'];
+    if (saveAs is Map) {
+      final rawIds = saveAs['save_as_top_fids'];
+      if (rawIds is List) savedFileIds.addAll(rawIds.whereType<String>());
+    }
+    return QuarkTransferTask(
+      id: taskId,
+      status: status == 2
+          ? QuarkTransferTaskStatus.succeeded
+          : QuarkTransferTaskStatus.pending,
+      title: data['task_title'] is String ? data['task_title'] as String : null,
+      savedFileIds: List<String>.unmodifiable(savedFileIds),
+    );
+  }
+
   static Map<String, Object?> _map(Object? value) {
     if (value is! Map) throw _incompatible();
     return Map<String, Object?>.from(value);
@@ -129,6 +170,15 @@ class QuarkResponseParser {
     }
     if (status == 429 || code == 429 || normalized.contains('频繁')) {
       return CloudDriveErrorType.rateLimited;
+    }
+    if (code == 32003 || normalized.contains('capacity limit')) {
+      return CloudDriveErrorType.insufficientSpace;
+    }
+    if (normalized.contains('提取码') || normalized.contains('passcode')) {
+      return CloudDriveErrorType.invalidPasscode;
+    }
+    if (normalized.contains('分享失效') || normalized.contains('已失效')) {
+      return CloudDriveErrorType.shareExpired;
     }
     return CloudDriveErrorType.incompatible;
   }

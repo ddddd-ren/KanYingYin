@@ -14,6 +14,12 @@ enum CloudDriveErrorType {
   invalidAddress,
   timeout,
   rateLimited,
+  shareExpired,
+  invalidPasscode,
+  insufficientSpace,
+  taskFailed,
+  taskTimeout,
+  cancelled,
 }
 
 class CloudDriveException implements Exception {

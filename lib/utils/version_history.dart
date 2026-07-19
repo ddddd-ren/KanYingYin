@@ -16,6 +16,16 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.2',
+    date: '2026-07-19',
+    isPrerelease: true,
+    changes: [
+      '本测试版修复 Windows 播放外部字幕时同一句字幕重复显示的问题',
+      'ASS 字幕继续保留原始排版和样式，不再额外叠加普通文字字幕',
+      '播放器启动、媒体库扫描和本地播放功能保持可用',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.1',
     date: '2026-07-19',
     isPrerelease: true,

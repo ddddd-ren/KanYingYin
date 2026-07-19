@@ -16,6 +16,8 @@ import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_indexer.dart';
+import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+import 'package:kanyingyin/pages/cloud/quark/quark_share_import_action.dart';
 
 void main() {
   testWidgets('网盘来源设置页显示入口和空状态', (tester) async {
@@ -25,8 +27,94 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('网盘数据源'), findsOneWidget);
-    expect(find.text('添加 OpenList'), findsOneWidget);
+    expect(find.text('添加网盘来源'), findsOneWidget);
     expect(find.text('还没有添加网盘数据源'), findsOneWidget);
+  });
+
+  testWidgets('添加菜单包含 OpenList 和夸克网盘', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: CloudSourcesSettingsPage()),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('添加网盘来源'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('添加 OpenList'), findsOneWidget);
+    expect(find.text('添加夸克网盘'), findsOneWidget);
+  });
+
+  testWidgets('只有存在可用夸克来源时显示分享导入操作', (tester) async {
+    final storage = MemoryCloudSourceStorage();
+    final credentials = MemoryCloudCredentialStore();
+    final repository = CloudSourceRepository(
+      storage: storage,
+      credentialStore: credentials,
+    );
+    const source = CloudSource(
+      id: 'quark-fixture',
+      type: CloudSourceType.quark,
+      name: '夸克媒体库',
+      baseUrl: 'https://pan.quark.cn',
+      rootPaths: <String>['/影视'],
+    );
+    await repository.save(source);
+    final controller = CloudLibraryController(
+      repository: repository,
+      credentialStore: credentials,
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: CloudSourcesSettingsPage(controller: controller),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('导入夸克分享'), findsNothing);
+
+    await credentials.write(
+      source.id,
+      const CloudCredential(cookie: 'cookie-fixture'),
+    );
+    await controller.load();
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('导入夸克分享'), findsOneWidget);
+    controller.dispose();
+  });
+
+  testWidgets('媒体库导入操作只在存在可用夸克来源时显示', (tester) async {
+    final storage = MemoryCloudSourceStorage();
+    final credentials = MemoryCloudCredentialStore();
+    final repository = CloudSourceRepository(
+      storage: storage,
+      credentialStore: credentials,
+    );
+    const source = CloudSource(
+      id: 'quark-library-fixture',
+      type: CloudSourceType.quark,
+      name: '夸克媒体库',
+      baseUrl: 'https://pan.quark.cn',
+      rootPaths: <String>['/影视'],
+    );
+    await repository.save(source);
+    final controller = CloudLibraryController(
+      repository: repository,
+      credentialStore: credentials,
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: QuarkShareImportAction(controller: controller),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('导入夸克分享'), findsNothing);
+
+    await credentials.write(
+      source.id,
+      const CloudCredential(cookie: 'cookie-fixture'),
+    );
+    await controller.load();
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('导入夸克分享'), findsOneWidget);
+    controller.dispose();
   });
 
   testWidgets('网盘来源列表不会展示地址中内嵌的凭据', (tester) async {
@@ -69,6 +157,11 @@ void main() {
         '        controller: Modular.get<CloudLibraryController>(),',
       ),
     );
+    expect(source, contains('"/cloud-sources/add"'));
+    expect(source, contains('"/cloud-sources/openlist/edit"'));
+    expect(source, contains('"/cloud-sources/quark/edit"'));
+    expect(source, contains('"/cloud-sources/quark/import"'));
+    expect(source, contains('"/cloud-sources/edit"'));
     expect(
       source,
       contains(
@@ -426,8 +519,8 @@ class _DirectoryCloudClient implements CloudDriveClient {
   final List<String> listedPaths = <String>[];
 
   @override
-  Future<List<CloudFileEntry>> listDirectory(String remotePath) async {
-    listedPaths.add(remotePath);
+  Future<List<CloudFileEntry>> listDirectory(CloudRemoteRef directory) async {
+    listedPaths.add(directory.path);
     return <CloudFileEntry>[
       const CloudFileEntry(
         id: 'anime',
@@ -464,11 +557,11 @@ class _DirectoryCloudClient implements CloudDriveClient {
   Future<void> close() async {}
 
   @override
-  Future<CloudFileEntry> getFile(String remotePath) =>
+  Future<CloudFileEntry> getFile(CloudRemoteRef file) =>
       throw UnimplementedError();
 
   @override
-  Future<CloudPlaybackResource> resolvePlayback(String remotePath) =>
+  Future<CloudPlaybackResource> resolvePlayback(CloudRemoteRef file) =>
       throw UnimplementedError();
 }
 
@@ -488,17 +581,17 @@ class _BlockingCloudClient implements CloudDriveClient {
   Future<void> close() async {}
 
   @override
-  Future<CloudFileEntry> getFile(String remotePath) =>
+  Future<CloudFileEntry> getFile(CloudRemoteRef file) =>
       throw UnimplementedError();
 
   @override
-  Future<List<CloudFileEntry>> listDirectory(String remotePath) async {
+  Future<List<CloudFileEntry>> listDirectory(CloudRemoteRef directory) async {
     if (!started.isCompleted) started.complete();
     await release.future;
     return const <CloudFileEntry>[];
   }
 
   @override
-  Future<CloudPlaybackResource> resolvePlayback(String remotePath) =>
+  Future<CloudPlaybackResource> resolvePlayback(CloudRemoteRef file) =>
       throw UnimplementedError();
 }

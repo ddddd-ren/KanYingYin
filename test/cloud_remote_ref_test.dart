@@ -45,6 +45,10 @@ void main() {
         rootRefs: <CloudRemoteRef>[
           CloudRemoteRef(id: 'fid_fixture_root', path: '/影视'),
         ],
+        defaultTransferDirectory: CloudRemoteRef(
+          id: 'fid_fixture_target',
+          path: '/接收',
+        ),
       );
 
       final json = source.toJson();
@@ -54,6 +58,10 @@ void main() {
       ]);
       expect(json.toString().toLowerCase(), isNot(contains('cookie')));
       expect(CloudSource.fromJson(json).remoteRoots, source.remoteRoots);
+      expect(
+        CloudSource.fromJson(json).defaultTransferDirectory,
+        source.defaultTransferDirectory,
+      );
     });
 
     test('云盘客户端的目录、文件和播放接口统一接收远程引用', () async {

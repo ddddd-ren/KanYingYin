@@ -324,7 +324,7 @@ class CloudMediaIndexRepository {
           : const <String>[],
       subtitleRefs: json['subtitleRefs'] is List
           ? (json['subtitleRefs'] as List)
-              .whereType<Map>()
+              .whereType<Map<Object?, Object?>>()
               .map((value) => CloudRemoteRef.fromJson(
                     Map<String, dynamic>.from(value),
                   ))

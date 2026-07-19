@@ -117,6 +117,16 @@ class _CloudSourcesSettingsPageState extends State<CloudSourcesSettingsPage> {
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        if (_controller.isQuarkSourceUsable(source.id))
+                          IconButton(
+                            tooltip: '导入夸克分享',
+                            icon:
+                                const Icon(Icons.drive_folder_upload_outlined),
+                            onPressed: () => Modular.to.pushNamed(
+                              '/settings/cloud-sources/quark/import',
+                              arguments: source,
+                            ),
+                          ),
                         IconButton(
                           tooltip: '扫描数据源',
                           icon: _controller.isScanningSource(source.id)
@@ -140,18 +150,36 @@ class _CloudSourcesSettingsPageState extends State<CloudSourcesSettingsPage> {
                       ],
                     ),
                     onTap: () => Modular.to.pushNamed(
-                      '/settings/cloud-sources/edit',
+                      source.type == CloudSourceType.openList
+                          ? '/settings/cloud-sources/openlist/edit'
+                          : '/settings/cloud-sources/quark/edit',
                       arguments: source,
                     ),
                   ),
                 const SizedBox(height: 16),
                 Align(
                   alignment: Alignment.centerRight,
-                  child: FilledButton.icon(
-                    onPressed: () =>
-                        Modular.to.pushNamed('/settings/cloud-sources/edit'),
-                    icon: const Icon(Icons.add),
-                    label: const Text('添加 OpenList'),
+                  child: PopupMenuButton<CloudSourceType>(
+                    onSelected: (type) => Modular.to.pushNamed(
+                      type == CloudSourceType.openList
+                          ? '/settings/cloud-sources/openlist/edit'
+                          : '/settings/cloud-sources/quark/edit',
+                    ),
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: CloudSourceType.openList,
+                        child: Text('添加 OpenList'),
+                      ),
+                      PopupMenuItem(
+                        value: CloudSourceType.quark,
+                        child: Text('添加夸克网盘'),
+                      ),
+                    ],
+                    child: const Padding(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      child: Text('添加网盘来源'),
+                    ),
                   ),
                 ),
               ],
@@ -175,4 +203,30 @@ class _CloudSourcesSettingsPageState extends State<CloudSourcesSettingsPage> {
             '${source.lastScanFailureCount == 0 ? '' : ' · ${source.lastScanFailureCount} 个目录失败'}',
     };
   }
+}
+
+class CloudSourceTypePickerPage extends StatelessWidget {
+  const CloudSourceTypePickerPage({super.key});
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('添加网盘来源')),
+        body: ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            ListTile(
+              leading: const Icon(Icons.cloud_outlined),
+              title: const Text('添加 OpenList'),
+              onTap: () =>
+                  Modular.to.pushNamed('/settings/cloud-sources/openlist/edit'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.cloud_queue_outlined),
+              title: const Text('添加夸克网盘'),
+              onTap: () =>
+                  Modular.to.pushNamed('/settings/cloud-sources/quark/edit'),
+            ),
+          ],
+        ),
+      );
 }

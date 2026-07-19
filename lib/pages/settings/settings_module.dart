@@ -1,4 +1,5 @@
 import 'package:kanyingyin/pages/about/about_module.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/pages/settings/interface_settings.dart';
 import 'package:kanyingyin/pages/settings/theme_settings_page.dart';
@@ -12,6 +13,8 @@ import 'package:kanyingyin/pages/settings/tmdb_settings.dart';
 import 'package:kanyingyin/pages/settings/cloud_sources_settings.dart';
 import 'package:kanyingyin/pages/settings/media_recognition_settings.dart';
 import 'package:kanyingyin/pages/cloud/openlist_source_editor.dart';
+import 'package:kanyingyin/pages/cloud/quark/quark_source_editor.dart';
+import 'package:kanyingyin/pages/cloud/quark/quark_share_import_page.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
@@ -96,6 +99,30 @@ class SettingsModule extends Module {
         onSourceScanned:
             Modular.get<LocalController>().revealCloudLibrarySource,
       ),
+    );
+    r.child(
+      "/cloud-sources/add",
+      child: (_) => const CloudSourceTypePickerPage(),
+    );
+    r.child(
+      "/cloud-sources/openlist/edit",
+      child: (_) => OpenListSourceEditorPage(
+        controller: Modular.get<CloudLibraryController>(),
+        source: r.args.data is CloudSource ? r.args.data as CloudSource : null,
+      ),
+    );
+    r.child(
+      "/cloud-sources/quark/edit",
+      child: (_) => QuarkSourceEditorPage(
+        controller: Modular.get<CloudLibraryController>(),
+        source: r.args.data is CloudSource ? r.args.data as CloudSource : null,
+      ),
+    );
+    r.child(
+      "/cloud-sources/quark/import",
+      child: (_) => r.args.data is CloudSource
+          ? QuarkShareImportPage(source: r.args.data as CloudSource)
+          : const Scaffold(body: Center(child: Text('夸克来源不存在'))),
     );
     r.child(
       "/cloud-sources/edit",

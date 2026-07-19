@@ -89,7 +89,7 @@ class QuarkImportHistoryRepository {
 
   static List<QuarkImportRecord> _decode(List<Object?> raw) {
     final records = <QuarkImportRecord>[];
-    for (final value in raw.whereType<Map>()) {
+    for (final value in raw.whereType<Map<Object?, Object?>>()) {
       try {
         records.add(
           QuarkImportRecord.fromJson(Map<String, Object?>.from(value)),

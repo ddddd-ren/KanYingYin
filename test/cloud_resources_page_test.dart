@@ -92,6 +92,8 @@ void main() {
     expect(find.text('第01集.ass'), findsNothing);
     expect(find.textContaining('700.0 MB'), findsOneWidget);
     expect(find.textContaining('2026-07-19'), findsOneWidget);
+    expect(find.text('有字幕'), findsOneWidget);
+    expect(find.text('无字幕'), findsNothing);
     expect(find.widgetWithText(TextField, '搜索当前目录'), findsOneWidget);
     fixture.controller.dispose();
   });

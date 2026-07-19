@@ -147,6 +147,19 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
         .firstOrNull;
   }
 
+  Set<String> _subtitleVideoKeys(String sourceId) => _controller.entries
+      .where(
+        (entry) => !entry.isDirectory && _matchingSubtitle(entry) != null,
+      )
+      .map(
+        (entry) => cloudResourceTmdbKey(
+          sourceId: sourceId,
+          remoteId: entry.id,
+          remotePath: entry.remotePath,
+        ),
+      )
+      .toSet();
+
   Future<void> _scrapeEntry(CloudFileEntry entry) async {
     await _openTmdbDialog(entry, rematch: false);
   }
@@ -601,6 +614,9 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
               entries: _controller.visibleEntries,
               records: _controller.tmdbRecords,
               scrapingKeys: _controller.tmdbScrapingKeys,
+              subtitleVideoKeys: _subtitleVideoKeys(
+                _controller.selectedSource!.id,
+              ),
               onOpenDirectory: _openDirectory,
               onPlay: _play,
               onEditTitle: _editTitle,

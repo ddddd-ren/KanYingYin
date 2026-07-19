@@ -13,8 +13,10 @@ import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
+import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
 void main() {
@@ -229,7 +231,7 @@ void main() {
     fixture.controller.dispose();
   });
 
-  testWidgets('重新匹配显示选项与候选并保存所选结果', (tester) async {
+  testWidgets('重新匹配显示可编辑搜索词与候选并保存', (tester) async {
     final coordinator = _ManualTmdbCoordinator();
     final fixture = await _PageFixture.create(
       source: _quarkSource,
@@ -254,14 +256,80 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('重新匹配'));
     await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey<String>('cloud-tmdb-match-dialog')),
+      findsOneWidget,
+    );
+    expect(find.text('动漫'), findsWidgets);
     expect(find.text('本次刮削选项'), findsOneWidget);
-    await tester.tap(find.widgetWithText(FilledButton, '开始刮削'));
+    await tester.tap(find.widgetWithText(FilledButton, '搜索 TMDB'));
     await tester.pumpAndSettle();
     expect(find.text('候选片名'), findsOneWidget);
     await tester.tap(find.text('候选片名'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, '应用匹配'));
     await tester.pumpAndSettle();
 
     expect(coordinator.selectedCandidate?.id, 42);
+    fixture.controller.dispose();
+  });
+
+  testWidgets('批量刮削不中断并汇总成功待确认无结果和失败', (tester) async {
+    final coordinator = _BatchTmdbCoordinator();
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      entries: const <CloudFileEntry>[
+        CloudFileEntry(
+          id: 'matched',
+          remotePath: '/影视/成功',
+          name: '成功',
+          size: 0,
+          modifiedAt: null,
+          isDirectory: true,
+        ),
+        CloudFileEntry(
+          id: 'pending',
+          remotePath: '/影视/待确认',
+          name: '待确认',
+          size: 0,
+          modifiedAt: null,
+          isDirectory: true,
+        ),
+        CloudFileEntry(
+          id: 'empty',
+          remotePath: '/影视/无结果',
+          name: '无结果',
+          size: 0,
+          modifiedAt: null,
+          isDirectory: true,
+        ),
+        CloudFileEntry(
+          id: 'failed',
+          remotePath: '/影视/失败',
+          name: '失败',
+          size: 0,
+          modifiedAt: null,
+          isDirectory: true,
+        ),
+      ],
+      tmdbCoordinator: coordinator,
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: CloudResourcesPage(controller: fixture.controller)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('刮削当前目录'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey<String>('cloud-tmdb-match-dialog')),
+      findsNothing,
+    );
+    expect(
+      find.textContaining('成功 1 项，待确认 1 项，无结果 1 项，失败 1 项'),
+      findsOneWidget,
+    );
     fixture.controller.dispose();
   });
 
@@ -579,6 +647,45 @@ class _ManualTmdbCoordinator extends CloudResourceTmdbCoordinator {
   }
 
   @override
+  Future<CloudResourceTmdbSearchOutcome> searchPrepared(
+    CloudResourceTmdbTarget target,
+    CloudResourceTmdbSearchRequest request,
+  ) async {
+    return CloudResourceTmdbSearchOutcome(
+      ranked: TmdbRankedResult(
+        candidates: <TmdbRankedCandidate>[
+          TmdbRankedCandidate(
+            metadata: _candidate,
+            score: 1,
+            titleMatched: true,
+            yearMatched: true,
+            typeMatched: true,
+          ),
+        ],
+        shouldAutoMatch: true,
+      ),
+    );
+  }
+
+  @override
+  Future<CloudResourceTmdbSelectionOutcome> selectPrepared(
+    CloudResourceTmdbTarget target,
+    TmdbRankedCandidate candidate, {
+    required TmdbScrapeOptions options,
+  }) async {
+    final record = await select(
+      target,
+      candidate.metadata,
+      options: options,
+    );
+    return CloudResourceTmdbSelectionOutcome(
+      record: record,
+      posterCached: true,
+      indexSynced: true,
+    );
+  }
+
+  @override
   Future<CloudResourceTmdbRecord> select(
     CloudResourceTmdbTarget target,
     TmdbMetadata candidate, {
@@ -594,6 +701,41 @@ class _ManualTmdbCoordinator extends CloudResourceTmdbCoordinator {
       metadata: candidate,
       checkedAt: DateTime.utc(2026, 7, 19),
     );
+  }
+}
+
+class _BatchTmdbCoordinator extends _ManualTmdbCoordinator {
+  @override
+  Future<CloudResourceTmdbOutcome> scrape(
+    CloudResourceTmdbTarget target, {
+    TmdbScrapeOptions? options,
+  }) async {
+    switch (target.remote.id) {
+      case 'matched':
+        return CloudResourceTmdbOutcome(
+          candidates: <TmdbMetadata>[_candidate],
+          selected: CloudResourceTmdbRecord.matched(
+            sourceId: target.sourceId,
+            remoteId: target.remote.id,
+            remotePath: target.remote.path,
+            displayName: target.displayName,
+            resourceKind: target.resourceKind,
+            metadata: _candidate,
+            checkedAt: DateTime.utc(2026, 7, 19),
+          ),
+        );
+      case 'pending':
+        return CloudResourceTmdbOutcome(
+          candidates: <TmdbMetadata>[_candidate],
+        );
+      case 'empty':
+        return const CloudResourceTmdbOutcome(
+          candidates: <TmdbMetadata>[],
+        );
+      case 'failed':
+        throw StateError('模拟失败');
+    }
+    throw StateError('未识别的测试资源');
   }
 }
 

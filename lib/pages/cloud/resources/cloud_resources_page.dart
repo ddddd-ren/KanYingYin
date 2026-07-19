@@ -5,18 +5,16 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
-import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_grid.dart';
-import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
-import 'package:kanyingyin/pages/local/tmdb_scrape_options_sheet.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_tmdb_match_dialog.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/local_subtitle_matcher.dart';
-import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:path/path.dart' as p;
 
 class CloudResourcesPage extends StatefulWidget {
@@ -150,33 +148,43 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
   }
 
   Future<void> _scrapeEntry(CloudFileEntry entry) async {
-    try {
-      final outcome = await _controller.scrapeTmdb(entry);
-      if (!mounted) return;
-      if (outcome.selected != null) {
-        _showMessage('已匹配“${outcome.selected!.title ?? entry.name}”');
-        return;
-      }
-      await _selectCandidate(entry, outcome.candidates);
-    } on Object catch (error) {
-      if (!mounted) return;
-      _showMessage(_tmdbErrorMessage(error));
-    }
+    await _openTmdbDialog(entry, rematch: false);
   }
 
   Future<void> _rematchEntry(CloudFileEntry entry) async {
-    final options = await showModalBottomSheet<TmdbScrapeOptions>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => TmdbScrapeOptionsSheet(
-        initialOptions: _controller.tmdbScrapeOptions,
-      ),
-    );
-    if (options == null || !mounted) return;
+    await _openTmdbDialog(entry, rematch: true);
+  }
+
+  Future<void> _openTmdbDialog(
+    CloudFileEntry entry, {
+    required bool rematch,
+  }) async {
     try {
-      final outcome = await _controller.rematchTmdb(entry, options: options);
-      if (!mounted) return;
-      await _selectCandidate(entry, outcome.candidates, options: options);
+      final outcome = await showDialog<CloudResourceTmdbSelectionOutcome>(
+        context: context,
+        builder: (context) => CloudTmdbMatchDialog(
+          title: rematch ? '重新匹配 TMDB' : 'TMDB 刮削',
+          draft: _controller.tmdbDraftFor(entry),
+          initialOptions: _controller.tmdbScrapeOptions,
+          onSearch: (request) => _controller.searchTmdb(entry, request),
+          onApply: (candidate, options) => _controller.applyTmdbCandidate(
+            entry,
+            candidate,
+            options: options,
+          ),
+        ),
+      );
+      if (!mounted || outcome == null) return;
+      final title = outcome.record.title ?? entry.name;
+      if (!outcome.posterCached && !outcome.indexSynced) {
+        _showMessage('已保存“$title”，海报暂未缓存，媒体索引将在下次加载时重试');
+      } else if (!outcome.posterCached) {
+        _showMessage('已保存“$title”，海报暂未缓存');
+      } else if (!outcome.indexSynced) {
+        _showMessage('已保存“$title”，媒体索引将在下次加载时重试');
+      } else {
+        _showMessage('已保存“$title”的匹配信息');
+      }
     } on Object catch (error) {
       if (!mounted) return;
       _showMessage(_tmdbErrorMessage(error));
@@ -295,32 +303,6 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     }
   }
 
-  Future<void> _selectCandidate(
-    CloudFileEntry entry,
-    List<TmdbMetadata> candidates, {
-    TmdbScrapeOptions? options,
-  }) async {
-    if (candidates.isEmpty) {
-      _showMessage('TMDB 没有返回可用候选');
-      return;
-    }
-    final selected = await showModalBottomSheet<TmdbMetadata>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => TmdbMatchSheet(
-        seriesName: entry.name,
-        candidates: candidates,
-      ),
-    );
-    if (selected == null || !mounted) return;
-    await _controller.selectTmdbCandidate(
-      entry,
-      selected,
-      options: options,
-    );
-    if (mounted) _showMessage('已保存“${selected.title}”的匹配信息');
-  }
-
   Future<void> _scrapeCurrentDirectory() async {
     if (_batchScraping) return;
     final entries = _controller.tmdbEntriesForCurrentDirectory;
@@ -334,18 +316,33 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       _batchTotal = entries.length;
     });
     var matched = 0;
+    var pending = 0;
+    var noResult = 0;
+    var failed = 0;
     try {
       for (final entry in entries) {
         if (!mounted) return;
         setState(() => _batchCurrent++);
         try {
           final outcome = await _controller.scrapeTmdb(entry);
-          if (outcome.selected != null) matched++;
+          if (outcome.selected != null) {
+            matched++;
+          } else if (outcome.candidates.isNotEmpty) {
+            pending++;
+          } else {
+            noResult++;
+          }
         } on Object {
+          failed++;
           continue;
         }
       }
-      if (mounted) _showMessage('当前目录刮削完成，匹配 $matched 项');
+      if (mounted) {
+        _showMessage(
+          '当前目录刮削完成：成功 $matched 项，待确认 $pending 项，'
+          '无结果 $noResult 项，失败 $failed 项',
+        );
+      }
     } finally {
       if (mounted) setState(() => _batchScraping = false);
     }

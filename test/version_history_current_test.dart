@@ -31,8 +31,8 @@ void main() {
     expect(versionHistoryForCurrent('9.9.9'), isEmpty);
   });
 
-  testWidgets('二点一六更新弹窗明确显示网盘 TMDB 内容', (tester) async {
-    final entries = versionHistoryForCurrent('2.1.6');
+  testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
+    final entries = versionHistoryForCurrent('2.1.7');
 
     expect(entries.single.isPrerelease, isTrue);
     expect(entries.single.releaseLabel, '测试版');
@@ -40,9 +40,11 @@ void main() {
       home: Scaffold(body: VersionChangelogContent(versions: entries)),
     ));
 
-    expect(find.text('v2.1.6  测试版  2026-07-19'), findsOneWidget);
+    expect(find.text('v2.1.7  测试版  2026-07-19'), findsOneWidget);
     expect(entries.single.changes.join('\n'), contains('TMDB'));
     expect(entries.single.changes.join('\n'), contains('网盘'));
+    expect(entries.single.changes.join('\n'), contains('修改剧名'));
+    expect(entries.single.changes.join('\n'), contains('不会重命名'));
     for (final change in entries.single.changes) {
       expect(find.textContaining(change), findsOneWidget);
     }

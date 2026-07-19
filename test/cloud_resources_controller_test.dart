@@ -6,10 +6,12 @@ import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
+import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_indexer.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_auto_organizer.dart';
@@ -22,7 +24,7 @@ import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
 void main() {
   group('CloudResourcesController', () {
-    test('只显示已启用来源且单根目录直接加载', () async {
+    test('只显示已启用来源且递归扫描配置根目录', () async {
       final fixture = await _Fixture.create(
         sources: const <CloudSource>[
           CloudSource(
@@ -62,22 +64,22 @@ void main() {
         },
       );
 
-      await fixture.controller.load();
+      await fixture.load();
 
       expect(
         fixture.controller.sources.map((source) => source.id),
         <String>['quark-enabled'],
       );
       expect(
-        fixture.clients['quark-enabled']!.listed.single,
-        const CloudRemoteRef(id: 'root-fid', path: '/影视'),
+        fixture.clients['quark-enabled']!.listed.map((item) => item.id),
+        <String>['root-fid', 'child-fid'],
       );
-      expect(fixture.controller.currentDirectory?.id, 'root-fid');
-      expect(fixture.controller.entries.single.name, '动漫');
+      expect(fixture.controller.currentDirectory, isNull);
+      expect(fixture.controller.entries, isEmpty);
       fixture.controller.dispose();
     });
 
-    test('多根目录先显示虚拟根页', () async {
+    test('多根目录全部递归扫描且不显示虚拟根页', () async {
       final client = _FakeCloudClient();
       final fixture = await _Fixture.create(
         sources: const <CloudSource>[
@@ -96,18 +98,18 @@ void main() {
         clients: <String, _FakeCloudClient>{'openlist-multiple': client},
       );
 
-      await fixture.controller.load();
+      await fixture.load();
 
-      expect(fixture.controller.isVirtualRoot, isTrue);
+      expect(fixture.controller.isVirtualRoot, isFalse);
+      expect(fixture.controller.entries, isEmpty);
       expect(
-        fixture.controller.entries.map((entry) => entry.id),
+        client.listed.map((item) => item.id),
         <String>['/动漫', '/电影'],
       );
-      expect(client.listed, isEmpty);
       fixture.controller.dispose();
     });
 
-    test('进入目录、返回上级和搜索保留强类型引用', () async {
+    test('递归结果只显示视频且搜索覆盖全部目录', () async {
       final client = _FakeCloudClient(
         entriesById: <String, List<CloudFileEntry>>{
           'root-fid': <CloudFileEntry>[
@@ -163,22 +165,21 @@ void main() {
         ],
         clients: <String, _FakeCloudClient>{'quark-navigation': client},
       );
-      await fixture.controller.load();
+      await fixture.load();
 
       expect(
         fixture.controller.visibleEntries.map((entry) => entry.name),
-        <String>['动漫', '剧场版.mkv'],
+        containsAll(<String>['剧场版.mkv', '第01集.mkv']),
       );
       fixture.controller.setQuery('剧场版');
       expect(fixture.controller.visibleEntries.single.name, '剧场版.mkv');
       fixture.controller.setQuery('');
-      await fixture.controller.openDirectory(
-        const CloudRemoteRef(id: 'child-fid', path: '/影视/动漫'),
+      expect(fixture.controller.currentDirectory, isNull);
+      expect(fixture.controller.canGoBack, isFalse);
+      final movie = fixture.controller.entries.singleWhere(
+        (entry) => entry.id == 'movie-fid',
       );
-      expect(fixture.controller.currentDirectory?.id, 'child-fid');
-      expect(fixture.controller.canGoBack, isTrue);
-      await fixture.controller.goBack();
-      expect(fixture.controller.currentDirectory?.id, 'root-fid');
+      expect(fixture.controller.subtitleFor(movie)?.id, 'subtitle-fid');
       fixture.controller.dispose();
     });
 
@@ -188,12 +189,12 @@ void main() {
         entriesById: <String, List<CloudFileEntry>>{
           'fast-root': const <CloudFileEntry>[
             CloudFileEntry(
-              id: 'new-directory',
-              remotePath: '/新目录',
-              name: '新目录',
-              size: 0,
+              id: 'new-video',
+              remotePath: '/新电影.mkv',
+              name: '新电影.mkv',
+              size: 100,
               modifiedAt: null,
-              isDirectory: true,
+              isDirectory: false,
             ),
           ],
         },
@@ -226,28 +227,29 @@ void main() {
           'slow': slowClient,
         },
       );
-      await fixture.controller.load();
+      await fixture.load();
 
       final oldRequest = fixture.controller.selectSource('slow');
       await fixture.controller.selectSource('fast');
       slowClient.complete(const <CloudFileEntry>[
         CloudFileEntry(
-          id: 'old-directory',
-          remotePath: '/旧目录',
-          name: '旧目录',
-          size: 0,
+          id: 'old-video',
+          remotePath: '/慢/旧电影.mkv',
+          name: '旧电影.mkv',
+          size: 100,
           modifiedAt: null,
-          isDirectory: true,
+          isDirectory: false,
         ),
       ]);
       await oldRequest;
+      await fixture.controller.scanCompletion;
 
       expect(fixture.controller.selectedSource?.id, 'fast');
-      expect(fixture.controller.entries.single.name, '新目录');
+      expect(fixture.controller.entries.single.name, '新电影.mkv');
       fixture.controller.dispose();
     });
 
-    test('根目录调度文件夹和独立视频，子目录只标记为非配置根', () async {
+    test('TMDB 调度使用来源级完整视频上下文', () async {
       final coordinator = _RecordingTmdbCoordinator();
       final client = _FakeCloudClient(
         entriesById: <String, List<CloudFileEntry>>{
@@ -298,13 +300,16 @@ void main() {
         tmdbCoordinator: coordinator,
       );
 
-      await fixture.controller.load();
-      expect(coordinator.contexts.single.isConfiguredRoot, isTrue);
-      expect(coordinator.contexts.single.entries, hasLength(2));
-      await fixture.controller.openDirectory(
-        const CloudRemoteRef(id: 'folder-fid', path: '/影视/剧集'),
+      await fixture.load();
+      expect(coordinator.contexts.last.isConfiguredRoot, isTrue);
+      expect(
+        coordinator.contexts.last.directory,
+        const CloudRemoteRef(id: 'library:source-a', path: '/'),
       );
-      expect(coordinator.contexts.last.isConfiguredRoot, isFalse);
+      expect(
+        coordinator.contexts.last.entries.map((entry) => entry.id),
+        <String>['movie-fid'],
+      );
       fixture.controller.dispose();
     });
 
@@ -341,7 +346,7 @@ void main() {
         tmdbCoordinator: _FailingTmdbCoordinator(),
       );
 
-      await fixture.controller.load();
+      await fixture.load();
       await Future<void>.delayed(Duration.zero);
 
       expect(fixture.controller.errorMessage, isNull);
@@ -349,18 +354,18 @@ void main() {
       fixture.controller.dispose();
     });
 
-    test('修改显示剧名不改变远程引用且客户端只读取目录', () async {
+    test('修改显示剧名不改变视频远程引用', () async {
       final coordinator = _RecordingTmdbCoordinator();
       final client = _FakeCloudClient(
         entriesById: <String, List<CloudFileEntry>>{
           'root-fid': const <CloudFileEntry>[
             CloudFileEntry(
-              id: 'folder-fid',
-              remotePath: '/影视/原目录',
-              name: '原目录',
-              size: 0,
+              id: 'video-fid',
+              remotePath: '/影视/原剧名.S01E01.mkv',
+              name: '原剧名.S01E01.mkv',
+              size: 100,
               modifiedAt: null,
-              isDirectory: true,
+              isDirectory: false,
             ),
           ],
         },
@@ -381,15 +386,15 @@ void main() {
         clients: <String, _FakeCloudClient>{'source-a': client},
         tmdbCoordinator: coordinator,
       );
-      await fixture.controller.load();
-      final folder = fixture.controller.entries.single;
+      await fixture.load();
+      final video = fixture.controller.entries.single;
 
-      await fixture.controller.saveCustomTitle(folder, '新剧名');
+      await fixture.controller.saveCustomTitle(video, '新剧名');
 
-      expect(fixture.controller.tmdbTargetFor(folder).remote.id, 'folder-fid');
+      expect(fixture.controller.tmdbTargetFor(video).remote.id, 'video-fid');
       expect(
-        fixture.controller.tmdbTargetFor(folder).remote.path,
-        '/影视/原目录',
+        fixture.controller.tmdbTargetFor(video).remote.path,
+        '/影视/原剧名.S01E01.mkv',
       );
       expect(
         client.listed,
@@ -432,7 +437,7 @@ void main() {
         clients: <String, _FakeCloudClient>{'source-a': client},
         tmdbCoordinator: coordinator,
       );
-      await fixture.controller.load();
+      await fixture.load();
       final episode = fixture.controller.entries.single;
       await fixture.controller.saveCustomTitle(episode, '弥留之国的爱丽丝');
 
@@ -508,7 +513,7 @@ void main() {
         },
         tmdbCoordinator: coordinator,
       );
-      await fixture.controller.load();
+      await fixture.load();
       fixture.controller.setQuery('S01E01');
       final first = fixture.controller.entries.first;
       final candidate = TmdbRankedCandidate(
@@ -546,7 +551,7 @@ void main() {
       fixture.controller.dispose();
     });
 
-    test('作品集合和当前目录刮削候选动态遵守网盘识别大小', () async {
+    test('作品集合和来源刮削候选动态遵守网盘识别大小', () async {
       var minSizeBytes = 100;
       final fixture = await _Fixture.create(
         sources: const <CloudSource>[
@@ -603,25 +608,25 @@ void main() {
         },
         minRecognizedVideoSizeBytesProvider: () => minSizeBytes,
       );
-      await fixture.controller.load();
+      await fixture.load();
 
-      expect(fixture.controller.collection.folders, hasLength(1));
+      expect(fixture.controller.collection.folders, isEmpty);
       expect(
         fixture.controller.collection.groups.single.anchor.id,
         'large',
       );
       expect(
-        fixture.controller.tmdbEntriesForCurrentDirectory
+        fixture.controller.tmdbEntriesForSelectedSource
             .map((entry) => entry.id),
-        <String>['folder', 'large'],
+        <String>['large'],
       );
 
       minSizeBytes = 101;
       expect(fixture.controller.collection.groups, isEmpty);
       expect(
-        fixture.controller.tmdbEntriesForCurrentDirectory
+        fixture.controller.tmdbEntriesForSelectedSource
             .map((entry) => entry.id),
-        <String>['folder'],
+        isEmpty,
       );
       fixture.controller.dispose();
     });
@@ -682,7 +687,7 @@ void main() {
         clients: <String, _FakeCloudClient>{'source-a': client},
         tmdbCoordinator: coordinator,
       );
-      await fixture.controller.load();
+      await fixture.load();
       final progress = <CloudResourceAutoOrganizeProgress>[];
 
       final summary = await fixture.controller.autoOrganizeSelectedSource(
@@ -737,7 +742,7 @@ void main() {
           minRecognizedVideoSizeBytesProvider: () => 100,
         ),
       );
-      await fixture.controller.load();
+      await fixture.load();
 
       final summary = await fixture.controller.autoOrganizeSelectedSource();
 
@@ -824,7 +829,7 @@ void main() {
         clients: <String, _FakeCloudClient>{'source-a': client},
         tmdbCoordinator: coordinator,
       );
-      await fixture.controller.load();
+      await fixture.load();
 
       final summary = await fixture.controller.autoOrganizeSelectedSource();
 
@@ -857,7 +862,7 @@ void main() {
         clients: <String, _FakeCloudClient>{'source-a': client},
         tmdbCoordinator: coordinator,
       );
-      await fixture.controller.load();
+      await fixture.load();
       final listedBefore = client.listed.length;
 
       await expectLater(
@@ -895,7 +900,7 @@ void main() {
         clients: <String, _FakeCloudClient>{'source-a': client},
         tmdbCoordinator: coordinator,
       );
-      await fixture.controller.load();
+      await fixture.load();
       final listedBefore = client.listed.length;
 
       await expectLater(
@@ -923,6 +928,11 @@ class _Fixture {
   final CloudResourcesController controller;
   final Map<String, _FakeCloudClient> clients;
 
+  Future<void> load() async {
+    await controller.load();
+    await controller.scanCompletion;
+  }
+
   static Future<_Fixture> create({
     required List<CloudSource> sources,
     required Map<String, _FakeCloudClient> clients,
@@ -944,18 +954,26 @@ class _Fixture {
         CloudSourceType.quark: (source, _, __) => clients[source.id]!,
       },
     );
+    final minSizeProvider = minRecognizedVideoSizeBytesProvider ?? (() => 0);
+    final indexRepository = CloudMediaIndexRepository(
+      storage: MemoryCloudMediaIndexStorage(),
+    );
     return _Fixture(
       controller: CloudResourcesController(
         repository: repository,
         credentialStore: credentials,
         providerRegistry: registry,
+        mediaIndexRepository: indexRepository,
+        mediaIndexer: CloudMediaIndexer(
+          repository: indexRepository,
+          minRecognizedVideoSizeBytesProvider: minSizeProvider,
+        ),
         tmdbCoordinator: tmdbCoordinator,
         autoOrganizer: autoOrganizer ??
             CloudResourceAutoOrganizer(
               minRecognizedVideoSizeBytesProvider: () => 0,
             ),
-        minRecognizedVideoSizeBytesProvider:
-            minRecognizedVideoSizeBytesProvider,
+        minRecognizedVideoSizeBytesProvider: minSizeProvider,
       ),
       clients: clients,
     );

@@ -2,13 +2,16 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
+import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
+import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_indexer.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_name_parser.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
@@ -16,11 +19,9 @@ import 'package:kanyingyin/services/cloud/cloud_resource_auto_organizer.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
-import 'package:kanyingyin/services/local_episode_parser.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
-import 'package:path/path.dart' as p;
 
 int _defaultCloudMinSizeBytes() =>
     LocalVideoFileTypes.minRecognizedVideoSizeBytes;
@@ -68,9 +69,12 @@ class CloudResourcesController extends ChangeNotifier {
     CloudResourceAutoOrganizer? autoOrganizer,
     int Function()? minRecognizedVideoSizeBytesProvider,
     CloudResourceCollectionGrouper? collectionGrouper,
-    LocalEpisodeParser? episodeParser,
+    CloudMediaIndexRepository? mediaIndexRepository,
+    CloudMediaIndexer? mediaIndexer,
   })  : _repository = repository,
         _credentialStore = credentialStore,
+        _mediaIndexRepository =
+            mediaIndexRepository ?? CloudMediaIndexRepository(),
         _providerRegistry = providerRegistry ?? CloudProviderRegistry(),
         _tmdbCoordinator = tmdbCoordinator,
         _minRecognizedVideoSizeBytesProvider =
@@ -82,35 +86,50 @@ class CloudResourcesController extends ChangeNotifier {
               minRecognizedVideoSizeBytesProvider:
                   minRecognizedVideoSizeBytesProvider ??
                       _defaultCloudMinSizeBytes,
-            ),
-        _episodeParser = episodeParser ?? LocalEpisodeParser() {
+            ) {
+    _mediaIndexer = mediaIndexer ??
+        CloudMediaIndexer(
+          repository: _mediaIndexRepository,
+          minRecognizedVideoSizeBytesProvider:
+              _minRecognizedVideoSizeBytesProvider,
+        );
     _tmdbCoordinator?.addListener(_notify);
   }
 
   final CloudSourceRepository _repository;
   final CloudCredentialStore _credentialStore;
+  final CloudMediaIndexRepository _mediaIndexRepository;
+  late final CloudMediaIndexer _mediaIndexer;
   final CloudProviderRegistry _providerRegistry;
   final CloudResourceTmdbCoordinator? _tmdbCoordinator;
   final CloudResourceAutoOrganizer _autoOrganizer;
   final int Function() _minRecognizedVideoSizeBytesProvider;
   final CloudResourceCollectionGrouper _collectionGrouper;
-  final LocalEpisodeParser _episodeParser;
-  final List<CloudRemoteRef?> _history = <CloudRemoteRef?>[];
+  final Map<String, CloudMediaIndexItem> _indexedItems =
+      <String, CloudMediaIndexItem>{};
 
   List<CloudSource> sources = <CloudSource>[];
   List<CloudFileEntry> entries = <CloudFileEntry>[];
   CloudSource? selectedSource;
+  @Deprecated('网盘资源页已改为来源级海报墙')
   CloudRemoteRef? currentDirectory;
+  @Deprecated('网盘资源页已改为来源级海报墙')
   bool isVirtualRoot = false;
   bool loading = false;
+  bool scanning = false;
+  int scannedDirectories = 0;
+  String? currentScanPath;
   bool autoOrganizing = false;
   String query = '';
   String? errorMessage;
 
   int _generation = 0;
   bool _disposed = false;
+  CloudScanCancellationToken? _scanToken;
+  Future<void>? _scanFuture;
 
-  bool get canGoBack => _history.isNotEmpty;
+  bool get canGoBack => false;
+  Future<void> get scanCompletion => _scanFuture ?? Future<void>.value();
 
   Map<String, CloudResourceTmdbRecord> get tmdbRecords =>
       _tmdbCoordinator?.records ?? const <String, CloudResourceTmdbRecord>{};
@@ -123,43 +142,28 @@ class CloudResourcesController extends ChangeNotifier {
   TmdbScrapeOptions get tmdbScrapeOptions =>
       _tmdbCoordinator?.options ?? const TmdbScrapeOptions.defaults();
 
-  bool get isCurrentDirectoryConfiguredRoot {
-    final source = selectedSource;
-    final directory = currentDirectory;
-    if (source == null || directory == null) return false;
-    return source.remoteRoots.any(
-      (root) => root.id == directory.id || root.path == directory.path,
-    );
-  }
+  bool get isCurrentDirectoryConfiguredRoot => false;
 
-  CloudResourceTmdbRecord? get currentDirectoryTmdbRecord {
-    final source = selectedSource;
-    final directory = currentDirectory;
-    if (source == null || directory == null) return null;
-    final key = cloudResourceTmdbKey(
-      sourceId: source.id,
-      remoteId: directory.id,
-      remotePath: directory.path,
-    );
-    return tmdbRecords[key];
-  }
+  CloudResourceTmdbRecord? get currentDirectoryTmdbRecord => null;
 
   List<CloudFileEntry> get visibleEntries {
     final keyword = query.trim().toLowerCase();
+    final minSizeBytes = _minRecognizedVideoSizeBytesProvider();
     final filtered = entries
         .where(
           (entry) =>
-              (entry.isDirectory ||
-                  LocalVideoFileTypes.isVideoPath(entry.name)) &&
+              LocalVideoFileTypes.isRecognizedVideo(
+                entry.name,
+                size: entry.size,
+                minSizeBytes: minSizeBytes,
+              ) &&
               (keyword.isEmpty || entry.name.toLowerCase().contains(keyword)),
         )
         .toList(growable: false);
-    filtered.sort((first, second) {
-      if (first.isDirectory != second.isDirectory) {
-        return first.isDirectory ? -1 : 1;
-      }
-      return first.name.toLowerCase().compareTo(second.name.toLowerCase());
-    });
+    filtered.sort(
+      (first, second) =>
+          first.name.toLowerCase().compareTo(second.name.toLowerCase()),
+    );
     return filtered;
   }
 
@@ -171,49 +175,32 @@ class CloudResourcesController extends ChangeNotifier {
         query: query,
       );
 
-  List<CloudFileEntry> get tmdbEntriesForCurrentDirectory {
+  List<CloudFileEntry> get tmdbEntriesForSelectedSource {
     final minSizeBytes = _minRecognizedVideoSizeBytesProvider();
-    final candidates = visibleEntries
+    return entries
         .where(
-          (entry) =>
-              entry.isDirectory ||
-              (isCurrentDirectoryConfiguredRoot &&
-                  LocalVideoFileTypes.isRecognizedVideo(
-                    entry.name,
-                    size: entry.size,
-                    minSizeBytes: minSizeBytes,
-                  )),
-        )
-        .toList(growable: false);
-    if (candidates.isNotEmpty || isCurrentDirectoryConfiguredRoot) {
-      return candidates;
-    }
-    final directory = currentDirectory;
-    if (directory == null || isVirtualRoot) return candidates;
-    final containsVideo = entries.any(
-      (entry) =>
-          !entry.isDirectory &&
-          LocalVideoFileTypes.isRecognizedVideo(
+          (entry) => LocalVideoFileTypes.isRecognizedVideo(
             entry.name,
             size: entry.size,
             minSizeBytes: minSizeBytes,
           ),
-    );
-    if (!containsVideo) return candidates;
-    return <CloudFileEntry>[
-      CloudFileEntry(
-        id: directory.id,
-        remotePath: directory.path,
-        name: _currentDirectoryTmdbName(directory),
-        size: 0,
-        modifiedAt: null,
-        isDirectory: true,
-      ),
-    ];
+        )
+        .toList(growable: false);
   }
+
+  @Deprecated('请使用 tmdbEntriesForSelectedSource')
+  List<CloudFileEntry> get tmdbEntriesForCurrentDirectory =>
+      tmdbEntriesForSelectedSource;
+
+  CloudRemoteRef? subtitleFor(CloudFileEntry video) =>
+      _indexedItemFor(video)?.subtitleRefs.firstOrNull;
+
+  bool hasSubtitle(CloudFileEntry video) =>
+      _indexedItemFor(video)?.subtitleRefs.isNotEmpty == true;
 
   Future<void> load() async {
     final generation = ++_generation;
+    _scanToken?.cancel();
     loading = true;
     errorMessage = null;
     _notify();
@@ -227,7 +214,6 @@ class CloudResourcesController extends ChangeNotifier {
       final nextId = loadedSources.any((source) => source.id == currentId)
           ? currentId
           : loadedSources.firstOrNull?.id;
-      loading = false;
       await selectSource(nextId);
     } on Object {
       if (!_isCurrent(generation)) return;
@@ -235,6 +221,7 @@ class CloudResourcesController extends ChangeNotifier {
       selectedSource = null;
       currentDirectory = null;
       entries = <CloudFileEntry>[];
+      _indexedItems.clear();
       loading = false;
       errorMessage = '网盘来源加载失败';
       _notify();
@@ -243,9 +230,10 @@ class CloudResourcesController extends ChangeNotifier {
 
   Future<void> selectSource(String? sourceId) async {
     final generation = ++_generation;
-    _history.clear();
+    _scanToken?.cancel();
     query = '';
     entries = <CloudFileEntry>[];
+    _indexedItems.clear();
     currentDirectory = null;
     isVirtualRoot = false;
     errorMessage = null;
@@ -255,109 +243,127 @@ class CloudResourcesController extends ChangeNotifier {
     final source = selectedSource;
     if (source == null) {
       loading = false;
+      scanning = false;
       _notify();
       return;
     }
-    final roots = source.remoteRoots;
-    if (roots.length > 1) {
-      _showVirtualRoot(source);
-      return;
-    }
-    if (roots.isEmpty) {
+    if (source.remoteRoots.isEmpty) {
       loading = false;
       errorMessage = '该来源还没有配置媒体根目录';
       _notify();
       return;
     }
-    await _loadDirectory(
-      roots.single,
-      generation: generation,
-      pushHistory: false,
+    loading = true;
+    _notify();
+    await _loadSnapshot(source, generation);
+    if (!_isCurrent(generation)) return;
+    loading = false;
+    _notify();
+    _scheduleTmdb(source, entries);
+    _startScan(source, generation);
+  }
+
+  Future<void> _loadSnapshot(CloudSource source, int generation) async {
+    final snapshot = await _mediaIndexRepository.snapshot(source.id);
+    if (!_isCurrent(generation) || selectedSource?.id != source.id) return;
+    _indexedItems
+      ..clear()
+      ..addEntries(
+        snapshot.items.map(
+          (item) => MapEntry(_resourceKeyForItem(item), item),
+        ),
+      );
+    entries = snapshot.items
+        .map(
+          (item) => CloudFileEntry(
+            id: item.remoteId,
+            remotePath: item.remotePath,
+            name: item.name,
+            size: item.size,
+            modifiedAt: item.modifiedAt,
+            isDirectory: false,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  void _startScan(CloudSource source, int generation) {
+    final future = _scanSelectedSource(source, generation);
+    _scanFuture = future;
+    unawaited(
+      future.whenComplete(() {
+        if (identical(_scanFuture, future)) _scanFuture = null;
+      }),
     );
   }
 
-  Future<void> _loadDirectory(
-    CloudRemoteRef directory, {
-    required int generation,
-    required bool pushHistory,
-    CloudRemoteRef? previousDirectory,
-    bool previousWasVirtualRoot = false,
-  }) async {
-    final source = selectedSource;
-    if (source == null) return;
-    loading = true;
-    errorMessage = null;
-    _notify();
+  Future<void> _scanSelectedSource(
+    CloudSource source,
+    int generation,
+  ) async {
+    final token = CloudScanCancellationToken();
+    _scanToken = token;
+    if (_isCurrent(generation)) {
+      scanning = true;
+      scannedDirectories = 0;
+      currentScanPath = null;
+      errorMessage = null;
+      _notify();
+    }
     CloudDriveClient? client;
     try {
       client = _providerRegistry.createClient(source, _credentialStore);
-      final loadedEntries = await client.listDirectory(directory);
+      final result = await _mediaIndexer.scan(
+        source: source,
+        client: client,
+        cancellationToken: token,
+        onProgress: (progress) {
+          if (!_isCurrent(generation)) return;
+          scannedDirectories = progress.scanned;
+          currentScanPath = progress.currentPath;
+          _notify();
+        },
+      );
+      if (!_isCurrent(generation) || result.cancelled) return;
+      await _loadSnapshot(source, generation);
       if (!_isCurrent(generation)) return;
-      if (pushHistory) {
-        _history.add(previousWasVirtualRoot ? null : previousDirectory);
+      if (result.failures > 0) {
+        errorMessage = '部分网盘目录扫描失败，已保留可用索引';
       }
-      currentDirectory = directory;
-      entries = loadedEntries;
-      isVirtualRoot = false;
-      _scheduleTmdb(source, directory, loadedEntries);
+      _scheduleTmdb(source, entries);
+    } on CloudScanInProgressException {
+      if (!_isCurrent(generation)) return;
+      errorMessage = '该来源正在扫描，正在显示上次索引';
     } on CloudDriveException catch (error) {
       if (!_isCurrent(generation)) return;
       errorMessage = _providerRegistry.errorMessage(source.type, error);
     } on Object {
       if (!_isCurrent(generation)) return;
-      errorMessage = '网盘目录加载失败';
+      errorMessage = '网盘媒体扫描失败，已保留上次索引';
     } finally {
       await client?.close();
       if (_isCurrent(generation)) {
-        loading = false;
+        scanning = false;
+        currentScanPath = null;
         _notify();
       }
     }
   }
 
-  Future<void> openDirectory(CloudRemoteRef directory) {
-    final generation = ++_generation;
-    return _loadDirectory(
-      directory,
-      generation: generation,
-      pushHistory: true,
-      previousDirectory: currentDirectory,
-      previousWasVirtualRoot: isVirtualRoot,
-    );
-  }
+  @Deprecated('网盘资源页已改为来源级海报墙')
+  Future<void> openDirectory(CloudRemoteRef directory) async {}
 
-  Future<void> goBack() async {
-    if (_history.isEmpty || loading) return;
-    final previous = _history.removeLast();
-    if (previous == null) {
-      final source = selectedSource;
-      if (source != null) _showVirtualRoot(source);
-      return;
-    }
-    final generation = ++_generation;
-    await _loadDirectory(
-      previous,
-      generation: generation,
-      pushHistory: false,
-    );
-  }
+  @Deprecated('网盘资源页已改为来源级海报墙')
+  Future<void> goBack() async {}
 
   Future<void> refresh() async {
     if (loading) return;
     final source = selectedSource;
     if (source == null) return;
-    if (isVirtualRoot) {
-      _showVirtualRoot(source);
-      return;
-    }
-    final directory = currentDirectory;
-    if (directory == null) return;
+    if (scanning) return scanCompletion;
     final generation = ++_generation;
-    await _loadDirectory(
-      directory,
-      generation: generation,
-      pushHistory: false,
-    );
+    _startScan(source, generation);
+    await scanCompletion;
   }
 
   void setQuery(String value) {
@@ -598,72 +604,43 @@ class CloudResourcesController extends ChangeNotifier {
 
   void _scheduleTmdb(
     CloudSource source,
-    CloudRemoteRef directory,
     List<CloudFileEntry> loadedEntries,
   ) {
     final coordinator = _tmdbCoordinator;
     if (coordinator == null) return;
-    final isConfiguredRoot = source.remoteRoots.any(
-      (root) => root.id == directory.id || root.path == directory.path,
-    );
     unawaited(
       coordinator
           .loadAndSchedule(
             CloudResourceDirectoryContext(
               source: source,
-              directory: directory,
+              directory: CloudRemoteRef(
+                id: 'library:${source.id}',
+                path: '/',
+              ),
               entries: List<CloudFileEntry>.unmodifiable(loadedEntries),
-              isConfiguredRoot: isConfiguredRoot,
+              isConfiguredRoot: true,
             ),
           )
           .catchError((_) {}),
     );
   }
 
-  void _showVirtualRoot(CloudSource source) {
-    entries = source.remoteRoots
-        .map(
-          (root) => CloudFileEntry(
-            id: root.id,
-            remotePath: root.path,
-            name: p.posix.basename(root.path),
-            size: 0,
-            modifiedAt: null,
-            isDirectory: true,
-          ),
-        )
-        .toList(growable: false);
-    currentDirectory = null;
-    isVirtualRoot = true;
-    loading = false;
-    errorMessage = null;
-    _notify();
+  CloudMediaIndexItem? _indexedItemFor(CloudFileEntry entry) {
+    final source = selectedSource;
+    if (source == null) return null;
+    return _indexedItems[cloudResourceTmdbKey(
+      sourceId: source.id,
+      remoteId: entry.id,
+      remotePath: entry.remotePath,
+    )];
   }
 
-  String _currentDirectoryTmdbName(CloudRemoteRef directory) {
-    for (final entry in entries) {
-      if (entry.isDirectory || !LocalVideoFileTypes.isVideoPath(entry.name)) {
-        continue;
-      }
-      final seriesName = _episodeParser.parse(entry.remotePath)?.seriesName;
-      if (seriesName != null && seriesName.trim().isNotEmpty) {
-        return seriesName.trim();
-      }
-    }
-    final directoryName = p.posix.basename(directory.path).trim();
-    if (_isSeasonDirectoryName(directoryName)) {
-      final parentName =
-          p.posix.basename(p.posix.dirname(directory.path)).trim();
-      if (parentName.isNotEmpty && parentName != '/') return parentName;
-    }
-    return directoryName;
-  }
-
-  static bool _isSeasonDirectoryName(String value) => RegExp(
-        r'^(?:season|s)\s*\d{1,2}$|^第\s*\d{1,2}\s*[季部]$',
-        caseSensitive: false,
-        unicode: true,
-      ).hasMatch(value);
+  static String _resourceKeyForItem(CloudMediaIndexItem item) =>
+      cloudResourceTmdbKey(
+        sourceId: item.sourceId,
+        remoteId: item.remoteId,
+        remotePath: item.remotePath,
+      );
 
   bool _isCurrent(int generation) => !_disposed && generation == _generation;
 
@@ -675,6 +652,7 @@ class CloudResourcesController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _generation++;
+    _scanToken?.cancel();
     _tmdbCoordinator?.removeListener(_notify);
     super.dispose();
   }

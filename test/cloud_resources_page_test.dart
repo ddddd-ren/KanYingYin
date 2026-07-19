@@ -178,6 +178,30 @@ void main() {
     fixture.controller.dispose();
   });
 
+  testWidgets('自动批量整理先确认递归范围和网盘文件安全边界', (tester) async {
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      entries: const <CloudFileEntry>[],
+      tmdbCoordinator: _ManualTmdbCoordinator(),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: CloudResourcesPage(controller: fixture.controller)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('自动整理当前来源'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('自动批量整理'), findsOneWidget);
+    expect(find.textContaining('递归扫描'), findsOneWidget);
+    expect(find.textContaining('不会修改网盘文件'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '开始整理'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, '取消'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+    fixture.controller.dispose();
+  });
+
   testWidgets('卡片显示海报区域、中文标题、评分和原文件名', (tester) async {
     final record = _matchedFolderRecord();
     final fixture = await _PageFixture.create(

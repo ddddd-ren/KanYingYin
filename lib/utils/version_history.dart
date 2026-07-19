@@ -16,6 +16,17 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.11',
+    date: '2026-07-19',
+    isPrerelease: true,
+    changes: [
+      '本测试版让网盘资源单项刮削和重新匹配先显示识别出的搜索词、类型、年份与季集信息，确认无误后再搜索 TMDB',
+      '搜索结果会同时展示中文标题、原始标题、年份、类型、评分和匹配提示，选择候选后才会保存',
+      '自动类型会同时查找电影和电视剧；批量刮削遇到歧义时不会强行匹配，并会汇总待确认、无结果和失败数量',
+      '所有修改只保存在看影音中，不会修改网盘文件、目录名称或播放路径；TMDB 不可用时网盘浏览和播放仍可使用，应用启动、本地媒体库和播放器保持原有行为',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.10',
     date: '2026-07-19',
     isPrerelease: true,

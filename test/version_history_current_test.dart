@@ -95,6 +95,21 @@ void main() {
     expect(entries.single.changes.join('\n'), contains('当前目录'));
   });
 
+  testWidgets('二点一十一更新弹窗说明 TMDB 匹配可先确认', (tester) async {
+    final entries = versionHistoryForCurrent('2.1.11');
+
+    expect(entries.single.isPrerelease, isTrue);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: VersionChangelogContent(versions: entries)),
+    ));
+
+    expect(find.text('v2.1.11  测试版  2026-07-19'), findsOneWidget);
+    expect(entries.single.changes.join('\n'), contains('搜索词'));
+    expect(entries.single.changes.join('\n'), contains('候选'));
+    expect(entries.single.changes.join('\n'), contains('不会修改网盘文件'));
+    expect(entries.single.changes.join('\n'), contains('批量刮削'));
+  });
+
   test('历史版本默认保持正式版兼容语义', () {
     const entry =
         VersionHistory(version: '1.0.0', date: '2026-01-01', changes: []);

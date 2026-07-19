@@ -411,17 +411,22 @@ class _CloudTmdbMatchDialogState extends State<CloudTmdbMatchDialog> {
             Text('TMDB 没有返回可用候选\n请修改搜索词或媒体类型后重试', textAlign: TextAlign.center),
       );
     }
-    return ListView.separated(
-      itemCount: candidates.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (context, index) {
-        final candidate = candidates[index];
-        return _candidateCard(
-          context,
-          candidate,
-          recommended: index == 0 && outcome.ranked.shouldAutoMatch,
-        );
-      },
+    return RadioGroup<TmdbRankedCandidate>(
+      groupValue: _selected,
+      onChanged:
+          _saving ? (_) {} : (value) => setState(() => _selected = value),
+      child: ListView.separated(
+        itemCount: candidates.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        itemBuilder: (context, index) {
+          final candidate = candidates[index];
+          return _candidateCard(
+            context,
+            candidate,
+            recommended: index == 0 && outcome.ranked.shouldAutoMatch,
+          );
+        },
+      ),
     );
   }
 
@@ -500,13 +505,7 @@ class _CloudTmdbMatchDialogState extends State<CloudTmdbMatchDialog> {
                   ],
                 ),
               ),
-              Radio<TmdbRankedCandidate>(
-                value: candidate,
-                groupValue: _selected,
-                onChanged: _saving
-                    ? null
-                    : (value) => setState(() => _selected = value),
-              ),
+              Radio<TmdbRankedCandidate>(value: candidate, enabled: !_saving),
             ],
           ),
         ),

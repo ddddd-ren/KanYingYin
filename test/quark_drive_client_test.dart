@@ -184,7 +184,7 @@ class _FakeQuarkApi implements QuarkApi {
   }
 
   @override
-  Future<QuarkPlaybackLink> resolveDownload(String fileId) async {
+  Future<QuarkPlaybackLink> resolvePlayback(String fileId) async {
     requestedPlaybackIds.add(fileId);
     return playback!;
   }

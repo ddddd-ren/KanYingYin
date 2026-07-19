@@ -12,8 +12,10 @@ void main() {
     final account = parser.parseAccount(await _fixture('account_success.json'));
     final page =
         parser.parseDirectoryPage(await _fixture('directory_page_1.json'));
-    final playback =
-        parser.parsePlayback(await _fixture('playback_success.json'));
+    final playback = parser.parsePlayback(
+      await _fixture('playback_success.json'),
+      fileId: 'fid_fixture_video',
+    );
 
     expect(account.nickname, 'account_fixture');
     expect(page.items, hasLength(3));
@@ -23,6 +25,7 @@ void main() {
     expect(page.total, 3);
     expect(playback.fileId, 'fid_fixture_video');
     expect(playback.uri.host, 'media.quark-fixture.invalid');
+    expect(playback.uri.path, '/4k');
   });
 
   test('关键结构缺失时明确映射为接口不兼容', () {
@@ -68,6 +71,55 @@ void main() {
       }),
       throwsA(isA<CloudDriveException>()
           .having((error) => error.type, 'type', CloudDriveErrorType.notFound)),
+    );
+  });
+
+  test('播放响应优先选择最高可用清晰度', () {
+    final playback = parser.parsePlayback(<String, Object?>{
+      'status': 200,
+      'code': 0,
+      'data': <String, Object?>{
+        'fid': 'fid_fixture_video',
+        'video_list': <Object?>[
+          <String, Object?>{
+            'resolution': 'super',
+            'video_info': <String, Object?>{
+              'url': 'https://media.quark-fixture.invalid/super',
+            },
+          },
+          <String, Object?>{
+            'resolution': '4k',
+            'video_info': <String, Object?>{
+              'url': 'https://media.quark-fixture.invalid/4k',
+            },
+          },
+          <String, Object?>{
+            'resolution': '2k',
+            'video_info': <String, Object?>{'url': ''},
+          },
+        ],
+      },
+    }, fileId: 'fid_fixture_video');
+
+    expect(playback.uri.path, '/4k');
+  });
+
+  test('播放响应没有可用地址时明确报接口不兼容', () {
+    expect(
+      () => parser.parsePlayback(<String, Object?>{
+        'status': 200,
+        'code': 0,
+        'data': <String, Object?>{
+          'video_list': <Object?>[
+            <String, Object?>{
+              'resolution': '4k',
+              'video_info': <String, Object?>{'url': ''},
+            },
+          ],
+        },
+      }, fileId: 'fid_fixture_video'),
+      throwsA(isA<CloudDriveException>().having(
+          (error) => error.type, 'type', CloudDriveErrorType.incompatible)),
     );
   });
 }

@@ -82,22 +82,33 @@ class QuarkResponseParser {
     );
   }
 
-  QuarkPlaybackLink parsePlayback(Object? value) {
+  QuarkPlaybackLink parsePlayback(
+    Object? value, {
+    required String fileId,
+  }) {
     ensureSuccess(value);
-    final data = _map(value)['data'];
-    if (data is! List || data.isEmpty) throw _incompatible();
-    final item = _requiredMap(data.first);
-    final fileId = item['fid'];
-    final url = item['download_url'];
-    final uri = url is String ? Uri.tryParse(url) : null;
-    if (fileId is! String ||
-        fileId.isEmpty ||
-        uri == null ||
-        uri.scheme != 'https' ||
-        uri.host.isEmpty) {
-      throw _incompatible();
+    final data = _requiredMap(_map(value)['data']);
+    final rawVideos = data['video_list'];
+    if (fileId.isEmpty || rawVideos is! List) throw _incompatible();
+    Uri? selectedUri;
+    var selectedRank = -1;
+    for (final rawVideo in rawVideos) {
+      final video = _requiredMap(rawVideo);
+      final videoInfo = video['video_info'];
+      if (videoInfo is! Map) continue;
+      final info = Map<String, Object?>.from(videoInfo);
+      final url = info['url'];
+      final uri = url is String ? Uri.tryParse(url) : null;
+      if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) continue;
+      final resolution = video['resolution'];
+      final rank = _resolutionRank(resolution is String ? resolution : '');
+      if (selectedUri == null || rank > selectedRank) {
+        selectedUri = uri;
+        selectedRank = rank;
+      }
     }
-    return QuarkPlaybackLink(fileId: fileId, uri: uri);
+    if (selectedUri == null) throw _incompatible();
+    return QuarkPlaybackLink(fileId: fileId, uri: selectedUri);
   }
 
   String parseShareToken(Object? value) {
@@ -151,6 +162,16 @@ class QuarkResponseParser {
   }
 
   static int? _int(Object? value) => value is num ? value.toInt() : null;
+
+  static int _resolutionRank(String value) => switch (value.toLowerCase()) {
+        '4k' => 6,
+        '2k' => 5,
+        'super' => 4,
+        'high' => 3,
+        'normal' => 2,
+        'low' => 1,
+        _ => 0,
+      };
 
   static CloudDriveErrorType _errorType({
     required int? status,

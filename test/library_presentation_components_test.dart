@@ -7,6 +7,7 @@ import 'package:flutter/gestures.dart'
     show PointerEnterEvent, kSecondaryMouseButton;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
 import 'package:kanyingyin/features/library/presentation/library_path_bar.dart';
 import 'package:kanyingyin/features/library/presentation/library_source_menu.dart';
@@ -200,6 +201,53 @@ void main() {
       await tester.tap(find.text('清理 1 个失效媒体源'));
       await tester.pumpAndSettle();
       expect(cleaned, isTrue);
+    });
+  });
+
+  group('ImmersiveMediaCard', () {
+    testWidgets('always 模式始终显示信息和状态标签', (tester) async {
+      var tapped = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 260,
+              height: 380,
+              child: ImmersiveMediaCard(
+                overlayMode: ImmersiveMediaCardOverlayMode.always,
+                cover: const ColoredBox(color: Colors.blue),
+                title: '中文片名',
+                subtitle: '真实文件名.mkv',
+                details: '8.7 ★  ·  电影  ·  2025  ·  2.0 GB',
+                badges: const <ImmersiveMediaCardBadge>[
+                  ImmersiveMediaCardBadge(
+                    icon: Icons.closed_caption_outlined,
+                    label: '有字幕',
+                  ),
+                  ImmersiveMediaCardBadge(
+                    icon: Icons.image_search_outlined,
+                    label: '已刮削',
+                  ),
+                ],
+                onTap: () => tapped = true,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final opacity =
+          tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity));
+      expect(opacity.opacity, 1);
+      expect(opacity.duration, const Duration(milliseconds: 160));
+      expect(opacity.curve, Curves.easeOut);
+      expect(find.text('中文片名'), findsOneWidget);
+      expect(find.text('真实文件名.mkv'), findsOneWidget);
+      expect(find.textContaining('2025'), findsOneWidget);
+      expect(find.text('有字幕'), findsOneWidget);
+      expect(find.text('已刮削'), findsOneWidget);
+      await tester.tap(find.byType(InkWell));
+      expect(tapped, isTrue);
     });
   });
 

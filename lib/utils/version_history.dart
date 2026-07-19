@@ -16,6 +16,17 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.12',
+    date: '2026-07-19',
+    isPrerelease: true,
+    changes: [
+      '本测试版将网盘资源中的已刮削电影和剧集改为沉浸式大海报卡片，中文标题、真实网盘名称与状态更清晰',
+      '独立视频统一显示媒体卡，普通未匹配文件夹仍保留目录样式，网盘浏览和播放方式不变',
+      '卡片可显示 TMDB 评分、类型、年份、文件大小和已确认的字幕状态，不会把未知状态误报为无字幕',
+      '海报或 TMDB 暂时不可用时仍可浏览网盘和播放视频，不会修改任何网盘文件；应用启动、本地媒体库和播放器保持原有行为',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.11',
     date: '2026-07-19',
     isPrerelease: true,

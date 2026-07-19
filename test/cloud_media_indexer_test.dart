@@ -4,10 +4,13 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
+import 'package:kanyingyin/modules/cloud/cloud_series_match_rule.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
+import 'package:kanyingyin/repositories/cloud_series_match_rule_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
@@ -79,6 +82,52 @@ void main() {
       expect(second.videoCount, 1);
       expect((await repository.getBySource(source.id)).single.name, '短片.mkv');
       expect(providerCalls, 2);
+    });
+
+    test('扫描新分集时离线继承已确认的同目录系列规则', () async {
+      final repository =
+          CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());
+      final ruleRepository = CloudSeriesMatchRuleRepository(
+        storage: MemoryCloudSeriesMatchRuleStorage(),
+      );
+      await ruleRepository.upsert(
+        CloudSeriesMatchRule(
+          sourceId: source.id,
+          parentPath: '/动漫',
+          normalizedSeriesName: 'the resurrected',
+          metadata: TmdbMetadata(
+            id: 42,
+            mediaType: TmdbMediaType.tv,
+            title: '回魂计',
+            language: 'zh-CN',
+            matchedAt: DateTime.utc(2026, 7, 20),
+            matchConfidence: 1,
+          ),
+          updatedAt: DateTime.utc(2026, 7, 20),
+        ),
+      );
+      final indexer = CloudMediaIndexer(
+        repository: repository,
+        seriesMatchRuleRepository: ruleRepository,
+        minRecognizedVideoSizeBytesProvider: () => 100,
+      );
+
+      await indexer.scan(
+        source: source,
+        client: _FakeCloudClient(<String, List<CloudFileEntry>>{
+          '/动漫': <CloudFileEntry>[
+            _file(
+              'episode-5',
+              '/动漫/The.Resurrected.S01E05.2160p.WEB-DL.mkv',
+              size: 1000,
+            ),
+          ],
+        }),
+      );
+
+      final item = (await repository.getBySource(source.id)).single;
+      expect(item.tmdbId, 42);
+      expect(item.tmdbTitle, '回魂计');
     });
 
     test('真实扫描将 OVA 和 Special 归入主系列特殊篇', () async {

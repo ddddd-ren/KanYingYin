@@ -7,8 +7,10 @@ import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
+import 'package:kanyingyin/repositories/cloud_series_match_rule_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+import 'package:kanyingyin/services/cloud/cloud_series_identity_resolver.dart';
 import 'package:kanyingyin/services/local_episode_parser.dart';
 import 'package:kanyingyin/services/local_subtitle_matcher.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
@@ -59,17 +61,24 @@ class CloudMediaIndexer {
   CloudMediaIndexer({
     required CloudMediaIndexRepository repository,
     LocalEpisodeParser? episodeParser,
+    CloudSeriesMatchRuleRepository? seriesMatchRuleRepository,
+    CloudSeriesIdentityResolver? seriesIdentityResolver,
     int Function()? minRecognizedVideoSizeBytesProvider,
     this.maxConcurrentDirectoryRequests = 3,
   })  : assert(maxConcurrentDirectoryRequests >= 2 &&
             maxConcurrentDirectoryRequests <= 4),
         _repository = repository,
         _episodeParser = episodeParser ?? LocalEpisodeParser(),
+        _seriesMatchRuleRepository = seriesMatchRuleRepository,
+        _seriesIdentityResolver =
+            seriesIdentityResolver ?? CloudSeriesIdentityResolver(),
         _minRecognizedVideoSizeBytesProvider =
             minRecognizedVideoSizeBytesProvider;
 
   final CloudMediaIndexRepository _repository;
   final LocalEpisodeParser _episodeParser;
+  final CloudSeriesMatchRuleRepository? _seriesMatchRuleRepository;
+  final CloudSeriesIdentityResolver _seriesIdentityResolver;
   final int Function()? _minRecognizedVideoSizeBytesProvider;
   final int maxConcurrentDirectoryRequests;
 
@@ -269,6 +278,36 @@ class CloudMediaIndexer {
         subtitlePaths: subtitleRefs.map((reference) => reference.path).toList(),
         subtitleRefs: subtitleRefs,
       );
+    }
+    final ruleRepository = _seriesMatchRuleRepository;
+    if (ruleRepository != null) {
+      final rules = await ruleRepository.getBySource(source.id);
+      final rulesByKey = {
+        for (final rule in rules) rule.stableKey: rule,
+      };
+      for (final entry in videos) {
+        final identity = _seriesIdentityResolver.resolve(
+          sourceId: source.id,
+          remotePath: entry.remotePath,
+          size: entry.size,
+          minSizeBytes: minSizeBytes,
+        );
+        final rule = identity == null ? null : rulesByKey[identity.stableKey];
+        final path = _normalizePath(entry.remotePath);
+        final item = items[path];
+        if (rule == null || item == null) continue;
+        final metadata = rule.metadata;
+        items[path] = item.replaceTmdb(
+          tmdbId: metadata.id,
+          tmdbTitle: metadata.title,
+          tmdbOriginalTitle: metadata.originalTitle,
+          tmdbOverview: metadata.overview,
+          tmdbRating: metadata.rating,
+          tmdbPosterUrl: metadata.posterUrl,
+          tmdbBackdropUrl: metadata.backdropUrl,
+          posterCachePath: rule.posterCachePath,
+        );
+      }
     }
     if (changed || failedPaths.isNotEmpty) {
       await _repository.replaceSource(

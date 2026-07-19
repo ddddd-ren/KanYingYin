@@ -92,10 +92,15 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
     _totalCount = 0;
     notifyListeners();
 
+    await _retryPendingIndexSyncWithSeries(context);
+    await _applySeriesRules(context);
+
     final apiKey = _apiKeyProvider().trim();
     if (apiKey.isEmpty) return;
     final service = await _serviceFor(apiKey);
-    await _retryPendingIndexSync(context, service);
+    if (_seriesMatchService == null) {
+      await _retryPendingIndexSync(context, service);
+    }
     final targets = _targetsToSchedule(context, _now());
     _totalCount = targets.length;
     if (targets.isEmpty) {
@@ -124,6 +129,13 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
     CloudResourceTmdbTarget target, {
     TmdbScrapeOptions? options,
   }) async {
+    final ruleApplication = await applySeriesRule(target);
+    if (ruleApplication != null) {
+      return CloudResourceTmdbOutcome(
+        candidates: <TmdbMetadata>[ruleApplication.metadata],
+        selected: ruleApplication.record,
+      );
+    }
     final apiKey = _requiredApiKey();
     return _tracked(target, () async {
       final service = await _serviceFor(apiKey);
@@ -134,6 +146,26 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
       await _refreshRecord(target);
       return outcome;
     });
+  }
+
+  Future<CloudSeriesRuleApplication?> applySeriesRule(
+    CloudResourceTmdbTarget target,
+  ) async {
+    final seriesMatchService = _seriesMatchService;
+    if (seriesMatchService == null) return null;
+    final application = await seriesMatchService.applyRule(
+      target: target,
+      existingRecord: _records[target.stableKey],
+    );
+    if (application == null) return null;
+    _records[application.record.stableKey] = application.record;
+    if (application.indexSynced) {
+      _pendingIndexSyncTargets.remove(target.stableKey);
+    } else {
+      _pendingIndexSyncTargets[target.stableKey] = target;
+    }
+    notifyListeners();
+    return application;
   }
 
   Future<CloudResourceTmdbOutcome> rematch(
@@ -277,6 +309,59 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
     }
   }
 
+  Future<void> _retryPendingIndexSyncWithSeries(
+    CloudResourceDirectoryContext context,
+  ) async {
+    final seriesMatchService = _seriesMatchService;
+    if (seriesMatchService == null || _pendingIndexSyncTargets.isEmpty) return;
+    final visibleKeys = context.entries
+        .map(
+          (entry) => cloudResourceTmdbKey(
+            sourceId: context.source.id,
+            remoteId: entry.id,
+            remotePath: entry.remotePath,
+          ),
+        )
+        .toSet();
+    for (final key in visibleKeys) {
+      final target = _pendingIndexSyncTargets[key];
+      final record = _records[key];
+      if (target == null || record == null) continue;
+      if (await seriesMatchService.syncRecordToIndex(
+        target: target,
+        record: record,
+      )) {
+        _pendingIndexSyncTargets.remove(key);
+      }
+    }
+  }
+
+  Future<void> _applySeriesRules(
+    CloudResourceDirectoryContext context,
+  ) async {
+    if (_seriesMatchService == null) return;
+    for (final entry in context.entries) {
+      if (entry.isDirectory || !LocalVideoFileTypes.isVideoPath(entry.name)) {
+        continue;
+      }
+      final key = cloudResourceTmdbKey(
+        sourceId: context.source.id,
+        remoteId: entry.id,
+        remotePath: entry.remotePath,
+      );
+      await applySeriesRule(
+        CloudResourceTmdbTarget(
+          sourceId: context.source.id,
+          remote: CloudRemoteRef(id: entry.id, path: entry.remotePath),
+          displayName: entry.name,
+          resourceKind: CloudResourceKind.standaloneVideo,
+          customTitle: _records[key]?.customTitle,
+          size: entry.size,
+        ),
+      );
+    }
+  }
+
   Future<CloudResourceTmdbRecord> saveCustomTitle(
     CloudResourceTmdbTarget target,
     String title,
@@ -329,6 +414,7 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
         displayName: entry.name,
         resourceKind: kind,
         customTitle: cached?.customTitle,
+        size: entry.isDirectory ? null : entry.size,
       );
       if (cached != null && cached.displayName == target.displayName) {
         if (cached.status == CloudResourceTmdbStatus.matched) continue;

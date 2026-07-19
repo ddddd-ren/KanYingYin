@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resources_grid.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_page.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
@@ -88,8 +90,8 @@ void main() {
     expect(find.text('动漫'), findsOneWidget);
     expect(find.text('第01集.mkv'), findsOneWidget);
     expect(find.text('第01集.ass'), findsNothing);
-    expect(find.text('700.0 MB'), findsOneWidget);
-    expect(find.text('2026-07-19'), findsOneWidget);
+    expect(find.textContaining('700.0 MB'), findsOneWidget);
+    expect(find.textContaining('2026-07-19'), findsOneWidget);
     expect(find.widgetWithText(TextField, '搜索当前目录'), findsOneWidget);
     fixture.controller.dispose();
   });
@@ -193,10 +195,115 @@ void main() {
       find.byKey(ValueKey<String>('tmdb-poster-${record.stableKey}')),
       findsOneWidget,
     );
+    expect(find.byType(ImmersiveMediaCard), findsOneWidget);
+    expect(
+      tester
+          .widget<ImmersiveMediaCard>(find.byType(ImmersiveMediaCard))
+          .overlayMode,
+      ImmersiveMediaCardOverlayMode.always,
+    );
     expect(find.text('中文片名'), findsOneWidget);
-    expect(find.text('8.7 ★'), findsOneWidget);
+    expect(find.textContaining('8.7 ★'), findsOneWidget);
+    expect(find.textContaining('2025'), findsOneWidget);
     expect(find.text('动漫'), findsOneWidget);
+    expect(find.text('已刮削'), findsOneWidget);
     fixture.controller.dispose();
+  });
+
+  testWidgets('未匹配目录保持文件夹卡而独立视频使用媒体卡', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CloudResourcesGrid(
+            sourceId: 'source',
+            entries: const <CloudFileEntry>[
+              CloudFileEntry(
+                id: 'folder',
+                remotePath: '/影视/普通目录',
+                name: '普通目录',
+                size: 0,
+                modifiedAt: null,
+                isDirectory: true,
+              ),
+              CloudFileEntry(
+                id: 'video',
+                remotePath: '/影视/电影.mkv',
+                name: '电影.mkv',
+                size: 1024,
+                modifiedAt: null,
+                isDirectory: false,
+              ),
+            ],
+            records: const <String, CloudResourceTmdbRecord>{},
+            scrapingKeys: const <String>{},
+            subtitleVideoKeys: const <String>{},
+            onOpenDirectory: (_) {},
+            onPlay: (_) {},
+            onEditTitle: (_) {},
+            onScrape: (_) {},
+            onRematch: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(ImmersiveMediaCard), findsOneWidget);
+    expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
+    expect(find.text('普通目录'), findsOneWidget);
+    expect(find.text('电影.mkv'), findsOneWidget);
+  });
+
+  testWidgets('网盘资源网格按宽度使用二三四列和统一海报比例', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    Future<void> pumpAt(double width) async {
+      tester.view.physicalSize = Size(width, 720);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CloudResourcesGrid(
+              sourceId: 'source',
+              entries: const <CloudFileEntry>[
+                CloudFileEntry(
+                  id: 'video',
+                  remotePath: '/影视/电影.mkv',
+                  name: '电影.mkv',
+                  size: 1024,
+                  modifiedAt: null,
+                  isDirectory: false,
+                ),
+              ],
+              records: const <String, CloudResourceTmdbRecord>{},
+              scrapingKeys: const <String>{},
+              subtitleVideoKeys: const <String>{},
+              onOpenDirectory: (_) {},
+              onPlay: (_) {},
+              onEditTitle: (_) {},
+              onScrape: (_) {},
+              onRematch: (_) {},
+            ),
+          ),
+        ),
+      );
+    }
+
+    Future<void> expectColumns(double width, int count) async {
+      await pumpAt(width);
+      final grid = tester.widget<GridView>(find.byType(GridView));
+      final delegate =
+          grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+      expect(delegate.crossAxisCount, count);
+      expect(delegate.childAspectRatio, 0.68);
+      expect(delegate.crossAxisSpacing, 12);
+      expect(delegate.mainAxisSpacing, 12);
+    }
+
+    await expectColumns(620, 2);
+    await expectColumns(800, 3);
+    await expectColumns(1100, 4);
   });
 
   testWidgets('进入已匹配文件夹显示系列头部', (tester) async {
@@ -601,6 +708,7 @@ CloudResourceTmdbRecord _matchedFolderRecord() {
       title: '中文片名',
       overview: '系列简介',
       rating: 8.7,
+      releaseDate: '2025-01-01',
       language: 'zh-CN',
       matchedAt: DateTime.utc(2026, 7, 19),
       matchConfidence: 1,

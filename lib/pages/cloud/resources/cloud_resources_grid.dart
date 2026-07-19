@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resource_card_view_data.dart';
 import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
 
 typedef CloudResourceEntryAction = FutureOr<void> Function(
@@ -17,6 +19,7 @@ class CloudResourcesGrid extends StatelessWidget {
     required this.entries,
     required this.records,
     required this.scrapingKeys,
+    this.subtitleVideoKeys = const <String>{},
     required this.onOpenDirectory,
     required this.onPlay,
     required this.onEditTitle,
@@ -28,6 +31,7 @@ class CloudResourcesGrid extends StatelessWidget {
   final List<CloudFileEntry> entries;
   final Map<String, CloudResourceTmdbRecord> records;
   final Set<String> scrapingKeys;
+  final Set<String> subtitleVideoKeys;
   final CloudResourceEntryAction onOpenDirectory;
   final CloudResourceEntryAction onPlay;
   final CloudResourceEntryAction onEditTitle;
@@ -41,27 +45,49 @@ class CloudResourcesGrid extends StatelessWidget {
     }
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = (constraints.maxWidth / 180).floor().clamp(2, 6);
+        final columns = constraints.maxWidth < 650
+            ? 2
+            : constraints.maxWidth < 1000
+                ? 3
+                : 4;
+        double? extent;
+        if (constraints.maxWidth.isFinite && constraints.maxWidth > 0) {
+          final width =
+              (constraints.maxWidth - 24 - 12 * (columns - 1)) / columns;
+          extent = (width / 0.68).clamp(320.0, 680.0);
+        }
         return GridView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          padding: const EdgeInsets.all(12),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columns,
-            mainAxisSpacing: 14,
-            crossAxisSpacing: 14,
-            childAspectRatio: 0.72,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 0.68,
+            mainAxisExtent: extent,
           ),
           itemCount: entries.length,
+          findChildIndexCallback: (key) {
+            if (key is! ValueKey<String>) return null;
+            final index = entries.indexWhere(
+              (entry) => _stableKey(entry) == key.value,
+            );
+            return index < 0 ? null : index;
+          },
           itemBuilder: (context, index) {
             final entry = entries[index];
-            final key = cloudResourceTmdbKey(
-              sourceId: sourceId,
-              remoteId: entry.id,
-              remotePath: entry.remotePath,
+            final stableKey = _stableKey(entry);
+            final record = records[stableKey];
+            final data = CloudResourceCardViewData.fromEntry(
+              entry: entry,
+              record: record,
+              scraping: scrapingKeys.contains(stableKey),
+              hasSubtitle: subtitleVideoKeys.contains(stableKey),
             );
             return _CloudResourceCard(
+              key: ValueKey<String>(stableKey),
               entry: entry,
-              record: records[key],
-              scraping: scrapingKeys.contains(key),
+              record: record,
+              data: data,
               onTap: () =>
                   entry.isDirectory ? onOpenDirectory(entry) : onPlay(entry),
               onEditTitle: () => onEditTitle(entry),
@@ -73,15 +99,22 @@ class CloudResourcesGrid extends StatelessWidget {
       },
     );
   }
+
+  String _stableKey(CloudFileEntry entry) => cloudResourceTmdbKey(
+        sourceId: sourceId,
+        remoteId: entry.id,
+        remotePath: entry.remotePath,
+      );
 }
 
 enum _ResourceAction { editTitle, scrape, rematch }
 
 class _CloudResourceCard extends StatelessWidget {
   const _CloudResourceCard({
+    super.key,
     required this.entry,
     required this.record,
-    required this.scraping,
+    required this.data,
     required this.onTap,
     required this.onEditTitle,
     required this.onScrape,
@@ -90,7 +123,7 @@ class _CloudResourceCard extends StatelessWidget {
 
   final CloudFileEntry entry;
   final CloudResourceTmdbRecord? record;
-  final bool scraping;
+  final CloudResourceCardViewData data;
   final VoidCallback onTap;
   final VoidCallback onEditTitle;
   final VoidCallback onScrape;
@@ -98,205 +131,195 @@ class _CloudResourceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final metadata =
-        record?.status == CloudResourceTmdbStatus.matched ? record : null;
+    if (data.kind == CloudResourceCardKind.directory) {
+      return _directoryCard(context);
+    }
+    return ImmersiveMediaCard(
+      cover: _mediaPoster(context),
+      title: data.title,
+      subtitle: data.subtitle,
+      details: data.details,
+      badges: data.badges,
+      loading: data.isScraping,
+      overlayMode: ImmersiveMediaCardOverlayMode.always,
+      trailing: _resourceMenu(context),
+      onTap: onTap,
+    );
+  }
+
+  Widget _directoryCard(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Card(
-      clipBehavior: Clip.antiAlias,
+    return Material(
+      color: colors.surfaceContainerHighest.withValues(alpha: 0.55),
+      borderRadius: BorderRadius.circular(8),
+      clipBehavior: Clip.hardEdge,
       child: InkWell(
         onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            Expanded(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  _poster(context, metadata),
-                  Positioned(
-                    top: 4,
-                    right: 4,
-                    child: Material(
-                      color: colors.surface.withValues(alpha: 0.86),
-                      shape: const CircleBorder(),
-                      child: PopupMenuButton<_ResourceAction>(
-                        tooltip: '资源操作',
-                        icon: const Icon(Icons.more_vert, size: 20),
-                        onSelected: (action) {
-                          switch (action) {
-                            case _ResourceAction.editTitle:
-                              onEditTitle();
-                              return;
-                            case _ResourceAction.scrape:
-                              onScrape();
-                              return;
-                            case _ResourceAction.rematch:
-                              onRematch();
-                              return;
-                          }
-                        },
-                        itemBuilder: (context) => const [
-                          PopupMenuItem(
-                            value: _ResourceAction.editTitle,
-                            child: Text('修改剧名'),
-                          ),
-                          PopupMenuItem(
-                            value: _ResourceAction.scrape,
-                            child: Text('TMDB 刮削'),
-                          ),
-                          PopupMenuItem(
-                            value: _ResourceAction.rematch,
-                            child: Text('重新匹配'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (scraping)
-                    ColoredBox(
-                      color: colors.scrim.withValues(alpha: 0.34),
-                      child: const Center(child: CircularProgressIndicator()),
-                    ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    record?.effectiveTitle ?? entry.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  if ((record?.effectiveTitle ?? entry.name) != entry.name) ...[
-                    const SizedBox(height: 3),
-                    Text(
-                      entry.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: colors.outline),
-                    ),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    colors.primaryContainer.withValues(alpha: 0.72),
+                    colors.surfaceContainer,
                   ],
-                  const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      if (metadata?.rating != null)
-                        Expanded(
-                          child: Text(
-                            '${metadata!.rating!.toStringAsFixed(1)} ★',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context)
-                                .textTheme
-                                .labelMedium
-                                ?.copyWith(
-                                  color: colors.primary,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.folder_outlined,
+                      size: 58,
+                      color: colors.primary,
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      data.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
                           ),
-                        )
-                      else
-                        Expanded(
-                          child: Text(
-                            entry.isDirectory
-                                ? '文件夹'
-                                : _formatBytes(entry.size),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: colors.outline),
-                          ),
-                        ),
-                      if (!entry.isDirectory && entry.modifiedAt != null) ...[
-                        const SizedBox(width: 4),
-                        Text(
-                          _formatDate(entry.modifiedAt!),
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: colors.outline),
-                        ),
-                      ],
+                    ),
+                    if (data.subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        data.subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: colors.outline),
+                      ),
                     ],
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
+            if (data.isScraping)
+              IgnorePointer(
+                child: ColoredBox(
+                  color: colors.scrim.withValues(alpha: 0.34),
+                  child: const Center(child: CircularProgressIndicator()),
+                ),
+              ),
+            Positioned(top: 4, right: 4, child: _resourceMenu(context)),
           ],
         ),
       ),
     );
   }
 
-  Widget _poster(
-    BuildContext context,
-    CloudResourceTmdbRecord? metadata,
-  ) {
-    final key = metadata == null
-        ? null
-        : ValueKey<String>('tmdb-poster-${metadata.stableKey}');
-    final cached = metadata?.posterCachePath;
-    if (cached != null && File(cached).existsSync()) {
-      return Image.file(
-        File(cached),
-        key: key,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _posterFallback(context, key),
-      );
-    }
-    final network = TmdbMatchSheet.imageUrl(metadata?.posterUrl, size: 'w500');
-    if (network != null) {
-      return Image.network(
-        network,
-        key: key,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _posterFallback(context, key),
-      );
-    }
-    return _posterFallback(context, key);
-  }
-
-  Widget _posterFallback(BuildContext context, Key? key) {
+  Widget _resourceMenu(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Container(
-      key: key,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [colors.surfaceContainerHighest, colors.surfaceContainer],
-        ),
-      ),
-      alignment: Alignment.center,
-      child: Icon(
-        entry.isDirectory ? Icons.folder_outlined : Icons.movie_outlined,
-        size: 46,
-        color: entry.isDirectory ? colors.primary : colors.secondary,
+    return Material(
+      color: colors.surface.withValues(alpha: 0.86),
+      shape: const CircleBorder(),
+      child: PopupMenuButton<_ResourceAction>(
+        tooltip: '资源操作',
+        icon: const Icon(Icons.more_vert, size: 20),
+        onSelected: (action) {
+          switch (action) {
+            case _ResourceAction.editTitle:
+              onEditTitle();
+              return;
+            case _ResourceAction.scrape:
+              onScrape();
+              return;
+            case _ResourceAction.rematch:
+              onRematch();
+              return;
+          }
+        },
+        itemBuilder: (context) => const [
+          PopupMenuItem(
+            value: _ResourceAction.editTitle,
+            child: Text('修改剧名'),
+          ),
+          PopupMenuItem(
+            value: _ResourceAction.scrape,
+            child: Text('TMDB 刮削'),
+          ),
+          PopupMenuItem(
+            value: _ResourceAction.rematch,
+            child: Text('重新匹配'),
+          ),
+        ],
       ),
     );
   }
 
-  static String _formatBytes(int bytes) {
-    if (bytes >= 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
-    }
-    if (bytes >= 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  Widget _mediaPoster(BuildContext context) {
+    final key = record?.status == CloudResourceTmdbStatus.matched
+        ? ValueKey<String>('tmdb-poster-${record!.stableKey}')
+        : null;
+    final poster = _cachedPoster(context) ?? _networkPoster(context);
+    return key == null ? poster : KeyedSubtree(key: key, child: poster);
   }
 
-  static String _formatDate(DateTime value) {
-    final month = value.month.toString().padLeft(2, '0');
-    final day = value.day.toString().padLeft(2, '0');
-    return '${value.year}-$month-$day';
+  Widget? _cachedPoster(BuildContext context) {
+    final path = data.posterCachePath;
+    if (path == null || !File(path).existsSync()) return null;
+    return Image.file(
+      File(path),
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      errorBuilder: (_, __, ___) => _networkPoster(context),
+    );
+  }
+
+  Widget _networkPoster(BuildContext context) {
+    final url = TmdbMatchSheet.imageUrl(data.posterUrl, size: 'w500');
+    if (url == null) return _mediaPlaceholder(context);
+    return Image.network(
+      url,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      errorBuilder: (_, __, ___) => _mediaPlaceholder(context),
+    );
+  }
+
+  Widget _mediaPlaceholder(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      key: const ValueKey<String>('cloud-media-placeholder'),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            colors.secondaryContainer,
+            colors.surfaceContainer,
+          ],
+        ),
+      ),
+      child: Center(
+        child: Container(
+          width: 82,
+          height: 82,
+          decoration: BoxDecoration(
+            color: colors.secondary.withValues(alpha: 0.16),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            Icons.movie_outlined,
+            size: 48,
+            color: colors.secondary,
+          ),
+        ),
+      ),
+    );
   }
 }

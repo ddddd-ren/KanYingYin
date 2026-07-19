@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
@@ -199,6 +201,83 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, '取消'));
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsNothing);
+    fixture.controller.dispose();
+  });
+
+  testWidgets('自动批量整理显示进度禁用重复操作并保持视频可播放', (tester) async {
+    const video = CloudFileEntry(
+      id: 'video-fid',
+      remotePath: '/影视/电影.mkv',
+      name: '电影.mkv',
+      size: 1024,
+      modifiedAt: null,
+      isDirectory: false,
+    );
+    final client = _StagedPageCloudClient(const <CloudFileEntry>[video]);
+    final coordinator = _DelayedAutoOrganizeCoordinator();
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      client: client,
+      tmdbCoordinator: coordinator,
+    );
+    var playedId = '';
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CloudResourcesPage(
+          controller: fixture.controller,
+          onPlayTarget: (target) => playedId = target.remoteId,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('自动整理当前来源'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '开始整理'));
+    await tester.pump();
+
+    expect(find.text('正在扫描目录 0，已发现 0 项'), findsOneWidget);
+    expect(
+      tester
+          .widget<DropdownButton<String>>(
+            find.byKey(const ValueKey<String>('cloud-source-selector')),
+          )
+          .onChanged,
+      isNull,
+    );
+    for (final tooltip in <String>[
+      '自动整理当前来源',
+      '刮削当前目录',
+      '移除当前来源',
+      '刷新当前目录',
+    ]) {
+      final button = find
+          .ancestor(
+            of: find.byTooltip(tooltip),
+            matching: find.byType(IconButton),
+          )
+          .first;
+      expect(tester.widget<IconButton>(button).onPressed, isNull);
+    }
+
+    await tester.tap(find.byType(ImmersiveMediaCard));
+    await tester.pump();
+    expect(playedId, 'video-fid');
+
+    client.completeAutoScan();
+    await tester.pump();
+    expect(coordinator.scrapeStarted, isTrue);
+    expect(find.text('正在整理 0/1'), findsOneWidget);
+
+    coordinator.completeMatched();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(
+      find.textContaining(
+        '自动整理完成：成功 1 项，待确认 0 项，无结果 0 项，失败 0 项，已跳过 0 项',
+      ),
+      findsOneWidget,
+    );
     fixture.controller.dispose();
   });
 
@@ -757,6 +836,7 @@ class _PageFixture {
     Map<String, List<CloudFileEntry>>? entriesById,
     CloudResourceTmdbRecord? record,
     CloudResourceTmdbCoordinator? tmdbCoordinator,
+    CloudDriveClient? client,
   }) async {
     final credentials = MemoryCloudCredentialStore();
     final repository = CloudSourceRepository(
@@ -775,11 +855,12 @@ class _PageFixture {
         apiKeyProvider: () => '',
       );
     }
-    final client = _PageCloudClient(entries, entriesById: entriesById);
+    final resolvedClient =
+        client ?? _PageCloudClient(entries, entriesById: entriesById);
     final registry = CloudProviderRegistry(
       clientFactories: <CloudSourceType, CloudProviderClientFactory>{
-        CloudSourceType.openList: (_, __, ___) => client,
-        CloudSourceType.quark: (_, __, ___) => client,
+        CloudSourceType.openList: (_, __, ___) => resolvedClient,
+        CloudSourceType.quark: (_, __, ___) => resolvedClient,
       },
     );
     return _PageFixture(
@@ -945,6 +1026,40 @@ class _BatchTmdbCoordinator extends _ManualTmdbCoordinator {
   }
 }
 
+class _DelayedAutoOrganizeCoordinator extends _ManualTmdbCoordinator {
+  final Completer<CloudResourceTmdbOutcome> _result =
+      Completer<CloudResourceTmdbOutcome>();
+  bool scrapeStarted = false;
+
+  @override
+  Future<CloudResourceTmdbOutcome> scrape(
+    CloudResourceTmdbTarget target, {
+    TmdbScrapeOptions? options,
+  }) {
+    scrapedTarget = target;
+    scrapeStarted = true;
+    return _result.future;
+  }
+
+  void completeMatched() {
+    final target = scrapedTarget!;
+    _result.complete(
+      CloudResourceTmdbOutcome(
+        candidates: <TmdbMetadata>[_candidate],
+        selected: CloudResourceTmdbRecord.matched(
+          sourceId: target.sourceId,
+          remoteId: target.remote.id,
+          remotePath: target.remote.path,
+          displayName: target.displayName,
+          resourceKind: target.resourceKind,
+          metadata: _candidate,
+          checkedAt: DateTime.utc(2026, 7, 20),
+        ),
+      ),
+    );
+  }
+}
+
 final _candidate = TmdbMetadata(
   id: 42,
   mediaType: TmdbMediaType.tv,
@@ -977,6 +1092,41 @@ class _PageCloudClient implements CloudDriveClient {
     CloudRemoteRef directory,
   ) async =>
       entriesById?[directory.id] ?? entries;
+
+  @override
+  Future<CloudPlaybackResource> resolvePlayback(CloudRemoteRef file) =>
+      throw UnimplementedError();
+}
+
+class _StagedPageCloudClient implements CloudDriveClient {
+  _StagedPageCloudClient(this.entries);
+
+  final List<CloudFileEntry> entries;
+  final Completer<List<CloudFileEntry>> _autoScan =
+      Completer<List<CloudFileEntry>>();
+  int _listCount = 0;
+
+  void completeAutoScan() => _autoScan.complete(entries);
+
+  @override
+  Future<void> authenticate(CloudSource source, CloudCredential credential) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> close() async {}
+
+  @override
+  Future<CloudFileEntry> getFile(CloudRemoteRef file) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<CloudFileEntry>> listDirectory(
+    CloudRemoteRef directory,
+  ) {
+    _listCount++;
+    if (_listCount == 1) return Future<List<CloudFileEntry>>.value(entries);
+    return _autoScan.future;
+  }
 
   @override
   Future<CloudPlaybackResource> resolvePlayback(CloudRemoteRef file) =>

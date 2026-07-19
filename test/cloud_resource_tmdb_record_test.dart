@@ -59,4 +59,46 @@ void main() {
     expect(failed.status, CloudResourceTmdbStatus.failed);
     expect(failed.checkedAt, DateTime.utc(2026, 7, 20));
   });
+
+  test('自定义剧名优先显示且清除后恢复 TMDB 标题', () {
+    final matched = CloudResourceTmdbRecord.matched(
+      sourceId: 'source-a',
+      remoteId: 'folder-a',
+      remotePath: '/影视/A',
+      displayName: '原文件夹',
+      resourceKind: CloudResourceKind.directory,
+      metadata: TmdbMetadata(
+        id: 42,
+        mediaType: TmdbMediaType.tv,
+        title: 'TMDB 标题',
+        language: 'zh-CN',
+        matchedAt: DateTime.utc(2026, 7, 19),
+        matchConfidence: 1,
+      ),
+      checkedAt: DateTime.utc(2026, 7, 19),
+    );
+
+    final customized = matched.withCustomTitle('  我的剧名  ');
+    expect(customized.customTitle, '我的剧名');
+    expect(customized.effectiveTitle, '我的剧名');
+    expect(CloudResourceTmdbRecord.fromJson(customized.toJson()), customized);
+
+    final restored = customized.clearCustomTitle();
+    expect(restored.customTitle, isNull);
+    expect(restored.effectiveTitle, matched.title);
+  });
+
+  test('未检查资源也能保存自定义剧名', () {
+    final record = CloudResourceTmdbRecord.unchecked(
+      sourceId: 'source-a',
+      remoteId: 'folder-a',
+      remotePath: '/影视/A',
+      displayName: 'A',
+      resourceKind: CloudResourceKind.directory,
+      checkedAt: DateTime.utc(2026, 7, 19),
+    ).withCustomTitle('自定义 A');
+
+    expect(record.status, CloudResourceTmdbStatus.unchecked);
+    expect(record.effectiveTitle, '自定义 A');
+  });
 }

@@ -264,6 +264,110 @@ void main() {
     expect(coordinator.selectedCandidate?.id, 42);
     fixture.controller.dispose();
   });
+
+  testWidgets('资源菜单修改剧名后立即显示且保留原文件名', (tester) async {
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      entries: const <CloudFileEntry>[
+        CloudFileEntry(
+          id: 'folder-fid',
+          remotePath: '/影视/动漫',
+          name: '动漫',
+          size: 0,
+          modifiedAt: null,
+          isDirectory: true,
+        ),
+      ],
+      record: _matchedFolderRecord(),
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: CloudResourcesPage(controller: fixture.controller)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('资源操作'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('修改剧名'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('cloud-title-input')),
+      '新剧名',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, '保存'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('新剧名'), findsOneWidget);
+    expect(find.text('动漫'), findsOneWidget);
+    fixture.controller.dispose();
+  });
+
+  testWidgets('恢复 TMDB 标题只清除自定义剧名', (tester) async {
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      entries: const <CloudFileEntry>[
+        CloudFileEntry(
+          id: 'folder-fid',
+          remotePath: '/影视/动漫',
+          name: '动漫',
+          size: 0,
+          modifiedAt: null,
+          isDirectory: true,
+        ),
+      ],
+      record: _matchedFolderRecord().withCustomTitle('自定义剧名'),
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: CloudResourcesPage(controller: fixture.controller)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('资源操作'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('修改剧名'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('恢复 TMDB 标题'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('中文片名'), findsOneWidget);
+    expect(find.text('动漫'), findsOneWidget);
+    fixture.controller.dispose();
+  });
+
+  testWidgets('空白剧名不会保存并显示提示', (tester) async {
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      entries: const <CloudFileEntry>[
+        CloudFileEntry(
+          id: 'folder-fid',
+          remotePath: '/影视/动漫',
+          name: '动漫',
+          size: 0,
+          modifiedAt: null,
+          isDirectory: true,
+        ),
+      ],
+      record: _matchedFolderRecord(),
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: CloudResourcesPage(controller: fixture.controller)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('资源操作'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('修改剧名'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('cloud-title-input')),
+      '   ',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, '保存'));
+    await tester.pump();
+
+    expect(find.text('剧名不能为空'), findsOneWidget);
+    expect(find.byType(AlertDialog), findsOneWidget);
+    fixture.controller.dispose();
+  });
 }
 
 const _quarkSource = CloudSource(

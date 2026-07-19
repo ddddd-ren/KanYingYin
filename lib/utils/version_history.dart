@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.5',
+    date: '2026-07-19',
+    isPrerelease: true,
+    changes: [
+      '本测试版在左侧主导航新增网盘资源，可直接浏览 OpenList 和夸克网盘',
+      '支持切换来源、进入文件夹、搜索、返回上级和刷新网盘目录',
+      '点击网盘视频可使用现有播放器在线播放，并自动匹配同名外部字幕',
+      '移除网盘来源只清理应用内数据，不会删除远程文件',
+      '应用启动、本地媒体库与现有播放器功能保持可用',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.4',
     date: '2026-07-19',
     isPrerelease: true,

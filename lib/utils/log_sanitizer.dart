@@ -11,10 +11,8 @@ class LogSanitizer {
       r'\b(authorization\s*:\s*)(?:bearer\s+)?[^\s,;]+',
       caseSensitive: false,
     ),
-    RegExp(
-      r'\b(cookie\s*:\s*)[^\s,]+',
-      caseSensitive: false,
-    ),
+    // Cookie 值允许分号和空格，必须整行清除，避免只隐藏第一个键值对。
+    RegExp(r'\b(cookie\s*:\s*)[^\r\n]*', caseSensitive: false),
   ];
 
   static final RegExp _keyValuePattern = RegExp(

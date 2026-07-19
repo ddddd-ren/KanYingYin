@@ -290,6 +290,79 @@ void main() {
     expect(saved?.cookie, 'existing-cookie');
   });
 
+  test('夸克来源可保存纯 Cookie 凭据', () async {
+    final credentialStore = MemoryCloudCredentialStore();
+    final repository = CloudSourceRepository(
+      storage: MemoryCloudSourceStorage(),
+      credentialStore: credentialStore,
+    );
+    final controller = CloudLibraryController(
+      repository: repository,
+      credentialStore: credentialStore,
+    );
+    const quarkSource = CloudSource(
+      id: 'quark-source',
+      type: CloudSourceType.quark,
+      name: '夸克网盘',
+      baseUrl: '',
+      rootPaths: <String>['/影视'],
+    );
+
+    await controller.save(
+      quarkSource,
+      credential: const CloudCredential(cookie: 'cookie-fixture-new'),
+    );
+
+    expect(
+      (await credentialStore.read(quarkSource.id))?.cookie,
+      'cookie-fixture-new',
+    );
+    expect((await repository.getById(quarkSource.id))?.baseUrl,
+        'https://pan.quark.cn');
+  });
+
+  test('夸克编辑留空保留 Cookie，输入新值则替换并清除会话', () async {
+    final credentialStore = MemoryCloudCredentialStore();
+    final repository = CloudSourceRepository(
+      storage: MemoryCloudSourceStorage(),
+      credentialStore: credentialStore,
+    );
+    const quarkSource = CloudSource(
+      id: 'quark-source',
+      type: CloudSourceType.quark,
+      name: '夸克网盘',
+      baseUrl: 'https://pan.quark.cn',
+      rootPaths: <String>['/影视'],
+    );
+    await repository.save(quarkSource);
+    await credentialStore.write(
+      quarkSource.id,
+      const CloudCredential(
+        cookie: 'cookie-fixture-old',
+        token: 'session-fixture-old',
+      ),
+    );
+    final controller = CloudLibraryController(
+      repository: repository,
+      credentialStore: credentialStore,
+    );
+
+    await controller.save(
+      quarkSource,
+      credential: const CloudCredential(cookie: ''),
+    );
+    expect((await credentialStore.read(quarkSource.id))?.cookie,
+        'cookie-fixture-old');
+
+    await controller.save(
+      quarkSource,
+      credential: const CloudCredential(cookie: 'cookie-fixture-replaced'),
+    );
+    final replaced = await credentialStore.read(quarkSource.id);
+    expect(replaced?.cookie, 'cookie-fixture-replaced');
+    expect(replaced?.token, isNull);
+  });
+
   test('测试连接只使用临时凭据存储', () async {
     final persistentStore = MemoryCloudCredentialStore();
     CloudCredentialStore? receivedStore;

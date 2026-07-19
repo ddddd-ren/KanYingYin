@@ -18,6 +18,10 @@ void main() {
     await writer.write(
       'GET https://drive.example.com/private/video.mkv?token=secret',
     );
+    await writer.write(
+      'Cookie: session=diagnostic-one; user=diagnostic user; '
+      '__puus=diagnostic-three',
+    );
     final original = File(
       '${tempDir.path}${Platform.pathSeparator}${RotatingLogWriter.activeFileName}',
     );
@@ -39,6 +43,9 @@ void main() {
     expect(content, contains('https://drive.example.com'));
     expect(content, isNot(contains('/private/video.mkv')));
     expect(content, isNot(contains('secret')));
+    expect(content, isNot(contains('diagnostic-one')));
+    expect(content, isNot(contains('diagnostic user')));
+    expect(content, isNot(contains('diagnostic-three')));
     expect(await original.exists(), isTrue);
   });
 }

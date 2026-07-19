@@ -15,6 +15,12 @@ class CloudCredential {
   final String? cookie;
   final String? token;
 
+  bool get isEmpty =>
+      (username?.isEmpty ?? true) &&
+      (password?.isEmpty ?? true) &&
+      (cookie?.isEmpty ?? true) &&
+      (token?.isEmpty ?? true);
+
   Map<String, String> toJson() => <String, String>{
         if (username != null) 'username': username!,
         if (password != null) 'password': password!,

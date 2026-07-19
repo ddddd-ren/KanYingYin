@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:kanyingyin/pages/index_page.dart';
 import 'package:kanyingyin/features/library/application/local_library_metadata_coordinator.dart';
 import 'package:kanyingyin/features/library/application/local_library_preferences.dart';
@@ -23,9 +25,17 @@ import 'package:kanyingyin/bean/widget/image_preview.dart';
 import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
+import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
+import 'package:kanyingyin/services/cloud/cloud_cache_directories.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_indexer.dart';
+import 'package:kanyingyin/services/cloud/cloud_poster_cache.dart';
+import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
+import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/utils/storage.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 
 class IndexModule extends Module {
@@ -43,6 +53,9 @@ class IndexModule extends Module {
               mediaIndexRepository: Modular.get<ILocalMediaIndexRepository>(),
             ));
     i.addSingleton<CloudMediaIndexRepository>(CloudMediaIndexRepository.new);
+    i.addSingleton<CloudResourceTmdbRepository>(
+      CloudResourceTmdbRepository.new,
+    );
     i.addSingleton<CloudCredentialStore>(SecureCloudCredentialStore.new);
     i.addSingleton<CloudSourceRepository>(() => CloudSourceRepository(
           credentialStore: Modular.get<CloudCredentialStore>(),
@@ -57,10 +70,29 @@ class IndexModule extends Module {
                 Modular.get<MediaRecognitionSettings>().cloudMinSizeBytes,
           ),
         ));
-    i.addSingleton<CloudResourcesController>(() => CloudResourcesController(
-          repository: Modular.get<CloudSourceRepository>(),
-          credentialStore: Modular.get<CloudCredentialStore>(),
-        ));
+    i.addSingleton<CloudResourceTmdbCoordinator>(
+      () => CloudResourceTmdbCoordinator(
+        repository: Modular.get<CloudResourceTmdbRepository>(),
+        serviceFactory: (apiKey) async => CloudResourceTmdbService(
+          repository: Modular.get<CloudResourceTmdbRepository>(),
+          indexRepository: Modular.get<CloudMediaIndexRepository>(),
+          client: TmdbClient(apiKey: apiKey),
+          posterCache: CloudPosterCache(
+            cacheRoot: await defaultCloudCacheRoot(),
+            downloader: _downloadCloudPoster,
+          ),
+        ),
+        apiKeyProvider: _tmdbApiKey,
+        optionsProvider: _tmdbScrapeOptions,
+      ),
+    );
+    i.addSingleton<CloudResourcesController>(
+      () => CloudResourcesController(
+        repository: Modular.get<CloudSourceRepository>(),
+        credentialStore: Modular.get<CloudCredentialStore>(),
+        tmdbCoordinator: Modular.get<CloudResourceTmdbCoordinator>(),
+      ),
+    );
     i.addSingleton<ILocalMediaIndexer>(() => LocalMediaIndexer(
           repository: Modular.get<ILocalMediaIndexRepository>(),
           minRecognizedVideoSizeBytesProvider: () =>
@@ -133,5 +165,42 @@ class IndexModule extends Module {
     );
 
     r.module("/settings", module: SettingsModule());
+  }
+}
+
+String _tmdbApiKey() {
+  try {
+    return GStorage.setting
+        .get('tmdbApiKey', defaultValue: '')
+        .toString()
+        .trim();
+  } on Object {
+    return '';
+  }
+}
+
+TmdbScrapeOptions _tmdbScrapeOptions() {
+  try {
+    return TmdbScrapeOptions.fromMap(
+      GStorage.setting.get('tmdbScrapeOptions'),
+    );
+  } on Object {
+    return const TmdbScrapeOptions.defaults();
+  }
+}
+
+Future<List<int>> _downloadCloudPoster(String url) async {
+  final client = HttpClient();
+  try {
+    final response = await (await client.getUrl(Uri.parse(url))).close();
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw HttpException('海报下载失败：${response.statusCode}');
+    }
+    return response.fold<List<int>>(<int>[], (bytes, chunk) {
+      bytes.addAll(chunk);
+      return bytes;
+    });
+  } finally {
+    client.close(force: true);
   }
 }

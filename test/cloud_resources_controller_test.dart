@@ -4,11 +4,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
+import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
 
 void main() {
   group('CloudResourcesController', () {
@@ -236,6 +238,67 @@ void main() {
       expect(fixture.controller.entries.single.name, '新目录');
       fixture.controller.dispose();
     });
+
+    test('根目录调度文件夹和独立视频，子目录只标记为非配置根', () async {
+      final coordinator = _RecordingTmdbCoordinator();
+      final client = _FakeCloudClient(
+        entriesById: <String, List<CloudFileEntry>>{
+          'root-fid': const <CloudFileEntry>[
+            CloudFileEntry(
+              id: 'folder-fid',
+              remotePath: '/影视/剧集',
+              name: '剧集',
+              size: 0,
+              modifiedAt: null,
+              isDirectory: true,
+            ),
+            CloudFileEntry(
+              id: 'movie-fid',
+              remotePath: '/影视/电影.mkv',
+              name: '电影.mkv',
+              size: 100,
+              modifiedAt: null,
+              isDirectory: false,
+            ),
+          ],
+          'folder-fid': const <CloudFileEntry>[
+            CloudFileEntry(
+              id: 'season-fid',
+              remotePath: '/影视/剧集/第一季',
+              name: '第一季',
+              size: 0,
+              modifiedAt: null,
+              isDirectory: true,
+            ),
+          ],
+        },
+      );
+      final fixture = await _Fixture.create(
+        sources: const <CloudSource>[
+          CloudSource(
+            id: 'source-a',
+            type: CloudSourceType.quark,
+            name: '夸克媒体库',
+            baseUrl: 'https://pan.quark.cn',
+            rootPaths: <String>['/影视'],
+            rootRefs: <CloudRemoteRef>[
+              CloudRemoteRef(id: 'root-fid', path: '/影视'),
+            ],
+          ),
+        ],
+        clients: <String, _FakeCloudClient>{'source-a': client},
+        tmdbCoordinator: coordinator,
+      );
+
+      await fixture.controller.load();
+      expect(coordinator.contexts.single.isConfiguredRoot, isTrue);
+      expect(coordinator.contexts.single.entries, hasLength(2));
+      await fixture.controller.openDirectory(
+        const CloudRemoteRef(id: 'folder-fid', path: '/影视/剧集'),
+      );
+      expect(coordinator.contexts.last.isConfiguredRoot, isFalse);
+      fixture.controller.dispose();
+    });
   });
 }
 
@@ -248,6 +311,7 @@ class _Fixture {
   static Future<_Fixture> create({
     required List<CloudSource> sources,
     required Map<String, _FakeCloudClient> clients,
+    CloudResourceTmdbCoordinator? tmdbCoordinator,
   }) async {
     final credentials = MemoryCloudCredentialStore();
     final repository = CloudSourceRepository(
@@ -268,9 +332,29 @@ class _Fixture {
         repository: repository,
         credentialStore: credentials,
         providerRegistry: registry,
+        tmdbCoordinator: tmdbCoordinator,
       ),
       clients: clients,
     );
+  }
+}
+
+class _RecordingTmdbCoordinator extends CloudResourceTmdbCoordinator {
+  _RecordingTmdbCoordinator()
+      : super(
+          repository: CloudResourceTmdbRepository(
+            storage: MemoryCloudResourceTmdbStorage(),
+          ),
+          serviceFactory: (_) => throw UnimplementedError(),
+          apiKeyProvider: () => '',
+        );
+
+  final List<CloudResourceDirectoryContext> contexts =
+      <CloudResourceDirectoryContext>[];
+
+  @override
+  Future<void> loadAndSchedule(CloudResourceDirectoryContext context) async {
+    contexts.add(context);
   }
 }
 

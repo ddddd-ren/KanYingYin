@@ -1,11 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
+import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
+import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
 import 'package:path/path.dart' as p;
 
@@ -14,13 +20,18 @@ class CloudResourcesController extends ChangeNotifier {
     required CloudSourceRepository repository,
     required CloudCredentialStore credentialStore,
     CloudProviderRegistry? providerRegistry,
+    CloudResourceTmdbCoordinator? tmdbCoordinator,
   })  : _repository = repository,
         _credentialStore = credentialStore,
-        _providerRegistry = providerRegistry ?? CloudProviderRegistry();
+        _providerRegistry = providerRegistry ?? CloudProviderRegistry(),
+        _tmdbCoordinator = tmdbCoordinator {
+    _tmdbCoordinator?.addListener(_notify);
+  }
 
   final CloudSourceRepository _repository;
   final CloudCredentialStore _credentialStore;
   final CloudProviderRegistry _providerRegistry;
+  final CloudResourceTmdbCoordinator? _tmdbCoordinator;
   final List<CloudRemoteRef?> _history = <CloudRemoteRef?>[];
 
   List<CloudSource> sources = <CloudSource>[];
@@ -36,6 +47,15 @@ class CloudResourcesController extends ChangeNotifier {
   bool _disposed = false;
 
   bool get canGoBack => _history.isNotEmpty;
+
+  Map<String, CloudResourceTmdbRecord> get tmdbRecords =>
+      _tmdbCoordinator?.records ?? const <String, CloudResourceTmdbRecord>{};
+
+  Set<String> get tmdbScrapingKeys =>
+      _tmdbCoordinator?.scrapingKeys ?? const <String>{};
+
+  int get tmdbCompletedCount => _tmdbCoordinator?.completedCount ?? 0;
+  int get tmdbTotalCount => _tmdbCoordinator?.totalCount ?? 0;
 
   List<CloudFileEntry> get visibleEntries {
     final keyword = query.trim().toLowerCase();
@@ -143,6 +163,7 @@ class CloudResourcesController extends ChangeNotifier {
       currentDirectory = directory;
       entries = loadedEntries;
       isVirtualRoot = false;
+      _scheduleTmdb(source, directory, loadedEntries);
     } on CloudDriveException catch (error) {
       if (!_isCurrent(generation)) return;
       errorMessage = _providerRegistry.errorMessage(source.type, error);
@@ -209,6 +230,64 @@ class CloudResourcesController extends ChangeNotifier {
     _notify();
   }
 
+  CloudResourceTmdbTarget tmdbTargetFor(CloudFileEntry entry) {
+    final source = selectedSource;
+    if (source == null) throw StateError('尚未选择网盘来源');
+    return CloudResourceTmdbTarget(
+      sourceId: source.id,
+      remote: CloudRemoteRef(id: entry.id, path: entry.remotePath),
+      displayName: entry.name,
+      resourceKind: entry.isDirectory
+          ? CloudResourceKind.directory
+          : CloudResourceKind.standaloneVideo,
+    );
+  }
+
+  Future<CloudResourceTmdbOutcome> scrapeTmdb(CloudFileEntry entry) {
+    final coordinator = _tmdbCoordinator;
+    if (coordinator == null) throw StateError('TMDB 刮削服务不可用');
+    return coordinator.scrape(tmdbTargetFor(entry));
+  }
+
+  Future<CloudResourceTmdbOutcome> rematchTmdb(CloudFileEntry entry) {
+    final coordinator = _tmdbCoordinator;
+    if (coordinator == null) throw StateError('TMDB 刮削服务不可用');
+    return coordinator.rematch(tmdbTargetFor(entry));
+  }
+
+  Future<CloudResourceTmdbRecord> selectTmdbCandidate(
+    CloudFileEntry entry,
+    TmdbMetadata candidate,
+  ) {
+    final coordinator = _tmdbCoordinator;
+    if (coordinator == null) throw StateError('TMDB 刮削服务不可用');
+    return coordinator.select(tmdbTargetFor(entry), candidate);
+  }
+
+  void _scheduleTmdb(
+    CloudSource source,
+    CloudRemoteRef directory,
+    List<CloudFileEntry> loadedEntries,
+  ) {
+    final coordinator = _tmdbCoordinator;
+    if (coordinator == null) return;
+    final isConfiguredRoot = source.remoteRoots.any(
+      (root) => root.id == directory.id || root.path == directory.path,
+    );
+    unawaited(
+      coordinator
+          .loadAndSchedule(
+            CloudResourceDirectoryContext(
+              source: source,
+              directory: directory,
+              entries: List<CloudFileEntry>.unmodifiable(loadedEntries),
+              isConfiguredRoot: isConfiguredRoot,
+            ),
+          )
+          .catchError((_) {}),
+    );
+  }
+
   void _showVirtualRoot(CloudSource source) {
     entries = source.remoteRoots
         .map(
@@ -239,6 +318,7 @@ class CloudResourcesController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _generation++;
+    _tmdbCoordinator?.removeListener(_notify);
     super.dispose();
   }
 }

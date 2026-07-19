@@ -12,6 +12,8 @@ enum CloudDriveErrorType {
   expiredLink,
   certificate,
   invalidAddress,
+  timeout,
+  rateLimited,
 }
 
 class CloudDriveException implements Exception {

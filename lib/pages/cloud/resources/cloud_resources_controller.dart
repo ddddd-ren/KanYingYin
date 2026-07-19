@@ -380,6 +380,8 @@ class CloudResourcesController extends ChangeNotifier {
       remoteId: entry.id,
       remotePath: entry.remotePath,
     );
+    final indexed = _indexedItemFor(entry);
+    final indexedEpisode = indexed?.mediaType == CloudMediaType.episode;
     return CloudResourceTmdbTarget(
       sourceId: source.id,
       remote: CloudRemoteRef(id: entry.id, path: entry.remotePath),
@@ -388,6 +390,9 @@ class CloudResourcesController extends ChangeNotifier {
           ? CloudResourceKind.directory
           : CloudResourceKind.standaloneVideo,
       customTitle: tmdbRecords[key]?.customTitle,
+      matchingTitle: indexedEpisode ? indexed?.seriesName : null,
+      matchingSeasonNumber: indexedEpisode ? indexed?.seasonNumber : null,
+      matchingEpisodeNumber: indexedEpisode ? indexed?.episodeNumber : null,
       size: entry.isDirectory ? null : entry.size,
     );
   }
@@ -398,10 +403,25 @@ class CloudResourcesController extends ChangeNotifier {
 
   TmdbMatchDraft tmdbDraftFor(CloudFileEntry entry) {
     final record = tmdbRecordFor(entry);
-    return const CloudMediaNameParser().parse(
+    final parsed = const CloudMediaNameParser().parse(
       originalName: entry.name,
       isDirectory: entry.isDirectory,
       preferredTitle: record?.customTitle ?? record?.title,
+    );
+    final indexed = _indexedItemFor(entry);
+    if (indexed == null || indexed.mediaType != CloudMediaType.episode) {
+      return parsed;
+    }
+    final preferredTitle = record?.customTitle ?? record?.title;
+    return TmdbMatchDraft(
+      originalName: parsed.originalName,
+      searchTitle: preferredTitle?.trim().isNotEmpty == true
+          ? preferredTitle!.trim()
+          : indexed.seriesName,
+      mediaTypeMode: TmdbMediaTypeMode.tv,
+      year: parsed.year,
+      seasonNumber: indexed.seasonNumber ?? parsed.seasonNumber,
+      episodeNumber: indexed.episodeNumber ?? parsed.episodeNumber,
     );
   }
 
@@ -619,6 +639,8 @@ class CloudResourcesController extends ChangeNotifier {
               ),
               entries: List<CloudFileEntry>.unmodifiable(loadedEntries),
               isConfiguredRoot: true,
+              indexedItemsByKey:
+                  Map<String, CloudMediaIndexItem>.unmodifiable(_indexedItems),
             ),
           )
           .catchError((_) {}),

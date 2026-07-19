@@ -20,6 +20,9 @@ class CloudResourceTmdbTarget {
     required this.displayName,
     required this.resourceKind,
     this.customTitle,
+    this.matchingTitle,
+    this.matchingSeasonNumber,
+    this.matchingEpisodeNumber,
     this.size,
   });
 
@@ -28,12 +31,19 @@ class CloudResourceTmdbTarget {
   final String displayName;
   final CloudResourceKind resourceKind;
   final String? customTitle;
+  final String? matchingTitle;
+  final int? matchingSeasonNumber;
+  final int? matchingEpisodeNumber;
   final int? size;
 
-  String get queryDisplayName {
+  String? get effectiveMatchingTitle {
     final custom = customTitle?.trim();
-    return custom == null || custom.isEmpty ? displayName : custom;
+    if (custom != null && custom.isNotEmpty) return custom;
+    final indexed = matchingTitle?.trim();
+    return indexed == null || indexed.isEmpty ? null : indexed;
   }
+
+  String get queryDisplayName => effectiveMatchingTitle ?? displayName;
 
   String get stableKey => cloudResourceTmdbKey(
         sourceId: sourceId,
@@ -321,7 +331,7 @@ class CloudResourceTmdbService {
     final draft = const CloudMediaNameParser().parse(
       originalName: target.displayName,
       isDirectory: target.resourceKind == CloudResourceKind.directory,
-      preferredTitle: target.customTitle,
+      preferredTitle: target.effectiveMatchingTitle,
     );
     return CloudResourceTmdbSearchRequest(
       queryTitle: draft.searchTitle,

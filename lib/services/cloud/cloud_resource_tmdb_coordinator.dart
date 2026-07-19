@@ -3,6 +3,7 @@ import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
+import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
@@ -24,12 +25,14 @@ class CloudResourceDirectoryContext {
     required this.directory,
     required this.entries,
     required this.isConfiguredRoot,
+    this.indexedItemsByKey = const <String, CloudMediaIndexItem>{},
   });
 
   final CloudSource source;
   final CloudRemoteRef directory;
   final List<CloudFileEntry> entries;
   final bool isConfiguredRoot;
+  final Map<String, CloudMediaIndexItem> indexedItemsByKey;
 }
 
 class CloudResourceTmdbCoordinator extends ChangeNotifier {
@@ -349,16 +352,7 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
         remoteId: entry.id,
         remotePath: entry.remotePath,
       );
-      await applySeriesRule(
-        CloudResourceTmdbTarget(
-          sourceId: context.source.id,
-          remote: CloudRemoteRef(id: entry.id, path: entry.remotePath),
-          displayName: entry.name,
-          resourceKind: CloudResourceKind.standaloneVideo,
-          customTitle: _records[key]?.customTitle,
-          size: entry.size,
-        ),
-      );
+      await applySeriesRule(_targetForEntry(context, entry, _records[key]));
     }
   }
 
@@ -395,9 +389,6 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
   ) {
     final targets = <CloudResourceTmdbTarget>[];
     for (final entry in context.entries) {
-      final kind = entry.isDirectory
-          ? CloudResourceKind.directory
-          : CloudResourceKind.standaloneVideo;
       if (!entry.isDirectory &&
           (!context.isConfiguredRoot ||
               !LocalVideoFileTypes.isVideoPath(entry.name))) {
@@ -408,14 +399,7 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
         remoteId: entry.id,
         remotePath: entry.remotePath,
       )];
-      final target = CloudResourceTmdbTarget(
-        sourceId: context.source.id,
-        remote: CloudRemoteRef(id: entry.id, path: entry.remotePath),
-        displayName: entry.name,
-        resourceKind: kind,
-        customTitle: cached?.customTitle,
-        size: entry.isDirectory ? null : entry.size,
-      );
+      final target = _targetForEntry(context, entry, cached);
       if (cached != null && cached.displayName == target.displayName) {
         if (cached.status == CloudResourceTmdbStatus.matched) continue;
         if (cached.status == CloudResourceTmdbStatus.unmatched &&
@@ -426,6 +410,33 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
       targets.add(target);
     }
     return targets;
+  }
+
+  CloudResourceTmdbTarget _targetForEntry(
+    CloudResourceDirectoryContext context,
+    CloudFileEntry entry,
+    CloudResourceTmdbRecord? cached,
+  ) {
+    final key = cloudResourceTmdbKey(
+      sourceId: context.source.id,
+      remoteId: entry.id,
+      remotePath: entry.remotePath,
+    );
+    final indexed = context.indexedItemsByKey[key];
+    final indexedEpisode = indexed?.mediaType == CloudMediaType.episode;
+    return CloudResourceTmdbTarget(
+      sourceId: context.source.id,
+      remote: CloudRemoteRef(id: entry.id, path: entry.remotePath),
+      displayName: entry.name,
+      resourceKind: entry.isDirectory
+          ? CloudResourceKind.directory
+          : CloudResourceKind.standaloneVideo,
+      customTitle: cached?.customTitle,
+      matchingTitle: indexedEpisode ? indexed?.seriesName : null,
+      matchingSeasonNumber: indexedEpisode ? indexed?.seasonNumber : null,
+      matchingEpisodeNumber: indexedEpisode ? indexed?.episodeNumber : null,
+      size: entry.isDirectory ? null : entry.size,
+    );
   }
 
   Future<void> _autoScrape(

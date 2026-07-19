@@ -50,6 +50,17 @@ void main() {
     expect(draft.episodeNumber, 3);
   });
 
+  test('目录季度后缀不会进入 TMDB 搜索词', () {
+    final draft = parser.parse(
+      originalName: '三体 Season 2',
+      isDirectory: true,
+    );
+
+    expect(draft.searchTitle, '三体');
+    expect(draft.seasonNumber, 2);
+    expect(draft.mediaTypeMode, TmdbMediaTypeMode.tv);
+  });
+
   test('只删除已知发布标签并保留正式括号标题', () {
     final rec = parser.parse(
       originalName: '[REC] (2007).mkv',

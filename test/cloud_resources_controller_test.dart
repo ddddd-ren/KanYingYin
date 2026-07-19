@@ -478,6 +478,74 @@ void main() {
       fixture.controller.dispose();
     });
 
+    test('纯集数视频使用索引剧名和季度生成 TMDB 草稿', () async {
+      final fixture = await _Fixture.create(
+        sources: const <CloudSource>[
+          CloudSource(
+            id: 'source-folder-season',
+            type: CloudSourceType.quark,
+            name: '夸克媒体库',
+            baseUrl: 'https://pan.quark.cn',
+            rootPaths: <String>['/影视'],
+            rootRefs: <CloudRemoteRef>[
+              CloudRemoteRef(id: 'root-fid', path: '/影视'),
+            ],
+          ),
+        ],
+        clients: <String, _FakeCloudClient>{
+          'source-folder-season': _FakeCloudClient(
+            entriesById: <String, List<CloudFileEntry>>{
+              'root-fid': const <CloudFileEntry>[
+                CloudFileEntry(
+                  id: 'show-fid',
+                  remotePath: '/影视/三体',
+                  name: '三体',
+                  size: 0,
+                  modifiedAt: null,
+                  isDirectory: true,
+                ),
+              ],
+              'show-fid': const <CloudFileEntry>[
+                CloudFileEntry(
+                  id: 'season-fid',
+                  remotePath: '/影视/三体/第二季',
+                  name: '第二季',
+                  size: 0,
+                  modifiedAt: null,
+                  isDirectory: true,
+                ),
+              ],
+              'season-fid': const <CloudFileEntry>[
+                CloudFileEntry(
+                  id: 'episode-fid',
+                  remotePath: '/影视/三体/第二季/01.mkv',
+                  name: '01.mkv',
+                  size: 100,
+                  modifiedAt: null,
+                  isDirectory: false,
+                ),
+              ],
+            },
+          ),
+        },
+      );
+      await fixture.load();
+      final episode = fixture.controller.entries.single;
+
+      final draft = fixture.controller.tmdbDraftFor(episode);
+      final target = fixture.controller.tmdbTargetFor(episode);
+
+      expect(draft.searchTitle, '三体');
+      expect(draft.seasonNumber, 2);
+      expect(draft.episodeNumber, 1);
+      expect(draft.mediaTypeMode, TmdbMediaTypeMode.tv);
+      expect(target.matchingTitle, '三体');
+      expect(target.matchingSeasonNumber, 2);
+      expect(target.matchingEpisodeNumber, 1);
+      expect(target.displayName, '01.mkv');
+      fixture.controller.dispose();
+    });
+
     test('手动匹配会传入当前完整目录并保留每集文件大小', () async {
       final coordinator = _RecordingTmdbCoordinator();
       final fixture = await _Fixture.create(

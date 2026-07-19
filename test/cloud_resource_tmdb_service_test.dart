@@ -35,6 +35,26 @@ void main() {
     );
   });
 
+  test('自动匹配使用索引剧名但保留真实网盘文件名', () async {
+    final client = _FakeTmdbClient(
+      searches: const <TmdbMediaType, List<TmdbMetadata>>{},
+      detail: _candidate(TmdbMediaType.tv),
+    );
+    final harness = _service(client);
+    final target = _target(
+      path: '/剧集/三体/第二季/01.mkv',
+      name: '01.mkv',
+      kind: CloudResourceKind.standaloneVideo,
+      matchingTitle: '三体',
+    );
+
+    await harness.service.searchCandidates(target);
+
+    expect(client.queries, isNotEmpty);
+    expect(client.queries, everyElement('三体'));
+    expect(target.displayName, '01.mkv');
+  });
+
   test('自动匹配保存详情、海报并同步文件夹子树索引', () async {
     final cacheRoot = await Directory.systemTemp.createTemp('resource-tmdb-');
     addTearDown(() => cacheRoot.delete(recursive: true));
@@ -497,6 +517,7 @@ CloudResourceTmdbTarget _target({
   required String name,
   required CloudResourceKind kind,
   String? customTitle,
+  String? matchingTitle,
 }) {
   return CloudResourceTmdbTarget(
     sourceId: 'source-a',
@@ -504,6 +525,7 @@ CloudResourceTmdbTarget _target({
     displayName: name,
     resourceKind: kind,
     customTitle: customTitle,
+    matchingTitle: matchingTitle,
   );
 }
 

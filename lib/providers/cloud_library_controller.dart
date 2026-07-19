@@ -299,8 +299,11 @@ class CloudLibraryController extends ChangeNotifier {
         }
       }
       if (removedIndex == null) {
-        errorMessage =
-            tmdbRestored ? '删除网盘数据源失败，原有数据未被删除' : '删除网盘数据源失败，TMDB 信息恢复失败';
+        errorMessage = removedTmdbRecords == null
+            ? '删除网盘数据源失败，原有数据未被删除'
+            : tmdbRestored
+                ? '删除网盘数据源失败，原有数据未被删除'
+                : '删除网盘数据源失败，TMDB 信息恢复失败';
       } else {
         try {
           await _mediaIndexRepository.replaceSource(
@@ -310,9 +313,11 @@ class CloudLibraryController extends ChangeNotifier {
             removedIndex.directoryEntries,
             removedIndex.indexedRoots,
           );
-          errorMessage = tmdbRestored
-              ? '删除网盘数据源失败，原有索引和刮削信息已恢复'
-              : '删除网盘数据源失败，媒体索引已恢复但 TMDB 信息恢复失败';
+          errorMessage = removedTmdbRecords == null
+              ? '删除网盘数据源失败，原有媒体索引已恢复'
+              : tmdbRestored
+                  ? '删除网盘数据源失败，原有索引和刮削信息已恢复'
+                  : '删除网盘数据源失败，媒体索引已恢复但 TMDB 信息恢复失败';
         } on Object {
           errorMessage = '删除网盘数据源失败，媒体索引恢复失败，请重新扫描';
         }

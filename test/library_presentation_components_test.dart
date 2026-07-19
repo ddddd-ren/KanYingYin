@@ -296,7 +296,16 @@ void main() {
       grid = tester.widget<GridView>(find.byType(GridView));
       delegate = grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
       expect(delegate.crossAxisCount, 4);
+      expect(find.byType(ImmersiveMediaCard), findsOneWidget);
+      expect(
+        tester
+            .widget<ImmersiveMediaCard>(find.byType(ImmersiveMediaCard))
+            .overlayMode,
+        ImmersiveMediaCardOverlayMode.hover,
+      );
       expect(find.text('测试动画'), findsOneWidget);
+      expect(find.text('有字幕'), findsOneWidget);
+      expect(find.text('已刮削'), findsOneWidget);
       expect(tester.widget<Hero>(find.byType(Hero)).tag, item.heroTag);
       expect(
           tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,

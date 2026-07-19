@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 
 typedef LibraryMediaAction = FutureOr<void> Function(
   LibraryMediaItemViewData item,
@@ -294,51 +295,43 @@ class _LibraryMediaTile extends StatefulWidget {
 }
 
 class _LibraryMediaTileState extends State<_LibraryMediaTile> {
-  bool _hovered = false;
-
-  @override
-  void didUpdateWidget(covariant _LibraryMediaTile oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.item.id != widget.item.id) {
-      _hovered = false;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: Material(
-        color: colors.surfaceContainerHighest.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(8),
-        clipBehavior: Clip.hardEdge,
-        child: InkWell(
-          onLongPress: widget.onShowActions == null
-              ? null
-              : () async => await widget.onShowActions!(widget.item),
-          onSecondaryTap: widget.onShowActions == null
-              ? null
-              : () async => await widget.onShowActions!(widget.item),
-          onTap: widget.onPlay == null
-              ? null
-              : () async => await widget.onPlay!(widget.item),
-          child: Stack(fit: StackFit.expand, children: [
-            if (widget.item.heroTag == null)
-              _cover(colors)
-            else
-              Hero(tag: widget.item.heroTag!, child: _cover(colors)),
-            IgnorePointer(
-                child: AnimatedOpacity(
-              opacity: _hovered ? 1 : 0,
-              duration: const Duration(milliseconds: 160),
-              curve: Curves.easeOut,
-              child: _overlay(context),
-            )),
-          ]),
+    final item = widget.item;
+    final details = <String>[
+      item.infoText,
+      if (item.mediaInfoText.isNotEmpty) item.mediaInfoText,
+      item.modifiedText,
+    ].where((part) => part.isNotEmpty).join('  ·  ');
+    final cover = item.heroTag == null
+        ? _cover(colors)
+        : Hero(tag: item.heroTag!, child: _cover(colors));
+    return ImmersiveMediaCard(
+      cover: cover,
+      title: item.title,
+      subtitle: item.subtitle,
+      details: details,
+      overlayMode: ImmersiveMediaCardOverlayMode.hover,
+      badges: <ImmersiveMediaCardBadge>[
+        ImmersiveMediaCardBadge(
+          icon: Icons.closed_caption_outlined,
+          label: item.hasSubtitle ? '有字幕' : '无字幕',
         ),
-      ),
+        ImmersiveMediaCardBadge(
+          icon: Icons.image_search_outlined,
+          label: item.scrapeLabel,
+          loading: item.isScraping,
+        ),
+      ],
+      onLongPress: widget.onShowActions == null
+          ? null
+          : () async => await widget.onShowActions!(item),
+      onSecondaryTap: widget.onShowActions == null
+          ? null
+          : () async => await widget.onShowActions!(item),
+      onTap:
+          widget.onPlay == null ? null : () async => await widget.onPlay!(item),
     );
   }
 
@@ -366,94 +359,6 @@ class _LibraryMediaTileState extends State<_LibraryMediaTile> {
         widget.item,
         placeholderBuilder: (_) => placeholder(),
       ),
-    );
-  }
-
-  Widget _overlay(BuildContext context) {
-    final item = widget.item;
-    final textTheme = Theme.of(context).textTheme;
-    final details = [
-      item.infoText,
-      if (item.mediaInfoText.isNotEmpty) item.mediaInfoText,
-      item.modifiedText
-    ].where((part) => part.isNotEmpty).join('  ·  ');
-    return DecoratedBox(
-      decoration: BoxDecoration(
-          gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-            Colors.transparent,
-            Colors.black.withValues(alpha: 0.2),
-            Colors.black.withValues(alpha: 0.82)
-          ],
-              stops: const [
-            0,
-            0.42,
-            1
-          ])),
-      child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Text(item.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      height: 1.15)),
-              const SizedBox(height: 6),
-              Text(item.subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: textTheme.labelMedium?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      fontWeight: FontWeight.w600)),
-              const SizedBox(height: 4),
-              Text(details,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: textTheme.labelSmall?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.78),
-                      height: 1.25)),
-              const SizedBox(height: 8),
-              Wrap(spacing: 6, runSpacing: 6, children: [
-                _chip(context, Icons.closed_caption_outlined,
-                    item.hasSubtitle ? '有字幕' : '无字幕'),
-                _chip(context, Icons.image_search_outlined, item.scrapeLabel,
-                    loading: item.isScraping),
-              ]),
-            ],
-          )),
-    );
-  }
-
-  Widget _chip(BuildContext context, IconData icon, String label,
-      {bool loading = false}) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.16),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.2))),
-      child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            if (loading)
-              const SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 1.8, color: Colors.white))
-            else
-              Icon(icon, size: 13, color: Colors.white),
-            const SizedBox(width: 4),
-            Text(label,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Colors.white, fontWeight: FontWeight.w500)),
-          ])),
     );
   }
 }

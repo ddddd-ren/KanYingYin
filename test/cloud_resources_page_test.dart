@@ -7,8 +7,9 @@ import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resource_poster_wall.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
-import 'package:kanyingyin/pages/cloud/resources/cloud_resources_grid.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_page.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
@@ -151,6 +152,111 @@ void main() {
     fixture.controller.dispose();
   });
 
+  testWidgets('网盘目录按作品显示海报墙并从选集播放真实分集', (tester) async {
+    CloudPlaybackTarget? target;
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      entries: const <CloudFileEntry>[
+        CloudFileEntry(
+          id: 'folder',
+          remotePath: '/影视/子目录',
+          name: '子目录',
+          size: 0,
+          modifiedAt: null,
+          isDirectory: true,
+        ),
+        CloudFileEntry(
+          id: 'episode-2',
+          remotePath: '/影视/Show.S01E02.mkv',
+          name: 'Show.S01E02.mkv',
+          size: 200,
+          modifiedAt: null,
+          isDirectory: false,
+        ),
+        CloudFileEntry(
+          id: 'episode-s2',
+          remotePath: '/影视/Show.S02E01.mkv',
+          name: 'Show.S02E01.mkv',
+          size: 200,
+          modifiedAt: null,
+          isDirectory: false,
+        ),
+        CloudFileEntry(
+          id: 'episode-1',
+          remotePath: '/影视/Show.S01E01.mkv',
+          name: 'Show.S01E01.mkv',
+          size: 200,
+          modifiedAt: null,
+          isDirectory: false,
+        ),
+        CloudFileEntry(
+          id: 'movie',
+          remotePath: '/影视/Movie.2026.mkv',
+          name: 'Movie.2026.mkv',
+          size: 101,
+          modifiedAt: null,
+          isDirectory: false,
+        ),
+        CloudFileEntry(
+          id: 'subtitle-2',
+          remotePath: '/影视/Show.S01E02.ass',
+          name: 'Show.S01E02.ass',
+          size: 10,
+          modifiedAt: null,
+          isDirectory: false,
+        ),
+        CloudFileEntry(
+          id: 'sample',
+          remotePath: '/影视/样片.mkv',
+          name: '样片.mkv',
+          size: 100,
+          modifiedAt: null,
+          isDirectory: false,
+        ),
+      ],
+      minRecognizedVideoSizeBytesProvider: () => 100,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CloudResourcesPage(
+          controller: fixture.controller,
+          onPlayTarget: (value) => target = value,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey<String>('cloud-folder-navigation')),
+      findsOneWidget,
+    );
+    expect(find.text('子目录'), findsOneWidget);
+    expect(find.byType(ImmersiveMediaCard), findsNWidgets(2));
+    expect(find.text('Show.S01E02.mkv'), findsNothing);
+    expect(find.text('Show.S01E02.ass'), findsNothing);
+    expect(find.text('样片.mkv'), findsNothing);
+    expect(find.text('3 集'), findsOneWidget);
+
+    await tester.tap(
+      find.ancestor(
+        of: find.text('3 集'),
+        matching: find.byType(ImmersiveMediaCard),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('S01E01'), findsOneWidget);
+    expect(find.text('S01E02'), findsOneWidget);
+    expect(find.text('S02E01'), findsOneWidget);
+
+    await tester.tap(find.text('Show.S01E02.mkv'));
+    await tester.pumpAndSettle();
+    expect(target?.remoteId, 'episode-2');
+    expect(target?.remotePath, '/影视/Show.S01E02.mkv');
+    expect(target?.subtitleRemoteId, 'subtitle-2');
+    fixture.controller.dispose();
+  });
+
   testWidgets('移除来源先提示不删除远程文件', (tester) async {
     String? deletedSourceId;
     final fixture = await _PageFixture.create(
@@ -282,17 +388,17 @@ void main() {
   });
 
   testWidgets('卡片显示海报区域、中文标题、评分和原文件名', (tester) async {
-    final record = _matchedFolderRecord();
+    final record = _matchedVideoRecord();
     final fixture = await _PageFixture.create(
       source: _quarkSource,
       entries: const <CloudFileEntry>[
         CloudFileEntry(
-          id: 'folder-fid',
-          remotePath: '/影视/动漫',
-          name: '动漫',
-          size: 0,
+          id: 'video-fid',
+          remotePath: '/影视/动漫.mkv',
+          name: '动漫.mkv',
+          size: 1024 * 1024 * 700,
           modifiedAt: null,
-          isDirectory: true,
+          isDirectory: false,
         ),
       ],
       record: record,
@@ -317,40 +423,46 @@ void main() {
     expect(find.text('中文片名'), findsOneWidget);
     expect(find.textContaining('8.7 ★'), findsOneWidget);
     expect(find.textContaining('2025'), findsOneWidget);
-    expect(find.text('动漫'), findsOneWidget);
+    expect(find.text('动漫.mkv'), findsOneWidget);
     expect(find.text('已刮削'), findsOneWidget);
     fixture.controller.dispose();
   });
 
-  testWidgets('未匹配目录保持文件夹卡而独立视频使用媒体卡', (tester) async {
+  testWidgets('文件夹使用导航入口而独立视频使用媒体卡', (tester) async {
+    final collection = CloudResourceCollectionGrouper().group(
+      sourceId: 'source',
+      entries: const <CloudFileEntry>[
+        CloudFileEntry(
+          id: 'folder',
+          remotePath: '/影视/普通目录',
+          name: '普通目录',
+          size: 0,
+          modifiedAt: null,
+          isDirectory: true,
+        ),
+        CloudFileEntry(
+          id: 'video',
+          remotePath: '/影视/电影.mkv',
+          name: '电影.mkv',
+          size: 1024,
+          modifiedAt: null,
+          isDirectory: false,
+        ),
+      ],
+      records: const <String, CloudResourceTmdbRecord>{},
+      minSizeBytes: 0,
+      query: '',
+    );
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: CloudResourcesGrid(
+          body: CloudResourcePosterWall(
             sourceId: 'source',
-            entries: const <CloudFileEntry>[
-              CloudFileEntry(
-                id: 'folder',
-                remotePath: '/影视/普通目录',
-                name: '普通目录',
-                size: 0,
-                modifiedAt: null,
-                isDirectory: true,
-              ),
-              CloudFileEntry(
-                id: 'video',
-                remotePath: '/影视/电影.mkv',
-                name: '电影.mkv',
-                size: 1024,
-                modifiedAt: null,
-                isDirectory: false,
-              ),
-            ],
-            records: const <String, CloudResourceTmdbRecord>{},
+            collection: collection,
             scrapingKeys: const <String>{},
             subtitleVideoKeys: const <String>{},
             onOpenDirectory: (_) {},
-            onPlay: (_) {},
+            onOpenGroup: (_) {},
             onEditTitle: (_) {},
             onScrape: (_) {},
             onRematch: (_) {},
@@ -361,6 +473,10 @@ void main() {
     await tester.pump();
 
     expect(find.byType(ImmersiveMediaCard), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<String>('cloud-folder-navigation')),
+      findsOneWidget,
+    );
     expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
     expect(find.text('普通目录'), findsOneWidget);
     expect(find.text('电影.mkv'), findsOneWidget);
@@ -373,26 +489,32 @@ void main() {
 
     Future<void> pumpAt(double width) async {
       tester.view.physicalSize = Size(width, 720);
+      final collection = CloudResourceCollectionGrouper().group(
+        sourceId: 'source',
+        entries: const <CloudFileEntry>[
+          CloudFileEntry(
+            id: 'video',
+            remotePath: '/影视/电影.mkv',
+            name: '电影.mkv',
+            size: 1024,
+            modifiedAt: null,
+            isDirectory: false,
+          ),
+        ],
+        records: const <String, CloudResourceTmdbRecord>{},
+        minSizeBytes: 0,
+        query: '',
+      );
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: CloudResourcesGrid(
+            body: CloudResourcePosterWall(
               sourceId: 'source',
-              entries: const <CloudFileEntry>[
-                CloudFileEntry(
-                  id: 'video',
-                  remotePath: '/影视/电影.mkv',
-                  name: '电影.mkv',
-                  size: 1024,
-                  modifiedAt: null,
-                  isDirectory: false,
-                ),
-              ],
-              records: const <String, CloudResourceTmdbRecord>{},
+              collection: collection,
               scrapingKeys: const <String>{},
               subtitleVideoKeys: const <String>{},
               onOpenDirectory: (_) {},
-              onPlay: (_) {},
+              onOpenGroup: (_) {},
               onEditTitle: (_) {},
               onScrape: (_) {},
               onRematch: (_) {},
@@ -441,18 +563,24 @@ void main() {
       remoteId: first.id,
       remotePath: first.remotePath,
     );
+    final collection = CloudResourceCollectionGrouper().group(
+      sourceId: 'source',
+      entries: const <CloudFileEntry>[first, second],
+      records: const <String, CloudResourceTmdbRecord>{},
+      minSizeBytes: 0,
+      query: '',
+    );
 
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: CloudResourcesGrid(
+          body: CloudResourcePosterWall(
             sourceId: 'source',
-            entries: const <CloudFileEntry>[first, second],
-            records: const <String, CloudResourceTmdbRecord>{},
+            collection: collection,
             scrapingKeys: <String>{scrapingKey},
             subtitleVideoKeys: const <String>{},
             onOpenDirectory: (_) {},
-            onPlay: (entry) => playedId = entry.id,
+            onOpenGroup: (group) => playedId = group.anchor.id,
             onEditTitle: (_) {},
             onScrape: (_) {},
             onRematch: (_) {},
@@ -497,14 +625,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(
-      find
-          .ancestor(
-            of: find.text('中文片名'),
-            matching: find.byType(InkWell),
-          )
-          .first,
-    );
+    await tester.tap(find.widgetWithText(ActionChip, '动漫'));
     await tester.pumpAndSettle();
 
     expect(
@@ -521,12 +642,12 @@ void main() {
       source: _quarkSource,
       entries: const <CloudFileEntry>[
         CloudFileEntry(
-          id: 'folder-fid',
-          remotePath: '/影视/动漫',
-          name: '动漫',
-          size: 0,
+          id: 'video-fid',
+          remotePath: '/影视/动漫.mkv',
+          name: '动漫.mkv',
+          size: 1024,
           modifiedAt: null,
-          isDirectory: true,
+          isDirectory: false,
         ),
       ],
       tmdbCoordinator: coordinator,
@@ -718,15 +839,15 @@ void main() {
       source: _quarkSource,
       entries: const <CloudFileEntry>[
         CloudFileEntry(
-          id: 'folder-fid',
-          remotePath: '/影视/动漫',
-          name: '动漫',
-          size: 0,
+          id: 'video-fid',
+          remotePath: '/影视/动漫.mkv',
+          name: '动漫.mkv',
+          size: 1024,
           modifiedAt: null,
-          isDirectory: true,
+          isDirectory: false,
         ),
       ],
-      record: _matchedFolderRecord(),
+      record: _matchedVideoRecord(),
     );
     await tester.pumpWidget(
       MaterialApp(home: CloudResourcesPage(controller: fixture.controller)),
@@ -745,7 +866,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('新剧名'), findsOneWidget);
-    expect(find.text('动漫'), findsOneWidget);
+    expect(find.text('动漫.mkv'), findsOneWidget);
     fixture.controller.dispose();
   });
 
@@ -754,15 +875,15 @@ void main() {
       source: _quarkSource,
       entries: const <CloudFileEntry>[
         CloudFileEntry(
-          id: 'folder-fid',
-          remotePath: '/影视/动漫',
-          name: '动漫',
-          size: 0,
+          id: 'video-fid',
+          remotePath: '/影视/动漫.mkv',
+          name: '动漫.mkv',
+          size: 1024,
           modifiedAt: null,
-          isDirectory: true,
+          isDirectory: false,
         ),
       ],
-      record: _matchedFolderRecord().withCustomTitle('自定义剧名'),
+      record: _matchedVideoRecord().withCustomTitle('自定义剧名'),
     );
     await tester.pumpWidget(
       MaterialApp(home: CloudResourcesPage(controller: fixture.controller)),
@@ -777,7 +898,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('中文片名'), findsOneWidget);
-    expect(find.text('动漫'), findsOneWidget);
+    expect(find.text('动漫.mkv'), findsOneWidget);
     fixture.controller.dispose();
   });
 
@@ -786,15 +907,15 @@ void main() {
       source: _quarkSource,
       entries: const <CloudFileEntry>[
         CloudFileEntry(
-          id: 'folder-fid',
-          remotePath: '/影视/动漫',
-          name: '动漫',
-          size: 0,
+          id: 'video-fid',
+          remotePath: '/影视/动漫.mkv',
+          name: '动漫.mkv',
+          size: 1024,
           modifiedAt: null,
-          isDirectory: true,
+          isDirectory: false,
         ),
       ],
-      record: _matchedFolderRecord(),
+      record: _matchedVideoRecord(),
     );
     await tester.pumpWidget(
       MaterialApp(home: CloudResourcesPage(controller: fixture.controller)),
@@ -888,6 +1009,28 @@ CloudResourceTmdbRecord _matchedFolderRecord() {
     remotePath: '/影视/动漫',
     displayName: '动漫',
     resourceKind: CloudResourceKind.directory,
+    metadata: TmdbMetadata(
+      id: 42,
+      mediaType: TmdbMediaType.tv,
+      title: '中文片名',
+      overview: '系列简介',
+      rating: 8.7,
+      releaseDate: '2025-01-01',
+      language: 'zh-CN',
+      matchedAt: DateTime.utc(2026, 7, 19),
+      matchConfidence: 1,
+    ),
+    checkedAt: DateTime.utc(2026, 7, 19),
+  );
+}
+
+CloudResourceTmdbRecord _matchedVideoRecord() {
+  return CloudResourceTmdbRecord.matched(
+    sourceId: 'quark-source',
+    remoteId: 'video-fid',
+    remotePath: '/影视/动漫.mkv',
+    displayName: '动漫.mkv',
+    resourceKind: CloudResourceKind.standaloneVideo,
     metadata: TmdbMetadata(
       id: 42,
       mediaType: TmdbMediaType.tv,

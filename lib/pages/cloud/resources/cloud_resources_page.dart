@@ -5,8 +5,10 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resource_episode_sheet.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resource_poster_wall.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
-import 'package:kanyingyin/pages/cloud/resources/cloud_resources_grid.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_tmdb_match_dialog.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
@@ -131,6 +133,22 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
         const SnackBar(content: Text('网盘视频解析或加载失败')),
       );
     }
+  }
+
+  Future<void> _openGroup(CloudResourceMediaGroup group) async {
+    if (!group.isSeries && group.videos.length == 1) {
+      await _play(group.anchor);
+      return;
+    }
+    final source = _controller.selectedSource;
+    if (source == null || !mounted) return;
+    final selected = await showCloudResourceEpisodeSheet(
+      context: context,
+      sourceId: source.id,
+      group: group,
+      subtitleVideoKeys: _subtitleVideoKeys(source.id),
+    );
+    if (selected != null && mounted) await _play(selected);
   }
 
   CloudFileEntry? _matchingSubtitle(CloudFileEntry video) {
@@ -715,16 +733,15 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
             ),
           ),
           Expanded(
-            child: CloudResourcesGrid(
+            child: CloudResourcePosterWall(
               sourceId: _controller.selectedSource!.id,
-              entries: _controller.visibleEntries,
-              records: _controller.tmdbRecords,
+              collection: _controller.collection,
               scrapingKeys: _controller.tmdbScrapingKeys,
               subtitleVideoKeys: _subtitleVideoKeys(
                 _controller.selectedSource!.id,
               ),
               onOpenDirectory: _openDirectory,
-              onPlay: _play,
+              onOpenGroup: _openGroup,
               onEditTitle: _editTitle,
               onScrape: _scrapeEntry,
               onRematch: _rematchEntry,

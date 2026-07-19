@@ -131,7 +131,14 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('第01集.mkv'));
+    await tester.tap(
+      find
+          .ancestor(
+            of: find.text('第01集.mkv'),
+            matching: find.byType(InkWell),
+          )
+          .first,
+    );
     await tester.pump();
 
     expect(target?.sourceId, 'quark-source');
@@ -308,6 +315,64 @@ void main() {
     await expectColumns(1100, 4);
   });
 
+  testWidgets('刮削遮罩只覆盖目标媒体卡且另一张仍可播放', (tester) async {
+    var playedId = '';
+    const first = CloudFileEntry(
+      id: 'first',
+      remotePath: '/影视/第一部.mkv',
+      name: '第一部.mkv',
+      size: 1024,
+      modifiedAt: null,
+      isDirectory: false,
+    );
+    const second = CloudFileEntry(
+      id: 'second',
+      remotePath: '/影视/第二部.mkv',
+      name: '第二部.mkv',
+      size: 1024,
+      modifiedAt: null,
+      isDirectory: false,
+    );
+    final scrapingKey = cloudResourceTmdbKey(
+      sourceId: 'source',
+      remoteId: first.id,
+      remotePath: first.remotePath,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CloudResourcesGrid(
+            sourceId: 'source',
+            entries: const <CloudFileEntry>[first, second],
+            records: const <String, CloudResourceTmdbRecord>{},
+            scrapingKeys: <String>{scrapingKey},
+            subtitleVideoKeys: const <String>{},
+            onOpenDirectory: (_) {},
+            onPlay: (entry) => playedId = entry.id,
+            onEditTitle: (_) {},
+            onScrape: (_) {},
+            onRematch: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final cards = tester
+        .widgetList<ImmersiveMediaCard>(find.byType(ImmersiveMediaCard))
+        .toList(growable: false);
+    expect(cards.map((card) => card.loading), <bool>[true, false]);
+    expect(find.text('刮削中'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<String>('cloud-media-placeholder')),
+      findsNWidgets(2),
+    );
+    await tester.tap(find.byType(ImmersiveMediaCard).last);
+    await tester.pump();
+    expect(playedId, second.id);
+  });
+
   testWidgets('进入已匹配文件夹显示系列头部', (tester) async {
     final record = _matchedFolderRecord();
     final fixture = await _PageFixture.create(
@@ -329,7 +394,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('中文片名'));
+    await tester.tap(
+      find
+          .ancestor(
+            of: find.text('中文片名'),
+            matching: find.byType(InkWell),
+          )
+          .first,
+    );
     await tester.pumpAndSettle();
 
     expect(

@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart'
     show PointerEnterEvent, kSecondaryMouseButton;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
@@ -248,6 +249,34 @@ void main() {
       expect(find.text('已刮削'), findsOneWidget);
       await tester.tap(find.byType(InkWell));
       expect(tapped, isTrue);
+    });
+
+    testWidgets('键盘焦点使用 Enter 和 Space 触发主操作', (tester) async {
+      var taps = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 260,
+              height: 380,
+              child: ImmersiveMediaCard(
+                overlayMode: ImmersiveMediaCardOverlayMode.always,
+                cover: const ColoredBox(color: Colors.blue),
+                title: '键盘卡片',
+                onTap: () => taps += 1,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(taps, 1);
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pump();
+      expect(taps, 2);
     });
   });
 

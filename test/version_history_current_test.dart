@@ -125,6 +125,21 @@ void main() {
     expect(entries.single.changes.join('\n'), contains('不会修改任何网盘文件'));
   });
 
+  testWidgets('二点一十三更新弹窗说明过滤发布规格尾缀', (tester) async {
+    final entries = versionHistoryForCurrent('2.1.13');
+
+    expect(entries.single.isPrerelease, isTrue);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: VersionChangelogContent(versions: entries)),
+    ));
+
+    expect(find.text('v2.1.13  测试版  2026-07-19'), findsOneWidget);
+    expect(entries.single.changes.join('\n'), contains('2160p'));
+    expect(entries.single.changes.join('\n'), contains('HEVC'));
+    expect(entries.single.changes.join('\n'), contains('DDP 5.1'));
+    expect(entries.single.changes.join('\n'), contains('不会修改网盘文件名'));
+  });
+
   test('历史版本默认保持正式版兼容语义', () {
     const entry =
         VersionHistory(version: '1.0.0', date: '2026-01-01', changes: []);

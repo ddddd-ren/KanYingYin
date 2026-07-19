@@ -16,6 +16,16 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.13',
+    date: '2026-07-19',
+    isPrerelease: true,
+    changes: [
+      '本测试版会在网盘 TMDB 刮削时忽略 2160p、WEB-DL、HEVC、DDP 5.1 等发布规格尾缀，避免它们进入作品搜索词',
+      '发布规格清理同时适用于网盘独立视频的自动刮削、手动刮削和重新匹配',
+      '本次只调整看影音内部识别结果，不会修改网盘文件名、目录或播放路径；应用启动、本地媒体库和播放器保持原有行为',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.12',
     date: '2026-07-19',
     isPrerelease: true,

@@ -140,6 +140,21 @@ void main() {
     expect(entries.single.changes.join('\n'), contains('不会修改网盘文件名'));
   });
 
+  testWidgets('二点一十四更新弹窗说明来源级自动批量整理', (tester) async {
+    final entries = versionHistoryForCurrent('2.1.14');
+
+    expect(entries.single.isPrerelease, isTrue);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: VersionChangelogContent(versions: entries)),
+    ));
+
+    expect(find.text('v2.1.14  测试版  2026-07-19'), findsOneWidget);
+    expect(entries.single.changes.join('\n'), contains('自动整理当前来源'));
+    expect(entries.single.changes.join('\n'), contains('递归发现'));
+    expect(entries.single.changes.join('\n'), contains('歧义资源保持原名'));
+    expect(entries.single.changes.join('\n'), contains('不会修改网盘文件'));
+  });
+
   test('历史版本默认保持正式版兼容语义', () {
     const entry =
         VersionHistory(version: '1.0.0', date: '2026-01-01', changes: []);

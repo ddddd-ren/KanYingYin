@@ -12,9 +12,11 @@ import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+import 'package:kanyingyin/services/cloud/cloud_resource_auto_organizer.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
+import 'package:kanyingyin/services/cloud/cloud_series_match_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
@@ -619,6 +621,53 @@ void main() {
       fixture.controller.dispose();
     });
 
+    test('自动批量整理优先应用系列规则且命中项不再请求 TMDB', () async {
+      final coordinator = _RuleApplyingAutoOrganizeTmdbCoordinator();
+      final fixture = await _Fixture.create(
+        sources: const <CloudSource>[
+          CloudSource(
+            id: 'source-a',
+            type: CloudSourceType.quark,
+            name: '夸克媒体库',
+            baseUrl: 'https://pan.quark.cn',
+            rootPaths: <String>['/影视'],
+            rootRefs: <CloudRemoteRef>[
+              CloudRemoteRef(id: 'root-fid', path: '/影视'),
+            ],
+          ),
+        ],
+        clients: <String, _FakeCloudClient>{
+          'source-a': _FakeCloudClient(
+            entriesById: const <String, List<CloudFileEntry>>{
+              'root-fid': <CloudFileEntry>[
+                CloudFileEntry(
+                  id: 'inherited',
+                  remotePath: '/影视/Show.S01E06.mkv',
+                  name: 'Show.S01E06.mkv',
+                  size: 101,
+                  modifiedAt: null,
+                  isDirectory: false,
+                ),
+              ],
+            },
+          ),
+        },
+        tmdbCoordinator: coordinator,
+        autoOrganizer: CloudResourceAutoOrganizer(
+          minRecognizedVideoSizeBytesProvider: () => 100,
+        ),
+      );
+      await fixture.controller.load();
+
+      final summary = await fixture.controller.autoOrganizeSelectedSource();
+
+      expect(summary.matched, 1);
+      expect(summary.failed, 0);
+      expect(coordinator.appliedRuleIds, <String>['inherited']);
+      expect(coordinator.scrapedIds, isEmpty);
+      fixture.controller.dispose();
+    });
+
     test('自动批量整理跳过已匹配和七天内无结果并重试过期记录', () async {
       final now = DateTime.now();
       final records = <CloudResourceTmdbRecord>[
@@ -798,6 +847,7 @@ class _Fixture {
     required List<CloudSource> sources,
     required Map<String, _FakeCloudClient> clients,
     CloudResourceTmdbCoordinator? tmdbCoordinator,
+    CloudResourceAutoOrganizer? autoOrganizer,
   }) async {
     final credentials = MemoryCloudCredentialStore();
     final repository = CloudSourceRepository(
@@ -819,6 +869,10 @@ class _Fixture {
         credentialStore: credentials,
         providerRegistry: registry,
         tmdbCoordinator: tmdbCoordinator,
+        autoOrganizer: autoOrganizer ??
+            CloudResourceAutoOrganizer(
+              minRecognizedVideoSizeBytesProvider: () => 0,
+            ),
       ),
       clients: clients,
     );
@@ -960,6 +1014,50 @@ class _SkippingAutoOrganizeTmdbCoordinator extends _RecordingTmdbCoordinator {
   }) async {
     scrapedIds.add(target.remote.id);
     return const CloudResourceTmdbOutcome(candidates: <TmdbMetadata>[]);
+  }
+}
+
+class _RuleApplyingAutoOrganizeTmdbCoordinator
+    extends _AutoOrganizeTmdbCoordinator {
+  final List<String> appliedRuleIds = <String>[];
+  final List<String> scrapedIds = <String>[];
+
+  @override
+  Future<CloudSeriesRuleApplication?> applySeriesRule(
+    CloudResourceTmdbTarget target,
+  ) async {
+    appliedRuleIds.add(target.remote.id);
+    if (target.remote.id != 'inherited') return null;
+    final metadata = TmdbMetadata(
+      id: 42,
+      mediaType: TmdbMediaType.tv,
+      title: '回魂计',
+      language: 'zh-CN',
+      matchedAt: _matchedAt,
+      matchConfidence: 1,
+    );
+    return CloudSeriesRuleApplication(
+      record: CloudResourceTmdbRecord.matched(
+        sourceId: target.sourceId,
+        remoteId: target.remote.id,
+        remotePath: target.remote.path,
+        displayName: target.displayName,
+        resourceKind: target.resourceKind,
+        metadata: metadata,
+        checkedAt: _matchedAt,
+      ),
+      metadata: metadata,
+      indexSynced: true,
+    );
+  }
+
+  @override
+  Future<CloudResourceTmdbOutcome> scrape(
+    CloudResourceTmdbTarget target, {
+    TmdbScrapeOptions? options,
+  }) async {
+    scrapedIds.add(target.remote.id);
+    return super.scrape(target, options: options);
   }
 }
 

@@ -30,10 +30,12 @@ class CloudResourceAutoOrganizer {
   const CloudResourceAutoOrganizer({
     this.maximumDirectories = 1000,
     this.maximumDepth = 20,
+    this.minRecognizedVideoSizeBytesProvider,
   });
 
   final int maximumDirectories;
   final int maximumDepth;
+  final int Function()? minRecognizedVideoSizeBytesProvider;
 
   static final RegExp _seasonDirectoryPattern = RegExp(
     r'^(?:第\s*[一二三四五六七八九十百〇零两\d]{1,4}\s*季|season\s*\d{1,2}|s\d{1,2})$',
@@ -45,6 +47,8 @@ class CloudResourceAutoOrganizer {
     required CloudDriveClient client,
     CloudResourceAutoScanProgress? onProgress,
   }) async {
+    final minSizeBytes = minRecognizedVideoSizeBytesProvider?.call() ??
+        LocalVideoFileTypes.minRecognizedVideoSizeBytes;
     final queue = Queue<_DirectoryNode>();
     for (final root in source.remoteRoots) {
       queue.add(
@@ -88,7 +92,11 @@ class CloudResourceAutoOrganizer {
           .where(
             (entry) =>
                 !entry.isDirectory &&
-                LocalVideoFileTypes.isVideoPath(entry.name),
+                LocalVideoFileTypes.isRecognizedVideo(
+                  entry.name,
+                  size: entry.size,
+                  minSizeBytes: minSizeBytes,
+                ),
           )
           .toList(growable: false);
       final directories =
@@ -104,6 +112,7 @@ class CloudResourceAutoOrganizer {
               remote: CloudRemoteRef(id: video.id, path: video.remotePath),
               displayName: video.name,
               resourceKind: CloudResourceKind.standaloneVideo,
+              size: video.size,
             ),
           );
         }

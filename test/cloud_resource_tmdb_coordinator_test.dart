@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
+import 'package:kanyingyin/modules/cloud/cloud_series_match_rule.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
@@ -254,6 +255,91 @@ void main() {
     expect(outcome.seriesPropagation.propagatedCount, 1);
     expect(coordinator.records[second.stableKey]?.title, '回魂计');
   });
+
+  test('目录加载先应用系列规则并覆盖近期无结果缓存', () async {
+    final repository = CloudResourceTmdbRepository(
+      storage: MemoryCloudResourceTmdbStorage(),
+    );
+    final ruleRepository = CloudSeriesMatchRuleRepository(
+      storage: MemoryCloudSeriesMatchRuleStorage(),
+    );
+    final indexRepository = CloudMediaIndexRepository(
+      storage: MemoryCloudMediaIndexStorage(),
+    );
+    final service = CloudSeriesMatchService(
+      ruleRepository: ruleRepository,
+      recordRepository: repository,
+      indexRepository: indexRepository,
+      minRecognizedVideoSizeBytesProvider: () => 100,
+      now: () => DateTime.utc(2026, 7, 19),
+    );
+    await ruleRepository.upsert(
+      CloudSeriesMatchRule(
+        sourceId: 'source-a',
+        parentPath: '/影视',
+        normalizedSeriesName: 'show',
+        metadata: TmdbMetadata(
+          id: 42,
+          mediaType: TmdbMediaType.tv,
+          title: '回魂计',
+          language: 'zh-CN',
+          matchedAt: DateTime.utc(2026, 7, 19),
+          matchConfidence: 1,
+        ),
+        updatedAt: DateTime.utc(2026, 7, 19),
+      ),
+    );
+    final target = const CloudResourceTmdbTarget(
+      sourceId: 'source-a',
+      remote: CloudRemoteRef(
+        id: 'episode-3',
+        path: '/影视/Show.S01E03.mkv',
+      ),
+      displayName: 'Show.S01E03.mkv',
+      resourceKind: CloudResourceKind.standaloneVideo,
+      size: 1000,
+    );
+    await repository.upsert(
+      CloudResourceTmdbRecord.unmatched(
+        sourceId: target.sourceId,
+        remoteId: target.remote.id,
+        remotePath: target.remote.path,
+        displayName: target.displayName,
+        resourceKind: target.resourceKind,
+        checkedAt: DateTime.utc(2026, 7, 19),
+      ),
+    );
+    final client = _FakeTmdbClient();
+    final coordinator = CloudResourceTmdbCoordinator(
+      repository: repository,
+      serviceFactory: (_) => CloudResourceTmdbService(
+        repository: repository,
+        indexRepository: indexRepository,
+        client: client,
+      ),
+      apiKeyProvider: () => '',
+      seriesMatchService: service,
+      now: () => DateTime.utc(2026, 7, 19),
+    );
+
+    await coordinator.loadAndSchedule(
+      _context(<CloudFileEntry>[
+        _video(
+          'episode-3',
+          '/影视/Show.S01E03.mkv',
+          'Show.S01E03.mkv',
+          size: 1000,
+        ),
+      ]),
+    );
+
+    expect(
+      coordinator.records[target.stableKey]?.status,
+      CloudResourceTmdbStatus.matched,
+    );
+    expect(coordinator.records[target.stableKey]?.title, '回魂计');
+    expect(client.searchCalls, 0);
+  });
 }
 
 CloudResourceTmdbTarget _target() => const CloudResourceTmdbTarget(
@@ -295,12 +381,17 @@ CloudFileEntry _directory(String id, String path, String name) {
   );
 }
 
-CloudFileEntry _video(String id, String path, String name) {
+CloudFileEntry _video(
+  String id,
+  String path,
+  String name, {
+  int size = 100,
+}) {
   return CloudFileEntry(
     id: id,
     remotePath: path,
     name: name,
-    size: 100,
+    size: size,
     modifiedAt: null,
     isDirectory: false,
   );

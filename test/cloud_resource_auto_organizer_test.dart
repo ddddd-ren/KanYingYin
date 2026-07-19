@@ -103,7 +103,9 @@ void main() {
       ],
     });
 
-    final result = await const CloudResourceAutoOrganizer().discover(
+    final result = await CloudResourceAutoOrganizer(
+      minRecognizedVideoSizeBytesProvider: () => 0,
+    ).discover(
       source: _source,
       client: client,
     );
@@ -213,7 +215,9 @@ void main() {
       ],
     );
 
-    final result = await const CloudResourceAutoOrganizer().discover(
+    final result = await CloudResourceAutoOrganizer(
+      minRecognizedVideoSizeBytesProvider: () => 0,
+    ).discover(
       source: source,
       client: client,
     );
@@ -245,7 +249,9 @@ void main() {
     );
 
     await expectLater(
-      const CloudResourceAutoOrganizer().discover(
+      CloudResourceAutoOrganizer(
+        minRecognizedVideoSizeBytesProvider: () => 0,
+      ).discover(
         source: source,
         client: client,
       ),
@@ -274,7 +280,10 @@ void main() {
       ],
     });
     await expectLater(
-      const CloudResourceAutoOrganizer(maximumDirectories: 1).discover(
+      CloudResourceAutoOrganizer(
+        maximumDirectories: 1,
+        minRecognizedVideoSizeBytesProvider: () => 0,
+      ).discover(
         source: _source,
         client: countClient,
       ),
@@ -310,7 +319,10 @@ void main() {
       ],
     });
     await expectLater(
-      const CloudResourceAutoOrganizer(maximumDepth: 1).discover(
+      CloudResourceAutoOrganizer(
+        maximumDepth: 1,
+        minRecognizedVideoSizeBytesProvider: () => 0,
+      ).discover(
         source: _source,
         client: depthClient,
       ),
@@ -384,7 +396,9 @@ void main() {
       ],
     });
 
-    final result = await const CloudResourceAutoOrganizer().discover(
+    final result = await CloudResourceAutoOrganizer(
+      minRecognizedVideoSizeBytesProvider: () => 0,
+    ).discover(
       source: _source,
       client: client,
     );
@@ -396,6 +410,42 @@ void main() {
     expect(client.listedIds, isNot(contains('season-cn')));
     expect(client.listedIds, isNot(contains('season-en')));
     expect(client.listedIds, isNot(contains('season-short')));
+  });
+
+  test('自动整理只识别大于网盘阈值的视频并携带真实大小', () async {
+    var providerCalls = 0;
+    final client = _TreeClient(<String, List<CloudFileEntry>>{
+      'root': const <CloudFileEntry>[
+        CloudFileEntry(
+          id: 'boundary-video',
+          remotePath: '/影视/边界.mkv',
+          name: '边界.mkv',
+          size: 100,
+          modifiedAt: null,
+          isDirectory: false,
+        ),
+        CloudFileEntry(
+          id: 'large-video',
+          remotePath: '/影视/正片.mkv',
+          name: '正片.mkv',
+          size: 101,
+          modifiedAt: null,
+          isDirectory: false,
+        ),
+      ],
+    });
+
+    final result = await CloudResourceAutoOrganizer(
+      minRecognizedVideoSizeBytesProvider: () {
+        providerCalls++;
+        return 100;
+      },
+    ).discover(source: _source, client: client);
+
+    expect(result.candidates.map((target) => target.remote.id),
+        <String>['large-video']);
+    expect(result.candidates.single.size, 101);
+    expect(providerCalls, 1);
   });
 }
 

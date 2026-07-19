@@ -61,11 +61,13 @@ class CloudResourcesController extends ChangeNotifier {
     required CloudCredentialStore credentialStore,
     CloudProviderRegistry? providerRegistry,
     CloudResourceTmdbCoordinator? tmdbCoordinator,
+    CloudResourceAutoOrganizer? autoOrganizer,
     LocalEpisodeParser? episodeParser,
   })  : _repository = repository,
         _credentialStore = credentialStore,
         _providerRegistry = providerRegistry ?? CloudProviderRegistry(),
         _tmdbCoordinator = tmdbCoordinator,
+        _autoOrganizer = autoOrganizer ?? const CloudResourceAutoOrganizer(),
         _episodeParser = episodeParser ?? LocalEpisodeParser() {
     _tmdbCoordinator?.addListener(_notify);
   }
@@ -74,6 +76,7 @@ class CloudResourcesController extends ChangeNotifier {
   final CloudCredentialStore _credentialStore;
   final CloudProviderRegistry _providerRegistry;
   final CloudResourceTmdbCoordinator? _tmdbCoordinator;
+  final CloudResourceAutoOrganizer _autoOrganizer;
   final LocalEpisodeParser _episodeParser;
   final List<CloudRemoteRef?> _history = <CloudRemoteRef?>[];
 
@@ -457,7 +460,7 @@ class CloudResourcesController extends ChangeNotifier {
     _notify();
     final client = _providerRegistry.createClient(source, _credentialStore);
     try {
-      final discovery = await const CloudResourceAutoOrganizer().discover(
+      final discovery = await _autoOrganizer.discover(
         source: source,
         client: client,
         onProgress: (scannedDirectories, discoveredCandidates) {
@@ -473,18 +476,28 @@ class CloudResourcesController extends ChangeNotifier {
         },
       );
       final targets = <CloudResourceTmdbTarget>[];
+      var matched = 0;
       var skipped = 0;
       final now = DateTime.now();
       for (final target in discovery.candidates) {
+        try {
+          final application = await coordinator.applySeriesRule(target);
+          if (application != null) {
+            matched++;
+            continue;
+          }
+        } on Object {
+          // 规则读取失败时继续使用原有 TMDB 整理流程。
+        }
         final record = coordinator.records[target.stableKey];
         final sameName = record?.displayName == target.displayName;
-        final matched = record?.status == CloudResourceTmdbStatus.matched;
+        final cachedMatched = record?.status == CloudResourceTmdbStatus.matched;
         final recentlyUnmatched =
             record?.status == CloudResourceTmdbStatus.unmatched &&
                 record!.checkedAt
                     .add(CloudResourceTmdbCoordinator.unmatchedRetryInterval)
                     .isAfter(now);
-        if ((sameName && (matched || recentlyUnmatched)) ||
+        if ((sameName && (cachedMatched || recentlyUnmatched)) ||
             coordinator.scrapingKeys.contains(target.stableKey)) {
           skipped++;
         } else {
@@ -492,18 +505,18 @@ class CloudResourcesController extends ChangeNotifier {
         }
       }
 
-      var completed = 0;
-      var matched = 0;
+      var completed = matched;
       var pending = 0;
       var noResult = 0;
       var failed = discovery.failedDirectories;
+      final totalTargets = matched + targets.length;
       onProgress?.call(
         CloudResourceAutoOrganizeProgress(
           phase: CloudResourceAutoOrganizePhase.scraping,
           scannedDirectories: discovery.scannedDirectories,
           discoveredTargets: discovery.candidates.length,
-          completedTargets: 0,
-          totalTargets: targets.length,
+          completedTargets: completed,
+          totalTargets: totalTargets,
         ),
       );
       for (final target in targets) {
@@ -526,7 +539,7 @@ class CloudResourcesController extends ChangeNotifier {
               scannedDirectories: discovery.scannedDirectories,
               discoveredTargets: discovery.candidates.length,
               completedTargets: completed,
-              totalTargets: targets.length,
+              totalTargets: totalTargets,
             ),
           );
         }

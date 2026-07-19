@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.7',
+    date: '2026-07-19',
+    isPrerelease: true,
+    changes: [
+      '本测试版在网盘资源菜单新增“修改剧名”，保存后会立即更新卡片显示',
+      '自定义剧名始终优先显示，并会作为下一次 TMDB 刮削和重新匹配的搜索词',
+      '支持一键恢复 TMDB 中文标题，同时继续保留原文件或文件夹名称方便核对',
+      '修改剧名只影响看影音内部，不会重命名网盘中的文件、文件夹或改变播放路径',
+      '没有 TMDB API Key 或断网时仍可修改剧名，应用启动、本地媒体库和播放器保持可用',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.6',
     date: '2026-07-19',
     isPrerelease: true,

@@ -31,6 +31,19 @@ void main() {
     expect(versionHistoryForCurrent('9.9.9'), isEmpty);
   });
 
+  test('二点一十五说明系列继承海报墙过滤和网盘安全边界', () {
+    final entries = versionHistoryForCurrent('2.1.15');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('手动匹配'));
+    expect(changes, contains('自动继承'));
+    expect(changes, contains('海报墙'));
+    expect(changes, contains('识别大小'));
+    expect(changes, contains('不会修改网盘文件'));
+    expect(changes, contains('播放路径'));
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

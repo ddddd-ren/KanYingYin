@@ -16,6 +16,17 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.15',
+    date: '2026-07-20',
+    isPrerelease: true,
+    changes: [
+      '本测试版在手动匹配一集后，会立即匹配同目录同剧的其他分集；后续新增分集在刷新、扫描和自动整理时也会自动继承已确认的 TMDB 结果',
+      '网盘目录现在按作品合并为海报墙，同一剧集只显示一张海报，点击后可从按季集排序的选集列表播放真实分集',
+      '非视频文件和不大于“网盘媒体识别大小”的视频不会显示、刮削或参与系列匹配，字幕仍会在播放时自动关联',
+      '所有改动只更新看影音中的元数据和展示，不会修改网盘文件、目录、远程 ID 或播放路径；应用启动、本地媒体库和播放器保持原有行为',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.14',
     date: '2026-07-19',
     isPrerelease: true,

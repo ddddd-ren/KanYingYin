@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resources_module.dart';
 import 'package:kanyingyin/pages/local/local_module.dart';
 import 'package:kanyingyin/pages/my/my_module.dart';
 
@@ -22,6 +23,13 @@ class NavigationDestinationConfig {
 }
 
 final appNavigationDestinations = <NavigationDestinationConfig>[
+  NavigationDestinationConfig(
+    path: '/cloud',
+    label: '网盘资源',
+    icon: Icons.cloud_outlined,
+    selectedIcon: Icons.cloud,
+    moduleBuilder: CloudResourcesModule.new,
+  ),
   NavigationDestinationConfig(
     path: '/local',
     label: '本地',

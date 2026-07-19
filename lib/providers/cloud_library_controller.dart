@@ -10,8 +10,8 @@ import 'package:kanyingyin/services/cloud/cloud_cache_directories.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_indexer.dart';
 import 'package:kanyingyin/services/cloud/cloud_poster_cache.dart';
+import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_subtitle_cache.dart';
-import 'package:kanyingyin/services/cloud/openlist/openlist_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 
 typedef CloudClientFactory = CloudDriveClient Function(
@@ -34,6 +34,7 @@ class CloudLibraryController extends ChangeNotifier {
     CloudSourceRepository? repository,
     CloudCredentialStore? credentialStore,
     CloudClientFactory? clientFactory,
+    CloudProviderRegistry? providerRegistry,
     CloudMediaIndexer? mediaIndexer,
     CloudMediaIndexRepository? mediaIndexRepository,
     CloudCacheRootProvider? cacheRootProvider,
@@ -50,22 +51,21 @@ class CloudLibraryController extends ChangeNotifier {
             ),
         _posterCacheCleaner = posterCacheCleaner,
         _subtitleCacheCleaner = subtitleCacheCleaner,
-        _clientFactory = clientFactory ??
-            ((source, store, allowSelfSigned) => switch (source.type) {
-                  CloudSourceType.openList => OpenListClient(
-                      source: source,
-                      credentialStore: store,
-                      allowSelfSignedCertificate: allowSelfSigned,
-                    ),
-                  CloudSourceType.quark => throw const CloudDriveException(
-                      CloudDriveErrorType.incompatible),
-                });
+        _providerRegistry = providerRegistry ??
+            CloudProviderRegistry(
+              clientFactories: clientFactory == null
+                  ? const <CloudSourceType, CloudProviderClientFactory>{}
+                  : <CloudSourceType, CloudProviderClientFactory>{
+                      for (final type in CloudSourceType.values)
+                        type: clientFactory,
+                    },
+            );
 
   final CloudSourceRepository _repository;
   final CloudCredentialStore _credentialStore;
   final CloudMediaIndexRepository _mediaIndexRepository;
   final CloudCacheRootProvider _cacheRootProvider;
-  final CloudClientFactory _clientFactory;
+  final CloudProviderRegistry _providerRegistry;
   final CloudMediaIndexer _mediaIndexer;
   final CloudSourceCacheCleaner? _posterCacheCleaner;
   final CloudSourceCacheCleaner? _subtitleCacheCleaner;
@@ -117,10 +117,12 @@ class CloudLibraryController extends ChangeNotifier {
     final temporaryCredentialStore = MemoryCloudCredentialStore();
     CloudDriveClient? client;
     try {
-      client = _clientFactory(
-        source,
+      final normalized = _providerRegistry.normalizeSource(source.copyWith(
+        allowSelfSignedCertificate: allowSelfSignedCertificate,
+      ));
+      client = _providerRegistry.createClient(
+        normalized,
         temporaryCredentialStore,
-        allowSelfSignedCertificate,
       );
       final testCredential = await _testCredential(source, credential);
       await client.authenticate(source, testCredential);
@@ -128,15 +130,7 @@ class CloudLibraryController extends ChangeNotifier {
           ? const CloudRemoteRef(id: '/', path: '/')
           : source.remoteRoots.first);
     } on CloudDriveException catch (error) {
-      errorMessage = switch (error.type) {
-        CloudDriveErrorType.authentication => '用户名或密码错误',
-        CloudDriveErrorType.permission => '当前账号没有访问权限',
-        CloudDriveErrorType.network => '连接失败，请检查地址和网络',
-        CloudDriveErrorType.notFound => '未找到 OpenList 服务',
-        CloudDriveErrorType.certificate => '服务器证书不受信任',
-        CloudDriveErrorType.invalidAddress => '服务器地址格式无效',
-        _ => '服务响应不兼容',
-      };
+      errorMessage = _providerRegistry.errorMessage(source.type, error);
       rethrow;
     } finally {
       try {
@@ -154,33 +148,15 @@ class CloudLibraryController extends ChangeNotifier {
   ) async {
     final existingSource = await _repository.getById(source.id);
     final existingCredential = await _credentialStore.read(source.id);
-    final username = formCredential.username?.isNotEmpty == true
-        ? formCredential.username
-        : existingCredential?.username;
-    final password = formCredential.password?.isNotEmpty == true
-        ? formCredential.password
-        : existingCredential?.password;
-    final credentialsUnchanged = username == existingCredential?.username &&
-        password == existingCredential?.password;
     final addressUnchanged = existingSource != null &&
-        _normalizedAddress(existingSource.baseUrl) ==
-            _normalizedAddress(source.baseUrl);
-    return CloudCredential(
-      username: username,
-      password: password,
-      cookie: addressUnchanged ? existingCredential?.cookie : null,
-      token: addressUnchanged && credentialsUnchanged
-          ? existingCredential?.token
-          : null,
+        _providerRegistry.normalizeEndpoint(existingSource) ==
+            _providerRegistry.normalizeEndpoint(source);
+    return _providerRegistry.mergeCredential(
+      source: source,
+      form: formCredential,
+      existing: existingCredential,
+      endpointUnchanged: addressUnchanged,
     );
-  }
-
-  static String? _normalizedAddress(String value) {
-    try {
-      return OpenListClient.normalizeBaseUrl(value);
-    } on CloudDriveException {
-      return null;
-    }
   }
 
   Future<List<CloudFileEntry>> browseDirectories(
@@ -196,11 +172,7 @@ class CloudLibraryController extends ChangeNotifier {
       if (credential != null) {
         await credentialStore.write(source.id, credential);
       }
-      client = _clientFactory(
-        source,
-        credentialStore,
-        source.allowSelfSignedCertificate,
-      );
+      client = _providerRegistry.createClient(source, credentialStore);
       final entries = await client.listDirectory(
         CloudRemoteRef(id: remotePath, path: remotePath),
       );
@@ -208,14 +180,7 @@ class CloudLibraryController extends ChangeNotifier {
         ..sort((first, second) => first.name.compareTo(second.name));
       return directories;
     } on CloudDriveException catch (error) {
-      errorMessage = switch (error.type) {
-        CloudDriveErrorType.authentication => '登录已失效，请检查账号和密码',
-        CloudDriveErrorType.permission => '当前账号没有目录访问权限',
-        CloudDriveErrorType.network => '目录加载失败，请检查网络连接',
-        CloudDriveErrorType.notFound => '远程目录不存在',
-        CloudDriveErrorType.certificate => '服务器证书不受信任',
-        _ => '无法读取该目录',
-      };
+      errorMessage = _providerRegistry.errorMessage(source.type, error);
       rethrow;
     } finally {
       try {
@@ -374,11 +339,7 @@ class CloudLibraryController extends ChangeNotifier {
         sourceId,
         status: CloudScanStatus.scanning,
       );
-      client = _clientFactory(
-        source,
-        _credentialStore,
-        source.allowSelfSignedCertificate,
-      );
+      client = _providerRegistry.createClient(source, _credentialStore);
       if (_disposed || token.isCancelled) return _cancelledScanResult();
       final result = await _mediaIndexer.scan(
         source: source,

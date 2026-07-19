@@ -73,6 +73,7 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
   int get completedCount => _completedCount;
   int get totalCount => _totalCount;
   bool get isScraping => _scrapingKeys.isNotEmpty;
+  bool get hasApiKey => _apiKeyProvider().trim().isNotEmpty;
   TmdbScrapeOptions get options => _optionsProvider();
 
   Future<void> loadAndSchedule(CloudResourceDirectoryContext context) async {

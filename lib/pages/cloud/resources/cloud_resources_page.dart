@@ -46,6 +46,8 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
   bool _batchScraping = false;
   int _batchCurrent = 0;
   int _batchTotal = 0;
+  bool _autoOrganizing = false;
+  CloudResourceAutoOrganizeProgress? _autoOrganizeProgress;
 
   @override
   void initState() {
@@ -317,7 +319,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
   }
 
   Future<void> _scrapeCurrentDirectory() async {
-    if (_batchScraping) return;
+    if (_batchScraping || _autoOrganizing) return;
     final entries = _controller.tmdbEntriesForCurrentDirectory;
     if (entries.isEmpty) {
       _showMessage('当前目录没有需要刮削的资源');
@@ -358,6 +360,80 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       }
     } finally {
       if (mounted) setState(() => _batchScraping = false);
+    }
+  }
+
+  Future<void> _confirmAutoOrganize() async {
+    final source = _controller.selectedSource;
+    if (source == null || _autoOrganizing) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('自动批量整理'),
+        content: Text(
+          '将递归扫描“${source.name}”配置的媒体根目录，并使用 TMDB '
+          '为高置信度作品更新中文显示名、海报和简介。\n\n'
+          '存在歧义的资源会保持原名，之后仍可手动匹配。'
+          '本操作只更新看影音中的元数据，不会修改网盘文件、目录或播放路径。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('开始整理'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _autoOrganizeSource();
+  }
+
+  Future<void> _autoOrganizeSource() async {
+    setState(() {
+      _autoOrganizing = true;
+      _autoOrganizeProgress = const CloudResourceAutoOrganizeProgress(
+        phase: CloudResourceAutoOrganizePhase.scanning,
+        scannedDirectories: 0,
+        discoveredTargets: 0,
+        completedTargets: 0,
+        totalTargets: 0,
+      );
+    });
+    try {
+      final summary = await _controller.autoOrganizeSelectedSource(
+        onProgress: (progress) {
+          if (mounted) setState(() => _autoOrganizeProgress = progress);
+        },
+      );
+      if (!mounted) return;
+      _showMessage(
+        '自动整理完成：成功 ${summary.matched} 项，待确认 ${summary.pending} 项，'
+        '无结果 ${summary.noResult} 项，失败 ${summary.failed} 项，'
+        '已跳过 ${summary.skipped} 项',
+      );
+    } on Object catch (error) {
+      if (!mounted) return;
+      final text = error.toString();
+      if (text.contains('请先在设置中填写 TMDB API Key')) {
+        _showMessage('请先在设置中填写 TMDB API Key');
+      } else if (text.contains('正在刮削') || text.contains('正在进行')) {
+        _showMessage('当前有刮削任务正在进行，请稍后再试');
+      } else if (text.contains('目录深度') || text.contains('目录数量')) {
+        _showMessage(text.replaceFirst('Bad state: ', ''));
+      } else {
+        _showMessage('自动整理失败，网盘浏览和播放不受影响');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _autoOrganizing = false;
+          _autoOrganizeProgress = null;
+        });
+      }
     }
   }
 
@@ -471,15 +547,29 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
                       child: Text(source.name),
                     ),
                 ],
-                onChanged: _controller.loading
+                onChanged: _controller.loading || _autoOrganizing
                     ? null
                     : (sourceId) => _controller.selectSource(sourceId),
               ),
             ),
           const Spacer(),
           IconButton(
+            tooltip: '自动整理当前来源',
+            onPressed: selected == null ||
+                    _controller.loading ||
+                    _batchScraping ||
+                    _autoOrganizing ||
+                    _controller.tmdbScrapingKeys.isNotEmpty
+                ? null
+                : _confirmAutoOrganize,
+            icon: const Icon(Icons.auto_awesome_motion),
+          ),
+          IconButton(
             tooltip: '刮削当前目录',
-            onPressed: selected == null || _controller.loading || _batchScraping
+            onPressed: selected == null ||
+                    _controller.loading ||
+                    _batchScraping ||
+                    _autoOrganizing
                 ? null
                 : _scrapeCurrentDirectory,
             icon: const Icon(Icons.auto_awesome_outlined),
@@ -491,9 +581,10 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
           ),
           IconButton(
             tooltip: '移除当前来源',
-            onPressed: selected == null || _controller.loading
-                ? null
-                : _confirmRemoveSource,
+            onPressed:
+                selected == null || _controller.loading || _autoOrganizing
+                    ? null
+                    : _confirmRemoveSource,
             icon: const Icon(Icons.delete_outline),
           ),
           IconButton(
@@ -505,9 +596,10 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
           ),
           IconButton(
             tooltip: '刷新当前目录',
-            onPressed: selected == null || _controller.loading
-                ? null
-                : _controller.refresh,
+            onPressed:
+                selected == null || _controller.loading || _autoOrganizing
+                    ? null
+                    : _controller.refresh,
             icon: const Icon(Icons.refresh),
           ),
         ],
@@ -573,7 +665,9 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
           ),
           if (_controller.currentDirectoryTmdbRecord case final record?)
             _seriesHeader(record),
-          if (_batchScraping)
+          if (_autoOrganizing && _autoOrganizeProgress != null)
+            _autoOrganizeIndicator(_autoOrganizeProgress!)
+          else if (_batchScraping)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: Row(
@@ -626,6 +720,29 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
           ),
         ],
       );
+
+  Widget _autoOrganizeIndicator(CloudResourceAutoOrganizeProgress progress) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            progress.phase == CloudResourceAutoOrganizePhase.scanning
+                ? '正在扫描目录 ${progress.scannedDirectories}，'
+                    '已发现 ${progress.discoveredTargets} 项'
+                : '正在整理 ${progress.completedTargets}/'
+                    '${progress.totalTargets}',
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _seriesHeader(CloudResourceTmdbRecord record) {
     final colors = Theme.of(context).colorScheme;

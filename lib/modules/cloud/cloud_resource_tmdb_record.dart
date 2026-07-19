@@ -40,6 +40,7 @@ class CloudResourceTmdbRecord {
     this.posterUrl,
     this.backdropUrl,
     this.posterCachePath,
+    this.customTitle,
   });
 
   factory CloudResourceTmdbRecord.matched({
@@ -51,6 +52,7 @@ class CloudResourceTmdbRecord {
     required TmdbMetadata metadata,
     required DateTime checkedAt,
     String? posterCachePath,
+    String? customTitle,
   }) {
     return CloudResourceTmdbRecord(
       sourceId: sourceId,
@@ -69,6 +71,7 @@ class CloudResourceTmdbRecord {
       posterUrl: metadata.posterUrl,
       backdropUrl: metadata.backdropUrl,
       posterCachePath: posterCachePath,
+      customTitle: customTitle,
     );
   }
 
@@ -79,6 +82,7 @@ class CloudResourceTmdbRecord {
     required String displayName,
     required CloudResourceKind resourceKind,
     required DateTime checkedAt,
+    String? customTitle,
   }) {
     return CloudResourceTmdbRecord(
       sourceId: sourceId,
@@ -88,6 +92,28 @@ class CloudResourceTmdbRecord {
       resourceKind: resourceKind,
       status: CloudResourceTmdbStatus.unmatched,
       checkedAt: checkedAt,
+      customTitle: customTitle,
+    );
+  }
+
+  factory CloudResourceTmdbRecord.unchecked({
+    required String sourceId,
+    required String remoteId,
+    required String remotePath,
+    required String displayName,
+    required CloudResourceKind resourceKind,
+    required DateTime checkedAt,
+    String? customTitle,
+  }) {
+    return CloudResourceTmdbRecord(
+      sourceId: sourceId,
+      remoteId: remoteId,
+      remotePath: remotePath,
+      displayName: displayName,
+      resourceKind: resourceKind,
+      status: CloudResourceTmdbStatus.unchecked,
+      checkedAt: checkedAt,
+      customTitle: customTitle,
     );
   }
 
@@ -98,6 +124,7 @@ class CloudResourceTmdbRecord {
     required String displayName,
     required CloudResourceKind resourceKind,
     required DateTime checkedAt,
+    String? customTitle,
   }) {
     return CloudResourceTmdbRecord(
       sourceId: sourceId,
@@ -107,6 +134,7 @@ class CloudResourceTmdbRecord {
       resourceKind: resourceKind,
       status: CloudResourceTmdbStatus.failed,
       checkedAt: checkedAt,
+      customTitle: customTitle,
     );
   }
 
@@ -145,6 +173,7 @@ class CloudResourceTmdbRecord {
       posterUrl: _asString(json['posterUrl']),
       backdropUrl: _asString(json['backdropUrl']),
       posterCachePath: _asString(json['posterCachePath']),
+      customTitle: _asString(json['customTitle']),
     );
   }
 
@@ -164,12 +193,28 @@ class CloudResourceTmdbRecord {
   final String? posterUrl;
   final String? backdropUrl;
   final String? posterCachePath;
+  final String? customTitle;
 
   String get stableKey => cloudResourceTmdbKey(
         sourceId: sourceId,
         remoteId: remoteId,
         remotePath: remotePath,
       );
+
+  String get effectiveTitle {
+    final custom = customTitle?.trim();
+    if (custom != null && custom.isNotEmpty) return custom;
+    final matchedTitle = title?.trim();
+    if (matchedTitle != null && matchedTitle.isNotEmpty) return matchedTitle;
+    return displayName;
+  }
+
+  CloudResourceTmdbRecord withCustomTitle(String value) {
+    final normalized = value.trim();
+    return _copyWithCustomTitle(normalized.isEmpty ? null : normalized);
+  }
+
+  CloudResourceTmdbRecord clearCustomTitle() => _copyWithCustomTitle(null);
 
   CloudResourceTmdbRecord asFailed(DateTime checkedAt) {
     return CloudResourceTmdbRecord.failed(
@@ -179,6 +224,7 @@ class CloudResourceTmdbRecord {
       displayName: displayName,
       resourceKind: resourceKind,
       checkedAt: checkedAt,
+      customTitle: customTitle,
     );
   }
 
@@ -200,6 +246,7 @@ class CloudResourceTmdbRecord {
       if (posterUrl != null) 'posterUrl': posterUrl,
       if (backdropUrl != null) 'backdropUrl': backdropUrl,
       if (posterCachePath != null) 'posterCachePath': posterCachePath,
+      if (customTitle != null) 'customTitle': customTitle,
     };
   }
 
@@ -222,7 +269,8 @@ class CloudResourceTmdbRecord {
             rating == other.rating &&
             posterUrl == other.posterUrl &&
             backdropUrl == other.backdropUrl &&
-            posterCachePath == other.posterCachePath;
+            posterCachePath == other.posterCachePath &&
+            customTitle == other.customTitle;
   }
 
   @override
@@ -243,7 +291,30 @@ class CloudResourceTmdbRecord {
         posterUrl,
         backdropUrl,
         posterCachePath,
+        customTitle,
       );
+
+  CloudResourceTmdbRecord _copyWithCustomTitle(String? value) {
+    return CloudResourceTmdbRecord(
+      sourceId: sourceId,
+      remoteId: remoteId,
+      remotePath: remotePath,
+      displayName: displayName,
+      resourceKind: resourceKind,
+      status: status,
+      checkedAt: checkedAt,
+      tmdbId: tmdbId,
+      mediaType: mediaType,
+      title: title,
+      originalTitle: originalTitle,
+      overview: overview,
+      rating: rating,
+      posterUrl: posterUrl,
+      backdropUrl: backdropUrl,
+      posterCachePath: posterCachePath,
+      customTitle: value,
+    );
+  }
 }
 
 T _enumValue<T extends Enum>(List<T> values, Object? raw, T fallback) {

@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
+import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 
 void main() {
@@ -46,7 +47,38 @@ void main() {
       updated,
     ]);
   });
+
+  test('仓库更新自定义剧名时保留稳定键和 TMDB 信息', () async {
+    final repository = CloudResourceTmdbRepository(
+      storage: MemoryCloudResourceTmdbStorage(),
+    );
+    final original = _matchedRecord();
+    await repository.upsert(original);
+    await repository.upsert(original.withCustomTitle('新剧名'));
+
+    final stored = await repository.get(original.stableKey);
+    expect(stored?.customTitle, '新剧名');
+    expect(stored?.tmdbId, original.tmdbId);
+    expect(stored?.stableKey, original.stableKey);
+  });
 }
+
+CloudResourceTmdbRecord _matchedRecord() => CloudResourceTmdbRecord.matched(
+      sourceId: 'source-a',
+      remoteId: 'folder-a',
+      remotePath: '/影视/A',
+      displayName: 'A',
+      resourceKind: CloudResourceKind.directory,
+      metadata: TmdbMetadata(
+        id: 42,
+        mediaType: TmdbMediaType.tv,
+        title: 'TMDB 标题',
+        language: 'zh-CN',
+        matchedAt: DateTime.utc(2026, 7, 19),
+        matchConfidence: 1,
+      ),
+      checkedAt: DateTime.utc(2026, 7, 19),
+    );
 
 CloudResourceTmdbRecord _record(
   String sourceId,

@@ -265,6 +265,98 @@ void main() {
     fixture.controller.dispose();
   });
 
+  testWidgets('只含单集视频的季目录可刮削当前目录并提取系列名', (tester) async {
+    final coordinator = _ManualTmdbCoordinator();
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      entriesById: const <String, List<CloudFileEntry>>{
+        'root-fid': <CloudFileEntry>[
+          CloudFileEntry(
+            id: 'series-fid',
+            remotePath: '/影视/弥留之国的爱丽丝',
+            name: '弥留之国的爱丽丝',
+            size: 0,
+            modifiedAt: null,
+            isDirectory: true,
+          ),
+        ],
+        'series-fid': <CloudFileEntry>[
+          CloudFileEntry(
+            id: 'season-fid',
+            remotePath: '/影视/弥留之国的爱丽丝/第一季',
+            name: '第一季',
+            size: 0,
+            modifiedAt: null,
+            isDirectory: true,
+          ),
+        ],
+        'season-fid': <CloudFileEntry>[
+          CloudFileEntry(
+            id: 'episode-fid',
+            remotePath: '/影视/弥留之国的爱丽丝/第一季/Alice in Borderland S01E01.mkv',
+            name: 'Alice in Borderland S01E01.mkv',
+            size: 1024,
+            modifiedAt: null,
+            isDirectory: false,
+          ),
+        ],
+      },
+      tmdbCoordinator: coordinator,
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: CloudResourcesPage(controller: fixture.controller)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('弥留之国的爱丽丝'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('第一季'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('刮削当前目录'));
+    await tester.pumpAndSettle();
+
+    expect(coordinator.scrapedTarget?.remote.id, 'season-fid');
+    expect(coordinator.scrapedTarget?.remote.path, '/影视/弥留之国的爱丽丝/第一季');
+    expect(coordinator.scrapedTarget?.displayName, 'Alice in Borderland');
+    expect(
+        coordinator.scrapedTarget?.resourceKind, CloudResourceKind.directory);
+    fixture.controller.dispose();
+  });
+
+  testWidgets('空的网盘子目录仍提示没有需要刮削的资源', (tester) async {
+    final coordinator = _ManualTmdbCoordinator();
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      entriesById: const <String, List<CloudFileEntry>>{
+        'root-fid': <CloudFileEntry>[
+          CloudFileEntry(
+            id: 'empty-fid',
+            remotePath: '/影视/空目录',
+            name: '空目录',
+            size: 0,
+            modifiedAt: null,
+            isDirectory: true,
+          ),
+        ],
+        'empty-fid': <CloudFileEntry>[],
+      },
+      tmdbCoordinator: coordinator,
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: CloudResourcesPage(controller: fixture.controller)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('空目录'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('刮削当前目录'));
+    await tester.pump();
+
+    expect(find.text('当前目录没有需要刮削的资源'), findsOneWidget);
+    expect(coordinator.scrapedTarget, isNull);
+    fixture.controller.dispose();
+  });
+
   testWidgets('资源菜单修改剧名后立即显示且保留原文件名', (tester) async {
     final fixture = await _PageFixture.create(
       source: _quarkSource,
@@ -389,6 +481,7 @@ class _PageFixture {
   static Future<_PageFixture> create({
     CloudSource? source,
     List<CloudFileEntry> entries = const <CloudFileEntry>[],
+    Map<String, List<CloudFileEntry>>? entriesById,
     CloudResourceTmdbRecord? record,
     CloudResourceTmdbCoordinator? tmdbCoordinator,
   }) async {
@@ -409,7 +502,7 @@ class _PageFixture {
         apiKeyProvider: () => '',
       );
     }
-    final client = _PageCloudClient(entries);
+    final client = _PageCloudClient(entries, entriesById: entriesById);
     final registry = CloudProviderRegistry(
       clientFactories: <CloudSourceType, CloudProviderClientFactory>{
         CloudSourceType.openList: (_, __, ___) => client,
@@ -459,9 +552,21 @@ class _ManualTmdbCoordinator extends CloudResourceTmdbCoordinator {
         );
 
   TmdbMetadata? selectedCandidate;
+  CloudResourceTmdbTarget? scrapedTarget;
 
   @override
   Future<void> loadAndSchedule(CloudResourceDirectoryContext context) async {}
+
+  @override
+  Future<CloudResourceTmdbOutcome> scrape(
+    CloudResourceTmdbTarget target, {
+    TmdbScrapeOptions? options,
+  }) async {
+    scrapedTarget = target;
+    return const CloudResourceTmdbOutcome(
+      candidates: <TmdbMetadata>[],
+    );
+  }
 
   @override
   Future<CloudResourceTmdbOutcome> rematch(
@@ -503,9 +608,10 @@ final _candidate = TmdbMetadata(
 );
 
 class _PageCloudClient implements CloudDriveClient {
-  const _PageCloudClient(this.entries);
+  const _PageCloudClient(this.entries, {this.entriesById});
 
   final List<CloudFileEntry> entries;
+  final Map<String, List<CloudFileEntry>>? entriesById;
 
   @override
   Future<void> authenticate(CloudSource source, CloudCredential credential) =>
@@ -522,7 +628,7 @@ class _PageCloudClient implements CloudDriveClient {
   Future<List<CloudFileEntry>> listDirectory(
     CloudRemoteRef directory,
   ) async =>
-      entries;
+      entriesById?[directory.id] ?? entries;
 
   @override
   Future<CloudPlaybackResource> resolvePlayback(CloudRemoteRef file) =>

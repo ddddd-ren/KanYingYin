@@ -80,6 +80,21 @@ void main() {
     expect(entries.single.changes.join('\n'), contains('下载直链'));
   });
 
+  testWidgets('二点一十更新弹窗说明季目录可进行 TMDB 刮削', (tester) async {
+    final entries = versionHistoryForCurrent('2.1.10');
+
+    expect(entries.single.isPrerelease, isTrue);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: VersionChangelogContent(versions: entries)),
+    ));
+
+    expect(find.text('v2.1.10  测试版  2026-07-19'), findsOneWidget);
+    expect(entries.single.changes.join('\n'), contains('TMDB'));
+    expect(entries.single.changes.join('\n'), contains('季目录'));
+    expect(entries.single.changes.join('\n'), contains('单集文件名'));
+    expect(entries.single.changes.join('\n'), contains('当前目录'));
+  });
+
   test('历史版本默认保持正式版兼容语义', () {
     const entry =
         VersionHistory(version: '1.0.0', date: '2026-01-01', changes: []);

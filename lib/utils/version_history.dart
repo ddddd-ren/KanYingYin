@@ -16,6 +16,17 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.10',
+    date: '2026-07-19',
+    isPrerelease: true,
+    changes: [
+      '本测试版让只包含单集视频的网盘季目录也能使用“刮削当前目录”',
+      '会从单集文件名提取系列名称，避免把“第一季”误当成作品名搜索',
+      '匹配后的 TMDB 中文标题、简介、评分和图片会应用到该目录下的单集',
+      '夸克播放修复继续保留，应用启动、本地媒体库和本地播放器保持原有行为',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.9',
     date: '2026-07-19',
     isPrerelease: true,

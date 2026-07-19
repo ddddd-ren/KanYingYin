@@ -323,12 +323,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
 
   Future<void> _scrapeCurrentDirectory() async {
     if (_batchScraping) return;
-    final entries = _controller.visibleEntries
-        .where(
-          (entry) =>
-              entry.isDirectory || _controller.isCurrentDirectoryConfiguredRoot,
-        )
-        .toList(growable: false);
+    final entries = _controller.tmdbEntriesForCurrentDirectory;
     if (entries.isEmpty) {
       _showMessage('当前目录没有需要刮削的资源');
       return;

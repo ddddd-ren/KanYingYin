@@ -28,6 +28,29 @@ void main() {
   );
 
   group('CloudMediaIndexer', () {
+    test('从剧名和季度文件夹索引纯集数视频', () async {
+      final repository =
+          CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());
+      final client = _FakeCloudClient(<String, List<CloudFileEntry>>{
+        '/动漫': <CloudFileEntry>[_dir('show', '/动漫/三体')],
+        '/动漫/三体': <CloudFileEntry>[_dir('season', '/动漫/三体/第二季')],
+        '/动漫/三体/第二季': <CloudFileEntry>[
+          _file('episode', '/动漫/三体/第二季/01.mkv', size: _videoSize),
+        ],
+      });
+
+      await CloudMediaIndexer(repository: repository).scan(
+        source: source,
+        client: client,
+      );
+
+      final item = (await repository.getBySource(source.id)).single;
+      expect(item.seriesName, '三体');
+      expect(item.seasonNumber, 2);
+      expect(item.episodeNumber, 1);
+      expect(item.mediaType, CloudMediaType.episode);
+    });
+
     test('小于本地阈值的网盘视频仍进入索引并作为独立影片显示', () async {
       final repository =
           CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());

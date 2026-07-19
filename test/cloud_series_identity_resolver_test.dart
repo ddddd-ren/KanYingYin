@@ -5,6 +5,20 @@ void main() {
   group('CloudSeriesIdentityResolver', () {
     final resolver = CloudSeriesIdentityResolver();
 
+    test('纯集数文件使用文件夹剧名和季度生成系列身份', () {
+      final identity = resolver.resolve(
+        sourceId: 'quark',
+        remotePath: '/剧集/三体 第二季/01.mkv',
+        size: 200,
+        minSizeBytes: 100,
+      );
+
+      expect(identity?.seriesName, '三体');
+      expect(identity?.seasonNumber, 2);
+      expect(identity?.episodeNumber, 1);
+      expect(identity?.normalizedSeriesName, '三体');
+    });
+
     test('不同发布规格的同目录分集生成同一个系列键', () {
       final first = resolver.resolve(
         sourceId: 'quark',

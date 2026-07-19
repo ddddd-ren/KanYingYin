@@ -26,6 +26,7 @@ import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_indexer.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 
 class IndexModule extends Module {
   @override
@@ -55,6 +56,10 @@ class IndexModule extends Module {
             minRecognizedVideoSizeBytesProvider: () =>
                 Modular.get<MediaRecognitionSettings>().cloudMinSizeBytes,
           ),
+        ));
+    i.addSingleton<CloudResourcesController>(() => CloudResourcesController(
+          repository: Modular.get<CloudSourceRepository>(),
+          credentialStore: Modular.get<CloudCredentialStore>(),
         ));
     i.addSingleton<ILocalMediaIndexer>(() => LocalMediaIndexer(
           repository: Modular.get<ILocalMediaIndexRepository>(),

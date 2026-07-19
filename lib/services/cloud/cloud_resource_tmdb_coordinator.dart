@@ -157,6 +157,33 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
     });
   }
 
+  Future<CloudResourceTmdbRecord> saveCustomTitle(
+    CloudResourceTmdbTarget target,
+    String title,
+  ) async {
+    final normalized = title.trim();
+    if (normalized.isEmpty) throw ArgumentError.value(title, 'title');
+    final existing = await _repository.get(target.stableKey);
+    final record = (existing ?? _uncheckedRecord(target)).withCustomTitle(
+      normalized,
+    );
+    await _repository.upsert(record);
+    _records[record.stableKey] = record;
+    notifyListeners();
+    return record;
+  }
+
+  Future<CloudResourceTmdbRecord> clearCustomTitle(
+    CloudResourceTmdbTarget target,
+  ) async {
+    final existing = await _repository.get(target.stableKey);
+    final record = (existing ?? _uncheckedRecord(target)).clearCustomTitle();
+    await _repository.upsert(record);
+    _records[record.stableKey] = record;
+    notifyListeners();
+    return record;
+  }
+
   List<CloudResourceTmdbTarget> _targetsToSchedule(
     CloudResourceDirectoryContext context,
     DateTime now,
@@ -171,13 +198,18 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
               !LocalVideoFileTypes.isVideoPath(entry.name))) {
         continue;
       }
+      final cached = _records[cloudResourceTmdbKey(
+        sourceId: context.source.id,
+        remoteId: entry.id,
+        remotePath: entry.remotePath,
+      )];
       final target = CloudResourceTmdbTarget(
         sourceId: context.source.id,
         remote: CloudRemoteRef(id: entry.id, path: entry.remotePath),
         displayName: entry.name,
         resourceKind: kind,
+        customTitle: cached?.customTitle,
       );
-      final cached = _records[target.stableKey];
       if (cached != null && cached.displayName == target.displayName) {
         if (cached.status == CloudResourceTmdbStatus.matched) continue;
         if (cached.status == CloudResourceTmdbStatus.unmatched &&
@@ -209,6 +241,7 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
         displayName: target.displayName,
         resourceKind: target.resourceKind,
         checkedAt: _now(),
+        customTitle: target.customTitle,
       );
       await _repository.upsert(failed);
       if (generation == _generation) {
@@ -240,6 +273,20 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
   Future<void> _refreshRecord(CloudResourceTmdbTarget target) async {
     final record = await _repository.get(target.stableKey);
     if (record != null) _records[record.stableKey] = record;
+  }
+
+  CloudResourceTmdbRecord _uncheckedRecord(
+    CloudResourceTmdbTarget target,
+  ) {
+    return CloudResourceTmdbRecord.unchecked(
+      sourceId: target.sourceId,
+      remoteId: target.remote.id,
+      remotePath: target.remote.path,
+      displayName: target.displayName,
+      resourceKind: target.resourceKind,
+      checkedAt: _now(),
+      customTitle: target.customTitle,
+    );
   }
 
   String _requiredApiKey() {

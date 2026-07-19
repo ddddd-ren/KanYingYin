@@ -257,6 +257,11 @@ class CloudResourcesController extends ChangeNotifier {
   CloudResourceTmdbTarget tmdbTargetFor(CloudFileEntry entry) {
     final source = selectedSource;
     if (source == null) throw StateError('尚未选择网盘来源');
+    final key = cloudResourceTmdbKey(
+      sourceId: source.id,
+      remoteId: entry.id,
+      remotePath: entry.remotePath,
+    );
     return CloudResourceTmdbTarget(
       sourceId: source.id,
       remote: CloudRemoteRef(id: entry.id, path: entry.remotePath),
@@ -264,6 +269,7 @@ class CloudResourcesController extends ChangeNotifier {
       resourceKind: entry.isDirectory
           ? CloudResourceKind.directory
           : CloudResourceKind.standaloneVideo,
+      customTitle: tmdbRecords[key]?.customTitle,
     );
   }
 
@@ -301,6 +307,21 @@ class CloudResourcesController extends ChangeNotifier {
       candidate,
       options: options,
     );
+  }
+
+  Future<CloudResourceTmdbRecord> saveCustomTitle(
+    CloudFileEntry entry,
+    String title,
+  ) {
+    final coordinator = _tmdbCoordinator;
+    if (coordinator == null) throw StateError('TMDB 元数据服务不可用');
+    return coordinator.saveCustomTitle(tmdbTargetFor(entry), title);
+  }
+
+  Future<CloudResourceTmdbRecord> clearCustomTitle(CloudFileEntry entry) {
+    final coordinator = _tmdbCoordinator;
+    if (coordinator == null) throw StateError('TMDB 元数据服务不可用');
+    return coordinator.clearCustomTitle(tmdbTargetFor(entry));
   }
 
   void _scheduleTmdb(

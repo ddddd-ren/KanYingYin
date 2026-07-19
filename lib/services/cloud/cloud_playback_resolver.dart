@@ -43,12 +43,16 @@ class CloudResolvedPlayback {
     required this.videoUrl,
     required this.httpHeaders,
     this.subtitlePath,
+    this.networkRoute = PlaybackNetworkRoute.inheritProxy,
+    this.cloudProviderName,
   });
 
   final CloudPlaybackTarget target;
   final String videoUrl;
   final Map<String, String> httpHeaders;
   final String? subtitlePath;
+  final PlaybackNetworkRoute networkRoute;
+  final String? cloudProviderName;
 }
 
 class CloudPlaybackHttpException implements Exception {
@@ -303,6 +307,11 @@ class CloudPlaybackResolver {
         videoUrl: resource.uri.toString(),
         httpHeaders: Map<String, String>.unmodifiable(resource.headers),
         subtitlePath: subtitlePath,
+        networkRoute: resource.networkRoute,
+        cloudProviderName: switch (source.type) {
+          CloudSourceType.quark => '夸克',
+          CloudSourceType.openList => 'OpenList',
+        },
       );
     } finally {
       await client?.close();

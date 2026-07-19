@@ -5,6 +5,7 @@ import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
@@ -20,6 +21,9 @@ import 'package:kanyingyin/services/local_video_file_types.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:path/path.dart' as p;
+
+int _defaultCloudMinSizeBytes() =>
+    LocalVideoFileTypes.minRecognizedVideoSizeBytes;
 
 enum CloudResourceAutoOrganizePhase { scanning, scraping }
 
@@ -62,12 +66,23 @@ class CloudResourcesController extends ChangeNotifier {
     CloudProviderRegistry? providerRegistry,
     CloudResourceTmdbCoordinator? tmdbCoordinator,
     CloudResourceAutoOrganizer? autoOrganizer,
+    int Function()? minRecognizedVideoSizeBytesProvider,
+    CloudResourceCollectionGrouper? collectionGrouper,
     LocalEpisodeParser? episodeParser,
   })  : _repository = repository,
         _credentialStore = credentialStore,
         _providerRegistry = providerRegistry ?? CloudProviderRegistry(),
         _tmdbCoordinator = tmdbCoordinator,
-        _autoOrganizer = autoOrganizer ?? const CloudResourceAutoOrganizer(),
+        _minRecognizedVideoSizeBytesProvider =
+            minRecognizedVideoSizeBytesProvider ?? _defaultCloudMinSizeBytes,
+        _collectionGrouper =
+            collectionGrouper ?? CloudResourceCollectionGrouper(),
+        _autoOrganizer = autoOrganizer ??
+            CloudResourceAutoOrganizer(
+              minRecognizedVideoSizeBytesProvider:
+                  minRecognizedVideoSizeBytesProvider ??
+                      _defaultCloudMinSizeBytes,
+            ),
         _episodeParser = episodeParser ?? LocalEpisodeParser() {
     _tmdbCoordinator?.addListener(_notify);
   }
@@ -77,6 +92,8 @@ class CloudResourcesController extends ChangeNotifier {
   final CloudProviderRegistry _providerRegistry;
   final CloudResourceTmdbCoordinator? _tmdbCoordinator;
   final CloudResourceAutoOrganizer _autoOrganizer;
+  final int Function() _minRecognizedVideoSizeBytesProvider;
+  final CloudResourceCollectionGrouper _collectionGrouper;
   final LocalEpisodeParser _episodeParser;
   final List<CloudRemoteRef?> _history = <CloudRemoteRef?>[];
 
@@ -146,10 +163,26 @@ class CloudResourcesController extends ChangeNotifier {
     return filtered;
   }
 
+  CloudResourceCollection get collection => _collectionGrouper.group(
+        sourceId: selectedSource?.id ?? '',
+        entries: entries,
+        records: tmdbRecords,
+        minSizeBytes: _minRecognizedVideoSizeBytesProvider(),
+        query: query,
+      );
+
   List<CloudFileEntry> get tmdbEntriesForCurrentDirectory {
+    final minSizeBytes = _minRecognizedVideoSizeBytesProvider();
     final candidates = visibleEntries
         .where(
-          (entry) => entry.isDirectory || isCurrentDirectoryConfiguredRoot,
+          (entry) =>
+              entry.isDirectory ||
+              (isCurrentDirectoryConfiguredRoot &&
+                  LocalVideoFileTypes.isRecognizedVideo(
+                    entry.name,
+                    size: entry.size,
+                    minSizeBytes: minSizeBytes,
+                  )),
         )
         .toList(growable: false);
     if (candidates.isNotEmpty || isCurrentDirectoryConfiguredRoot) {
@@ -159,7 +192,12 @@ class CloudResourcesController extends ChangeNotifier {
     if (directory == null || isVirtualRoot) return candidates;
     final containsVideo = entries.any(
       (entry) =>
-          !entry.isDirectory && LocalVideoFileTypes.isVideoPath(entry.name),
+          !entry.isDirectory &&
+          LocalVideoFileTypes.isRecognizedVideo(
+            entry.name,
+            size: entry.size,
+            minSizeBytes: minSizeBytes,
+          ),
     );
     if (!containsVideo) return candidates;
     return <CloudFileEntry>[

@@ -546,6 +546,86 @@ void main() {
       fixture.controller.dispose();
     });
 
+    test('作品集合和当前目录刮削候选动态遵守网盘识别大小', () async {
+      var minSizeBytes = 100;
+      final fixture = await _Fixture.create(
+        sources: const <CloudSource>[
+          CloudSource(
+            id: 'source-a',
+            type: CloudSourceType.quark,
+            name: '夸克媒体库',
+            baseUrl: 'https://pan.quark.cn',
+            rootPaths: <String>['/影视'],
+            rootRefs: <CloudRemoteRef>[
+              CloudRemoteRef(id: 'root-fid', path: '/影视'),
+            ],
+          ),
+        ],
+        clients: <String, _FakeCloudClient>{
+          'source-a': _FakeCloudClient(
+            entriesById: const <String, List<CloudFileEntry>>{
+              'root-fid': <CloudFileEntry>[
+                CloudFileEntry(
+                  id: 'folder',
+                  remotePath: '/影视/子目录',
+                  name: '子目录',
+                  size: 0,
+                  modifiedAt: null,
+                  isDirectory: true,
+                ),
+                CloudFileEntry(
+                  id: 'boundary',
+                  remotePath: '/影视/边界.mkv',
+                  name: '边界.mkv',
+                  size: 100,
+                  modifiedAt: null,
+                  isDirectory: false,
+                ),
+                CloudFileEntry(
+                  id: 'large',
+                  remotePath: '/影视/正片.mkv',
+                  name: '正片.mkv',
+                  size: 101,
+                  modifiedAt: null,
+                  isDirectory: false,
+                ),
+                CloudFileEntry(
+                  id: 'subtitle',
+                  remotePath: '/影视/正片.ass',
+                  name: '正片.ass',
+                  size: 10,
+                  modifiedAt: null,
+                  isDirectory: false,
+                ),
+              ],
+            },
+          ),
+        },
+        minRecognizedVideoSizeBytesProvider: () => minSizeBytes,
+      );
+      await fixture.controller.load();
+
+      expect(fixture.controller.collection.folders, hasLength(1));
+      expect(
+        fixture.controller.collection.groups.single.anchor.id,
+        'large',
+      );
+      expect(
+        fixture.controller.tmdbEntriesForCurrentDirectory
+            .map((entry) => entry.id),
+        <String>['folder', 'large'],
+      );
+
+      minSizeBytes = 101;
+      expect(fixture.controller.collection.groups, isEmpty);
+      expect(
+        fixture.controller.tmdbEntriesForCurrentDirectory
+            .map((entry) => entry.id),
+        <String>['folder'],
+      );
+      fixture.controller.dispose();
+    });
+
     test('自动批量整理继续处理单项失败并汇总全部结果', () async {
       final coordinator = _AutoOrganizeTmdbCoordinator();
       final client = _FakeCloudClient(
@@ -848,6 +928,7 @@ class _Fixture {
     required Map<String, _FakeCloudClient> clients,
     CloudResourceTmdbCoordinator? tmdbCoordinator,
     CloudResourceAutoOrganizer? autoOrganizer,
+    int Function()? minRecognizedVideoSizeBytesProvider,
   }) async {
     final credentials = MemoryCloudCredentialStore();
     final repository = CloudSourceRepository(
@@ -873,6 +954,8 @@ class _Fixture {
             CloudResourceAutoOrganizer(
               minRecognizedVideoSizeBytesProvider: () => 0,
             ),
+        minRecognizedVideoSizeBytesProvider:
+            minRecognizedVideoSizeBytesProvider,
       ),
       clients: clients,
     );

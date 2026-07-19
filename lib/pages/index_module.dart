@@ -74,6 +74,15 @@ class IndexModule extends Module {
     i.addSingleton<CloudSourceRepository>(() => CloudSourceRepository(
           credentialStore: Modular.get<CloudCredentialStore>(),
         ));
+    i.addSingleton<CloudMediaIndexer>(
+      () => CloudMediaIndexer(
+        repository: Modular.get<CloudMediaIndexRepository>(),
+        seriesMatchRuleRepository:
+            Modular.get<CloudSeriesMatchRuleRepository>(),
+        minRecognizedVideoSizeBytesProvider: () =>
+            Modular.get<MediaRecognitionSettings>().cloudMinSizeBytes,
+      ),
+    );
     i.addSingleton<CloudLibraryController>(() => CloudLibraryController(
           repository: Modular.get<CloudSourceRepository>(),
           credentialStore: Modular.get<CloudCredentialStore>(),
@@ -81,13 +90,7 @@ class IndexModule extends Module {
           resourceTmdbRepository: Modular.get<CloudResourceTmdbRepository>(),
           seriesMatchRuleRepository:
               Modular.get<CloudSeriesMatchRuleRepository>(),
-          mediaIndexer: CloudMediaIndexer(
-            repository: Modular.get<CloudMediaIndexRepository>(),
-            seriesMatchRuleRepository:
-                Modular.get<CloudSeriesMatchRuleRepository>(),
-            minRecognizedVideoSizeBytesProvider: () =>
-                Modular.get<MediaRecognitionSettings>().cloudMinSizeBytes,
-          ),
+          mediaIndexer: Modular.get<CloudMediaIndexer>(),
         ));
     i.addSingleton<CloudResourceTmdbCoordinator>(
       () => CloudResourceTmdbCoordinator(
@@ -111,6 +114,8 @@ class IndexModule extends Module {
         repository: Modular.get<CloudSourceRepository>(),
         credentialStore: Modular.get<CloudCredentialStore>(),
         tmdbCoordinator: Modular.get<CloudResourceTmdbCoordinator>(),
+        mediaIndexRepository: Modular.get<CloudMediaIndexRepository>(),
+        mediaIndexer: Modular.get<CloudMediaIndexer>(),
         minRecognizedVideoSizeBytesProvider: () =>
             Modular.get<MediaRecognitionSettings>().cloudMinSizeBytes,
       ),

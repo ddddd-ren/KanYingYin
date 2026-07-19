@@ -471,6 +471,79 @@ void main() {
       fixture.controller.dispose();
     });
 
+    test('手动匹配会传入当前完整目录并保留每集文件大小', () async {
+      final coordinator = _RecordingTmdbCoordinator();
+      final fixture = await _Fixture.create(
+        sources: const <CloudSource>[
+          CloudSource(
+            id: 'source-a',
+            type: CloudSourceType.quark,
+            name: '夸克媒体库',
+            baseUrl: 'https://pan.quark.cn',
+            rootPaths: <String>['/影视'],
+            rootRefs: <CloudRemoteRef>[
+              CloudRemoteRef(id: 'root-fid', path: '/影视'),
+            ],
+          ),
+        ],
+        clients: <String, _FakeCloudClient>{
+          'source-a': _FakeCloudClient(
+            entriesById: <String, List<CloudFileEntry>>{
+              'root-fid': <CloudFileEntry>[
+                for (var episode = 1; episode <= 4; episode++)
+                  CloudFileEntry(
+                    id: 'episode-$episode',
+                    remotePath:
+                        '/影视/Show.S01E${episode.toString().padLeft(2, '0')}.mkv',
+                    name: 'Show.S01E${episode.toString().padLeft(2, '0')}.mkv',
+                    size: 1000 + episode,
+                    modifiedAt: null,
+                    isDirectory: false,
+                  ),
+              ],
+            },
+          ),
+        },
+        tmdbCoordinator: coordinator,
+      );
+      await fixture.controller.load();
+      fixture.controller.setQuery('S01E01');
+      final first = fixture.controller.entries.first;
+      final candidate = TmdbRankedCandidate(
+        metadata: TmdbMetadata(
+          id: 42,
+          mediaType: TmdbMediaType.tv,
+          title: '回魂计',
+          language: 'zh-CN',
+          matchedAt: _matchedAt,
+          matchConfidence: 1,
+        ),
+        score: 1,
+        titleMatched: true,
+        yearMatched: false,
+        typeMatched: true,
+      );
+
+      final outcome = await fixture.controller.applyTmdbCandidate(
+        first,
+        candidate,
+        options: const TmdbScrapeOptions.defaults(),
+      );
+
+      expect(outcome.seriesPropagation.eligible, isTrue);
+      expect(outcome.seriesPropagation.propagatedCount, 3);
+      expect(
+        coordinator.propagationCandidates.map((target) => target.remote.id),
+        <String>['episode-1', 'episode-2', 'episode-3', 'episode-4'],
+      );
+      expect(
+        coordinator.propagationCandidates
+            .every((target) => target.size != null),
+        isTrue,
+      );
+      fixture.controller.dispose();
+    });
+
     test('自动批量整理继续处理单项失败并汇总全部结果', () async {
       final coordinator = _AutoOrganizeTmdbCoordinator();
       final client = _FakeCloudClient(
@@ -766,6 +839,8 @@ class _RecordingTmdbCoordinator extends CloudResourceTmdbCoordinator {
       <CloudResourceDirectoryContext>[];
   CloudResourceTmdbSearchRequest? searchRequest;
   TmdbRankedCandidate? appliedCandidate;
+  List<CloudResourceTmdbTarget> propagationCandidates =
+      const <CloudResourceTmdbTarget>[];
 
   @override
   Future<void> loadAndSchedule(CloudResourceDirectoryContext context) async {
@@ -791,8 +866,11 @@ class _RecordingTmdbCoordinator extends CloudResourceTmdbCoordinator {
     CloudResourceTmdbTarget target,
     TmdbRankedCandidate candidate, {
     required TmdbScrapeOptions options,
+    List<CloudResourceTmdbTarget> propagationCandidates =
+        const <CloudResourceTmdbTarget>[],
   }) async {
     appliedCandidate = candidate;
+    this.propagationCandidates = propagationCandidates;
     return CloudResourceTmdbSelectionOutcome(
       record: CloudResourceTmdbRecord.matched(
         sourceId: target.sourceId,
@@ -805,6 +883,12 @@ class _RecordingTmdbCoordinator extends CloudResourceTmdbCoordinator {
       ),
       posterCached: true,
       indexSynced: true,
+      seriesPropagation: const CloudSeriesPropagationSummary(
+        eligible: true,
+        ruleSaved: true,
+        propagatedCount: 3,
+        indexSyncFailures: 0,
+      ),
     );
   }
 }

@@ -555,6 +555,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(coordinator.selectedCandidate?.id, 42);
+    expect(
+      find.text('已保存“候选片名”，并自动匹配同目录 3 个分集'),
+      findsOneWidget,
+    );
     fixture.controller.dispose();
   });
 
@@ -959,6 +963,8 @@ class _ManualTmdbCoordinator extends CloudResourceTmdbCoordinator {
     CloudResourceTmdbTarget target,
     TmdbRankedCandidate candidate, {
     required TmdbScrapeOptions options,
+    List<CloudResourceTmdbTarget> propagationCandidates =
+        const <CloudResourceTmdbTarget>[],
   }) async {
     final record = await select(
       target,
@@ -969,6 +975,12 @@ class _ManualTmdbCoordinator extends CloudResourceTmdbCoordinator {
       record: record,
       posterCached: true,
       indexSynced: true,
+      seriesPropagation: const CloudSeriesPropagationSummary(
+        eligible: true,
+        ruleSaved: true,
+        propagatedCount: 3,
+        indexSyncFailures: 0,
+      ),
     );
   }
 
@@ -977,6 +989,8 @@ class _ManualTmdbCoordinator extends CloudResourceTmdbCoordinator {
     CloudResourceTmdbTarget target,
     TmdbMetadata candidate, {
     TmdbScrapeOptions? options,
+    List<CloudResourceTmdbTarget> propagationCandidates =
+        const <CloudResourceTmdbTarget>[],
   }) async {
     selectedCandidate = candidate;
     return CloudResourceTmdbRecord.matched(

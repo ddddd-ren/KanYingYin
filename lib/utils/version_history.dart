@@ -16,6 +16,16 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.1',
+    date: '2026-07-19',
+    isPrerelease: true,
+    changes: [
+      '本测试版修复播放视频时外部字幕和内置字幕偶尔同时显示的问题',
+      '切换字幕或关闭字幕后，旧字幕轨道会正确退出，不再重叠',
+      '播放器启动、媒体库扫描和本地播放功能保持可用',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.0',
     date: '2026-07-19',
     isPrerelease: true,

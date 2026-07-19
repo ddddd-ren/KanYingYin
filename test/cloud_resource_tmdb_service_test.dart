@@ -25,6 +25,16 @@ void main() {
     );
   });
 
+  test('独立视频查询名移除画质编码和杜比声道尾缀', () {
+    expect(
+      CloudResourceTmdbService.queryName(
+        '流浪地球2.2160p WEB-DL HEVC DDP 5.1.mkv',
+        isDirectory: false,
+      ),
+      '流浪地球2',
+    );
+  });
+
   test('自动匹配保存详情、海报并同步文件夹子树索引', () async {
     final cacheRoot = await Directory.systemTemp.createTemp('resource-tmdb-');
     addTearDown(() => cacheRoot.delete(recursive: true));

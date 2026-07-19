@@ -5,10 +5,12 @@ import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
+import 'package:kanyingyin/repositories/cloud_series_match_rule_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
+import 'package:kanyingyin/services/cloud/cloud_series_match_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
@@ -181,6 +183,76 @@ void main() {
       ]),
     );
     expect(service.syncCalls, 1);
+  });
+
+  test('手动选择电视剧后学习规则并传播到同目录分集', () async {
+    final repository = CloudResourceTmdbRepository(
+      storage: MemoryCloudResourceTmdbStorage(),
+    );
+    final indexRepository = CloudMediaIndexRepository(
+      storage: MemoryCloudMediaIndexStorage(),
+    );
+    final seriesService = CloudSeriesMatchService(
+      ruleRepository: CloudSeriesMatchRuleRepository(
+        storage: MemoryCloudSeriesMatchRuleStorage(),
+      ),
+      recordRepository: repository,
+      indexRepository: indexRepository,
+      minRecognizedVideoSizeBytesProvider: () => 100,
+      now: () => DateTime.utc(2026, 7, 19),
+    );
+    final coordinator = CloudResourceTmdbCoordinator(
+      repository: repository,
+      serviceFactory: (_) => _RetryTmdbService(repository),
+      apiKeyProvider: () => 'key',
+      seriesMatchService: seriesService,
+      now: () => DateTime.utc(2026, 7, 19),
+    );
+    const first = CloudResourceTmdbTarget(
+      sourceId: 'source-a',
+      remote: CloudRemoteRef(
+        id: 'episode-1',
+        path: '/影视/Show.S01E01.mkv',
+      ),
+      displayName: 'Show.S01E01.mkv',
+      resourceKind: CloudResourceKind.standaloneVideo,
+      size: 1000,
+    );
+    const second = CloudResourceTmdbTarget(
+      sourceId: 'source-a',
+      remote: CloudRemoteRef(
+        id: 'episode-2',
+        path: '/影视/Show.S01E02.mkv',
+      ),
+      displayName: 'Show.S01E02.mkv',
+      resourceKind: CloudResourceKind.standaloneVideo,
+      size: 1000,
+    );
+    final candidate = TmdbRankedCandidate(
+      metadata: TmdbMetadata(
+        id: 42,
+        mediaType: TmdbMediaType.tv,
+        title: '回魂计',
+        language: 'zh-CN',
+        matchedAt: DateTime.utc(2026, 7, 19),
+        matchConfidence: 1,
+      ),
+      score: 1,
+      titleMatched: true,
+      yearMatched: false,
+      typeMatched: true,
+    );
+
+    final outcome = await coordinator.selectPrepared(
+      first,
+      candidate,
+      options: const TmdbScrapeOptions.defaults(),
+      propagationCandidates: const <CloudResourceTmdbTarget>[first, second],
+    );
+
+    expect(outcome.seriesPropagation.eligible, isTrue);
+    expect(outcome.seriesPropagation.propagatedCount, 1);
+    expect(coordinator.records[second.stableKey]?.title, '回魂计');
   });
 }
 

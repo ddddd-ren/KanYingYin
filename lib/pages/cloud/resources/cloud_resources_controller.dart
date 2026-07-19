@@ -341,6 +341,7 @@ class CloudResourcesController extends ChangeNotifier {
           ? CloudResourceKind.directory
           : CloudResourceKind.standaloneVideo,
       customTitle: tmdbRecords[key]?.customTitle,
+      size: entry.isDirectory ? null : entry.size,
     );
   }
 
@@ -370,13 +371,22 @@ class CloudResourcesController extends ChangeNotifier {
     CloudFileEntry entry,
     TmdbRankedCandidate candidate, {
     required TmdbScrapeOptions options,
-  }) {
+  }) async {
     final coordinator = _tmdbCoordinator;
     if (coordinator == null) throw StateError('TMDB 刮削服务不可用');
+    final propagationCandidates = entries
+        .where(
+          (candidate) =>
+              !candidate.isDirectory &&
+              LocalVideoFileTypes.isVideoPath(candidate.name),
+        )
+        .map(tmdbTargetFor)
+        .toList(growable: false);
     return coordinator.selectPrepared(
       tmdbTargetFor(entry),
       candidate,
       options: options,
+      propagationCandidates: propagationCandidates,
     );
   }
 

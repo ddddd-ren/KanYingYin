@@ -191,15 +191,27 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       );
       if (!mounted || outcome == null) return;
       final title = outcome.record.title ?? entry.name;
-      if (!outcome.posterCached && !outcome.indexSynced) {
-        _showMessage('已保存“$title”，海报暂未缓存，媒体索引将在下次加载时重试');
+      final propagation = outcome.seriesPropagation;
+      String message;
+      if (propagation.eligible && !propagation.ruleSaved) {
+        message =
+            '已保存“$title”，并匹配 ${propagation.propagatedCount} 个分集，但自动继承规则保存失败';
+      } else if (propagation.propagatedCount > 0) {
+        message = '已保存“$title”，并自动匹配同目录 ${propagation.propagatedCount} 个分集';
+      } else if (!outcome.posterCached && !outcome.indexSynced) {
+        message = '已保存“$title”，海报暂未缓存，媒体索引将在下次加载时重试';
       } else if (!outcome.posterCached) {
-        _showMessage('已保存“$title”，海报暂未缓存');
+        message = '已保存“$title”，海报暂未缓存';
       } else if (!outcome.indexSynced) {
-        _showMessage('已保存“$title”，媒体索引将在下次加载时重试');
+        message = '已保存“$title”，媒体索引将在下次加载时重试';
       } else {
-        _showMessage('已保存“$title”的匹配信息');
+        message = '已保存“$title”的匹配信息';
       }
+      if (propagation.indexSyncFailures > 0) {
+        message =
+            '$message，另有 ${propagation.indexSyncFailures} 个分集的媒体索引将在下次加载时重试';
+      }
+      _showMessage(message);
     } on Object catch (error) {
       if (!mounted) return;
       _showMessage(_tmdbErrorMessage(error));

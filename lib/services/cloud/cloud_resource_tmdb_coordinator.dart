@@ -10,6 +10,7 @@ import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
+import 'package:kanyingyin/services/cloud/cloud_series_match_service.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
@@ -36,11 +37,13 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
     required CloudResourceTmdbRepository repository,
     required CloudResourceTmdbServiceFactory serviceFactory,
     required String Function() apiKeyProvider,
+    CloudSeriesMatchService? seriesMatchService,
     TmdbScrapeOptions Function()? optionsProvider,
     DateTime Function()? now,
   })  : _repository = repository,
         _serviceFactory = serviceFactory,
         _apiKeyProvider = apiKeyProvider,
+        _seriesMatchService = seriesMatchService,
         _optionsProvider =
             optionsProvider ?? (() => const TmdbScrapeOptions.defaults()),
         _now = now ?? DateTime.now;
@@ -51,6 +54,7 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
   final CloudResourceTmdbRepository _repository;
   final CloudResourceTmdbServiceFactory _serviceFactory;
   final String Function() _apiKeyProvider;
+  final CloudSeriesMatchService? _seriesMatchService;
   final TmdbScrapeOptions Function() _optionsProvider;
   final DateTime Function() _now;
   final Map<String, CloudResourceTmdbRecord> _records =
@@ -161,6 +165,8 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
     CloudResourceTmdbTarget target,
     TmdbRankedCandidate candidate, {
     required TmdbScrapeOptions options,
+    List<CloudResourceTmdbTarget> propagationCandidates =
+        const <CloudResourceTmdbTarget>[],
   }) async {
     final apiKey = _requiredApiKey();
     return _tracked(target, () async {
@@ -170,8 +176,12 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
         candidate.metadata,
         options: options,
       );
-      _rememberSelection(target, outcome);
-      return outcome;
+      return _rememberSelection(
+        target,
+        outcome,
+        propagationCandidates: propagationCandidates,
+        language: options.language,
+      );
     });
   }
 
@@ -179,30 +189,68 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
     CloudResourceTmdbTarget target,
     TmdbMetadata candidate, {
     TmdbScrapeOptions? options,
+    List<CloudResourceTmdbTarget> propagationCandidates =
+        const <CloudResourceTmdbTarget>[],
   }) async {
     final apiKey = _requiredApiKey();
     return _tracked(target, () async {
       final service = await _serviceFor(apiKey);
+      final resolvedOptions = options ?? _optionsProvider();
       final outcome = await service.selectWithOutcome(
         target,
         candidate,
-        options: options ?? _optionsProvider(),
+        options: resolvedOptions,
       );
-      _rememberSelection(target, outcome);
-      return outcome.record;
+      final remembered = await _rememberSelection(
+        target,
+        outcome,
+        propagationCandidates: propagationCandidates,
+        language: resolvedOptions.language,
+      );
+      return remembered.record;
     });
   }
 
-  void _rememberSelection(
+  Future<CloudResourceTmdbSelectionOutcome> _rememberSelection(
     CloudResourceTmdbTarget target,
-    CloudResourceTmdbSelectionOutcome outcome,
-  ) {
+    CloudResourceTmdbSelectionOutcome outcome, {
+    required List<CloudResourceTmdbTarget> propagationCandidates,
+    required String language,
+  }) async {
     _records[outcome.record.stableKey] = outcome.record;
     if (outcome.indexSynced) {
       _pendingIndexSyncTargets.remove(target.stableKey);
     } else {
       _pendingIndexSyncTargets[target.stableKey] = target;
     }
+    final seriesMatchService = _seriesMatchService;
+    if (seriesMatchService == null) return outcome;
+
+    final propagation = await seriesMatchService.learnAndPropagate(
+      anchor: target,
+      anchorRecord: outcome.record,
+      candidates: propagationCandidates,
+      existingRecords: _records,
+      language: language,
+    );
+    for (final record in propagation.records) {
+      _records[record.stableKey] = record;
+      _pendingIndexSyncTargets.remove(record.stableKey);
+    }
+    for (final pendingTarget in propagation.pendingIndexSyncTargets) {
+      _pendingIndexSyncTargets[pendingTarget.stableKey] = pendingTarget;
+    }
+    return CloudResourceTmdbSelectionOutcome(
+      record: outcome.record,
+      posterCached: outcome.posterCached,
+      indexSynced: outcome.indexSynced,
+      seriesPropagation: CloudSeriesPropagationSummary(
+        eligible: propagation.eligible,
+        ruleSaved: propagation.ruleSaved,
+        propagatedCount: propagation.records.length,
+        indexSyncFailures: propagation.indexSyncFailures,
+      ),
+    );
   }
 
   Future<void> _retryPendingIndexSync(

@@ -20,6 +20,7 @@ import 'package:kanyingyin/shaders/shaders_controller.dart';
 import 'package:kanyingyin/services/local_subtitle_importer.dart';
 import 'package:kanyingyin/services/local_subtitle_matcher.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
+import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/features/player/application/subtitle_preferences.dart';
 import 'package:kanyingyin/features/player/application/truehd_fallback_policy.dart';
 import 'package:kanyingyin/pages/player/models/embedded_track_info.dart';
@@ -34,6 +35,12 @@ part 'player_controller.g.dart';
 class _PlayerInitializationCancelled implements Exception {
   const _PlayerInitializationCancelled();
 }
+
+bool shouldApplyPlayerProxy({
+  required bool proxyEnabled,
+  required PlaybackNetworkRoute networkRoute,
+}) =>
+    proxyEnabled && networkRoute == PlaybackNetworkRoute.inheritProxy;
 
 class PlaybackInitParams {
   final String videoUrl;
@@ -52,6 +59,8 @@ class PlaybackInitParams {
   final String? subtitlePath;
   final String? subtitleStorageKey;
   final String? stableMediaKey;
+  final PlaybackNetworkRoute networkRoute;
+  final String? cloudProviderName;
   final Future<PlaybackInitParams> Function()? refreshCloudPlayback;
 
   const PlaybackInitParams({
@@ -71,6 +80,8 @@ class PlaybackInitParams {
     this.subtitlePath,
     this.subtitleStorageKey,
     this.stableMediaKey,
+    this.networkRoute = PlaybackNetworkRoute.inheritProxy,
+    this.cloudProviderName,
     this.refreshCloudPlayback,
   });
 
@@ -91,6 +102,8 @@ class PlaybackInitParams {
         subtitlePath: subtitlePath,
         subtitleStorageKey: subtitleStorageKey,
         stableMediaKey: stableMediaKey,
+        networkRoute: networkRoute,
+        cloudProviderName: cloudProviderName,
         refreshCloudPlayback: refreshCloudPlayback,
       );
 }
@@ -118,6 +131,9 @@ PlaybackInitParams mergeRefreshedCloudPlayback({
       subtitleStorageKey:
           refreshed.subtitleStorageKey ?? previous.subtitleStorageKey,
       stableMediaKey: refreshed.stableMediaKey ?? previous.stableMediaKey,
+      networkRoute: refreshed.networkRoute,
+      cloudProviderName:
+          refreshed.cloudProviderName ?? previous.cloudProviderName,
       refreshCloudPlayback:
           refreshed.refreshCloudPlayback ?? previous.refreshCloudPlayback,
     );
@@ -647,7 +663,10 @@ abstract class _PlayerController with Store {
       SettingBoxKey.proxyEnable,
       defaultValue: false,
     );
-    if (proxyEnable) {
+    if (shouldApplyPlayerProxy(
+      proxyEnabled: proxyEnable,
+      networkRoute: initParams.networkRoute,
+    )) {
       final String proxyUrl = setting.getTyped<String>(
         SettingBoxKey.proxyUrl,
         defaultValue: '',

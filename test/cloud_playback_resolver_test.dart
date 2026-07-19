@@ -205,6 +205,8 @@ void main() {
           target: target,
           videoUrl: 'https://cdn/first',
           httpHeaders: const {'X-Token': 'first'},
+          networkRoute: PlaybackNetworkRoute.direct,
+          cloudProviderName: '夸克',
         );
       },
       initializePlayer: (params) async => initialized.add(params),
@@ -229,6 +231,8 @@ void main() {
     expect(resolveCalls, 1);
     expect(initialized.single.offset, 0);
     expect(initialized.single.httpHeaders, {'X-Token': 'first'});
+    expect(initialized.single.networkRoute, PlaybackNetworkRoute.direct);
+    expect(initialized.single.cloudProviderName, '夸克');
   });
 
   test('首次解析失败时不初始化播放器', () async {
@@ -263,7 +267,11 @@ void main() {
       stableId: 'e1',
       title: '第 1 集',
     );
-    PlaybackInitParams params({required String url, String? subtitle}) =>
+    PlaybackInitParams params({
+      required String url,
+      String? subtitle,
+      PlaybackNetworkRoute networkRoute = PlaybackNetworkRoute.inheritProxy,
+    }) =>
         PlaybackInitParams(
           videoUrl: url,
           offset: 0,
@@ -277,17 +285,46 @@ void main() {
           referer: '',
           currentRoad: 0,
           subtitlePath: subtitle,
+          networkRoute: networkRoute,
         );
 
     final merged = mergeRefreshedCloudPlayback(
       previous: params(url: 'old', subtitle: r'C:\cache\old.ass'),
-      refreshed: params(url: 'new'),
+      refreshed: params(
+        url: 'new',
+        networkRoute: PlaybackNetworkRoute.direct,
+      ),
       position: const Duration(seconds: 42),
     );
     expect(merged.videoUrl, 'new');
     expect(merged.httpHeaders, {'Token': 'new'});
     expect(merged.subtitlePath, r'C:\cache\old.ass');
     expect(merged.offset, 42);
+    expect(merged.networkRoute, PlaybackNetworkRoute.direct);
+  });
+
+  test('播放器只为继承策略应用已启用的 HTTP 代理', () {
+    expect(
+      shouldApplyPlayerProxy(
+        proxyEnabled: true,
+        networkRoute: PlaybackNetworkRoute.direct,
+      ),
+      isFalse,
+    );
+    expect(
+      shouldApplyPlayerProxy(
+        proxyEnabled: true,
+        networkRoute: PlaybackNetworkRoute.inheritProxy,
+      ),
+      isTrue,
+    );
+    expect(
+      shouldApplyPlayerProxy(
+        proxyEnabled: false,
+        networkRoute: PlaybackNetworkRoute.inheritProxy,
+      ),
+      isFalse,
+    );
   });
 
   test('切集解析乱序时只有最新请求可以提交', () {

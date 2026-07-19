@@ -4,6 +4,7 @@ import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_poster_cache.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_name_parser.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
@@ -147,24 +148,13 @@ class CloudResourceTmdbService {
   }
 
   static String queryName(String displayName, {required bool isDirectory}) {
-    var value = displayName.trim();
-    if (!isDirectory) {
-      value = value.replaceFirst(RegExp(r'\.[^.\\/]+$'), '');
-    }
-    value = value
-        .replaceAll(RegExp(r'【[^】]*】|\[[^\]]*\]'), ' ')
-        .replaceAll(
-          RegExp(
-            r'\b(?:2160p|1080p|720p|4k|8k|uhd|hdr10?|bluray|web-?dl|x26[45]|h26[45])\b',
-            caseSensitive: false,
-          ),
-          ' ',
-        )
-        .replaceAll(RegExp(r'全\s*\d+\s*集|全集|完结'), ' ')
-        .replaceAll(RegExp(r'[._]+'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-    return value;
+    final draft = const CloudMediaNameParser().parse(
+      originalName: displayName,
+      isDirectory: isDirectory,
+    );
+    return draft.year == null
+        ? draft.searchTitle
+        : '${draft.searchTitle} (${draft.year})';
   }
 
   Future<_SearchResult> _search(

@@ -12,6 +12,7 @@ import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
+import 'package:kanyingyin/services/local_episode_parser.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:path/path.dart' as p;
@@ -22,10 +23,12 @@ class CloudResourcesController extends ChangeNotifier {
     required CloudCredentialStore credentialStore,
     CloudProviderRegistry? providerRegistry,
     CloudResourceTmdbCoordinator? tmdbCoordinator,
+    LocalEpisodeParser? episodeParser,
   })  : _repository = repository,
         _credentialStore = credentialStore,
         _providerRegistry = providerRegistry ?? CloudProviderRegistry(),
-        _tmdbCoordinator = tmdbCoordinator {
+        _tmdbCoordinator = tmdbCoordinator,
+        _episodeParser = episodeParser ?? LocalEpisodeParser() {
     _tmdbCoordinator?.addListener(_notify);
   }
 
@@ -33,6 +36,7 @@ class CloudResourcesController extends ChangeNotifier {
   final CloudCredentialStore _credentialStore;
   final CloudProviderRegistry _providerRegistry;
   final CloudResourceTmdbCoordinator? _tmdbCoordinator;
+  final LocalEpisodeParser _episodeParser;
   final List<CloudRemoteRef?> _history = <CloudRemoteRef?>[];
 
   List<CloudSource> sources = <CloudSource>[];
@@ -98,6 +102,34 @@ class CloudResourcesController extends ChangeNotifier {
       return first.name.toLowerCase().compareTo(second.name.toLowerCase());
     });
     return filtered;
+  }
+
+  List<CloudFileEntry> get tmdbEntriesForCurrentDirectory {
+    final candidates = visibleEntries
+        .where(
+          (entry) => entry.isDirectory || isCurrentDirectoryConfiguredRoot,
+        )
+        .toList(growable: false);
+    if (candidates.isNotEmpty || isCurrentDirectoryConfiguredRoot) {
+      return candidates;
+    }
+    final directory = currentDirectory;
+    if (directory == null || isVirtualRoot) return candidates;
+    final containsVideo = entries.any(
+      (entry) =>
+          !entry.isDirectory && LocalVideoFileTypes.isVideoPath(entry.name),
+    );
+    if (!containsVideo) return candidates;
+    return <CloudFileEntry>[
+      CloudFileEntry(
+        id: directory.id,
+        remotePath: directory.path,
+        name: _currentDirectoryTmdbName(directory),
+        size: 0,
+        modifiedAt: null,
+        isDirectory: true,
+      ),
+    ];
   }
 
   Future<void> load() async {
@@ -367,6 +399,31 @@ class CloudResourcesController extends ChangeNotifier {
     errorMessage = null;
     _notify();
   }
+
+  String _currentDirectoryTmdbName(CloudRemoteRef directory) {
+    for (final entry in entries) {
+      if (entry.isDirectory || !LocalVideoFileTypes.isVideoPath(entry.name)) {
+        continue;
+      }
+      final seriesName = _episodeParser.parse(entry.remotePath)?.seriesName;
+      if (seriesName != null && seriesName.trim().isNotEmpty) {
+        return seriesName.trim();
+      }
+    }
+    final directoryName = p.posix.basename(directory.path).trim();
+    if (_isSeasonDirectoryName(directoryName)) {
+      final parentName =
+          p.posix.basename(p.posix.dirname(directory.path)).trim();
+      if (parentName.isNotEmpty && parentName != '/') return parentName;
+    }
+    return directoryName;
+  }
+
+  static bool _isSeasonDirectoryName(String value) => RegExp(
+        r'^(?:season|s)\s*\d{1,2}$|^第\s*\d{1,2}\s*[季部]$',
+        caseSensitive: false,
+        unicode: true,
+      ).hasMatch(value);
 
   bool _isCurrent(int generation) => !_disposed && generation == _generation;
 

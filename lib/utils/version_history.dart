@@ -16,6 +16,17 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.14',
+    date: '2026-07-19',
+    isPrerelease: true,
+    changes: [
+      '本测试版在网盘资源工具栏加入“自动整理当前来源”，可递归发现配置根目录中的电影和剧集并批量匹配 TMDB',
+      '整理过程会显示已扫描目录、已发现资源和当前进度，完成后汇总成功、待确认、无结果、失败与跳过数量',
+      '已匹配资源和近期无结果项会自动跳过，歧义资源保持原名并可继续手动匹配',
+      '所有整理只更新看影音显示名和元数据，不会修改网盘文件、目录或播放路径；应用启动、本地媒体库和播放器保持原有行为',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.13',
     date: '2026-07-19',
     isPrerelease: true,

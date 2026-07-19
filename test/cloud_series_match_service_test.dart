@@ -74,6 +74,13 @@ void main() {
         '回魂计',
       );
       expect(
+        (await fixture.recordRepository.get(second.stableKey))
+            ?.seasons
+            .single
+            .posterUrl,
+        '/season-1.jpg',
+      );
+      expect(
         (await fixture.indexRepository.getBySource('quark'))
             .where((item) => item.remoteId == 'episode-2')
             .single
@@ -120,6 +127,7 @@ void main() {
       expect(application?.record.status, CloudResourceTmdbStatus.matched);
       expect(application?.record.title, '回魂计');
       expect(application?.record.posterCachePath, r'C:\cache\show.jpg');
+      expect(application?.record.seasons.single.seasonNumber, 1);
       expect(application?.indexSynced, isTrue);
       expect(
         (await fixture.recordRepository.get(target.stableKey))?.tmdbId,
@@ -320,6 +328,16 @@ final _metadata = TmdbMetadata(
   language: 'zh-CN',
   matchedAt: _now,
   matchConfidence: 1,
+  seasons: const <TmdbSeasonMetadata>[
+    TmdbSeasonMetadata(
+      id: 100,
+      seasonNumber: 1,
+      name: '第 1 季',
+      episodeCount: 8,
+      posterUrl: '/season-1.jpg',
+      posterCachePath: r'C:\cache\season-1.jpg',
+    ),
+  ],
 );
 
 final _otherMetadata = TmdbMetadata(

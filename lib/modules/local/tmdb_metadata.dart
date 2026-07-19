@@ -66,6 +66,32 @@ class TmdbSeasonMetadata {
       posterCachePath: posterCachePath ?? this.posterCachePath,
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is TmdbSeasonMetadata &&
+            id == other.id &&
+            seasonNumber == other.seasonNumber &&
+            name == other.name &&
+            episodeCount == other.episodeCount &&
+            overview == other.overview &&
+            airDate == other.airDate &&
+            posterUrl == other.posterUrl &&
+            posterCachePath == other.posterCachePath;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        id,
+        seasonNumber,
+        name,
+        episodeCount,
+        overview,
+        airDate,
+        posterUrl,
+        posterCachePath,
+      );
 }
 
 class TmdbMetadata {

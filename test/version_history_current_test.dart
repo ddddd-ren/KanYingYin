@@ -50,6 +50,21 @@ void main() {
     }
   });
 
+  testWidgets('二点一八更新弹窗说明夸克直连播放修复', (tester) async {
+    final entries = versionHistoryForCurrent('2.1.8');
+
+    expect(entries.single.isPrerelease, isTrue);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: VersionChangelogContent(versions: entries)),
+    ));
+
+    expect(find.text('v2.1.8  测试版  2026-07-19'), findsOneWidget);
+    expect(entries.single.changes.join('\n'), contains('夸克'));
+    expect(entries.single.changes.join('\n'), contains('直连'));
+    expect(entries.single.changes.join('\n'), contains('自动刷新'));
+    expect(entries.single.changes.join('\n'), contains('OpenList'));
+  });
+
   test('历史版本默认保持正式版兼容语义', () {
     const entry =
         VersionHistory(version: '1.0.0', date: '2026-01-01', changes: []);

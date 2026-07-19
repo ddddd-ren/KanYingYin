@@ -3,15 +3,20 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
+import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_grid.dart';
+import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
+import 'package:kanyingyin/pages/local/tmdb_scrape_options_sheet.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/local_subtitle_matcher.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:path/path.dart' as p;
 
 class CloudResourcesPage extends StatefulWidget {
@@ -40,6 +45,9 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
   late final CloudResourcesController _controller;
   final CloudProviderRegistry _providerRegistry = CloudProviderRegistry();
   final CloudPlaybackResolver _playbackResolver = CloudPlaybackResolver();
+  bool _batchScraping = false;
+  int _batchCurrent = 0;
+  int _batchTotal = 0;
 
   @override
   void initState() {
@@ -139,6 +147,115 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
                   videoName,
         )
         .firstOrNull;
+  }
+
+  Future<void> _scrapeEntry(CloudFileEntry entry) async {
+    try {
+      final outcome = await _controller.scrapeTmdb(entry);
+      if (!mounted) return;
+      if (outcome.selected != null) {
+        _showMessage('已匹配“${outcome.selected!.title ?? entry.name}”');
+        return;
+      }
+      await _selectCandidate(entry, outcome.candidates);
+    } on Object catch (error) {
+      if (!mounted) return;
+      _showMessage(_tmdbErrorMessage(error));
+    }
+  }
+
+  Future<void> _rematchEntry(CloudFileEntry entry) async {
+    final options = await showModalBottomSheet<TmdbScrapeOptions>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => TmdbScrapeOptionsSheet(
+        initialOptions: _controller.tmdbScrapeOptions,
+      ),
+    );
+    if (options == null || !mounted) return;
+    try {
+      final outcome = await _controller.rematchTmdb(entry, options: options);
+      if (!mounted) return;
+      await _selectCandidate(entry, outcome.candidates, options: options);
+    } on Object catch (error) {
+      if (!mounted) return;
+      _showMessage(_tmdbErrorMessage(error));
+    }
+  }
+
+  Future<void> _selectCandidate(
+    CloudFileEntry entry,
+    List<TmdbMetadata> candidates, {
+    TmdbScrapeOptions? options,
+  }) async {
+    if (candidates.isEmpty) {
+      _showMessage('TMDB 没有返回可用候选');
+      return;
+    }
+    final selected = await showModalBottomSheet<TmdbMetadata>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => TmdbMatchSheet(
+        seriesName: entry.name,
+        candidates: candidates,
+      ),
+    );
+    if (selected == null || !mounted) return;
+    await _controller.selectTmdbCandidate(
+      entry,
+      selected,
+      options: options,
+    );
+    if (mounted) _showMessage('已保存“${selected.title}”的匹配信息');
+  }
+
+  Future<void> _scrapeCurrentDirectory() async {
+    if (_batchScraping) return;
+    final entries = _controller.visibleEntries
+        .where(
+          (entry) =>
+              entry.isDirectory || _controller.isCurrentDirectoryConfiguredRoot,
+        )
+        .toList(growable: false);
+    if (entries.isEmpty) {
+      _showMessage('当前目录没有需要刮削的资源');
+      return;
+    }
+    setState(() {
+      _batchScraping = true;
+      _batchCurrent = 0;
+      _batchTotal = entries.length;
+    });
+    var matched = 0;
+    try {
+      for (final entry in entries) {
+        if (!mounted) return;
+        setState(() => _batchCurrent++);
+        try {
+          final outcome = await _controller.scrapeTmdb(entry);
+          if (outcome.selected != null) matched++;
+        } on Object {
+          continue;
+        }
+      }
+      if (mounted) _showMessage('当前目录刮削完成，匹配 $matched 项');
+    } finally {
+      if (mounted) setState(() => _batchScraping = false);
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  static String _tmdbErrorMessage(Object error) {
+    final text = error.toString();
+    if (text.contains('请先在设置中填写 TMDB API Key')) {
+      return '请先在设置中填写 TMDB API Key';
+    }
+    return 'TMDB 刮削失败，本地浏览和播放不受影响';
   }
 
   Future<void> _confirmRemoveSource() async {
@@ -244,6 +361,13 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
             ),
           const Spacer(),
           IconButton(
+            tooltip: '刮削当前目录',
+            onPressed: selected == null || _controller.loading || _batchScraping
+                ? null
+                : _scrapeCurrentDirectory,
+            icon: const Icon(Icons.auto_awesome_outlined),
+          ),
+          IconButton(
             tooltip: '管理网盘来源',
             onPressed: _manageSources,
             icon: const Icon(Icons.settings_outlined),
@@ -330,6 +454,32 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
               ],
             ),
           ),
+          if (_controller.currentDirectoryTmdbRecord case final record?)
+            _seriesHeader(record),
+          if (_batchScraping)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('正在刮削 $_batchCurrent/$_batchTotal'),
+                ],
+              ),
+            )
+          else if (_controller.tmdbTotalCount > 0 &&
+              _controller.tmdbCompletedCount < _controller.tmdbTotalCount)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: LinearProgressIndicator(
+                value:
+                    _controller.tmdbCompletedCount / _controller.tmdbTotalCount,
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
             child: TextField(
@@ -343,11 +493,56 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
           ),
           Expanded(
             child: CloudResourcesGrid(
+              sourceId: _controller.selectedSource!.id,
               entries: _controller.visibleEntries,
+              records: _controller.tmdbRecords,
+              scrapingKeys: _controller.tmdbScrapingKeys,
               onOpenDirectory: _openDirectory,
               onPlay: _play,
+              onScrape: _scrapeEntry,
+              onRematch: _rematchEntry,
             ),
           ),
         ],
       );
+
+  Widget _seriesHeader(CloudResourceTmdbRecord record) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      key: const ValueKey<String>('cloud-series-header'),
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.primaryContainer.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  record.title ?? record.displayName,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              if (record.rating != null)
+                Text('${record.rating!.toStringAsFixed(1)} ★'),
+            ],
+          ),
+          if (record.overview != null &&
+              record.overview!.trim().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              record.overview!,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }

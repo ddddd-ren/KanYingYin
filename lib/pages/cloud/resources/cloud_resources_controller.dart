@@ -13,6 +13,7 @@ import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:path/path.dart' as p;
 
 class CloudResourcesController extends ChangeNotifier {
@@ -56,6 +57,29 @@ class CloudResourcesController extends ChangeNotifier {
 
   int get tmdbCompletedCount => _tmdbCoordinator?.completedCount ?? 0;
   int get tmdbTotalCount => _tmdbCoordinator?.totalCount ?? 0;
+  TmdbScrapeOptions get tmdbScrapeOptions =>
+      _tmdbCoordinator?.options ?? const TmdbScrapeOptions.defaults();
+
+  bool get isCurrentDirectoryConfiguredRoot {
+    final source = selectedSource;
+    final directory = currentDirectory;
+    if (source == null || directory == null) return false;
+    return source.remoteRoots.any(
+      (root) => root.id == directory.id || root.path == directory.path,
+    );
+  }
+
+  CloudResourceTmdbRecord? get currentDirectoryTmdbRecord {
+    final source = selectedSource;
+    final directory = currentDirectory;
+    if (source == null || directory == null) return null;
+    final key = cloudResourceTmdbKey(
+      sourceId: source.id,
+      remoteId: directory.id,
+      remotePath: directory.path,
+    );
+    return tmdbRecords[key];
+  }
 
   List<CloudFileEntry> get visibleEntries {
     final keyword = query.trim().toLowerCase();
@@ -243,25 +267,40 @@ class CloudResourcesController extends ChangeNotifier {
     );
   }
 
-  Future<CloudResourceTmdbOutcome> scrapeTmdb(CloudFileEntry entry) {
-    final coordinator = _tmdbCoordinator;
-    if (coordinator == null) throw StateError('TMDB 刮削服务不可用');
-    return coordinator.scrape(tmdbTargetFor(entry));
+  CloudResourceTmdbRecord? tmdbRecordFor(CloudFileEntry entry) {
+    return tmdbRecords[tmdbTargetFor(entry).stableKey];
   }
 
-  Future<CloudResourceTmdbOutcome> rematchTmdb(CloudFileEntry entry) {
+  Future<CloudResourceTmdbOutcome> scrapeTmdb(
+    CloudFileEntry entry, {
+    TmdbScrapeOptions? options,
+  }) {
     final coordinator = _tmdbCoordinator;
     if (coordinator == null) throw StateError('TMDB 刮削服务不可用');
-    return coordinator.rematch(tmdbTargetFor(entry));
+    return coordinator.scrape(tmdbTargetFor(entry), options: options);
+  }
+
+  Future<CloudResourceTmdbOutcome> rematchTmdb(
+    CloudFileEntry entry, {
+    TmdbScrapeOptions? options,
+  }) {
+    final coordinator = _tmdbCoordinator;
+    if (coordinator == null) throw StateError('TMDB 刮削服务不可用');
+    return coordinator.rematch(tmdbTargetFor(entry), options: options);
   }
 
   Future<CloudResourceTmdbRecord> selectTmdbCandidate(
     CloudFileEntry entry,
-    TmdbMetadata candidate,
-  ) {
+    TmdbMetadata candidate, {
+    TmdbScrapeOptions? options,
+  }) {
     final coordinator = _tmdbCoordinator;
     if (coordinator == null) throw StateError('TMDB 刮削服务不可用');
-    return coordinator.select(tmdbTargetFor(entry), candidate);
+    return coordinator.select(
+      tmdbTargetFor(entry),
+      candidate,
+      options: options,
+    );
   }
 
   void _scheduleTmdb(

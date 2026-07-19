@@ -1,0 +1,13 @@
+{
+  "status": 200,
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "status": 2,
+    "task_id": "task_fixture_001",
+    "task_title": "转存示例",
+    "save_as": {
+      "save_as_top_fids": ["saved_fid_fixture"]
+    }
+  }
+}

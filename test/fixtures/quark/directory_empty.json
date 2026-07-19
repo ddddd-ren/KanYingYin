@@ -1,0 +1,13 @@
+{
+  "status": 200,
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "list": []
+  },
+  "metadata": {
+    "_page": 1,
+    "_size": 50,
+    "_total": 0
+  }
+}

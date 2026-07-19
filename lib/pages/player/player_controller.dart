@@ -42,6 +42,11 @@ bool shouldApplyPlayerProxy({
 }) =>
     proxyEnabled && networkRoute == PlaybackNetworkRoute.inheritProxy;
 
+String cloudPlaybackFailureMessage(String? providerName) {
+  final label = providerName?.trim();
+  return '${label == null || label.isEmpty ? '网盘' : label}播放地址不可用，请重新登录或稍后重试';
+}
+
 class PlaybackInitParams {
   final String videoUrl;
   final int offset;
@@ -420,7 +425,8 @@ abstract class _PlayerController with Store {
 
     AppLogger().i(
       'PlayerController: ${params.isLocalPlayback ? "local" : "online"} '
-      'playback: ${sanitizeMediaDescription(params.videoUrl, isLocalPlayback: params.isLocalPlayback)}',
+      'playback: ${sanitizeMediaDescription(params.videoUrl, isLocalPlayback: params.isLocalPlayback)} '
+      'route=${params.networkRoute.name}',
     );
 
     playing = false;
@@ -749,7 +755,16 @@ abstract class _PlayerController with Store {
       }
       if (!_isMediaOperationActive(mediaToken, lifecycleToken)) return;
       if (showPlayerError) {
-        if (errorStr.contains('Failed to open') && playerBuffering) {
+        if (initParams.refreshCloudPlayback != null &&
+            shouldRefreshCloudLink(errorStr)) {
+          AppDialog.showToast(
+            message: cloudPlaybackFailureMessage(
+              initParams.cloudProviderName,
+            ),
+            duration: const Duration(seconds: 5),
+            showActionButton: true,
+          );
+        } else if (errorStr.contains('Failed to open') && playerBuffering) {
           AppDialog.showToast(
               message: '加载失败, 请尝试更换其他视频来源', showActionButton: true);
         } else {
@@ -1299,7 +1314,9 @@ abstract class _PlayerController with Store {
         error: refreshError,
         stackTrace: stackTrace,
       );
-      AppDialog.showToast(message: '网盘播放链接已失效，刷新后仍无法播放');
+      AppDialog.showToast(
+        message: cloudPlaybackFailureMessage(params.cloudProviderName),
+      );
       return true;
     } finally {
       _mediaOperations.finishRefresh(mediaToken);

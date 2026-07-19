@@ -154,6 +154,19 @@ void main() {
         isFalse);
     expect(
         shouldRefreshCloudLink(const CloudPlaybackHttpException(500)), isFalse);
+    expect(
+      shouldRefreshCloudLink('Failed to open https://cdn.example.com'),
+      isTrue,
+    );
+    expect(shouldRefreshCloudLink('decoder initialization failed'), isFalse);
+    expect(
+      cloudPlaybackFailureMessage('夸克'),
+      '夸克播放地址不可用，请重新登录或稍后重试',
+    );
+    expect(
+      cloudPlaybackFailureMessage(null),
+      '网盘播放地址不可用，请重新登录或稍后重试',
+    );
   });
 
   test('同来源播放列表切集时重新解析对应远程路径', () async {
@@ -645,7 +658,8 @@ void main() {
     expect(guard.tryAcquire(const CloudPlaybackHttpException(403)), isTrue);
     expect(guard.tryAcquire(const CloudPlaybackHttpException(403)), isFalse);
     guard.reset();
-    expect(guard.tryAcquire(const CloudPlaybackHttpException(401)), isTrue);
+    expect(guard.tryAcquire('Failed to open https://cdn.example.com'), isTrue);
+    expect(guard.tryAcquire('Failed to open https://cdn.example.com'), isFalse);
   });
 
   test('生产媒体库注入云播放回调且不再显示服务不可用', () {

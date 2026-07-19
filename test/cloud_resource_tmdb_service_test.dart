@@ -1,0 +1,227 @@
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
+import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
+import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
+import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
+import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
+import 'package:kanyingyin/services/cloud/cloud_poster_cache.dart';
+import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+
+void main() {
+  test('文件夹查询名移除编码和完结标记但保留年份', () {
+    expect(
+      CloudResourceTmdbService.queryName(
+        'H-回-元异-计【台剧】 (2025) 4K 全6集 完结',
+        isDirectory: true,
+      ),
+      'H-回-元异-计 (2025)',
+    );
+  });
+
+  test('自动匹配保存详情、海报并同步文件夹子树索引', () async {
+    final cacheRoot = await Directory.systemTemp.createTemp('resource-tmdb-');
+    addTearDown(() => cacheRoot.delete(recursive: true));
+    final resourceRepository = CloudResourceTmdbRepository(
+      storage: MemoryCloudResourceTmdbStorage(),
+    );
+    final indexRepository = CloudMediaIndexRepository(
+      storage: MemoryCloudMediaIndexStorage(),
+    );
+    await indexRepository.replaceSource(
+      'source-a',
+      <CloudMediaIndexItem>[
+        _item('/影视/流浪地球/流浪地球.mkv'),
+        _item('/影视/流浪地球2/流浪地球2.mkv'),
+      ],
+      const <String, String>{},
+      const <String, List<CloudFileEntry>>{},
+      const <String>[],
+    );
+    final client = _FakeTmdbClient(
+      searches: <TmdbMediaType, List<TmdbMetadata>>{
+        TmdbMediaType.tv: <TmdbMetadata>[_candidate(TmdbMediaType.tv)],
+      },
+      detail: _candidate(TmdbMediaType.tv).copyWith(
+        title: '中文片名',
+        overview: '中文简介',
+        posterUrl: '/poster.jpg',
+      ),
+    );
+    final service = CloudResourceTmdbService(
+      repository: resourceRepository,
+      indexRepository: indexRepository,
+      client: client,
+      posterCache: CloudPosterCache(
+        cacheRoot: cacheRoot,
+        downloader: (_) async => <int>[1, 2, 3],
+      ),
+      now: () => DateTime.utc(2026, 7, 19),
+    );
+    final target = _target(
+      path: '/影视/流浪地球',
+      name: '流浪地球',
+      kind: CloudResourceKind.directory,
+    );
+
+    final outcome = await service.match(target);
+
+    expect(outcome.selected?.tmdbId, 42);
+    expect(outcome.selected?.title, '中文片名');
+    expect(await File(outcome.selected!.posterCachePath!).exists(), isTrue);
+    final indexed = await indexRepository.getBySource('source-a');
+    expect(indexed[0].tmdbId, 42);
+    expect(indexed[1].tmdbId, isNull);
+    expect(client.searchedTypes, <TmdbMediaType>[TmdbMediaType.tv]);
+  });
+
+  test('自动模式首选类型无候选时尝试另一类型', () async {
+    final service = _service(
+      _FakeTmdbClient(
+        searches: <TmdbMediaType, List<TmdbMetadata>>{
+          TmdbMediaType.movie: const <TmdbMetadata>[],
+          TmdbMediaType.tv: <TmdbMetadata>[_candidate(TmdbMediaType.tv)],
+        },
+        detail: _candidate(TmdbMediaType.tv),
+      ),
+    );
+
+    await service.service.searchCandidates(
+      _target(
+        path: '/影视/独立视频.mkv',
+        name: '独立视频.mkv',
+        kind: CloudResourceKind.standaloneVideo,
+      ),
+    );
+
+    expect(service.client.searchedTypes, <TmdbMediaType>[
+      TmdbMediaType.movie,
+      TmdbMediaType.tv,
+    ]);
+  });
+
+  test('无候选保存未匹配且手动选择保存用户候选', () async {
+    final client = _FakeTmdbClient(
+      searches: const <TmdbMediaType, List<TmdbMetadata>>{},
+      detail: _candidate(TmdbMediaType.movie).copyWith(title: '手动选择标题'),
+    );
+    final service = _service(client);
+    final target = _target(
+      path: '/影视/未知.mkv',
+      name: '未知.mkv',
+      kind: CloudResourceKind.standaloneVideo,
+    );
+
+    final outcome = await service.service.match(target);
+    expect(outcome.candidates, isEmpty);
+    expect(
+      (await service.repository.get(target.stableKey))?.status,
+      CloudResourceTmdbStatus.unmatched,
+    );
+
+    final record = await service.service.select(
+      target,
+      _candidate(TmdbMediaType.movie),
+    );
+    expect(record.tmdbId, 42);
+    expect(record.title, '手动选择标题');
+  });
+}
+
+CloudResourceTmdbTarget _target({
+  required String path,
+  required String name,
+  required CloudResourceKind kind,
+}) {
+  return CloudResourceTmdbTarget(
+    sourceId: 'source-a',
+    remote: CloudRemoteRef(id: path, path: path),
+    displayName: name,
+    resourceKind: kind,
+  );
+}
+
+CloudMediaIndexItem _item(String path) {
+  return CloudMediaIndexItem(
+    sourceId: 'source-a',
+    remoteId: path,
+    remotePath: path,
+    name: path.split('/').last,
+    size: 100,
+    modifiedAt: null,
+    seriesName: '流浪地球',
+  );
+}
+
+TmdbMetadata _candidate(TmdbMediaType type) {
+  return TmdbMetadata(
+    id: 42,
+    mediaType: type,
+    title: type == TmdbMediaType.tv ? '流浪地球' : '独立视频',
+    releaseDate: '2019-01-01',
+    language: 'zh-CN',
+    matchedAt: DateTime.utc(2026, 7, 19),
+    matchConfidence: 1,
+  );
+}
+
+_ServiceHarness _service(_FakeTmdbClient client) {
+  final repository = CloudResourceTmdbRepository(
+    storage: MemoryCloudResourceTmdbStorage(),
+  );
+  return _ServiceHarness(
+    repository: repository,
+    client: client,
+    service: CloudResourceTmdbService(
+      repository: repository,
+      indexRepository: CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      ),
+      client: client,
+      now: () => DateTime.utc(2026, 7, 19),
+    ),
+  );
+}
+
+class _ServiceHarness {
+  const _ServiceHarness({
+    required this.repository,
+    required this.client,
+    required this.service,
+  });
+
+  final CloudResourceTmdbRepository repository;
+  final _FakeTmdbClient client;
+  final CloudResourceTmdbService service;
+}
+
+class _FakeTmdbClient implements ITmdbClient {
+  _FakeTmdbClient({required this.searches, required this.detail});
+
+  final Map<TmdbMediaType, List<TmdbMetadata>> searches;
+  final TmdbMetadata detail;
+  final List<TmdbMediaType> searchedTypes = <TmdbMediaType>[];
+
+  @override
+  Future<TmdbMetadata> details(
+    int id,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) async {
+    return detail;
+  }
+
+  @override
+  Future<List<TmdbMetadata>> search(
+    String query,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) async {
+    searchedTypes.add(mediaType);
+    return searches[mediaType] ?? const <TmdbMetadata>[];
+  }
+}

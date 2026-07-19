@@ -40,6 +40,7 @@ void main() {
       resource: CloudPlaybackResource(
         uri: Uri.parse('https://cdn.example.com/live-token'),
         headers: const {'Authorization': 'Bearer token'},
+        networkRoute: PlaybackNetworkRoute.direct,
       ),
     );
     final resolver = CloudPlaybackResolver(
@@ -65,6 +66,8 @@ void main() {
     expect(client.authenticateCalls, 0);
     expect(result.videoUrl, 'https://cdn.example.com/live-token');
     expect(result.httpHeaders, {'Authorization': 'Bearer token'});
+    expect(result.networkRoute, PlaybackNetworkRoute.direct);
+    expect(result.cloudProviderName, 'OpenList');
     expect(client.closed, isTrue);
   });
 

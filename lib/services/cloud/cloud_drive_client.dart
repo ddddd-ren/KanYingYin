@@ -32,16 +32,20 @@ class CloudDriveException implements Exception {
   String toString() => 'CloudDriveException(${type.name})';
 }
 
+enum PlaybackNetworkRoute { inheritProxy, direct }
+
 class CloudPlaybackResource {
   const CloudPlaybackResource({
     required this.uri,
     this.headers = const <String, String>{},
     this.expiresAt,
+    this.networkRoute = PlaybackNetworkRoute.inheritProxy,
   });
 
   final Uri uri;
   final Map<String, String> headers;
   final DateTime? expiresAt;
+  final PlaybackNetworkRoute networkRoute;
 }
 
 abstract interface class CloudDriveClient {

@@ -16,7 +16,6 @@ import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
-import 'package:kanyingyin/services/local_subtitle_matcher.dart';
 import 'package:path/path.dart' as p;
 
 class CloudResourcesPage extends StatefulWidget {
@@ -96,11 +95,6 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     }
   }
 
-  Future<void> _openDirectory(CloudFileEntry entry) =>
-      _controller.openDirectory(
-        CloudRemoteRef(id: entry.id, path: entry.remotePath),
-      );
-
   Future<void> _play(CloudFileEntry entry) async {
     final source = _controller.selectedSource;
     if (source == null) return;
@@ -112,7 +106,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       stableId: '${source.id}:${entry.id}:${entry.remotePath}',
       title: entry.name,
       subtitleRemoteId: subtitle?.id,
-      subtitleRemotePath: subtitle?.remotePath,
+      subtitleRemotePath: subtitle?.path,
     );
     final callback = widget.onPlayTarget;
     if (callback != null) {
@@ -151,26 +145,11 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     if (selected != null && mounted) await _play(selected);
   }
 
-  CloudFileEntry? _matchingSubtitle(CloudFileEntry video) {
-    final videoDirectory = p.posix.dirname(video.remotePath);
-    final videoName =
-        p.posix.basenameWithoutExtension(video.name).toLowerCase();
-    return _controller.entries
-        .where(
-          (entry) =>
-              !entry.isDirectory &&
-              LocalSubtitleMatcher.isSupportedSubtitlePath(entry.name) &&
-              p.posix.dirname(entry.remotePath) == videoDirectory &&
-              p.posix.basenameWithoutExtension(entry.name).toLowerCase() ==
-                  videoName,
-        )
-        .firstOrNull;
-  }
+  CloudRemoteRef? _matchingSubtitle(CloudFileEntry video) =>
+      _controller.subtitleFor(video);
 
   Set<String> _subtitleVideoKeys(String sourceId) => _controller.entries
-      .where(
-        (entry) => !entry.isDirectory && _matchingSubtitle(entry) != null,
-      )
+      .where(_controller.hasSubtitle)
       .map(
         (entry) => cloudResourceTmdbKey(
           sourceId: sourceId,
@@ -348,11 +327,11 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     }
   }
 
-  Future<void> _scrapeCurrentDirectory() async {
+  Future<void> _scrapeSelectedSource() async {
     if (_batchScraping || _autoOrganizing) return;
-    final entries = _controller.tmdbEntriesForCurrentDirectory;
+    final entries = _controller.tmdbEntriesForSelectedSource;
     if (entries.isEmpty) {
-      _showMessage('当前目录没有需要刮削的资源');
+      _showMessage('当前来源没有需要刮削的资源');
       return;
     }
     setState(() {
@@ -384,7 +363,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       }
       if (mounted) {
         _showMessage(
-          '当前目录刮削完成：成功 $matched 项，待确认 $pending 项，'
+          '当前来源刮削完成：成功 $matched 项，待确认 $pending 项，'
           '无结果 $noResult 项，失败 $failed 项',
         );
       }
@@ -587,6 +566,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
             tooltip: '自动整理当前来源',
             onPressed: selected == null ||
                     _controller.loading ||
+                    _controller.scanning ||
                     _batchScraping ||
                     _autoOrganizing ||
                     _controller.tmdbScrapingKeys.isNotEmpty
@@ -595,13 +575,14 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
             icon: const Icon(Icons.auto_awesome_motion),
           ),
           IconButton(
-            tooltip: '刮削当前目录',
+            tooltip: '刮削当前来源',
             onPressed: selected == null ||
                     _controller.loading ||
+                    _controller.scanning ||
                     _batchScraping ||
                     _autoOrganizing
                 ? null
-                : _scrapeCurrentDirectory,
+                : _scrapeSelectedSource,
             icon: const Icon(Icons.auto_awesome_outlined),
           ),
           IconButton(
@@ -611,25 +592,22 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
           ),
           IconButton(
             tooltip: '移除当前来源',
-            onPressed:
-                selected == null || _controller.loading || _autoOrganizing
-                    ? null
-                    : _confirmRemoveSource,
+            onPressed: selected == null ||
+                    _controller.loading ||
+                    _controller.scanning ||
+                    _autoOrganizing
+                ? null
+                : _confirmRemoveSource,
             icon: const Icon(Icons.delete_outline),
           ),
           IconButton(
-            tooltip: '返回上级',
-            onPressed: _controller.canGoBack && !_controller.loading
-                ? _controller.goBack
-                : null,
-            icon: const Icon(Icons.arrow_upward),
-          ),
-          IconButton(
-            tooltip: '刷新当前目录',
-            onPressed:
-                selected == null || _controller.loading || _autoOrganizing
-                    ? null
-                    : _controller.refresh,
+            tooltip: '刷新当前来源',
+            onPressed: selected == null ||
+                    _controller.loading ||
+                    _controller.scanning ||
+                    _autoOrganizing
+                ? null
+                : _controller.refresh,
             icon: const Icon(Icons.refresh),
           ),
         ],
@@ -685,7 +663,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    _controller.currentDirectory?.path ?? '媒体根目录',
+                    '已汇总全部媒体根目录',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -693,8 +671,6 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
               ],
             ),
           ),
-          if (_controller.currentDirectoryTmdbRecord case final record?)
-            _seriesHeader(record),
           if (_autoOrganizing && _autoOrganizeProgress != null)
             _autoOrganizeIndicator(_autoOrganizeProgress!)
           else if (_batchScraping)
@@ -721,11 +697,28 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
                     _controller.tmdbCompletedCount / _controller.tmdbTotalCount,
               ),
             ),
+          if (_controller.scanning)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '正在后台扫描 ${_controller.scannedDirectories} 个目录',
+                  ),
+                ],
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
             child: TextField(
               decoration: const InputDecoration(
-                hintText: '搜索当前目录',
+                hintText: '搜索全部网盘资源',
                 prefixIcon: Icon(Icons.search),
                 isDense: true,
               ),
@@ -740,7 +733,6 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
               subtitleVideoKeys: _subtitleVideoKeys(
                 _controller.selectedSource!.id,
               ),
-              onOpenDirectory: _openDirectory,
               onOpenGroup: _openGroup,
               onEditTitle: _editTitle,
               onScrape: _scrapeEntry,
@@ -768,46 +760,6 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
                 : '正在整理 ${progress.completedTargets}/'
                     '${progress.totalTargets}',
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _seriesHeader(CloudResourceTmdbRecord record) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      key: const ValueKey<String>('cloud-series-header'),
-      width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colors.primaryContainer.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  record.title ?? record.displayName,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-              if (record.rating != null)
-                Text('${record.rating!.toStringAsFixed(1)} ★'),
-            ],
-          ),
-          if (record.overview != null &&
-              record.overview!.trim().isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              record.overview!,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
         ],
       ),
     );

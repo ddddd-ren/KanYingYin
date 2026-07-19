@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 
 typedef CloudResourceEntryAction = FutureOr<void> Function(
@@ -106,7 +105,7 @@ class _CloudResourceCard extends StatelessWidget {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          DateFormat('yyyy-MM-dd').format(entry.modifiedAt!),
+                          _formatDate(entry.modifiedAt!),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.end,
@@ -134,5 +133,11 @@ class _CloudResourceCard extends StatelessWidget {
       return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     }
     return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  }
+
+  static String _formatDate(DateTime value) {
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '${value.year}-$month-$day';
   }
 }

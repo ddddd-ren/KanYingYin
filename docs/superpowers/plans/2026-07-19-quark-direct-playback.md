@@ -315,7 +315,7 @@ git add -- pubspec.yaml lib/core/app_version.dart RELEASE_NOTES.md lib/utils/ver
 git commit -m "发布：准备夸克直连播放 2.1.8"
 ```
 
-### Task 6: 全量验证、Windows Release 与 MSIX
+### Task 6: 全量验证、Windows Release 与签名 MSIX
 
 **Files:**
 - Verify: `build/windows/x64/runner/Release/kanyingyin.exe`
@@ -336,15 +336,21 @@ Run: `D:\flutter\bin\flutter.bat build windows --release --no-pub`
 
 Expected: exit code 0，`kanyingyin.exe` 与 `data/app.so` 修改时间属于本轮构建。
 
-- [ ] **Step 3: 生成 MSIX**
+- [ ] **Step 3: 生成签名 MSIX**
 
-Run: `D:\flutter\bin\dart.bat run msix:create --build-windows false`
+用 `apply_patch` 临时将 `pubspec.yaml` 的 `sign_msix` 改为 `true`。从 `%USERPROFILE%\.kanyingyin\signing\certificate-password.clixml` 读取 DPAPI 加密密码，仅在当前 PowerShell 进程内解密，然后运行：
 
-Expected: exit code 0，并在 Release 目录生成新的 `.msix`。
+```powershell
+D:\flutter\bin\dart.bat run msix:create --build-windows false --certificate-path "$env:USERPROFILE\.kanyingyin\signing\certificate.pfx" --certificate-password $plainPassword
+```
+
+命令结束后立即用 `apply_patch` 恢复 `sign_msix: false`。
+
+Expected: exit code 0，并在 Release 目录生成新的签名 `.msix`。
 
 - [ ] **Step 4: 验证清单并复制桌面**
 
-解压最终 MSIX，确认 `AppxManifest.xml` 的 `Identity Version="2.1.8.0"`，随后复制为：
+解压最终 MSIX，确认 `AppxManifest.xml` 的包标识为 `com.kanyingyin.player`、发布者为 `CN=KanYingYin`、架构为 `x64`、版本为 `2.1.8.0`，且 `AppxSignature.p7x` 存在。用 `Get-AuthenticodeSignature` 确认状态为 `Valid`，随后复制为：
 
 ```powershell
 $msix = Get-ChildItem -LiteralPath 'build\windows\x64\runner\Release' -Filter '*.msix' -File |
@@ -352,6 +358,8 @@ $msix = Get-ChildItem -LiteralPath 'build\windows\x64\runner\Release' -Filter '*
   Select-Object -First 1
 Copy-Item -LiteralPath $msix.FullName -Destination "$env:USERPROFILE\Desktop\看影音-2.1.8.msix" -Force
 ```
+
+再次验证桌面包签名为 `Valid`，并确认源包与桌面包 SHA-256 一致。
 
 - [ ] **Step 5: 检查状态并提交遗漏的本轮文件**
 

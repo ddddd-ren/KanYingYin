@@ -30,6 +30,21 @@ void main() {
     c.dispose();
   });
 
+  test('字幕设置打开时阻止播放器滚轮调节音量', () {
+    final c = PlayerOverlayCoordinator();
+    expect(c.blocksPlayerMouseWheelVolume, isFalse);
+
+    c.openSubtitleSettings();
+    expect(c.blocksPlayerMouseWheelVolume, isTrue);
+
+    c.closeSubtitleSettings();
+    expect(c.blocksPlayerMouseWheelVolume, isFalse);
+
+    c.openVideoInfo();
+    expect(c.blocksPlayerMouseWheelVolume, isFalse);
+    c.dispose();
+  });
+
   test('dispose 后不再通知', () {
     final c = PlayerOverlayCoordinator();
     var count = 0;
@@ -45,6 +60,10 @@ void main() {
     expect(source, contains('_overlayCoordinator.openSubtitleSettings()'));
     expect(source, contains('PlayerOverlayPresenter'));
     expect(source, contains('_overlayCoordinator.openVideoInfo()'));
+    expect(
+      source,
+      contains('_overlayCoordinator.blocksPlayerMouseWheelVolume'),
+    );
     expect(source, isNot(contains('showModalBottomSheet<void>')));
   });
 

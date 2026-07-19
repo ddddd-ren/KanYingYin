@@ -17,6 +17,8 @@ class PlayerOverlayCoordinator extends ChangeNotifier {
 
   PlayerOverlayState get state => _state;
   PlayerOverlay get visible => _state.visible;
+  bool get blocksPlayerMouseWheelVolume =>
+      visible == PlayerOverlay.subtitleSettings;
 
   void open(PlayerOverlay overlay) {
     if (_disposed || overlay == PlayerOverlay.none || visible == overlay) {

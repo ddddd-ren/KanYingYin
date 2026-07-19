@@ -44,6 +44,19 @@ void main() {
     expect(changes, contains('播放路径'));
   });
 
+  test('二点一十六说明网盘全量海报墙和季度海报', () {
+    final entries = versionHistoryForCurrent('2.1.16');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('网盘'));
+    expect(changes, contains('海报墙'));
+    expect(changes, contains('季度海报'));
+    expect(changes, contains('后台扫描'));
+    expect(changes, contains('识别大小'));
+    expect(changes, contains('不会修改网盘文件'));
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

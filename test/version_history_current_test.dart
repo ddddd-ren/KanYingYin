@@ -172,6 +172,20 @@ void main() {
     expect(entries.single.isPrerelease, isTrue);
   });
 
+  test('二点一二十七说明夸克分段预读和播放状态', () {
+    final entries = versionHistoryForCurrent('2.1.27');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('分段预读'));
+    expect(changes, contains('4K'));
+    expect(changes, contains('重新连接'));
+    expect(changes, contains('速度不足'));
+    expect(changes, contains('256 MB'));
+    expect(changes, contains('不会修改夸克文件'));
+    expect(entries.single.isPrerelease, isTrue);
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

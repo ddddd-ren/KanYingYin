@@ -16,6 +16,16 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.27',
+    date: '2026-07-21',
+    isPrerelease: true,
+    changes: [
+      '本测试版在播放夸克原文件时自动分段预读，改善网速正常但 4K 视频仍频繁缓冲的问题，拖动进度条后也能从新位置继续读取',
+      '播放地址或 Cookie 过期时会自动重新连接；播放器会显示预缓冲速度、重新连接和速度不足状态，稳定播放后自动隐藏',
+      '单个播放会话的临时缓存最多使用 256 MB，退出或切集后自动清理；不会修改夸克文件、目录、本地视频或 TMDB 信息，应用启动、本地媒体库和 OpenList 播放方式保持不变',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.26',
     date: '2026-07-21',
     isPrerelease: true,

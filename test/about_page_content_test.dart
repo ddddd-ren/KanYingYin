@@ -40,6 +40,21 @@ void main() {
     expect(about, contains('界面与操作参考 Kazumi'));
   });
 
+  test('清除缓存下方显示统一的当前版本', () {
+    final source = File('lib/pages/about/about_page.dart').readAsStringSync();
+    final clearCacheIndex = source.indexOf("'清除缓存'");
+    final currentVersionIndex = source.indexOf("'当前版本'");
+
+    expect(clearCacheIndex, greaterThanOrEqualTo(0));
+    expect(currentVersionIndex, greaterThan(clearCacheIndex));
+    expect(
+      source,
+      contains('package:kanyingyin/core/app_version.dart'),
+    );
+    expect(source, contains('AppVersion.current'));
+    expect(source, isNot(contains("Text('2.1.30')")));
+  });
+
   test('持续集成仅保留 Windows 质量门禁与发布', () {
     for (final workflowPath in [
       '.github/workflows/pr.yaml',

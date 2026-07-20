@@ -34,7 +34,7 @@ class CloudMediaTreeResolver {
       nameAnalyzer: nameAnalyzer,
     );
     for (final root in configuredRoots) {
-      context.discover(
+      context.discoverConfiguredRoot(
         CloudSeriesIdentityResolver.normalizeRemotePath(root),
       );
     }
@@ -60,6 +60,120 @@ class _ResolutionContext {
   final Set<String> _visitedDirectories = <String>{};
   final Set<String> _resolvedWorkRoots = <String>{};
   final Set<String> _ignoredKeys = <String>{};
+
+  void discoverConfiguredRoot(String directoryPath) {
+    final directoryName = p.posix.basename(directoryPath);
+    final directoryAnalysis = nameAnalyzer.analyze(
+      directoryName,
+      isDirectory: true,
+    );
+    final isStructuralRoot =
+        nameAnalyzer.isTransparentDirectoryName(directoryName) ||
+            directoryAnalysis.role == MediaNodeRole.season;
+    final containsOnlyEpisodeVideos = _containsOnlyEpisodeVideos(
+      directoryPath,
+    );
+    final containsOnlyStructuralDirectories =
+        _containsOnlyStructuralDirectories(directoryPath);
+    if ((isStructuralRoot ||
+            containsOnlyEpisodeVideos ||
+            containsOnlyStructuralDirectories) &&
+        _containsRecognizedVideo(directoryPath, <String>{})) {
+      final workName = isStructuralRoot
+          ? _nearestWorkName(directoryPath)
+          : directoryName.trim();
+      if (workName != null && workName.isNotEmpty) {
+        _resolveDirectoryWork(
+          CloudFileEntry(
+            id: '',
+            remotePath: directoryPath,
+            name: workName,
+            size: 0,
+            modifiedAt: null,
+            isDirectory: true,
+          ),
+          configuredSeasonNumber: directoryAnalysis.seasonNumber,
+          configuredReleaseTags: directoryAnalysis.releaseTags,
+          configuredYear: directoryAnalysis.year,
+          configuredDirectoryName: directoryName,
+        );
+        return;
+      }
+    }
+    discover(directoryPath);
+  }
+
+  bool _containsOnlyEpisodeVideos(String directoryPath) {
+    final videos = (directoryEntries[directoryPath] ?? const <CloudFileEntry>[])
+        .where((entry) => !entry.isDirectory && _isRecognizedVideo(entry))
+        .toList(growable: false);
+    return videos.isNotEmpty &&
+        videos.every(
+          (entry) =>
+              nameAnalyzer
+                  .analyze(entry.name, isDirectory: false)
+                  .episodeNumber !=
+              null,
+        );
+  }
+
+  bool _containsOnlyStructuralDirectories(String directoryPath) {
+    final entries = directoryEntries[directoryPath] ?? const <CloudFileEntry>[];
+    if (entries.any(
+      (entry) => !entry.isDirectory && _isRecognizedVideo(entry),
+    )) {
+      return false;
+    }
+    final contentDirectories = entries
+        .where(
+          (entry) =>
+              entry.isDirectory &&
+              _containsRecognizedVideo(_pathOf(entry), <String>{}),
+        )
+        .toList(growable: false);
+    return contentDirectories.isNotEmpty &&
+        contentDirectories.every((entry) {
+          final analysis = nameAnalyzer.analyze(
+            entry.name,
+            isDirectory: true,
+          );
+          final isStructuralDirectory = analysis.role == MediaNodeRole.season ||
+              nameAnalyzer.isTransparentDirectoryName(entry.name);
+          return isStructuralDirectory &&
+              _containsOnlyEpisodeVideosRecursively(
+                _pathOf(entry),
+                <String>{},
+              );
+        });
+  }
+
+  bool _containsOnlyEpisodeVideosRecursively(
+    String directoryPath,
+    Set<String> visited,
+  ) {
+    if (!visited.add(directoryPath)) return false;
+    var foundVideo = false;
+    final entries = directoryEntries[directoryPath] ?? const <CloudFileEntry>[];
+    for (final entry in entries) {
+      if (entry.isDirectory) {
+        final childPath = _pathOf(entry);
+        if (!_containsRecognizedVideo(childPath, <String>{})) continue;
+        if (!_containsOnlyEpisodeVideosRecursively(
+          childPath,
+          visited,
+        )) {
+          return false;
+        }
+        foundVideo = true;
+        continue;
+      }
+      if (!_isRecognizedVideo(entry)) continue;
+      foundVideo = true;
+      final analysis = nameAnalyzer.analyze(entry.name, isDirectory: false);
+      if (analysis.episodeNumber == null) return false;
+    }
+    return foundVideo;
+  }
 
   void discover(String directoryPath) {
     if (!_visitedDirectories.add(directoryPath)) return;
@@ -145,7 +259,13 @@ class _ResolutionContext {
     return false;
   }
 
-  void _resolveDirectoryWork(CloudFileEntry root) {
+  void _resolveDirectoryWork(
+    CloudFileEntry root, {
+    int? configuredSeasonNumber,
+    MediaReleaseTags configuredReleaseTags = const MediaReleaseTags(),
+    int? configuredYear,
+    String? configuredDirectoryName,
+  }) {
     final rootPath = _pathOf(root);
     if (!_resolvedWorkRoots.add(rootPath)) return;
     final workKey = workKeyFor(sourceId, root);
@@ -154,54 +274,81 @@ class _ResolutionContext {
     final transparentDirectories = <CloudFileEntry>[];
     final aliases = <String>[];
     final entries = directoryEntries[rootPath] ?? const <CloudFileEntry>[];
-    for (final entry in entries) {
-      final analysis = nameAnalyzer.analyze(
-        entry.name,
-        isDirectory: entry.isDirectory,
+    if (configuredSeasonNumber != null) {
+      final builder = builders.putIfAbsent(
+        configuredSeasonNumber,
+        _SeasonBuilder.new,
       );
-      if (analysis.role == MediaNodeRole.advertisement) {
-        _ignoreTree(entry);
-        continue;
-      }
-      if (entry.isDirectory &&
-          analysis.role == MediaNodeRole.season &&
-          analysis.seasonNumber != null) {
-        final seasonNumber = analysis.seasonNumber!;
-        final builder = builders.putIfAbsent(
-          seasonNumber,
-          _SeasonBuilder.new,
+      builder
+        ..directories.add(
+          CloudFileEntry(
+            id: root.id,
+            remotePath: root.remotePath,
+            name: configuredDirectoryName ?? root.name,
+            size: 0,
+            modifiedAt: null,
+            isDirectory: true,
+          ),
+        )
+        ..year = configuredYear;
+      _collectSeasonEpisodes(
+        directoryPath: rootPath,
+        folderSeasonNumber: configuredSeasonNumber,
+        inheritedReleaseTags: configuredReleaseTags,
+        episodes: builder.episodes,
+        aliases: aliases,
+        visited: <String>{},
+      );
+    } else {
+      for (final entry in entries) {
+        final analysis = nameAnalyzer.analyze(
+          entry.name,
+          isDirectory: entry.isDirectory,
         );
-        builder.directories.add(entry);
-        builder.year ??= analysis.year;
-        _collectSeasonEpisodes(
-          directoryPath: _pathOf(entry),
-          folderSeasonNumber: seasonNumber,
-          inheritedReleaseTags: analysis.releaseTags,
-          episodes: builder.episodes,
-          aliases: aliases,
-          visited: <String>{},
-        );
-      } else if (!entry.isDirectory && _isRecognizedVideo(entry)) {
-        standaloneVideos.add(entry);
-      } else if (entry.isDirectory) {
-        if (nameAnalyzer.isTransparentDirectoryName(entry.name)) {
-          transparentDirectories.add(entry);
+        if (analysis.role == MediaNodeRole.advertisement) {
+          _ignoreTree(entry);
+          continue;
         }
-        _collectStandaloneVideos(
-          directoryPath: _pathOf(entry),
-          videos: standaloneVideos,
-          visited: <String>{},
-        );
-      } else {
-        _ignore(entry);
+        if (entry.isDirectory &&
+            analysis.role == MediaNodeRole.season &&
+            analysis.seasonNumber != null) {
+          final seasonNumber = analysis.seasonNumber!;
+          final builder = builders.putIfAbsent(
+            seasonNumber,
+            _SeasonBuilder.new,
+          );
+          builder.directories.add(entry);
+          builder.year ??= analysis.year;
+          _collectSeasonEpisodes(
+            directoryPath: _pathOf(entry),
+            folderSeasonNumber: seasonNumber,
+            inheritedReleaseTags: analysis.releaseTags,
+            episodes: builder.episodes,
+            aliases: aliases,
+            visited: <String>{},
+          );
+        } else if (!entry.isDirectory && _isRecognizedVideo(entry)) {
+          standaloneVideos.add(entry);
+        } else if (entry.isDirectory) {
+          if (nameAnalyzer.isTransparentDirectoryName(entry.name)) {
+            transparentDirectories.add(entry);
+          }
+          _collectStandaloneVideos(
+            directoryPath: _pathOf(entry),
+            videos: standaloneVideos,
+            visited: <String>{},
+          );
+        } else {
+          _ignore(entry);
+        }
       }
+      _promoteImplicitEpisodes(
+        builders: builders,
+        standaloneVideos: standaloneVideos,
+        transparentDirectories: transparentDirectories,
+        aliases: aliases,
+      );
     }
-    _promoteImplicitEpisodes(
-      builders: builders,
-      standaloneVideos: standaloneVideos,
-      transparentDirectories: transparentDirectories,
-      aliases: aliases,
-    );
 
     final rootAnalysis = nameAnalyzer.analyze(root.name, isDirectory: true);
     final seasonNumbers = builders.keys.toList(growable: false)..sort();
@@ -532,6 +679,21 @@ class _ResolutionContext {
 
   String _pathOf(CloudFileEntry entry) =>
       CloudSeriesIdentityResolver.normalizeRemotePath(entry.remotePath);
+
+  String? _nearestWorkName(String directoryPath) {
+    var parent = p.posix.dirname(directoryPath);
+    while (parent != '.' && parent != '/' && parent.isNotEmpty) {
+      final candidate = p.posix.basename(parent).trim();
+      final analysis = nameAnalyzer.analyze(candidate, isDirectory: true);
+      if (candidate.isNotEmpty &&
+          !nameAnalyzer.isTransparentDirectoryName(candidate) &&
+          analysis.role != MediaNodeRole.season) {
+        return candidate;
+      }
+      parent = p.posix.dirname(parent);
+    }
+    return null;
+  }
 
   void _addUnique(List<String> values, String value) {
     final normalized = value.trim();

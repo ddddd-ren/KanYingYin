@@ -84,7 +84,8 @@ class MediaNameAnalyzer {
   static final RegExp _transparentDirectoryPattern = RegExp(
     r'^(?:(?:内嵌|内封)[\s._-]*)?'
     r'(?:中字|中文字幕|简中|繁中|简体中字|繁体中字|字幕|双语字幕)'
-    r'(?:版|版本)?$|^(?:sub|subs|subtitle|subtitles)$',
+    r'(?:版|版本)?$|^(?:sub|subs|subtitle|subtitles)$|'
+    r'^(?:高码率|低码率|原画|超清)$',
     caseSensitive: false,
     unicode: true,
   );

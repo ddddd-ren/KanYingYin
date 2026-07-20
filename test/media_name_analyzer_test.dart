@@ -34,6 +34,16 @@ void main() {
       );
     });
 
+    test('高码率等画质分层目录不作为作品名', () {
+      for (final name in <String>['高码率', '低码率', '原画', '超清']) {
+        expect(
+          analyzer.isTransparentDirectoryName(name),
+          isTrue,
+          reason: name,
+        );
+      }
+    });
+
     test('纯数字和常见集号文件只输出集号证据', () {
       final cases = <String, int>{
         '006.mkv': 6,

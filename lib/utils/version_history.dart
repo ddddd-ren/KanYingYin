@@ -16,6 +16,17 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.20',
+    date: '2026-07-20',
+    isPrerelease: true,
+    changes: [
+      '本测试版修复媒体根目录本身是“内嵌中字”“高码率”或带发布规格季度目录时仍被误认成作品名的问题',
+      '结构目录会从路径中继承真实剧名；“第3季 - 2160p WEB-DL”会保留第 3 季，不再作为 TMDB 搜索词',
+      '媒体根目录直接存放纯集号文件或多个季度目录时，现在会归并为同一剧集，避免重复卡片、错误集数和错误季度海报',
+      '版本 3 的旧网盘索引会自动重新识别；本次只更新看影音媒体库，不会修改网盘文件、目录或播放路径，应用启动和播放器保持可用',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.19',
     date: '2026-07-20',
     isPrerelease: true,

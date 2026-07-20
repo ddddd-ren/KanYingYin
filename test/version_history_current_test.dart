@@ -213,6 +213,19 @@ void main() {
     expect(entries.single.isPrerelease, isTrue);
   });
 
+  test('二点一三十说明百度文件详情兼容和当前版本展示', () {
+    final entries = versionHistoryForCurrent('2.1.30');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('百度网盘'));
+    expect(changes, contains('文件详情'));
+    expect(changes, contains('当前版本'));
+    expect(changes, contains('清除缓存'));
+    expect(changes, contains('不会修改百度网盘文件'));
+    expect(entries.single.isPrerelease, isTrue);
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

@@ -16,6 +16,16 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.30',
+    date: '2026-07-21',
+    isPrerelease: true,
+    changes: [
+      '本测试版修复百度网盘文件详情字段不兼容导致视频无法进入播放器的问题，现在可正确取得播放地址并继续播放',
+      '“关于”页面会在“清除缓存”下方显示当前版本，方便确认已安装版本',
+      '本次不会修改百度网盘文件、目录或本地视频；应用启动、夸克、OpenList、本地媒体库和播放器其他功能保持可用',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.29',
     date: '2026-07-21',
     isPrerelease: true,

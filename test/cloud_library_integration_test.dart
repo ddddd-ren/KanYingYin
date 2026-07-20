@@ -3,17 +3,27 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
 import 'package:kanyingyin/pages/local/library_sheet.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
+import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
+import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
+import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_indexer.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_tree_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_poster_cache.dart';
+import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_tmdb_metadata_service.dart';
+import 'package:kanyingyin/services/cloud/cloud_work_tmdb_coordinator.dart';
+import 'package:kanyingyin/services/cloud/cloud_work_tmdb_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:path/path.dart' as p;
@@ -492,6 +502,112 @@ void main() {
     expect(Directory('/Show').existsSync(), isFalse);
   });
 
+  test('真实多季度目录从扫描到刮削只请求一次详情并保留真实播放引用', () async {
+    const source = CloudSource(
+      id: 'quark-e2e',
+      type: CloudSourceType.quark,
+      name: '夸克测试库',
+      baseUrl: 'https://drive.example.com',
+      rootPaths: <String>['/影视'],
+    );
+    const workName = '154332_《边界测试剧3》(2025) 4K 全6集 内附第一二季';
+    const workPath = '/影视/$workName';
+    const season1Path = '$workPath/第一季';
+    const season2Path = '$workPath/第二季';
+    const season3FirstPath =
+        '$workPath/第 3 季 - 2160p WEB-DL H265 DDP 5.1 Atmos';
+    const season3SecondPath = '$workPath/第三季（2025）4K DV&HDR';
+    final drive = _EndToEndCloudClient(<String, List<CloudFileEntry>>{
+      '/影视': <CloudFileEntry>[_directory('work', workPath)],
+      workPath: <CloudFileEntry>[
+        _directory('season-1', season1Path),
+        _directory('season-2', season2Path),
+        _directory('season-3-a', season3FirstPath),
+        _directory('season-3-b', season3SecondPath),
+        _directory('advertisement', '$workPath/0001更多资源请访问'),
+      ],
+      season1Path: <CloudFileEntry>[
+        _remoteVideo('s1e1', '$season1Path/01.mkv'),
+      ],
+      season2Path: <CloudFileEntry>[
+        _remoteVideo('s2e1', '$season2Path/01.mkv'),
+      ],
+      season3FirstPath: <CloudFileEntry>[
+        _remoteVideo('s3e1', '$season3FirstPath/01.mkv'),
+        _remoteVideo('s3e2', '$season3FirstPath/02.mkv'),
+        _remoteVideo('promotion', '$season3FirstPath/更多【神秘入口】.png'),
+      ],
+      season3SecondPath: <CloudFileEntry>[
+        _remoteVideo('s3e3', '$season3SecondPath/03.mkv'),
+      ],
+    });
+    final indexRepository = CloudMediaIndexRepository(
+      storage: MemoryCloudMediaIndexStorage(),
+    );
+    final scan = await CloudMediaIndexer(
+      repository: indexRepository,
+      minRecognizedVideoSizeBytesProvider: () => 100,
+    ).scan(source: source, client: drive);
+    final snapshot = await indexRepository.snapshot(source.id);
+    final tree = const CloudMediaTreeResolver().resolve(
+      sourceId: source.id,
+      configuredRoots: source.rootPaths,
+      directoryEntries: snapshot.directoryEntries,
+      minSizeBytes: 100,
+    );
+    final workRepository = CloudWorkTmdbRepository(
+      storage: MemoryCloudWorkTmdbStorage(),
+    );
+    final tmdb = _EndToEndTmdbClient();
+    final coordinator = CloudWorkTmdbCoordinator(
+      repository: workRepository,
+      legacyRepository: CloudResourceTmdbRepository(
+        storage: MemoryCloudResourceTmdbStorage(),
+      ),
+      indexRepository: indexRepository,
+      serviceFactory: (_) => CloudWorkTmdbService(
+        repository: workRepository,
+        indexRepository: indexRepository,
+        client: tmdb,
+        posterCache: _EndToEndPosterCache(),
+        now: () => DateTime.utc(2026, 7, 20),
+      ),
+      apiKeyProvider: () => 'test-key',
+      now: () => DateTime.utc(2026, 7, 20),
+    );
+
+    await coordinator.loadAndSchedule(tree);
+    final collection = CloudResourceCollectionGrouper().group(
+      items: await indexRepository.getBySource(source.id),
+      works: tree.works,
+      recordsByWorkKey: coordinator.recordsByWorkKey,
+      query: '',
+    );
+
+    expect(scan.videoCount, 5);
+    expect(tree.ignored.map((entry) => entry.id), contains('promotion'));
+    expect(collection.groups, hasLength(3));
+    expect(tmdb.searchCalls, 1);
+    expect(tmdb.detailCalls, 1);
+    expect(
+      collection.groups.map((group) => group.seasonMetadata?.seasonNumber),
+      <int?>[1, 2, 3],
+    );
+    expect(
+      collection.groups.map((group) => group.seasonMetadata?.posterUrl),
+      <String?>['/season-1.jpg', '/season-2.jpg', '/season-3.jpg'],
+    );
+    final episode = collection.groups.last.videos.first;
+    expect(episode.name, 'TMDB 中文标题 S03E01.mkv');
+    expect(episode.id, 's3e1');
+    expect(episode.remotePath, '$season3FirstPath/01.mkv');
+    await drive.resolvePlayback(
+      CloudRemoteRef(id: episode.id, path: episode.remotePath),
+    );
+    expect(drive.lastPlaybackRef?.id, 's3e1');
+    expect(drive.lastPlaybackRef?.path, '$season3FirstPath/01.mkv');
+  });
+
   testWidgets('远程系列菜单提供 TMDB 刮削和重新匹配', (tester) async {
     final controller = LocalController();
     controller.cloudLibrarySources
@@ -585,6 +701,124 @@ class _FakeTmdbClient implements ITmdbClient {
           {String language = 'zh-CN'}) async =>
       [metadata];
 }
+
+class _EndToEndCloudClient implements CloudDriveClient {
+  _EndToEndCloudClient(this.directories);
+
+  final Map<String, List<CloudFileEntry>> directories;
+  CloudRemoteRef? lastPlaybackRef;
+
+  @override
+  Future<void> authenticate(
+    CloudSource source,
+    CloudCredential credential,
+  ) async {}
+
+  @override
+  Future<void> close() async {}
+
+  @override
+  Future<CloudFileEntry> getFile(CloudRemoteRef file) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<CloudFileEntry>> listDirectory(CloudRemoteRef directory) async =>
+      directories[directory.path] ?? const <CloudFileEntry>[];
+
+  @override
+  Future<CloudPlaybackResource> resolvePlayback(CloudRemoteRef file) async {
+    lastPlaybackRef = file;
+    return CloudPlaybackResource(
+      uri: Uri.parse('https://download.example.com/video'),
+    );
+  }
+}
+
+class _EndToEndTmdbClient implements ITmdbClient {
+  int searchCalls = 0;
+  int detailCalls = 0;
+
+  @override
+  Future<List<TmdbMetadata>> search(
+    String query,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) async {
+    searchCalls++;
+    return <TmdbMetadata>[
+      TmdbMetadata(
+        id: 42,
+        mediaType: mediaType,
+        title: query,
+        language: language,
+        matchedAt: DateTime.utc(2026, 7, 20),
+        matchConfidence: 1,
+      ),
+    ];
+  }
+
+  @override
+  Future<TmdbMetadata> details(
+    int id,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) async {
+    detailCalls++;
+    return TmdbMetadata(
+      id: id,
+      mediaType: mediaType,
+      title: 'TMDB 中文标题',
+      posterUrl: '/poster.jpg',
+      language: language,
+      matchedAt: DateTime.utc(2026, 7, 20),
+      matchConfidence: 1,
+      seasons: <TmdbSeasonMetadata>[
+        for (var season = 1; season <= 3; season++)
+          TmdbSeasonMetadata(
+            id: season * 100,
+            seasonNumber: season,
+            name: '第 $season 季',
+            episodeCount: season == 3 ? 3 : 1,
+            posterUrl: '/season-$season.jpg',
+          ),
+      ],
+    );
+  }
+}
+
+class _EndToEndPosterCache extends CloudPosterCache {
+  _EndToEndPosterCache()
+      : super(
+          cacheRoot: Directory.systemTemp,
+          downloader: (_) async => const <int>[1],
+        );
+
+  @override
+  Future<String> resolve({
+    required String sourceId,
+    required String stableId,
+    required String url,
+  }) async =>
+      'C:/cache/${stableId.hashCode}.jpg';
+}
+
+CloudFileEntry _directory(String id, String path) => CloudFileEntry(
+      id: id,
+      remotePath: path,
+      name: path.split('/').last,
+      size: 0,
+      modifiedAt: DateTime.utc(2026, 7, 20),
+      isDirectory: true,
+    );
+
+CloudFileEntry _remoteVideo(String id, String path) => CloudFileEntry(
+      id: id,
+      remotePath: path,
+      name: path.split('/').last,
+      size: 200,
+      modifiedAt: DateTime.utc(2026, 7, 20),
+      isDirectory: false,
+    );
 
 CloudMediaIndexItem _cloud(String sourceId, String path,
     {int season = 1,

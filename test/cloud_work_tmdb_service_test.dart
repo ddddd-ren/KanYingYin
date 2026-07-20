@@ -121,6 +121,40 @@ void main() {
     expect(candidates.single.title, '英文别名');
     expect(service.requestFor(work, record).queryYear, isNull);
   });
+
+  test('单季海报缓存失败仍保留全部季度元数据和远程海报', () async {
+    final work = _work();
+    final service = CloudWorkTmdbService(
+      repository: CloudWorkTmdbRepository(
+        storage: MemoryCloudWorkTmdbStorage(),
+      ),
+      indexRepository: CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      ),
+      client: _FakeTmdbClient(
+        detail: _details(),
+        searches: const <String, List<TmdbMetadata>>{},
+      ),
+      posterCache: _PartiallyFailingPosterCache(),
+    );
+
+    final outcome = await service.select(
+      work,
+      _candidate('规范剧名'),
+      existingSeasons: const <int>{1, 2, 3},
+    );
+
+    expect(outcome.posterCached, isFalse);
+    expect(
+      outcome.record.seasons.map((season) => season.seasonNumber),
+      <int>[1, 2, 3],
+    );
+    expect(outcome.record.seasons[0].posterCachePath, isNotNull);
+    expect(outcome.record.seasons[1].posterCachePath, isNull);
+    expect(outcome.record.seasons[1].posterUrl, '/season-2.jpg');
+    expect(outcome.record.seasons[2].posterCachePath, isNotNull);
+    expect(outcome.record.status, CloudWorkTmdbStatus.matched);
+  });
 }
 
 CloudWorkIdentity _work({
@@ -256,5 +290,25 @@ class _RecordingPosterCache extends CloudPosterCache {
   }) async {
     stableIds.add(stableId);
     return 'cache-${stableIds.length}.jpg';
+  }
+}
+
+class _PartiallyFailingPosterCache extends CloudPosterCache {
+  _PartiallyFailingPosterCache()
+      : super(
+          cacheRoot: Directory.systemTemp,
+          downloader: (_) async => const <int>[1],
+        );
+
+  @override
+  Future<String> resolve({
+    required String sourceId,
+    required String stableId,
+    required String url,
+  }) async {
+    if (stableId.endsWith('|season:2')) {
+      throw const FileSystemException('季度海报缓存失败');
+    }
+    return 'cache-${stableId.hashCode}.jpg';
   }
 }

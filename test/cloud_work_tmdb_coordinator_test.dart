@@ -6,6 +6,7 @@ import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/modules/media/media_name_analysis.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
@@ -115,6 +116,88 @@ void main() {
       '修正标题',
     );
   });
+
+  test('无 API Key 时仍生成季度卡且保留真实播放引用', () async {
+    final work = _work('offline-work');
+    final indexRepository = CloudMediaIndexRepository(
+      storage: MemoryCloudMediaIndexStorage(),
+    );
+    await indexRepository.replaceSource(
+      work.sourceId,
+      <CloudMediaIndexItem>[_indexItem(work)],
+      const <String, String>{},
+      const <String, List<CloudFileEntry>>{},
+      const <String>['/影视'],
+    );
+    final fixture = _Fixture(
+      apiKey: '',
+      indexRepository: indexRepository,
+    );
+
+    await fixture.coordinator.loadAndSchedule(
+      _tree(<CloudWorkIdentity>[work]),
+    );
+    final collection = CloudResourceCollectionGrouper().group(
+      items: await indexRepository.getBySource(work.sourceId),
+      works: <CloudWorkIdentity>[work],
+      recordsByWorkKey: fixture.coordinator.recordsByWorkKey,
+      query: '',
+    );
+
+    expect(fixture.client.searchCalls, 0);
+    expect(fixture.coordinator.totalCount, 0);
+    expect(collection.groups, hasLength(1));
+    expect(collection.groups.single.displayName, '规范剧名 第 1 季');
+    expect(collection.groups.single.anchor.id, 'offline-work-episode');
+    expect(
+      collection.groups.single.anchor.remotePath,
+      '/影视/offline-work/第一季/01.mkv',
+    );
+  });
+
+  test('TMDB 搜索失败只记录作品失败状态且不移除索引视频', () async {
+    final work = _work('failed-work');
+    final indexRepository = CloudMediaIndexRepository(
+      storage: MemoryCloudMediaIndexStorage(),
+    );
+    await indexRepository.replaceSource(
+      work.sourceId,
+      <CloudMediaIndexItem>[_indexItem(work)],
+      const <String, String>{},
+      const <String, List<CloudFileEntry>>{},
+      const <String>['/影视'],
+    );
+    final fixture = _Fixture(
+      indexRepository: indexRepository,
+      searchThrows: true,
+    );
+
+    await fixture.coordinator.loadAndSchedule(
+      _tree(<CloudWorkIdentity>[work]),
+    );
+
+    expect(fixture.client.searchCalls, 1);
+    expect(
+      fixture.coordinator.recordsByWorkKey[work.workKey]?.status,
+      CloudWorkTmdbStatus.failed,
+    );
+    expect(await indexRepository.getBySource(work.sourceId), hasLength(1));
+  });
+
+  test('规模场景按五十个唯一作品键各调度一次', () async {
+    final fixture = _Fixture();
+    final works = <CloudWorkIdentity>[
+      for (var index = 0; index < 50; index++) _work('scale-$index'),
+    ];
+
+    await fixture.coordinator.loadAndSchedule(_tree(works));
+
+    expect(fixture.coordinator.totalCount, 50);
+    expect(fixture.coordinator.completedCount, 50);
+    expect(fixture.coordinator.recordsByWorkKey, hasLength(50));
+    expect(fixture.client.searchCalls, 50);
+    expect(fixture.client.detailCalls, 50);
+  });
 }
 
 class _Fixture {
@@ -122,6 +205,7 @@ class _Fixture {
     this.apiKey = 'key',
     CloudResourceTmdbRepository? legacyRepository,
     CloudMediaIndexRepository? indexRepository,
+    bool searchThrows = false,
   })  : repository = CloudWorkTmdbRepository(
           storage: MemoryCloudWorkTmdbStorage(),
         ),
@@ -133,7 +217,7 @@ class _Fixture {
             CloudMediaIndexRepository(
               storage: MemoryCloudMediaIndexStorage(),
             ),
-        client = _FakeTmdbClient() {
+        client = _FakeTmdbClient(searchThrows: searchThrows) {
     final service = CloudWorkTmdbService(
       repository: repository,
       indexRepository: this.indexRepository,
@@ -255,6 +339,9 @@ CloudMediaIndexItem _indexItem(CloudWorkIdentity work) {
 }
 
 class _FakeTmdbClient implements ITmdbClient {
+  _FakeTmdbClient({this.searchThrows = false});
+
+  final bool searchThrows;
   int searchCalls = 0;
   int detailCalls = 0;
 
@@ -265,6 +352,7 @@ class _FakeTmdbClient implements ITmdbClient {
     String language = 'zh-CN',
   }) async {
     searchCalls++;
+    if (searchThrows) throw StateError('TMDB 不可用');
     return <TmdbMetadata>[
       TmdbMetadata(
         id: 42,

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_tree_resolver.dart';
@@ -216,6 +218,103 @@ void main() {
             .map((episode) => episode.episodeNumber),
         <int>[2],
       );
+    });
+
+    test('五十个作品在不同来源中保持独立作品键和季度身份', () {
+      final directoryEntries = <String, List<CloudFileEntry>>{
+        '/剧集': <CloudFileEntry>[],
+      };
+      const seasonNames = <String>[
+        '第一季',
+        '第 1 季 - 2160p WEB-DL H265',
+        'Season 1',
+        'S01',
+      ];
+      for (var index = 0; index < 50; index++) {
+        final title = switch (index) {
+          0 => '中文作品',
+          1 => 'English Show',
+          2 => '中英双语 Bilingual',
+          3 => 'The 100',
+          4 => '1923',
+          5 => '[发布组] 动漫作品',
+          _ => '规模作品${index.toString().padLeft(2, '0')}',
+        };
+        final workPath = '/剧集/$title-$index';
+        final seasonName = seasonNames[index % seasonNames.length];
+        final seasonPath = '$workPath/$seasonName';
+        directoryEntries['/剧集']!.add(
+          _dir('work-$index', workPath, '$title-$index'),
+        );
+        directoryEntries[workPath] = <CloudFileEntry>[
+          _dir('season-$index', seasonPath, seasonName),
+        ];
+        directoryEntries[seasonPath] = <CloudFileEntry>[
+          _video('episode-$index', '$seasonPath/01.mkv', '01.mkv'),
+        ];
+      }
+
+      final quark = resolver.resolve(
+        sourceId: 'quark-scale',
+        configuredRoots: const <String>['/剧集'],
+        directoryEntries: directoryEntries,
+        minSizeBytes: 100,
+      );
+      final openList = resolver.resolve(
+        sourceId: 'openlist-scale',
+        configuredRoots: const <String>['/剧集'],
+        directoryEntries: directoryEntries,
+        minSizeBytes: 100,
+      );
+
+      expect(quark.works, hasLength(50));
+      expect(openList.works, hasLength(50));
+      expect(
+        quark.works.map((work) => work.workKey).toSet().intersection(
+              openList.works.map((work) => work.workKey).toSet(),
+            ),
+        isEmpty,
+      );
+      expect(
+        quark.works.followedBy(openList.works).every(
+              (work) =>
+                  work.seasons.length == 1 &&
+                  work.seasons.single.seasonNumber == 1 &&
+                  work.seasons.single.episodes.single.episodeNumber == 1,
+            ),
+        isTrue,
+      );
+    });
+
+    test('生产识别与刮削代码不包含样例作品和固定 TMDB 分支', () {
+      for (final path in <String>[
+        'lib/services/media_name_analyzer.dart',
+        'lib/services/cloud/cloud_media_tree_resolver.dart',
+        'lib/services/cloud/cloud_work_tmdb_service.dart',
+      ]) {
+        final source = File(path).readAsStringSync();
+        for (final forbidden in <String>[
+          '弥留之国的爱丽丝',
+          'Alice in Borderland',
+          'tmdbId == 42',
+        ]) {
+          expect(
+            source,
+            isNot(contains(forbidden)),
+            reason: '$path: $forbidden',
+          );
+        }
+      }
+    });
+
+    test('网盘客户端接口不提供远程改名移动和删除能力', () {
+      final source = File(
+        'lib/services/cloud/cloud_drive_client.dart',
+      ).readAsStringSync();
+
+      for (final forbidden in <String>['rename(', 'move(', 'delete(']) {
+        expect(source, isNot(contains(forbidden)), reason: forbidden);
+      }
     });
   });
 }

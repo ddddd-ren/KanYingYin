@@ -79,8 +79,12 @@ class QuarkApiClient implements QuarkApi, QuarkShareApi {
   );
   static final Uri _directoryUri =
       Uri.https('drive.quark.cn', '/1/clouddrive/file/sort');
-  static final Uri _playbackUri =
-      Uri.https('drive.quark.cn', '/1/clouddrive/file/v2/play');
+  static final Uri _playbackUri = Uri.https(
+    'drive.quark.cn',
+    '/1/clouddrive/file/v2/play/project',
+  );
+  static final Uri _downloadUri =
+      Uri.https('drive.quark.cn', '/1/clouddrive/file/download');
   static final Uri _shareTokenUri =
       Uri.https('drive-pc.quark.cn', '/1/clouddrive/share/sharepage/token');
   static final Uri _shareDetailUri =
@@ -134,11 +138,23 @@ class QuarkApiClient implements QuarkApi, QuarkShareApi {
       queryParameters: const <String, Object?>{'pr': 'ucpro', 'fr': 'pc'},
       data: <String, Object?>{
         'fid': fileId,
-        'resolutions': 'normal,low,high,super,2k,4k',
-        'supports': 'fmp4',
+        'resolutions': 'low,normal,high,super,2k,4k',
+        'supports': 'fmp4_av,m3u8,dolby_vision',
       },
     );
-    return _parser.parsePlayback(json, fileId: fileId);
+    try {
+      return _parser.parsePlayback(json, fileId: fileId);
+    } on QuarkNoTranscodingLinkException {
+      final downloadJson = await _request(
+        'POST',
+        _downloadUri,
+        queryParameters: const <String, Object?>{'pr': 'ucpro', 'fr': 'pc'},
+        data: <String, Object?>{
+          'fids': <String>[fileId],
+        },
+      );
+      return _parser.parseDownload(downloadJson, fileId: fileId);
+    }
   }
 
   @override

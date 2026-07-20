@@ -89,9 +89,13 @@ class QuarkResponseParser {
     ensureSuccess(value);
     final data = _requiredMap(_map(value)['data']);
     final rawVideos = data['video_list'];
-    if (fileId.isEmpty || rawVideos is! List) throw _incompatible();
+    if (fileId.isEmpty) throw _incompatible();
+    if (rawVideos is! List) {
+      throw const QuarkNoTranscodingLinkException();
+    }
     Uri? selectedUri;
     var selectedRank = -1;
+    var selectedFormatRank = -1;
     for (final rawVideo in rawVideos) {
       final video = _requiredMap(rawVideo);
       final videoInfo = video['video_info'];
@@ -102,13 +106,41 @@ class QuarkResponseParser {
       if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) continue;
       final resolution = video['resolution'];
       final rank = _resolutionRank(resolution is String ? resolution : '');
-      if (selectedUri == null || rank > selectedRank) {
+      final formatRank = _formatRank(video, info, uri);
+      if (selectedUri == null ||
+          rank > selectedRank ||
+          (rank == selectedRank && formatRank > selectedFormatRank)) {
         selectedUri = uri;
         selectedRank = rank;
+        selectedFormatRank = formatRank;
       }
     }
-    if (selectedUri == null) throw _incompatible();
+    if (selectedUri == null) {
+      throw const QuarkNoTranscodingLinkException();
+    }
     return QuarkPlaybackLink(fileId: fileId, uri: selectedUri);
+  }
+
+  QuarkPlaybackLink parseDownload(
+    Object? value, {
+    required String fileId,
+  }) {
+    ensureSuccess(value);
+    final data = _map(value)['data'];
+    if (fileId.isEmpty || data is! List) throw _incompatible();
+    for (final rawDownload in data) {
+      if (rawDownload is! Map) continue;
+      final download = Map<String, Object?>.from(rawDownload);
+      final url = download['download_url'];
+      final uri = url is String ? Uri.tryParse(url) : null;
+      if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) continue;
+      return QuarkPlaybackLink(
+        fileId: fileId,
+        uri: uri,
+        type: QuarkPlaybackLinkType.originalDownload,
+      );
+    }
+    throw _incompatible();
   }
 
   String parseShareToken(Object? value) {
@@ -172,6 +204,24 @@ class QuarkResponseParser {
         'low' => 1,
         _ => 0,
       };
+
+  static int _formatRank(
+    Map<String, Object?> video,
+    Map<String, Object?> info,
+    Uri uri,
+  ) {
+    final format = <Object?>[
+      video['format'],
+      video['support'],
+      info['format'],
+      info['type'],
+    ].whereType<String>().join(' ').toLowerCase();
+    if (format.contains('fmp4')) return 2;
+    if (format.contains('m3u8') || uri.path.toLowerCase().endsWith('.m3u8')) {
+      return 1;
+    }
+    return 0;
+  }
 
   static CloudDriveErrorType _errorType({
     required int? status,

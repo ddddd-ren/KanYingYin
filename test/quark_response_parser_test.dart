@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/quark/quark_models.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_response_parser.dart';
 
 void main() {
@@ -104,7 +105,35 @@ void main() {
     expect(playback.uri.path, '/4k');
   });
 
-  test('播放响应没有可用地址时明确报接口不兼容', () {
+  test('同清晰度优先 fMP4 且缺失时允许 m3u8', () {
+    final playback = parser.parsePlayback(<String, Object?>{
+      'status': 200,
+      'code': 0,
+      'data': <String, Object?>{
+        'video_list': <Object?>[
+          <String, Object?>{
+            'resolution': '4k',
+            'format': 'm3u8',
+            'video_info': <String, Object?>{
+              'url': 'https://video-play.drive.quark.cn/4k.m3u8',
+            },
+          },
+          <String, Object?>{
+            'resolution': '4k',
+            'format': 'fmp4_av',
+            'video_info': <String, Object?>{
+              'url': 'https://video-play.drive.quark.cn/4k-fmp4',
+            },
+          },
+        ],
+      },
+    }, fileId: 'fid_fixture_video');
+
+    expect(playback.uri.path, '/4k-fmp4');
+    expect(playback.type, QuarkPlaybackLinkType.transcode);
+  });
+
+  test('播放响应没有可用地址时抛出无转码候选异常', () {
     expect(
       () => parser.parsePlayback(<String, Object?>{
         'status': 200,
@@ -118,9 +147,23 @@ void main() {
           ],
         },
       }, fileId: 'fid_fixture_video'),
-      throwsA(isA<CloudDriveException>().having(
-          (error) => error.type, 'type', CloudDriveErrorType.incompatible)),
+      throwsA(isA<QuarkNoTranscodingLinkException>()),
     );
+  });
+
+  test('下载响应生成原文件播放链接', () {
+    final download = parser.parseDownload(<String, Object?>{
+      'status': 200,
+      'code': 0,
+      'data': <Object?>[
+        <String, Object?>{
+          'download_url': 'https://download.drive.quark.cn/original',
+        },
+      ],
+    }, fileId: 'fid_fixture_video');
+
+    expect(download.uri.path, '/original');
+    expect(download.type, QuarkPlaybackLinkType.originalDownload);
   });
 }
 

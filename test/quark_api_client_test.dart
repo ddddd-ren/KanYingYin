@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_api_client.dart';
+import 'package:kanyingyin/services/cloud/quark/quark_models.dart';
 
 void main() {
   test('账号验证发送 Cookie、User-Agent 和受限超时', () async {
@@ -68,7 +69,7 @@ void main() {
     expect(authAdapter.requests, hasLength(1));
   });
 
-  test('播放使用夸克专用播放接口并请求全部清晰度', () async {
+  test('播放使用夸克项目播放接口并请求全部清晰度', () async {
     final adapter = _QueueAdapter(<_FakeResponse>[
       const _FakeResponse(
         200,
@@ -84,20 +85,52 @@ void main() {
 
     final request = adapter.requests.single;
     expect(request.method, 'POST');
-    expect(request.uri.path, '/1/clouddrive/file/v2/play');
+    expect(request.uri.path, '/1/clouddrive/file/v2/play/project');
     expect(request.uri.queryParameters, <String, String>{
       'pr': 'ucpro',
       'fr': 'pc',
     });
     expect(request.data, <String, Object?>{
       'fid': 'fid_fixture_video',
-      'resolutions': 'normal,low,high,super,2k,4k',
-      'supports': 'fmp4',
+      'resolutions': 'low,normal,high,super,2k,4k',
+      'supports': 'fmp4_av,m3u8,dolby_vision',
     });
     expect(request.headers['Cookie'], 'session=cookie-fixture');
     expect(request.headers['Referer'], 'https://pan.quark.cn');
     expect(playback.fileId, 'fid_fixture_video');
     expect(playback.uri.path, '/4k');
+    await client.close();
+  });
+
+  test('项目播放没有转码地址时回退原文件下载接口', () async {
+    final adapter = _QueueAdapter(<_FakeResponse>[
+      const _FakeResponse(
+        200,
+        '{"status":200,"code":0,"data":{"video_list":[]}}',
+      ),
+      const _FakeResponse(
+        200,
+        '{"status":200,"code":0,"data":[{"download_url":"https://download.drive.quark.cn/original"}]}',
+      ),
+    ]);
+    final client = QuarkApiClient(
+      cookie: 'session=cookie-fixture',
+      dio: Dio()..httpClientAdapter = adapter,
+    );
+
+    final playback = await client.resolvePlayback('fid_fixture_video');
+
+    expect(adapter.requests, hasLength(2));
+    expect(
+      adapter.requests.first.uri.path,
+      '/1/clouddrive/file/v2/play/project',
+    );
+    expect(adapter.requests.last.uri.path, '/1/clouddrive/file/download');
+    expect(adapter.requests.last.data, <String, Object?>{
+      'fids': <String>['fid_fixture_video'],
+    });
+    expect(playback.uri.path, '/original');
+    expect(playback.type, QuarkPlaybackLinkType.originalDownload);
     await client.close();
   });
 }

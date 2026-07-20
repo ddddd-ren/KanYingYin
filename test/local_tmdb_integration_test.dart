@@ -51,6 +51,10 @@ void main() {
     expect(result.status, TmdbScrapeStatus.matched);
     expect(index.getAll(), everyElement(isA<LocalMediaIndexItem>()));
     expect(index.getAll().map((item) => item.tmdb?.id), everyElement(1));
+    expect(
+      index.getAll().first.tmdb?.seasons.map((item) => item.seasonNumber),
+      <int>[1, 2],
+    );
   });
 
   test('重新刮削保留已锁定的标题', () async {
@@ -138,6 +142,67 @@ void main() {
     expect(index.getAll().map((item) => item.cover), everyElement(isNotNull));
   });
 
+  test('电视剧按季度下载对应 TMDB 海报且同目录只下载一次', () async {
+    final index = _MemoryIndexRepository([
+      _item('Season 1/a.mkv', seasonNumber: 1),
+      _item('Season 1/b.mkv', seasonNumber: 1),
+      _item('Season 2/c.mkv', seasonNumber: 2),
+    ]);
+    final downloads = <({String url, String path})>[];
+    final service = LocalTmdbScrapeService(
+      indexRepository: index,
+      metadataRepository: _MemoryMetadataRepository(),
+      clientFactory: (_) => _FakeClient(),
+      posterDownloader: (url, path) async {
+        downloads.add((url: url, path: path));
+        return path;
+      },
+    );
+
+    await service.scrapeSeries(
+      apiKey: 'configured-key',
+      seriesName: '流浪地球',
+      mediaType: TmdbMediaType.tv,
+    );
+
+    expect(downloads.map((item) => item.url), <String>[
+      'https://image.tmdb.org/t/p/w780/season-1.jpg',
+      'https://image.tmdb.org/t/p/w780/season-2.jpg',
+    ]);
+    expect(
+      downloads.map((item) => item.path),
+      everyElement(endsWith('tmdb-poster.jpg')),
+    );
+  });
+
+  test('季度海报缺失或季度未识别时回退作品总海报', () async {
+    final index = _MemoryIndexRepository([
+      _item('Season 3/a.mkv', seasonNumber: 3),
+      _item('Unknown/b.mkv'),
+    ]);
+    final urls = <String>[];
+    final service = LocalTmdbScrapeService(
+      indexRepository: index,
+      metadataRepository: _MemoryMetadataRepository(),
+      clientFactory: (_) => _FakeClient(),
+      posterDownloader: (url, path) async {
+        urls.add(url);
+        return path;
+      },
+    );
+
+    await service.scrapeSeries(
+      apiKey: 'configured-key',
+      seriesName: '流浪地球',
+      mediaType: TmdbMediaType.tv,
+    );
+
+    expect(
+      urls,
+      everyElement('https://image.tmdb.org/t/p/w780/poster.jpg'),
+    );
+  });
+
   test('部分 TMDB 海报下载失败时仍保留已刮削元数据', () async {
     final index = _MemoryIndexRepository([
       _item('Season 1/a.mkv'),
@@ -164,7 +229,7 @@ void main() {
 
 Future<String?> _successfulDownload(String url, String path) async => path;
 
-LocalMediaIndexItem _item(String name) {
+LocalMediaIndexItem _item(String name, {int? seasonNumber}) {
   return LocalMediaIndexItem(
     path: 'D:/Video/$name',
     name: name,
@@ -173,6 +238,7 @@ LocalMediaIndexItem _item(String name) {
     size: 100,
     modified: DateTime(2026),
     seriesName: '流浪地球',
+    seasonNumber: seasonNumber,
     indexedAt: DateTime(2026),
   );
 }
@@ -195,6 +261,22 @@ class _FakeClient implements ITmdbClient {
       language: language,
       matchedAt: DateTime(2026),
       matchConfidence: 0,
+      seasons: const <TmdbSeasonMetadata>[
+        TmdbSeasonMetadata(
+          id: 101,
+          seasonNumber: 1,
+          name: '第 1 季',
+          episodeCount: 10,
+          posterUrl: '/season-1.jpg',
+        ),
+        TmdbSeasonMetadata(
+          id: 102,
+          seasonNumber: 2,
+          name: '第 2 季',
+          episodeCount: 10,
+          posterUrl: '/season-2.jpg',
+        ),
+      ],
     );
   }
 

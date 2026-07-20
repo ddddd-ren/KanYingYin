@@ -86,9 +86,6 @@ class LocalEpisodeParser {
         _extractNamed(normalized, _sourcePattern, 'source');
     final codec = shared.releaseTags.codec ??
         _extractNamed(normalized, _codecPattern, 'codec');
-    if (shared.role == MediaNodeRole.work && seasonFromDirectory == null) {
-      return null;
-    }
     for (final pattern in _patterns) {
       final match = pattern.firstMatch(normalized);
       if (match == null) continue;
@@ -99,6 +96,11 @@ class LocalEpisodeParser {
 
       final rawSeries = _namedGroup(match, 'series') ?? '';
       final title = _cleanEpisodeTitle(_namedGroup(match, 'title') ?? '');
+      if (shared.role == MediaNodeRole.work &&
+          seasonFromDirectory == null &&
+          title.isEmpty) {
+        continue;
+      }
       if (identical(pattern, _bareEpisodePattern) &&
           _shouldSkipBareEpisode(
             rawSeries: rawSeries,

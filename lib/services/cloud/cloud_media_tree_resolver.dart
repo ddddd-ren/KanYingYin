@@ -163,13 +163,14 @@ class _ResolutionContext {
         final seasonNumber = analysis.seasonNumber!;
         final builder = builders.putIfAbsent(
           seasonNumber,
-          () => _SeasonBuilder(seasonNumber),
+          _SeasonBuilder.new,
         );
         builder.directories.add(entry);
         builder.year ??= analysis.year;
         _collectSeasonEpisodes(
           directoryPath: _pathOf(entry),
           folderSeasonNumber: seasonNumber,
+          inheritedReleaseTags: analysis.releaseTags,
           episodes: builder.episodes,
           aliases: aliases,
           visited: <String>{},
@@ -177,7 +178,11 @@ class _ResolutionContext {
       } else if (!entry.isDirectory && _isRecognizedVideo(entry)) {
         standaloneVideos.add(entry);
       } else if (entry.isDirectory) {
-        _ignoreTree(entry);
+        _collectStandaloneVideos(
+          directoryPath: _pathOf(entry),
+          videos: standaloneVideos,
+          visited: <String>{},
+        );
       } else {
         _ignore(entry);
       }
@@ -224,7 +229,7 @@ class _ResolutionContext {
                 ),
                 seasonNumber: seasonNumber,
                 episodeNumber: episode.episodeNumber,
-                releaseTags: episode.analysis.releaseTags,
+                releaseTags: episode.releaseTags,
               ),
             ),
           ),
@@ -246,9 +251,38 @@ class _ResolutionContext {
     );
   }
 
+  void _collectStandaloneVideos({
+    required String directoryPath,
+    required List<CloudFileEntry> videos,
+    required Set<String> visited,
+  }) {
+    if (!visited.add(directoryPath)) return;
+    final entries = directoryEntries[directoryPath] ?? const <CloudFileEntry>[];
+    for (final entry in entries) {
+      final analysis = nameAnalyzer.analyze(
+        entry.name,
+        isDirectory: entry.isDirectory,
+      );
+      if (analysis.role == MediaNodeRole.advertisement) {
+        _ignoreTree(entry);
+      } else if (entry.isDirectory) {
+        _collectStandaloneVideos(
+          directoryPath: _pathOf(entry),
+          videos: videos,
+          visited: visited,
+        );
+      } else if (_isRecognizedVideo(entry)) {
+        videos.add(entry);
+      } else {
+        _ignore(entry);
+      }
+    }
+  }
+
   void _collectSeasonEpisodes({
     required String directoryPath,
     required int folderSeasonNumber,
+    required MediaReleaseTags inheritedReleaseTags,
     required List<_ParsedEpisode> episodes,
     required List<String> aliases,
     required Set<String> visited,
@@ -268,6 +302,10 @@ class _ResolutionContext {
         _collectSeasonEpisodes(
           directoryPath: _pathOf(entry),
           folderSeasonNumber: folderSeasonNumber,
+          inheritedReleaseTags: _mergeReleaseTags(
+            analysis.releaseTags,
+            inheritedReleaseTags,
+          ),
           episodes: episodes,
           aliases: aliases,
           visited: visited,
@@ -301,7 +339,10 @@ class _ResolutionContext {
         _ParsedEpisode(
           entry: entry,
           episodeNumber: episodeNumber,
-          analysis: analysis,
+          releaseTags: _mergeReleaseTags(
+            analysis.releaseTags,
+            inheritedReleaseTags,
+          ),
         ),
       );
     }
@@ -380,6 +421,28 @@ class _ResolutionContext {
     return '$title S${season}E$episode${p.extension(remoteName)}';
   }
 
+  MediaReleaseTags _mergeReleaseTags(
+    MediaReleaseTags primary,
+    MediaReleaseTags fallback,
+  ) {
+    List<String> merged(List<String> first, List<String> second) {
+      final result = <String>[];
+      for (final value in <String>[...first, ...second]) {
+        if (!result.contains(value)) result.add(value);
+      }
+      return result;
+    }
+
+    return MediaReleaseTags(
+      resolution: primary.resolution ?? fallback.resolution,
+      source: primary.source ?? fallback.source,
+      codec: primary.codec ?? fallback.codec,
+      dynamicRange: merged(primary.dynamicRange, fallback.dynamicRange),
+      audio: merged(primary.audio, fallback.audio),
+      releaseGroup: primary.releaseGroup ?? fallback.releaseGroup,
+    );
+  }
+
   bool _isRecognizedVideo(CloudFileEntry entry) {
     return LocalVideoFileTypes.isRecognizedVideo(
       entry.remotePath,
@@ -424,9 +487,8 @@ class _ResolutionContext {
 }
 
 class _SeasonBuilder {
-  _SeasonBuilder(this.seasonNumber);
+  _SeasonBuilder();
 
-  final int seasonNumber;
   final List<CloudFileEntry> directories = <CloudFileEntry>[];
   final List<_ParsedEpisode> episodes = <_ParsedEpisode>[];
   int? year;
@@ -436,10 +498,10 @@ class _ParsedEpisode {
   const _ParsedEpisode({
     required this.entry,
     required this.episodeNumber,
-    required this.analysis,
+    required this.releaseTags,
   });
 
   final CloudFileEntry entry;
   final int episodeNumber;
-  final MediaNameAnalysis analysis;
+  final MediaReleaseTags releaseTags;
 }

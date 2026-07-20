@@ -5,11 +5,14 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
+import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/modules/media/media_name_analysis.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_series_match_rule_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_path_parser.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_tree_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_series_identity_resolver.dart';
 import 'package:kanyingyin/services/local_episode_parser.dart';
@@ -66,6 +69,7 @@ class CloudMediaIndexer {
     LocalEpisodeParser? episodeParser,
     CloudSeriesMatchRuleRepository? seriesMatchRuleRepository,
     CloudSeriesIdentityResolver? seriesIdentityResolver,
+    CloudMediaTreeResolver? mediaTreeResolver,
     int Function()? minRecognizedVideoSizeBytesProvider,
     this.maxConcurrentDirectoryRequests = 3,
   })  : assert(maxConcurrentDirectoryRequests >= 2 &&
@@ -76,6 +80,8 @@ class CloudMediaIndexer {
         _seriesMatchRuleRepository = seriesMatchRuleRepository,
         _seriesIdentityResolver =
             seriesIdentityResolver ?? CloudSeriesIdentityResolver(),
+        _mediaTreeResolver =
+            mediaTreeResolver ?? const CloudMediaTreeResolver(),
         _minRecognizedVideoSizeBytesProvider =
             minRecognizedVideoSizeBytesProvider;
 
@@ -84,6 +90,7 @@ class CloudMediaIndexer {
   final LocalEpisodeParser _episodeParser;
   final CloudSeriesMatchRuleRepository? _seriesMatchRuleRepository;
   final CloudSeriesIdentityResolver _seriesIdentityResolver;
+  final CloudMediaTreeResolver _mediaTreeResolver;
   final int Function()? _minRecognizedVideoSizeBytesProvider;
   final int maxConcurrentDirectoryRequests;
 
@@ -136,7 +143,10 @@ class CloudMediaIndexer {
     final hasCachedPathsOutsideRoots = previous.directoryEntries.keys
             .any((path) => !_pathWithinRoots(path, roots)) ||
         previous.items.any((item) => !_pathWithinRoots(item.remotePath, roots));
-    var changed = previous.directoryEntries.isEmpty ||
+    final recognitionStale =
+        previous.items.any((item) => item.needsRecognitionRefresh);
+    var changed = recognitionStale ||
+        previous.directoryEntries.isEmpty ||
         !_sameStringSet(previous.indexedRoots, roots) ||
         hasCachedPathsOutsideRoots;
 
@@ -261,8 +271,37 @@ class CloudMediaIndexer {
         subtitles.add(entry);
       }
     }
+    final tree = _mediaTreeResolver.resolve(
+      sourceId: source.id,
+      configuredRoots: roots,
+      directoryEntries: directoryEntries,
+      minSizeBytes: minSizeBytes,
+    );
+    final episodesByPath =
+        <String, ({CloudWorkIdentity work, CloudEpisodeIdentity episode})>{
+      for (final work in tree.works)
+        for (final season in work.seasons)
+          for (final episode in season.episodes)
+            _normalizePath(episode.entry.remotePath): (
+              work: work,
+              episode: episode,
+            ),
+    };
+    final standaloneWorksByPath = <String, CloudWorkIdentity>{
+      for (final work in tree.works)
+        for (final video in work.standaloneVideos)
+          _normalizePath(video.remotePath): work,
+    };
+    final excludedPaths = <String>{
+      ...tree.ignored.map((entry) => _normalizePath(entry.remotePath)),
+      ...tree.conflicts.map(
+        (conflict) => _normalizePath(conflict.entry.remotePath),
+      ),
+    };
     final items = <String, CloudMediaIndexItem>{};
     for (final entry in videos) {
+      final normalizedPath = _normalizePath(entry.remotePath);
+      if (excludedPaths.contains(normalizedPath)) continue;
       final pathMatch = _mediaPathParser.parse(entry.remotePath);
       if (pathMatch.hasSeasonConflict) {
         AppLogger().w(
@@ -272,23 +311,40 @@ class CloudMediaIndexer {
         );
       }
       final subtitleRefs = _matchSubtitles(entry, subtitles);
-      items[_normalizePath(entry.remotePath)] = CloudMediaIndexItem(
+      final resolvedEpisode = episodesByPath[normalizedPath];
+      final standaloneWork = standaloneWorksByPath[normalizedPath];
+      final resolvedWork = resolvedEpisode?.work ??
+          (pathMatch.isEpisode ? null : standaloneWork);
+      final episodeIdentity = resolvedEpisode?.episode;
+      final isSpecial = _isSpecial(entry.remotePath);
+      items[normalizedPath] = CloudMediaIndexItem(
         sourceId: source.id,
         remoteId: entry.id,
-        remotePath: _normalizePath(entry.remotePath),
+        remotePath: normalizedPath,
         name: entry.name,
+        remoteName: entry.name,
+        displayName: episodeIdentity?.displayName ?? entry.name,
+        workKey: resolvedWork?.workKey,
+        workRootId: resolvedWork?.root.id,
+        workRootPath: resolvedWork?.root.remotePath,
         size: entry.size,
         modifiedAt: entry.modifiedAt,
-        seriesName: _seriesName(entry.name, pathMatch.seriesName),
-        seasonNumber: pathMatch.seasonNumber,
-        episodeNumber: pathMatch.episodeNumber,
-        mediaType: _isSpecial(entry.remotePath)
+        seriesName: isSpecial
+            ? _seriesName(entry.name, pathMatch.seriesName)
+            : resolvedWork?.displayTitle ??
+                _seriesName(entry.name, pathMatch.seriesName),
+        seasonNumber: episodeIdentity?.seasonNumber ?? pathMatch.seasonNumber,
+        episodeNumber:
+            episodeIdentity?.episodeNumber ?? pathMatch.episodeNumber,
+        mediaType: isSpecial
             ? CloudMediaType.special
-            : pathMatch.isEpisode
+            : episodeIdentity != null || pathMatch.isEpisode
                 ? CloudMediaType.episode
                 : CloudMediaType.movie,
         subtitlePaths: subtitleRefs.map((reference) => reference.path).toList(),
         subtitleRefs: subtitleRefs,
+        recognitionVersion: CloudMediaIndexItem.currentRecognitionVersion,
+        releaseTags: episodeIdentity?.releaseTags ?? const MediaReleaseTags(),
       );
     }
     final ruleRepository = _seriesMatchRuleRepository;

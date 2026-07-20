@@ -16,6 +16,17 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.23',
+    date: '2026-07-20',
+    isPrerelease: true,
+    changes: [
+      '本测试版修改 OpenList 或夸克媒体根目录后，本地与网盘海报墙会实时隐藏旧目录资源，不再需要重启看影音',
+      '看影音会自动扫描发生变化的来源一次，扫描完成后同步显示新目录资源，避免两个海报墙重复扫描',
+      '媒体库更新失败时会保留新的目录配置并提示手动重试，旧资源不会重新出现，已有 TMDB 标题、海报和匹配缓存继续保留',
+      '本次只更新看影音媒体库索引，不会修改网盘文件、目录、远程 ID 或本地视频，应用启动和播放器保持可用',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.22',
     date: '2026-07-20',
     isPrerelease: true,

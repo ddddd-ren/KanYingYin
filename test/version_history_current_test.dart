@@ -68,6 +68,19 @@ void main() {
     expect(changes, contains('不会修改网盘文件'));
   });
 
+  test('二点一十八说明每季海报虚拟名称和网盘安全边界', () {
+    final entries = versionHistoryForCurrent('2.1.18');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('每一季'));
+    expect(changes, contains('海报'));
+    expect(changes, contains('剧名'));
+    expect(changes, contains('纯数字'));
+    expect(changes, contains('不会修改网盘文件'));
+    expect(entries.single.isPrerelease, isTrue);
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

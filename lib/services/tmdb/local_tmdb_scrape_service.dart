@@ -133,13 +133,12 @@ class LocalTmdbScrapeService {
     final itemsByDirectory = <String, List<LocalMediaIndexItem>>{};
     for (final original in seriesItems) {
       final item = indexRepository.getByPath(original.path) ?? original;
-      final posterPath = item.tmdb?.posterUrl?.trim() ?? '';
-      if (posterPath.isEmpty) continue;
+      if (_posterPathFor(item) == null) continue;
       (itemsByDirectory[p.dirname(item.path)] ??= []).add(item);
     }
     var failures = 0;
     for (final entry in itemsByDirectory.entries) {
-      final posterPath = entry.value.first.tmdb!.posterUrl!.trim();
+      final posterPath = _posterPathFor(entry.value.first)!;
       final url = posterPath.startsWith('http')
           ? posterPath
           : 'https://image.tmdb.org/t/p/w780$posterPath';
@@ -155,6 +154,22 @@ class LocalTmdbScrapeService {
       }
     }
     return failures;
+  }
+
+  String? _posterPathFor(LocalMediaIndexItem item) {
+    final metadata = item.tmdb;
+    if (metadata == null) return null;
+    final seasonNumber = item.seasonNumber;
+    if (metadata.mediaType == TmdbMediaType.tv && seasonNumber != null) {
+      for (final season in metadata.seasons) {
+        final poster = season.posterUrl?.trim() ?? '';
+        if (season.seasonNumber == seasonNumber && poster.isNotEmpty) {
+          return poster;
+        }
+      }
+    }
+    final fallback = metadata.posterUrl?.trim() ?? '';
+    return fallback.isEmpty ? null : fallback;
   }
 
   TmdbMediaType _inferType(List<LocalMediaIndexItem> items) {
@@ -208,6 +223,7 @@ class LocalTmdbScrapeService {
       language: fetched.language,
       matchedAt: fetched.matchedAt,
       matchConfidence: fetched.matchConfidence,
+      seasons: fetched.seasons,
     );
   }
 }

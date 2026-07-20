@@ -2,6 +2,7 @@ import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_api_client.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_models.dart';
@@ -136,6 +137,11 @@ class QuarkDriveClient implements CloudDriveClient {
       uri: playback.uri,
       networkRoute: PlaybackNetworkRoute.direct,
       headers: headers,
+      transport: switch (playback.type) {
+        QuarkPlaybackLinkType.transcode => CloudPlaybackTransport.direct,
+        QuarkPlaybackLinkType.originalDownload =>
+          CloudPlaybackTransport.quarkRangeRelay,
+      },
     );
   }
 

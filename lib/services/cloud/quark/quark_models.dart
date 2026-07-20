@@ -37,8 +37,20 @@ class QuarkDirectoryPage {
   final int total;
 }
 
+enum QuarkPlaybackLinkType { transcode, originalDownload }
+
+class QuarkNoTranscodingLinkException implements Exception {
+  const QuarkNoTranscodingLinkException();
+}
+
 class QuarkPlaybackLink {
-  const QuarkPlaybackLink({required this.fileId, required this.uri});
+  const QuarkPlaybackLink({
+    required this.fileId,
+    required this.uri,
+    this.type = QuarkPlaybackLinkType.transcode,
+  });
+
   final String fileId;
   final Uri uri;
+  final QuarkPlaybackLinkType type;
 }

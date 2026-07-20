@@ -126,7 +126,7 @@ void main() {
       );
     });
 
-    test('目录指纹未变化时仍重算版本三的错误派生字段', () async {
+    test('目录指纹未变化时仍重算版本四的错误派生字段', () async {
       final repository =
           CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());
       final directories = <String, List<CloudFileEntry>>{
@@ -169,7 +169,7 @@ void main() {
             seasonNumber: 3,
             episodeNumber: 1,
             mediaType: CloudMediaType.episode,
-            recognitionVersion: 3,
+            recognitionVersion: 4,
           ),
         ],
         snapshot.fingerprints,

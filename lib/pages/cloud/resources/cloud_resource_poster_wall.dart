@@ -51,74 +51,58 @@ class CloudResourcePosterWall extends StatelessWidget {
   }
 
   Widget _mediaGrid(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = constraints.maxWidth < 650
-            ? 2
-            : constraints.maxWidth < 1000
-                ? 3
-                : 4;
-        double? extent;
-        if (constraints.maxWidth.isFinite && constraints.maxWidth > 0) {
-          final width =
-              (constraints.maxWidth - 24 - 12 * (columns - 1)) / columns;
-          extent = (width / 0.68).clamp(320.0, 680.0);
-        }
-        return GridView.builder(
-          padding: const EdgeInsets.all(12),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: columns,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 0.68,
-            mainAxisExtent: extent,
-          ),
-          itemCount: collection.groups.length,
-          findChildIndexCallback: (key) {
-            if (key is! ValueKey<String>) return null;
-            final index = collection.groups.indexWhere(
-              (group) => group.stableKey == key.value,
-            );
-            return index < 0 ? null : index;
-          },
-          itemBuilder: (context, index) {
-            final group = collection.groups[index];
-            final anchor = group.anchor;
-            final scraping = group.isWorkScoped
-                ? scrapingKeys.contains(group.workKey)
-                : group.videos.any(
-                    (video) => scrapingKeys.contains(_resourceKey(video)),
-                  );
-            final hasSubtitle = group.videos.any(
-              (video) => subtitleVideoKeys.contains(_resourceKey(video)),
-            );
-            final data = group.isWorkScoped
-                ? CloudResourceCardViewData.fromGroup(
-                    group: group,
-                    scraping: scraping,
-                  )
-                : CloudResourceCardViewData.fromEntry(
-                    entry: anchor,
-                    record: group.record,
-                    scraping: scraping,
-                    hasSubtitle: hasSubtitle,
-                  );
-            return ImmersiveMediaCard(
-              key: ValueKey<String>(group.stableKey),
-              cover: _mediaPoster(context, group, data),
-              title: group.isWorkScoped
-                  ? group.displayName
-                  : group.record?.effectiveTitle ?? group.seriesName,
-              subtitle:
-                  group.isSeries ? '${group.videos.length} 集' : anchor.name,
-              details: data.details,
-              badges: _badges(group, data),
-              loading: scraping,
-              overlayMode: ImmersiveMediaCardOverlayMode.always,
-              trailing: _resourceMenu(context, group),
-              onTap: () => onOpenGroup(group),
-            );
-          },
+    return GridView.builder(
+      padding: const EdgeInsets.all(12),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 300,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 0.68,
+      ),
+      itemCount: collection.groups.length,
+      findChildIndexCallback: (key) {
+        if (key is! ValueKey<String>) return null;
+        final index = collection.groups.indexWhere(
+          (group) => group.stableKey == key.value,
+        );
+        return index < 0 ? null : index;
+      },
+      itemBuilder: (context, index) {
+        final group = collection.groups[index];
+        final anchor = group.anchor;
+        final scraping = group.isWorkScoped
+            ? scrapingKeys.contains(group.workKey)
+            : group.videos.any(
+                (video) => scrapingKeys.contains(_resourceKey(video)),
+              );
+        final hasSubtitle = group.videos.any(
+          (video) => subtitleVideoKeys.contains(_resourceKey(video)),
+        );
+        final data = group.isWorkScoped
+            ? CloudResourceCardViewData.fromGroup(
+                group: group,
+                scraping: scraping,
+              )
+            : CloudResourceCardViewData.fromEntry(
+                entry: anchor,
+                record: group.record,
+                scraping: scraping,
+                hasSubtitle: hasSubtitle,
+              );
+        return ImmersiveMediaCard(
+          key: ValueKey<String>(group.stableKey),
+          cover: _mediaPoster(context, group, data),
+          title: group.isWorkScoped
+              ? group.displayName
+              : group.record?.effectiveTitle ?? group.seriesName,
+          subtitle:
+              group.isSeries ? '${group.uniqueEpisodeCount} 集' : anchor.name,
+          details: data.details,
+          badges: _badges(group, data),
+          loading: scraping,
+          overlayMode: ImmersiveMediaCardOverlayMode.always,
+          trailing: _resourceMenu(context, group),
+          onTap: () => onOpenGroup(group),
         );
       },
     );

@@ -881,7 +881,7 @@ void main() {
     expect(find.text('电影.mkv'), findsOneWidget);
   });
 
-  testWidgets('网盘资源网格按宽度使用二三四列和统一海报比例', (tester) async {
+  testWidgets('网盘资源网格保持海报尺寸并随宽度增加列数', (tester) async {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPhysicalSize);
@@ -890,15 +890,16 @@ void main() {
       tester.view.physicalSize = Size(width, 720);
       final collection = CloudResourceCollectionGrouper().group(
         sourceId: 'source',
-        entries: const <CloudFileEntry>[
-          CloudFileEntry(
-            id: 'video',
-            remotePath: '/影视/电影.mkv',
-            name: '电影.mkv',
-            size: 1024,
-            modifiedAt: null,
-            isDirectory: false,
-          ),
+        entries: <CloudFileEntry>[
+          for (var index = 0; index < 20; index++)
+            CloudFileEntry(
+              id: 'video-$index',
+              remotePath: '/影视/电影$index.mkv',
+              name: '电影$index.mkv',
+              size: 1024,
+              modifiedAt: null,
+              isDirectory: false,
+            ),
         ],
         records: const <String, CloudResourceTmdbRecord>{},
         minSizeBytes: 0,
@@ -922,20 +923,37 @@ void main() {
       );
     }
 
-    Future<void> expectColumns(double width, int count) async {
+    Future<({int columns, double cardWidth})> layoutAt(double width) async {
       await pumpAt(width);
       final grid = tester.widget<GridView>(find.byType(GridView));
       final delegate =
-          grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
-      expect(delegate.crossAxisCount, count);
+          grid.gridDelegate as SliverGridDelegateWithMaxCrossAxisExtent;
+      expect(delegate.maxCrossAxisExtent, 300);
       expect(delegate.childAspectRatio, 0.68);
       expect(delegate.crossAxisSpacing, 12);
       expect(delegate.mainAxisSpacing, 12);
+      final cards = find.byType(ImmersiveMediaCard);
+      final firstTop = tester.getTopLeft(cards.first).dy;
+      final firstRow = <Rect>[
+        for (var index = 0; index < cards.evaluate().length; index++)
+          tester.getRect(cards.at(index)),
+      ].where((rect) => (rect.top - firstTop).abs() < 0.5).toList();
+      expect(firstRow, isNotEmpty);
+      expect(tester.takeException(), isNull);
+      return (
+        columns: firstRow.length,
+        cardWidth: firstRow.first.width,
+      );
     }
 
-    await expectColumns(620, 2);
-    await expectColumns(800, 3);
-    await expectColumns(1100, 4);
+    final narrow = await layoutAt(620);
+    final regular = await layoutAt(1320);
+    final maximized = await layoutAt(1920);
+
+    expect(narrow.columns, lessThan(regular.columns));
+    expect(maximized.columns, greaterThan(regular.columns));
+    expect(regular.cardWidth, lessThanOrEqualTo(300));
+    expect(maximized.cardWidth, lessThanOrEqualTo(300));
   });
 
   testWidgets('刮削遮罩只覆盖目标媒体卡且另一张仍可播放', (tester) async {

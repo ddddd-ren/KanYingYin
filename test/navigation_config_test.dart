@@ -107,7 +107,7 @@ void main() {
         r'onRootSelectionChanged:\s*Modular\.get<'
         r'CloudSourceRootRefreshCoordinator>\(\)\.refreshSource',
       ).allMatches(settingsModule),
-      hasLength(3),
+      hasLength(4),
     );
   });
 

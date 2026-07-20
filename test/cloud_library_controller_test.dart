@@ -368,6 +368,68 @@ void main() {
     expect(replaced?.token, isNull);
   });
 
+  test('多个百度来源分别保存凭据且更换一个来源密钥不影响另一个', () async {
+    final credentialStore = MemoryCloudCredentialStore();
+    final repository = CloudSourceRepository(
+      storage: MemoryCloudSourceStorage(),
+      credentialStore: credentialStore,
+    );
+    final controller = CloudLibraryController(
+      repository: repository,
+      credentialStore: credentialStore,
+    );
+    const first = CloudSource(
+      id: 'baidu-first',
+      type: CloudSourceType.baidu,
+      name: '百度一号',
+      baseUrl: '',
+      rootPaths: <String>['/影视'],
+    );
+    const second = CloudSource(
+      id: 'baidu-second',
+      type: CloudSourceType.baidu,
+      name: '百度二号',
+      baseUrl: '',
+      rootPaths: <String>['/动画'],
+    );
+
+    await controller.save(
+      first,
+      credential: const CloudCredential(
+        clientId: 'client-first',
+        clientSecret: 'secret-first',
+        accessToken: 'access-first',
+        refreshToken: 'refresh-first',
+      ),
+    );
+    await controller.save(
+      second,
+      credential: const CloudCredential(
+        clientId: 'client-second',
+        clientSecret: 'secret-second',
+        accessToken: 'access-second',
+        refreshToken: 'refresh-second',
+      ),
+    );
+    await controller.save(
+      first,
+      credential: const CloudCredential(
+        clientId: 'client-first-new',
+        clientSecret: 'secret-first-new',
+      ),
+    );
+
+    final updatedFirst = await credentialStore.read(first.id);
+    final unchangedSecond = await credentialStore.read(second.id);
+    expect(updatedFirst?.clientId, 'client-first-new');
+    expect(updatedFirst?.accessToken, isNull);
+    expect(updatedFirst?.refreshToken, isNull);
+    expect(unchangedSecond?.clientId, 'client-second');
+    expect(unchangedSecond?.accessToken, 'access-second');
+    expect(
+        (await repository.getById(first.id))?.baseUrl, 'https://pan.baidu.com');
+  });
+
   test('测试连接只使用临时凭据存储', () async {
     final persistentStore = MemoryCloudCredentialStore();
     CloudCredentialStore? receivedStore;

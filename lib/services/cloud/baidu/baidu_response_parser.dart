@@ -41,7 +41,11 @@ class BaiduResponseParser {
       throw const CloudDriveException(CloudDriveErrorType.incompatible);
     }
     final value = list.single;
-    final entry = _parseEntry(value);
+    final entry = _parseEntry(
+      value,
+      nameKey: 'filename',
+      fallbackNameKey: 'server_filename',
+    );
     if (entry.fsId != expectedFsId || value is! Map<Object?, Object?>) {
       throw const CloudDriveException(CloudDriveErrorType.incompatible);
     }
@@ -63,14 +67,21 @@ class BaiduResponseParser {
     );
   }
 
-  BaiduFileEntry _parseEntry(Object? value) {
+  BaiduFileEntry _parseEntry(
+    Object? value, {
+    String nameKey = 'server_filename',
+    String? fallbackNameKey,
+  }) {
     if (value is! Map<Object?, Object?>) {
       throw const CloudDriveException(CloudDriveErrorType.incompatible);
     }
     final json = Map<String, Object?>.from(value);
     final fsId = _integer(json['fs_id']);
     final path = _nonEmptyString(json['path']);
-    final name = _nonEmptyString(json['server_filename']);
+    final name = _nonEmptyString(json[nameKey]) ??
+        (fallbackNameKey == null
+            ? null
+            : _nonEmptyString(json[fallbackNameKey]));
     final size = _integer(json['size']);
     final isDirectory = _integer(json['isdir']);
     final modifiedAt = _integer(json['server_mtime']);

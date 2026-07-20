@@ -4,7 +4,15 @@ import 'package:dio/dio.dart';
 import 'package:kanyingyin/services/cloud/baidu/baidu_models.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 
-class BaiduOAuthClient {
+abstract interface class BaiduOAuthGateway {
+  Uri buildAuthorizationUri({required String state});
+
+  Future<BaiduOAuthTokens> exchangeCode(String code);
+
+  Future<BaiduOAuthTokens> refresh(String refreshToken);
+}
+
+class BaiduOAuthClient implements BaiduOAuthGateway {
   BaiduOAuthClient({
     required this.clientId,
     required this.clientSecret,
@@ -24,6 +32,7 @@ class BaiduOAuthClient {
   final DateTime Function() _now;
   Future<BaiduOAuthTokens>? _refreshing;
 
+  @override
   Uri buildAuthorizationUri({required String state}) =>
       _authorizationEndpoint.replace(queryParameters: <String, String>{
         'response_type': 'code',
@@ -33,6 +42,7 @@ class BaiduOAuthClient {
         'state': state,
       });
 
+  @override
   Future<BaiduOAuthTokens> exchangeCode(String code) {
     final normalized = code.trim();
     if (normalized.isEmpty) {
@@ -47,6 +57,7 @@ class BaiduOAuthClient {
     });
   }
 
+  @override
   Future<BaiduOAuthTokens> refresh(String refreshToken) {
     final existing = _refreshing;
     if (existing != null) return existing;

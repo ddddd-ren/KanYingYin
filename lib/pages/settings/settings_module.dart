@@ -15,10 +15,12 @@ import 'package:kanyingyin/pages/settings/media_recognition_settings.dart';
 import 'package:kanyingyin/pages/cloud/openlist_source_editor.dart';
 import 'package:kanyingyin/pages/cloud/quark/quark_source_editor.dart';
 import 'package:kanyingyin/pages/cloud/quark/quark_share_import_page.dart';
+import 'package:kanyingyin/pages/cloud/baidu/baidu_source_editor.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/services/cloud/cloud_source_root_refresh_coordinator.dart';
+import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/media_recognition_settings.dart';
 
 final class CloudLibraryRescanException implements Exception {
@@ -118,6 +120,16 @@ class SettingsModule extends Module {
       "/cloud-sources/quark/edit",
       child: (_) => QuarkSourceEditorPage(
         controller: Modular.get<CloudLibraryController>(),
+        onRootSelectionChanged:
+            Modular.get<CloudSourceRootRefreshCoordinator>().refreshSource,
+        source: r.args.data is CloudSource ? r.args.data as CloudSource : null,
+      ),
+    );
+    r.child(
+      "/cloud-sources/baidu/edit",
+      child: (_) => BaiduSourceEditorPage(
+        controller: Modular.get<CloudLibraryController>(),
+        credentialStore: Modular.get<CloudCredentialStore>(),
         onRootSelectionChanged:
             Modular.get<CloudSourceRootRefreshCoordinator>().refreshSource,
         source: r.args.data is CloudSource ? r.args.data as CloudSource : null,

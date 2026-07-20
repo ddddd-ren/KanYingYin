@@ -39,6 +39,7 @@ import 'package:kanyingyin/services/cloud/cloud_series_match_service.dart';
 import 'package:kanyingyin/services/cloud/cloud_source_root_refresh_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_tmdb_service.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/utils/storage.dart';
@@ -51,6 +52,9 @@ class IndexModule extends Module {
   @override
   void binds(Injector i) {
     i.addSingleton<MediaRecognitionSettings>(MediaRecognitionSettings.new);
+    i.addSingleton<TmdbApiKeyProvider>(
+      () => TmdbApiKeyProvider(userKeyReader: _readTmdbUserApiKey),
+    );
     i.addSingleton<ILocalMediaIndexRepository>(LocalMediaIndexRepository.new);
     i.addSingleton<ILocalMediaSourceRepository>(LocalMediaSourceRepository.new);
     i.addSingleton<ILocalLibraryPreferences>(LocalLibraryPreferences.new);
@@ -110,7 +114,7 @@ class IndexModule extends Module {
             downloader: _downloadCloudPoster,
           ),
         ),
-        apiKeyProvider: _tmdbApiKey,
+        apiKeyProvider: Modular.get<TmdbApiKeyProvider>().read,
         optionsProvider: _tmdbScrapeOptions,
         seriesMatchService: Modular.get<CloudSeriesMatchService>(),
       ),
@@ -129,7 +133,7 @@ class IndexModule extends Module {
             downloader: _downloadCloudPoster,
           ),
         ),
-        apiKeyProvider: _tmdbApiKey,
+        apiKeyProvider: Modular.get<TmdbApiKeyProvider>().read,
         optionsProvider: _tmdbScrapeOptions,
       ),
     );
@@ -176,6 +180,7 @@ class IndexModule extends Module {
           scanCloudSource: (sourceId) async {
             await Modular.get<CloudLibraryController>().scanSource(sourceId);
           },
+          tmdbApiKeyProvider: Modular.get<TmdbApiKeyProvider>(),
         ));
     i.addSingleton<CloudSourceRootRefreshCoordinator>(
       () => CloudSourceRootRefreshCoordinator(
@@ -232,7 +237,7 @@ class IndexModule extends Module {
   }
 }
 
-String _tmdbApiKey() {
+String _readTmdbUserApiKey() {
   try {
     return GStorage.setting
         .get('tmdbApiKey', defaultValue: '')

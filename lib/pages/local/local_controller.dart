@@ -26,6 +26,7 @@ import 'package:kanyingyin/services/local_media_index_metadata_refresher.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/services/local_media_scanner.dart';
 import 'package:kanyingyin/services/tmdb/local_tmdb_scrape_service.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scraper.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
@@ -72,6 +73,7 @@ abstract class _LocalController with Store {
     Future<void> Function(String sourceId)? scanCloudSource,
     CloudTmdbMetadataService? cloudTmdbMetadataService,
     LocalTmdbScrapeService? tmdbScrapeService,
+    TmdbApiKeyProvider? tmdbApiKeyProvider,
   }) : this._(
           scanner: scanner,
           mediaIndexer: mediaIndexer,
@@ -88,6 +90,8 @@ abstract class _LocalController with Store {
           scanCloudSource: scanCloudSource,
           cloudTmdbMetadataService: cloudTmdbMetadataService,
           tmdbScrapeService: tmdbScrapeService,
+          tmdbApiKeyProvider: tmdbApiKeyProvider ??
+              TmdbApiKeyProvider(userKeyReader: _readStoredTmdbUserKey),
         );
 
   _LocalController._({
@@ -105,6 +109,7 @@ abstract class _LocalController with Store {
     Future<void> Function(String sourceId)? scanCloudSource,
     CloudTmdbMetadataService? cloudTmdbMetadataService,
     LocalTmdbScrapeService? tmdbScrapeService,
+    required TmdbApiKeyProvider tmdbApiKeyProvider,
   })  : _scanner = scanner ?? LocalMediaScanner(),
         _mediaIndexRepository = mediaIndexRepository,
         _mediaIndexer =
@@ -123,7 +128,8 @@ abstract class _LocalController with Store {
               metadataRepository: TmdbMetadataRepository(),
               clientFactory: (apiKey) => TmdbClient(apiKey: apiKey),
             ),
-        _posterService = PosterService(),
+        _tmdbApiKeyProvider = tmdbApiKeyProvider,
+        _posterService = PosterService(apiKeyProvider: tmdbApiKeyProvider),
         _mediaSourceRepository =
             mediaSourceRepository ?? LocalMediaSourceRepository(),
         _seriesTitleOverrideRepository = seriesTitleOverrideRepository ??
@@ -145,6 +151,7 @@ abstract class _LocalController with Store {
   final LocalLibraryMetadataCoordinator _metadataCoordinator;
   final LocalSeriesGrouper _seriesGrouper;
   final LocalTmdbScrapeService _tmdbScrapeService;
+  final TmdbApiKeyProvider _tmdbApiKeyProvider;
   final PosterService _posterService;
   final ILocalMediaSourceRepository _mediaSourceRepository;
   final ILocalSeriesTitleOverrideRepository _seriesTitleOverrideRepository;
@@ -1080,7 +1087,9 @@ abstract class _LocalController with Store {
     );
   }
 
-  String get _tmdbApiKey {
+  String get _tmdbApiKey => _tmdbApiKeyProvider.read();
+
+  static String _readStoredTmdbUserKey() {
     try {
       return GStorage.setting
           .get('tmdbApiKey', defaultValue: '')

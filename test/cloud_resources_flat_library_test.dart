@@ -20,9 +20,9 @@ void main() {
     );
     const source = CloudSource(
       id: 'source-a',
-      type: CloudSourceType.quark,
-      name: '夸克媒体库',
-      baseUrl: 'https://pan.quark.cn',
+      type: CloudSourceType.baidu,
+      name: '百度媒体库',
+      baseUrl: 'https://pan.baidu.com',
       rootPaths: <String>['/电影', '/剧集'],
       rootRefs: <CloudRemoteRef>[
         CloudRemoteRef(id: 'movies-root', path: '/电影'),
@@ -102,7 +102,7 @@ void main() {
     );
     final registry = CloudProviderRegistry(
       clientFactories: <CloudSourceType, CloudProviderClientFactory>{
-        CloudSourceType.quark: (_, __, ___) => client,
+        CloudSourceType.baidu: (_, __, ___) => client,
       },
     );
     final indexer = CloudMediaIndexer(

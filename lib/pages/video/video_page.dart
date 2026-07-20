@@ -19,6 +19,8 @@ import 'package:kanyingyin/bean/widget/embedded_native_control_area.dart';
 import 'package:kanyingyin/services/timed_shutdown_service.dart';
 import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
+import 'package:kanyingyin/pages/video/quark_relay_status_presenter.dart';
+import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 
 class VideoPage extends StatefulWidget {
   const VideoPage({super.key});
@@ -34,6 +36,9 @@ class _VideoPageState extends State<VideoPage>
   final LocalVideoController localVideoController =
       Modular.get<LocalVideoController>();
   bool showDebugLog = false;
+  bool _relayStatusHidden = false;
+  bool _relayVisibilityResetScheduled = false;
+  Timer? _relayStableTimer;
   final FocusNode keyboardFocus = FocusNode();
 
   ScrollController scrollController = ScrollController();
@@ -105,6 +110,7 @@ class _VideoPageState extends State<VideoPage>
 
   @override
   void dispose() {
+    _relayStableTimer?.cancel();
     try {
       windowManager.removeListener(this);
     } catch (_) {}
@@ -178,6 +184,7 @@ class _VideoPageState extends State<VideoPage>
 
   Future<void> changeEpisode(int episode,
       {int currentRoad = 0, int offset = 0}) async {
+    _resetRelayVisibility();
     clearWebviewLog();
     hideDebugConsole();
     localVideoController.loading = true;
@@ -187,6 +194,61 @@ class _VideoPageState extends State<VideoPage>
     await localVideoController.changeEpisode(episode,
         currentRoad: currentRoad, offset: offset);
     if (mounted) setState(() {});
+  }
+
+  QuarkRelayStatusPresentation? _relayPresentation({
+    bool forLoading = false,
+  }) {
+    final status = localVideoController.relayStatus;
+    if (status == null) return null;
+    final displayedStatus = forLoading && status.phase == QuarkRelayPhase.ready
+        ? QuarkRelayStatus(
+            phase: QuarkRelayPhase.prefetching,
+            bytesPerSecond: status.bytesPerSecond,
+            receivedBytes: status.receivedBytes,
+            cachedBytes: status.cachedBytes,
+            bufferedDuration: status.bufferedDuration,
+            message: status.message,
+          )
+        : status;
+    return QuarkRelayStatusPresenter.present(
+      displayedStatus,
+      totalBytes: localVideoController.relayTotalBytes,
+      mediaDuration: playerController.duration > Duration.zero
+          ? playerController.duration
+          : null,
+    );
+  }
+
+  void _syncRelayVisibility(QuarkRelayStatusPresentation? presentation) {
+    final stable = presentation?.stable == true && !playerController.loading;
+    if (!stable) {
+      _relayStableTimer?.cancel();
+      _relayStableTimer = null;
+      if (_relayStatusHidden && !_relayVisibilityResetScheduled) {
+        _relayVisibilityResetScheduled = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _relayVisibilityResetScheduled = false;
+          if (mounted && _relayStatusHidden) {
+            setState(() => _relayStatusHidden = false);
+          }
+        });
+      }
+      return;
+    }
+    if (_relayStatusHidden || _relayStableTimer != null) return;
+    _relayStableTimer = Timer(const Duration(seconds: 5), () {
+      _relayStableTimer = null;
+      if (mounted) setState(() => _relayStatusHidden = true);
+    });
+  }
+
+  void _resetRelayVisibility() {
+    _relayStableTimer?.cancel();
+    _relayStableTimer = null;
+    if (_relayStatusHidden && mounted) {
+      setState(() => _relayStatusHidden = false);
+    }
   }
 
   void menuJumpToCurrentEpisode() {
@@ -389,6 +451,7 @@ class _VideoPageState extends State<VideoPage>
                 Container(
                   color: Colors.black,
                   child: Observer(builder: (context) {
+                    final relay = _relayPresentation(forLoading: true);
                     return Center(
                       child: localVideoController.errorMessage != null
                           ? Column(
@@ -419,9 +482,10 @@ class _VideoPageState extends State<VideoPage>
                                         .tertiaryContainer),
                                 const SizedBox(height: 10),
                                 Text(
-                                  localVideoController.loading
-                                      ? '视频资源解析中'
-                                      : '视频资源解析成功, 播放器加载中',
+                                  relay?.text ??
+                                      (localVideoController.loading
+                                          ? '视频资源解析中'
+                                          : '视频资源解析成功, 播放器加载中'),
                                   style: const TextStyle(color: Colors.white),
                                 ),
                               ],
@@ -531,6 +595,53 @@ class _VideoPageState extends State<VideoPage>
                   disableAnimations: disableAnimations,
                   pauseForTimedShutdown: pauseForTimedShutdown,
                 ),
+        ),
+        Positioned(
+          top: 56,
+          left: 32,
+          right: 32,
+          child: Observer(builder: (context) {
+            final presentation = _relayPresentation();
+            _syncRelayVisibility(presentation);
+            final visible = presentation != null &&
+                !_relayStatusHidden &&
+                !localVideoController.loading &&
+                !playerController.loading;
+            return IgnorePointer(
+              child: AnimatedOpacity(
+                opacity: visible ? 1 : 0,
+                duration: StyleString.fastAnimationDuration,
+                curve: StyleString.defaultCurve,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: presentation?.warning == true
+                          ? Theme.of(context)
+                              .colorScheme
+                              .errorContainer
+                              .withValues(alpha: 0.92)
+                          : Colors.black.withValues(alpha: 0.72),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      presentation?.text ?? '',
+                      style: TextStyle(
+                        color: presentation?.warning == true
+                            ? Theme.of(context).colorScheme.onErrorContainer
+                            : Colors.white,
+                        fontSize: 13,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
         ),
       ],
     );

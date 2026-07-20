@@ -38,10 +38,13 @@ void main() {
     Uri? firstRequestUri;
     Uri? redirectRequestUri;
     String? redirectAuthorization;
+    String? firstUserAgent;
+    String? redirectUserAgent;
     final redirectServer = await serve((request) async {
       redirectRequestUri = request.uri;
       redirectAuthorization =
           request.headers.value(HttpHeaders.authorizationHeader);
+      redirectUserAgent = request.headers.value(HttpHeaders.userAgentHeader);
       request.response
         ..statusCode = HttpStatus.partialContent
         ..headers.set(HttpHeaders.contentRangeHeader, 'bytes 0-3/4')
@@ -51,6 +54,7 @@ void main() {
     });
     final initialServer = await serve((request) async {
       firstRequestUri = request.uri;
+      firstUserAgent = request.headers.value(HttpHeaders.userAgentHeader);
       request.response
         ..statusCode = HttpStatus.found
         ..headers.set(
@@ -81,6 +85,8 @@ void main() {
     expect(firstRequestUri?.queryParameters['access_token'], 'access-fixture');
     expect(redirectRequestUri?.queryParameters['access_token'], isNull);
     expect(redirectAuthorization, isNull);
+    expect(firstUserAgent, 'pan.baidu.com');
+    expect(redirectUserAgent, 'pan.baidu.com');
     expect(await target.readAsBytes(), <int>[1, 2, 3, 4]);
     await reader.close();
   });
@@ -157,8 +163,10 @@ void main() {
 
   test('探测返回 200 时顺序流只发起一次无 Range 的完整 GET', () async {
     final ranges = <String?>[];
+    final userAgents = <String?>[];
     final server = await serve((request) async {
       ranges.add(request.headers.value(HttpHeaders.rangeHeader));
+      userAgents.add(request.headers.value(HttpHeaders.userAgentHeader));
       request.response
         ..statusCode = HttpStatus.ok
         ..headers.contentType = ContentType('video', 'mp4')
@@ -185,6 +193,7 @@ void main() {
     expect(metadata.supportsRanges, isFalse);
     expect(metadata.totalLength, 4);
     expect(ranges, <String?>['bytes=0-0', null]);
+    expect(userAgents, <String?>['pan.baidu.com', 'pan.baidu.com']);
     expect(await file.readAsBytes(), <int>[1, 2, 3, 4]);
     await reader.close();
   });

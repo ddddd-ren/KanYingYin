@@ -221,6 +221,10 @@ class BaiduRangeRemoteReader implements CloudRangeRemoteReader {
     for (var redirectCount = 0; redirectCount <= 5; redirectCount++) {
       final request = await client.getUrl(uri).timeout(requestTimeout);
       request.followRedirects = false;
+      request.headers.set(
+        HttpHeaders.userAgentHeader,
+        BaiduRequestPolicy.downloadUserAgent,
+      );
       request.headers.set(HttpHeaders.acceptEncodingHeader, 'identity');
       if (rangeHeader != null) {
         request.headers.set(HttpHeaders.rangeHeader, rangeHeader);

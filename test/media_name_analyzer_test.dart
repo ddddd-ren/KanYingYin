@@ -113,9 +113,12 @@ void main() {
 
     test('合法数字作品标题不会按季度编号删除', () {
       for (final title in <String>['The 100', '1923', '86 -不存在战区-']) {
-        final result = analyzer.analyze(title, isDirectory: true);
-        expect(result.role, MediaNodeRole.work, reason: title);
-        expect(result.titleCandidates, contains(title), reason: title);
+        final directory = analyzer.analyze(title, isDirectory: true);
+        final video = analyzer.analyze('$title.mkv', isDirectory: false);
+        expect(directory.role, MediaNodeRole.work, reason: title);
+        expect(directory.titleCandidates, contains(title), reason: title);
+        expect(video.role, MediaNodeRole.work, reason: '$title.mkv');
+        expect(video.titleCandidates, contains(title), reason: '$title.mkv');
       }
     });
 

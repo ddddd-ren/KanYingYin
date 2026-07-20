@@ -83,8 +83,15 @@ class BaiduDriveClient implements CloudDriveClient {
 
   @override
   Future<CloudPlaybackResource> resolvePlayback(CloudRemoteRef file) async {
-    final api = await _ensureApi();
-    final details = await api.fileDetails(file, includeDownloadLink: true);
+    var api = await _ensureApi();
+    late final BaiduFileDetails details;
+    try {
+      details = await api.fileDetails(file, includeDownloadLink: true);
+    } on CloudDriveException catch (error) {
+      if (error.type != CloudDriveErrorType.authentication) rethrow;
+      api = await _forceRefreshApi();
+      details = await api.fileDetails(file, includeDownloadLink: true);
+    }
     final uri = details.downloadUri;
     if (details.isDirectory || uri == null) {
       throw const CloudDriveException(CloudDriveErrorType.incompatible);
@@ -106,7 +113,20 @@ class BaiduDriveClient implements CloudDriveClient {
     if (_shouldRefresh(credential)) {
       credential = await _refreshCredential(credential);
     }
-    final accessToken = credential.accessToken!.trim();
+    return _apiForAccessToken(credential.accessToken!.trim());
+  }
+
+  Future<BaiduApi> _forceRefreshApi() async {
+    final credential = await _credentialStore.read(_source.id);
+    if (credential == null) {
+      throw const CloudDriveException(CloudDriveErrorType.authentication);
+    }
+    _validateCredential(credential);
+    final refreshed = await _refreshCredential(credential);
+    return _apiForAccessToken(refreshed.accessToken!.trim());
+  }
+
+  Future<BaiduApi> _apiForAccessToken(String accessToken) async {
     final existing = _api;
     if (existing != null && _apiAccessToken == accessToken) return existing;
     await existing?.close();

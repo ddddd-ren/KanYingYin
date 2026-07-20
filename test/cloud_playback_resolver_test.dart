@@ -11,7 +11,11 @@ import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_subtitle_cache.dart';
-import 'package:kanyingyin/services/cloud/quark/quark_range_relay_service.dart';
+import 'package:kanyingyin/services/cloud/range/cloud_range_relay_service.dart';
+import 'package:kanyingyin/services/cloud/range/cloud_range_relay_protocol.dart';
+import 'package:kanyingyin/services/cloud/range/cloud_range_remote_reader.dart';
+import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
+import 'package:kanyingyin/services/cloud/baidu/baidu_range_remote_reader.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_range_remote_reader.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/pages/player/player_controller.dart';
@@ -54,7 +58,11 @@ void main() {
         factoryCalls++;
         return client;
       },
-      relayStarter: ({required resource, required refreshResource}) async {
+      relayStarter: ({
+        required reader,
+        required providerKey,
+        required providerName,
+      }) async {
         relayCalls++;
         throw StateError('OpenList 不应启动中转');
       },
@@ -110,16 +118,37 @@ void main() {
       ),
     ];
     var clientIndex = 0;
-    QuarkRemoteResourceRefresher? capturedRefresh;
+    Future<CloudPlaybackResource> Function()? capturedRefresh;
+    final registry = CloudProviderRegistry(
+      clientFactories: <CloudSourceType, CloudProviderClientFactory>{
+        CloudSourceType.quark: (_, __, ___) => clients[clientIndex++],
+      },
+      rangeReaderFactories: <CloudSourceType, CloudProviderRangeReaderFactory>{
+        CloudSourceType.quark: ({
+          required source,
+          required resource,
+          required refreshResource,
+          required credentialStore,
+        }) {
+          expect(resource.uri.host, 'dl-a.pds.quark.cn');
+          capturedRefresh = refreshResource;
+          return _FakeRangeReader();
+        },
+      },
+    );
     final lease = _FakePlaybackLease();
     final resolver = CloudPlaybackResolver(
       sourceRepository: repository,
       credentialStore: MemoryCloudCredentialStore(),
-      clientFactory: (_, __, ___) => clients[clientIndex++],
-      relayStarter: ({required resource, required refreshResource}) async {
-        expect(resource.uri.host, 'dl-a.pds.quark.cn');
-        capturedRefresh = refreshResource;
-        return QuarkRangeRelayPlayback(
+      providerRegistry: registry,
+      relayStarter: ({
+        required reader,
+        required providerKey,
+        required providerName,
+      }) async {
+        expect(providerKey, quarkSource.id);
+        expect(providerName, '夸克网盘');
+        return CloudRangeRelayPlayback(
           uri: Uri.parse('http://127.0.0.1:32100/token'),
           lease: lease,
           totalLength: 1024,
@@ -141,11 +170,80 @@ void main() {
     expect(result.transport, CloudPlaybackTransport.rangeRelay);
     expect(result.lease, same(lease));
     expect(result.totalBytes, 1024);
+    expect(result.cloudProviderName, '夸克网盘');
     expect(clients.first.closed, isTrue);
 
     final refreshed = await capturedRefresh!();
     expect(refreshed.uri.host, 'dl-b.pds.quark.cn');
     expect(clients.last.closed, isTrue);
+  });
+
+  test('百度原文件通过公共读取器转换为无请求头的本机地址', () async {
+    const baiduSource = CloudSource(
+      id: 'baidu-home',
+      name: '百度网盘',
+      type: CloudSourceType.baidu,
+      baseUrl: 'https://pan.baidu.com',
+      rootPaths: <String>['/'],
+    );
+    await repository.save(baiduSource);
+    final credentials = MemoryCloudCredentialStore();
+    await credentials.write(
+      baiduSource.id,
+      CloudCredential(
+        clientId: 'client-fixture',
+        clientSecret: 'secret-fixture',
+        accessToken: 'access-fixture',
+        refreshToken: 'refresh-fixture',
+        accessTokenExpiresAt: DateTime.utc(2026, 8, 21),
+      ),
+    );
+    final client = _FakeClient(
+      resource: CloudPlaybackResource(
+        uri: Uri.parse(
+          'https://pan.baidu.com/rest/2.0/xpan/file?method=download',
+        ),
+        networkRoute: PlaybackNetworkRoute.direct,
+        transport: CloudPlaybackTransport.rangeRelay,
+      ),
+    );
+    final lease = _FakePlaybackLease();
+    final resolver = CloudPlaybackResolver(
+      sourceRepository: repository,
+      credentialStore: credentials,
+      clientFactory: (_, __, ___) => client,
+      relayStarter: ({
+        required reader,
+        required providerKey,
+        required providerName,
+      }) async {
+        expect(reader, isA<BaiduRangeRemoteReader>());
+        expect(providerKey, baiduSource.id);
+        expect(providerName, '百度网盘');
+        return CloudRangeRelayPlayback(
+          uri: Uri.parse('http://127.0.0.1:32100/baidu-token'),
+          lease: lease,
+          totalLength: 4096,
+        );
+      },
+    );
+
+    final result = await resolver.resolve(const CloudPlaybackTarget(
+      sourceId: 'baidu-home',
+      remoteId: '1001',
+      remotePath: '/影视/示例.mkv',
+      stableId: 'baidu-episode-1',
+      title: '第 1 集',
+    ));
+
+    expect(result.videoUrl, 'http://127.0.0.1:32100/baidu-token');
+    expect(result.httpHeaders, isEmpty);
+    expect(result.networkRoute, PlaybackNetworkRoute.direct);
+    expect(result.transport, CloudPlaybackTransport.rangeRelay);
+    expect(result.lease, same(lease));
+    expect(result.totalBytes, 4096);
+    expect(result.cloudProviderName, '百度网盘');
+    expect(client.closed, isTrue);
   });
 
   test('中转启动失败时回退现有夸克直连', () async {
@@ -169,7 +267,11 @@ void main() {
       sourceRepository: repository,
       credentialStore: MemoryCloudCredentialStore(),
       clientFactory: (_, __, ___) => client,
-      relayStarter: ({required resource, required refreshResource}) async =>
+      relayStarter: ({
+        required reader,
+        required providerKey,
+        required providerName,
+      }) async =>
           throw const QuarkRemoteTransportException('启动失败'),
     );
 
@@ -209,7 +311,11 @@ void main() {
       sourceRepository: repository,
       credentialStore: MemoryCloudCredentialStore(),
       clientFactory: (_, __, ___) => client,
-      relayStarter: ({required resource, required refreshResource}) async =>
+      relayStarter: ({
+        required reader,
+        required providerKey,
+        required providerName,
+      }) async =>
           throw const QuarkRemoteProtocolException('不可信地址'),
     );
 
@@ -963,4 +1069,34 @@ class _FakePlaybackLease implements CloudPlaybackLease {
 
   @override
   Future<void> close() async => closeCalls++;
+}
+
+class _FakeRangeReader implements CloudRangeRemoteReader {
+  @override
+  String get contentType => 'video/mp4';
+
+  @override
+  Stream<CloudRangeReaderEvent> get events =>
+      const Stream<CloudRangeReaderEvent>.empty();
+
+  @override
+  int? get totalLength => 1024;
+
+  @override
+  Future<void> close() async {}
+
+  @override
+  Future<CloudRangeRemoteMetadata> probe() async =>
+      const CloudRangeRemoteMetadata(
+        totalLength: 1024,
+        contentType: 'video/mp4',
+        supportsRanges: true,
+      );
+
+  @override
+  Future<void> readTo(ByteRange range, File destination) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> streamAll(IOSink destination) => throw UnimplementedError();
 }

@@ -28,6 +28,127 @@ void main() {
   );
 
   group('CloudMediaIndexer', () {
+    test('扫描多季度目录写入统一作品键和虚拟分集名', () async {
+      final repository =
+          CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());
+      const workPath = '/动漫/规范剧名3';
+      const season1Path = '$workPath/第一季';
+      const season2Path = '$workPath/第二季';
+      const season3FirstPath =
+          '$workPath/第 3 季 - 2160p WEB-DL H265 DDP 5.1 Atmos';
+      const season3SecondPath = '$workPath/第三季（2025）4K DV&HDR';
+      final client = _FakeCloudClient(<String, List<CloudFileEntry>>{
+        '/动漫': <CloudFileEntry>[_dir('work', workPath)],
+        workPath: <CloudFileEntry>[
+          _dir('season-1', season1Path),
+          _dir('season-2', season2Path),
+          _dir('season-3-a', season3FirstPath),
+          _dir('season-3-b', season3SecondPath),
+        ],
+        season1Path: <CloudFileEntry>[
+          _file('s1e1', '$season1Path/01.mkv', size: 200),
+        ],
+        season2Path: <CloudFileEntry>[
+          _file('s2e1', '$season2Path/01.mkv', size: 200),
+        ],
+        season3FirstPath: <CloudFileEntry>[
+          _file('s3e1', '$season3FirstPath/01.mkv', size: 200),
+        ],
+        season3SecondPath: <CloudFileEntry>[
+          _file('s3e2', '$season3SecondPath/02.mkv', size: 200),
+        ],
+      });
+
+      final result = await CloudMediaIndexer(
+        repository: repository,
+        minRecognizedVideoSizeBytesProvider: () => 100,
+      ).scan(source: source, client: client);
+      final items = await repository.getBySource(source.id);
+
+      expect(result.videoCount, 4);
+      expect(items.map((item) => item.workKey).toSet(), hasLength(1));
+      expect(items.map((item) => item.seasonNumber).toSet(), <int>{1, 2, 3});
+      expect(
+        items.where((item) => item.seasonNumber == 3).map(
+              (item) => item.displayName,
+            ),
+        containsAll(<String>[
+          '规范剧名 S03E01.mkv',
+          '规范剧名 S03E02.mkv',
+        ]),
+      );
+      expect(items.every((item) => item.remoteName == item.name), isTrue);
+      expect(
+        items
+            .where((item) => item.seasonNumber == 3)
+            .every((item) => item.releaseTags.resolution != null),
+        isTrue,
+      );
+    });
+
+    test('目录指纹未变化时仍重算旧识别版本的派生字段', () async {
+      final repository =
+          CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());
+      final directories = <String, List<CloudFileEntry>>{
+        '/动漫': <CloudFileEntry>[_dir('work', '/动漫/规范剧名')],
+        '/动漫/规范剧名': <CloudFileEntry>[
+          _dir('season-3', '/动漫/规范剧名/第三季'),
+        ],
+        '/动漫/规范剧名/第三季': <CloudFileEntry>[
+          _file(
+            'episode-1',
+            '/动漫/规范剧名/第三季/01.mkv',
+            size: 200,
+          ),
+        ],
+      };
+      final indexer = CloudMediaIndexer(
+        repository: repository,
+        minRecognizedVideoSizeBytesProvider: () => 100,
+      );
+      await indexer.scan(
+        source: source,
+        client: _FakeCloudClient(directories),
+      );
+      final snapshot = await repository.snapshot(source.id);
+      await repository.replaceSource(
+        source.id,
+        <CloudMediaIndexItem>[
+          const CloudMediaIndexItem(
+            sourceId: 'openlist-a',
+            remoteId: 'episode-1',
+            remotePath: '/动漫/规范剧名/第三季/01.mkv',
+            name: '01.mkv',
+            size: 200,
+            modifiedAt: null,
+            seriesName: '旧错误标题',
+            seasonNumber: 3,
+            episodeNumber: 1,
+            mediaType: CloudMediaType.episode,
+            recognitionVersion: 0,
+          ),
+        ],
+        snapshot.fingerprints,
+        snapshot.directoryEntries,
+        snapshot.indexedRoots,
+      );
+
+      final result = await indexer.scan(
+        source: source,
+        client: _FakeCloudClient(directories),
+      );
+      final refreshed = (await repository.getBySource(source.id)).single;
+
+      expect(result.skipped, 3);
+      expect(
+        refreshed.recognitionVersion,
+        CloudMediaIndexItem.currentRecognitionVersion,
+      );
+      expect(refreshed.workKey, 'openlist-a|work|work');
+      expect(refreshed.seriesName, '规范剧名');
+      expect(refreshed.displayName, '规范剧名 S03E01.mkv');
+    });
+
     test('从剧名和季度文件夹索引纯集数视频', () async {
       final repository =
           CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());

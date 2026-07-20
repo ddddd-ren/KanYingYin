@@ -122,6 +122,37 @@ void main() {
     expect(service.requestFor(work, record).queryYear, isNull);
   });
 
+  test('共同分集文件标题作为回魂计的第一搜索候选', () async {
+    final work = _work(
+      displayTitle: 'The Resurrected',
+      titleCandidates: const <String>[
+        'The Resurrected',
+        'H-回-云鬼-计 台剧',
+      ],
+    );
+    final client = _FakeTmdbClient(
+      detail: _details(),
+      searches: <String, List<TmdbMetadata>>{
+        'The Resurrected': <TmdbMetadata>[_candidate('回魂计')],
+      },
+    );
+    final service = CloudWorkTmdbService(
+      repository: CloudWorkTmdbRepository(
+        storage: MemoryCloudWorkTmdbStorage(),
+      ),
+      indexRepository: CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      ),
+      client: client,
+    );
+
+    final candidates = await service.searchCandidates(work);
+
+    expect(client.queries.first, 'The Resurrected');
+    expect(client.searchedTypes.first, TmdbMediaType.tv);
+    expect(candidates.single.title, '回魂计');
+  });
+
   test('单季海报缓存失败仍保留全部季度元数据和远程海报', () async {
     final work = _work();
     final service = CloudWorkTmdbService(

@@ -18,7 +18,13 @@ void main() {
       const season3SecondPath = '$workPath/第三季（2025）4K DV&HDR';
       final tree = resolver.resolve(
         sourceId: 'quark-a',
-        configuredRoots: const <String>['/影视'],
+        configuredRoots: const <String>[
+          '/影视',
+          workPath,
+          season1Path,
+          season2Path,
+          season3FirstPath,
+        ],
         directoryEntries: <String, List<CloudFileEntry>>{
           '/影视': <CloudFileEntry>[
             _dir('work-a', workPath, workName),
@@ -110,6 +116,81 @@ void main() {
           '0001更多资源请访问 00t.vip',
           '0002全网搜索资源',
         ]),
+      );
+    });
+
+    test('同季三个版本保留二十七个文件并优先共同文件标题', () {
+      const workPath = '/来自：分享/H-回-云鬼-计 【台剧】';
+      const highBitratePath = '$workPath/4K 高码率';
+      const embeddedPath = '$workPath/【全9集】【1080P】【内封简繁英】';
+      const burnedInPath = '$workPath/【全9集】【1080P】【内嵌中字】';
+      final directoryEntries = <String, List<CloudFileEntry>>{
+        workPath: <CloudFileEntry>[
+          _dir('4k', highBitratePath, '4K 高码率'),
+          _dir('embedded', embeddedPath, '【全9集】【1080P】【内封简繁英】'),
+          _dir('burned-in', burnedInPath, '【全9集】【1080P】【内嵌中字】'),
+        ],
+      };
+      for (final (directoryId, directoryPath) in <(String, String)>[
+        ('4k', highBitratePath),
+        ('embedded', embeddedPath),
+        ('burned-in', burnedInPath),
+      ]) {
+        directoryEntries[directoryPath] = <CloudFileEntry>[
+          for (var episode = 1; episode <= 9; episode++)
+            _video(
+              '$directoryId-$episode',
+              '$directoryPath/The.Resurrected.S01E${episode.toString().padLeft(2, '0')}.mkv',
+              'The.Resurrected.S01E${episode.toString().padLeft(2, '0')}.mkv',
+            ),
+        ];
+      }
+
+      final tree = resolver.resolve(
+        sourceId: 'quark-a',
+        configuredRoots: const <String>[
+          workPath,
+          highBitratePath,
+          embeddedPath,
+          burnedInPath,
+        ],
+        directoryEntries: directoryEntries,
+        minSizeBytes: 100,
+      );
+
+      expect(tree.works, hasLength(1));
+      final work = tree.works.single;
+      expect(work.titleCandidates.first, 'The Resurrected');
+      expect(work.seasons, hasLength(1));
+      expect(work.seasons.single.episodes, hasLength(27));
+      expect(
+        work.seasons.single.episodes
+            .map((episode) => episode.episodeNumber)
+            .toSet(),
+        hasLength(9),
+      );
+      expect(
+        work.seasons.single.episodes
+            .where((episode) => episode.episodeNumber == 1),
+        hasLength(3),
+      );
+      expect(
+        work.seasons.single.episodes.map((episode) => episode.entry.id).toSet(),
+        hasLength(27),
+      );
+      expect(
+        work.seasons.single.episodes
+            .singleWhere((episode) => episode.entry.id == '4k-1')
+            .releaseTags
+            .bitrate,
+        '高码率',
+      );
+      expect(
+        work.seasons.single.episodes
+            .singleWhere((episode) => episode.entry.id == 'embedded-1')
+            .releaseTags
+            .subtitles,
+        <String>['内封简繁英'],
       );
     });
 

@@ -16,6 +16,16 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.29',
+    date: '2026-07-21',
+    isPrerelease: true,
+    changes: [
+      '本测试版修复百度网盘视频在网页端可播放、但看影音提示解析或加载失败的问题，恢复原文件进入播放器、拖动和切集',
+      '本地电视剧在媒体库中刮削时会按季度使用 TMDB 对应季海报；季度海报缺失时自动使用整部剧海报',
+      '本次不会修改百度网盘文件、目录或本地视频；应用启动、夸克、OpenList、本地扫描和播放器原有功能保持可用',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.28',
     date: '2026-07-21',
     isPrerelease: true,

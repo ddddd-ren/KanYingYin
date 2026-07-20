@@ -334,6 +334,7 @@ void main() {
 
   test('首次打开在返回前解析且首帧消费预解析结果', () async {
     var resolveCalls = 0;
+    final relayLease = _FakePlaybackLease();
     final initialized = <PlaybackInitParams>[];
     final controller = LocalVideoController(
       resolveCloudPlayback: (target) async {
@@ -344,6 +345,9 @@ void main() {
           httpHeaders: const {'X-Token': 'first'},
           networkRoute: PlaybackNetworkRoute.direct,
           cloudProviderName: '夸克',
+          transport: CloudPlaybackTransport.quarkRangeRelay,
+          lease: relayLease,
+          totalBytes: 4096,
         );
       },
       initializePlayer: (params) async => initialized.add(params),
@@ -370,6 +374,12 @@ void main() {
     expect(initialized.single.httpHeaders, {'X-Token': 'first'});
     expect(initialized.single.networkRoute, PlaybackNetworkRoute.direct);
     expect(initialized.single.cloudProviderName, '夸克');
+    expect(
+      initialized.single.transport,
+      CloudPlaybackTransport.quarkRangeRelay,
+    );
+    expect(initialized.single.lease, same(relayLease));
+    expect(initialized.single.totalBytes, 4096);
   });
 
   test('首次解析失败时不初始化播放器', () async {
@@ -397,6 +407,37 @@ void main() {
     expect(initialized, isFalse);
   });
 
+  test('未消费的云播放预解析租约在退出时释放', () async {
+    final lease = _FakePlaybackLease();
+    final controller = LocalVideoController(
+      resolveCloudPlayback: (target) async => CloudResolvedPlayback(
+        target: target,
+        videoUrl: 'http://127.0.0.1:32000/token',
+        httpHeaders: const <String, String>{},
+        transport: CloudPlaybackTransport.quarkRangeRelay,
+        lease: lease,
+      ),
+      initializePlayer: (_) async {},
+    );
+
+    await controller.openCloudPlayback(
+      seriesTitle: '测试动画',
+      targets: const <CloudPlaybackTarget>[
+        CloudPlaybackTarget(
+          sourceId: 'quark-home',
+          remotePath: '/Show/E01.mkv',
+          stableId: 'e1',
+          title: '第 1 集',
+        ),
+      ],
+      selectedStableId: 'e1',
+    );
+    controller.invalidatePlaybackOperations();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(lease.closeCalls, 1);
+  });
+
   test('刷新链接沿用旧有效字幕并替换地址和请求头', () {
     final target = const CloudPlaybackTarget(
       sourceId: 'openlist-home',
@@ -408,6 +449,9 @@ void main() {
       required String url,
       String? subtitle,
       PlaybackNetworkRoute networkRoute = PlaybackNetworkRoute.inheritProxy,
+      CloudPlaybackTransport transport = CloudPlaybackTransport.direct,
+      CloudPlaybackLease? lease,
+      int? totalBytes,
     }) =>
         PlaybackInitParams(
           videoUrl: url,
@@ -423,13 +467,25 @@ void main() {
           currentRoad: 0,
           subtitlePath: subtitle,
           networkRoute: networkRoute,
+          transport: transport,
+          lease: lease,
+          totalBytes: totalBytes,
         );
 
+    final oldLease = _FakePlaybackLease();
+    final newLease = _FakePlaybackLease();
     final merged = mergeRefreshedCloudPlayback(
-      previous: params(url: 'old', subtitle: r'C:\cache\old.ass'),
+      previous: params(
+        url: 'old',
+        subtitle: r'C:\cache\old.ass',
+        lease: oldLease,
+      ),
       refreshed: params(
         url: 'new',
         networkRoute: PlaybackNetworkRoute.direct,
+        transport: CloudPlaybackTransport.quarkRangeRelay,
+        lease: newLease,
+        totalBytes: 8192,
       ),
       position: const Duration(seconds: 42),
     );
@@ -438,6 +494,9 @@ void main() {
     expect(merged.subtitlePath, r'C:\cache\old.ass');
     expect(merged.offset, 42);
     expect(merged.networkRoute, PlaybackNetworkRoute.direct);
+    expect(merged.transport, CloudPlaybackTransport.quarkRangeRelay);
+    expect(merged.lease, same(newLease));
+    expect(merged.totalBytes, 8192);
   });
 
   test('播放器只为继承策略应用已启用的 HTTP 代理', () {
@@ -693,6 +752,8 @@ void main() {
     final episode2 = Completer<CloudResolvedPlayback>();
     final episode3 = Completer<CloudResolvedPlayback>();
     final initialized = <String>[];
+    final staleLease = _FakePlaybackLease();
+    final currentLease = _FakePlaybackLease();
     final targets = const [
       CloudPlaybackTarget(
           sourceId: 's', remotePath: '/1.mkv', stableId: '1', title: '1'),
@@ -716,13 +777,23 @@ void main() {
     final second = controller.changeEpisode(2);
     final third = controller.changeEpisode(3);
     episode3.complete(CloudResolvedPlayback(
-        target: targets[2], videoUrl: 'https://cdn/3', httpHeaders: const {}));
+      target: targets[2],
+      videoUrl: 'https://cdn/3',
+      httpHeaders: const {},
+      lease: currentLease,
+    ));
     await third;
     episode2.complete(CloudResolvedPlayback(
-        target: targets[1], videoUrl: 'https://cdn/2', httpHeaders: const {}));
+      target: targets[1],
+      videoUrl: 'https://cdn/2',
+      httpHeaders: const {},
+      lease: staleLease,
+    ));
     await second;
     expect(controller.currentEpisode, 3);
     expect(initialized, ['https://cdn/1', 'https://cdn/3']);
+    expect(staleLease.closeCalls, 1);
+    expect(currentLease.closeCalls, 0);
   });
 
   test('控制器丢弃较晚完成的旧打开请求', () async {

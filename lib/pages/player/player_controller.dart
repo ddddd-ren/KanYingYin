@@ -21,6 +21,8 @@ import 'package:kanyingyin/services/local_subtitle_importer.dart';
 import 'package:kanyingyin/services/local_subtitle_matcher.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
+import 'package:kanyingyin/features/player/application/cloud_playback_cache_policy.dart';
 import 'package:kanyingyin/features/player/application/subtitle_preferences.dart';
 import 'package:kanyingyin/features/player/application/truehd_fallback_policy.dart';
 import 'package:kanyingyin/pages/player/models/embedded_track_info.dart';
@@ -66,6 +68,9 @@ class PlaybackInitParams {
   final String? stableMediaKey;
   final PlaybackNetworkRoute networkRoute;
   final String? cloudProviderName;
+  final CloudPlaybackTransport transport;
+  final CloudPlaybackLease? lease;
+  final int? totalBytes;
   final Future<PlaybackInitParams> Function()? refreshCloudPlayback;
 
   const PlaybackInitParams({
@@ -87,6 +92,9 @@ class PlaybackInitParams {
     this.stableMediaKey,
     this.networkRoute = PlaybackNetworkRoute.inheritProxy,
     this.cloudProviderName,
+    this.transport = CloudPlaybackTransport.direct,
+    this.lease,
+    this.totalBytes,
     this.refreshCloudPlayback,
   });
 
@@ -109,6 +117,9 @@ class PlaybackInitParams {
         stableMediaKey: stableMediaKey,
         networkRoute: networkRoute,
         cloudProviderName: cloudProviderName,
+        transport: transport,
+        lease: lease,
+        totalBytes: totalBytes,
         refreshCloudPlayback: refreshCloudPlayback,
       );
 }
@@ -139,6 +150,9 @@ PlaybackInitParams mergeRefreshedCloudPlayback({
       networkRoute: refreshed.networkRoute,
       cloudProviderName:
           refreshed.cloudProviderName ?? previous.cloudProviderName,
+      transport: refreshed.transport,
+      lease: refreshed.lease,
+      totalBytes: refreshed.totalBytes,
       refreshCloudPlayback:
           refreshed.refreshCloudPlayback ?? previous.refreshCloudPlayback,
     );
@@ -179,6 +193,8 @@ abstract class _PlayerController with Store {
 
   final SubtitlePreferences _subtitlePreferences;
   final TrueHdFallbackPolicy _trueHdFallbackPolicy;
+  final CloudPlaybackLeaseCoordinator _playbackLeaseCoordinator =
+      CloudPlaybackLeaseCoordinator();
 
   final ShadersController shadersController = Modular.get<ShadersController>();
 
@@ -386,7 +402,7 @@ abstract class _PlayerController with Store {
     required PlayerLifecycleToken lifecycleToken,
   }) {
     if (!_lifecycleOperations.isCurrent(lifecycleToken) || _disposeRequested) {
-      return Future<void>.value();
+      return _playbackLeaseCoordinator.reject(params.lease);
     }
     final token = _mediaOperations.beginMedia(params.stableMediaKey);
     return _playerInitLock.synchronized(
@@ -399,7 +415,35 @@ abstract class _PlayerController with Store {
     PlayerMediaToken mediaToken,
     PlayerLifecycleToken lifecycleToken,
   ) async {
-    if (!_isMediaOperationActive(mediaToken, lifecycleToken)) return;
+    final previousParams = _lastInitParams;
+    var adopted = false;
+    try {
+      final initialized = await _initializeMedia(
+        params,
+        mediaToken,
+        lifecycleToken,
+      );
+      if (!initialized ||
+          !_isMediaOperationActive(mediaToken, lifecycleToken)) {
+        _lastInitParams = previousParams;
+        return;
+      }
+      await _playbackLeaseCoordinator.adopt(params.lease);
+      adopted = true;
+    } on Object {
+      _lastInitParams = previousParams;
+      rethrow;
+    } finally {
+      if (!adopted) await _playbackLeaseCoordinator.reject(params.lease);
+    }
+  }
+
+  Future<bool> _initializeMedia(
+    PlaybackInitParams params,
+    PlayerMediaToken mediaToken,
+    PlayerLifecycleToken lifecycleToken,
+  ) async {
+    if (!_isMediaOperationActive(mediaToken, lifecycleToken)) return false;
     final bool isNewMedia = _lastInitParams?.videoUrl != params.videoUrl;
     if (isNewMedia) {
       _truehdAudioTrackFallbackAttempted = false;
@@ -456,7 +500,7 @@ abstract class _PlayerController with Store {
     try {
       await _disposePlayerResources();
     } catch (_) {}
-    if (!_isMediaOperationActive(mediaToken, lifecycleToken)) return;
+    if (!_isMediaOperationActive(mediaToken, lifecycleToken)) return false;
     int episodeFromTitle = 0;
     try {
       episodeFromTitle = Utils.extractEpisodeNumber(params.episodeTitle);
@@ -483,7 +527,7 @@ abstract class _PlayerController with Store {
       );
       if (!_isMediaOperationActive(mediaToken, lifecycleToken)) {
         await _disposePlayerResources();
-        return;
+        return false;
       }
 
       if (Utils.isDesktop()) {
@@ -500,13 +544,14 @@ abstract class _PlayerController with Store {
       AppLogger().i('PlayerController: video initialized');
       if (!_isMediaOperationActive(mediaToken, lifecycleToken)) {
         await _disposePlayerResources();
-        return;
+        return false;
       }
       loading = false;
 
       coverUrl = params.coverUrl;
+      return true;
     } catch (e) {
-      if (e is _PlayerInitializationCancelled) return;
+      if (e is _PlayerInitializationCancelled) return false;
       loading = false;
       isBuffering = false;
       AppLogger().e('PlayerController: failed to initialize video', error: e);
@@ -627,9 +672,16 @@ abstract class _PlayerController with Store {
       defaultValue: false,
     );
 
+    final cachePolicy =
+        CloudPlaybackCachePolicy.forTransport(initParams.transport);
     mediaPlayer = Player(
       configuration: PlayerConfiguration(
-        bufferSize: lowMemoryMode ? 15 * 1024 * 1024 : 1500 * 1024 * 1024,
+        bufferSize:
+            initParams.transport == CloudPlaybackTransport.quarkRangeRelay
+                ? 256 * 1024 * 1024
+                : lowMemoryMode
+                    ? 15 * 1024 * 1024
+                    : 1500 * 1024 * 1024,
         osc: false,
         libass: Platform.isWindows,
         logLevel: MPVLogLevel.v,
@@ -655,6 +707,9 @@ abstract class _PlayerController with Store {
     // 该设置可以在所有平台上正确启用双重缓存
     await pp.setProperty("demuxer-cache-dir", await Utils.getPlayerTempPath());
     await pp.setProperty("af", "scaletempo2=max-speed=8");
+    for (final property in cachePolicy.mpvProperties.entries) {
+      await pp.setProperty(property.key, property.value);
+    }
     if (Platform.isAndroid) {
       await pp.setProperty("volume-max", "100");
       if (androidEnableOpenSLES) {
@@ -1291,8 +1346,12 @@ abstract class _PlayerController with Store {
       wasPlaying: wasPlaying,
     );
     try {
-      final refreshed = transaction.merge(await refresh());
-      if (!_isMediaOperationActive(mediaToken, lifecycleToken)) return true;
+      final freshParams = await refresh();
+      if (!_isMediaOperationActive(mediaToken, lifecycleToken)) {
+        await _playbackLeaseCoordinator.reject(freshParams.lease);
+        return true;
+      }
+      final refreshed = transaction.merge(freshParams);
       final refreshedToken = _mediaOperations.beginMedia(
         refreshed.stableMediaKey,
         preserveRefreshState: true,
@@ -1471,7 +1530,11 @@ abstract class _PlayerController with Store {
     _disposeRequested = true;
     _lifecycleOperations.invalidate();
     _mediaOperations.invalidate();
-    return _playerInitLock.synchronized(_disposePlayerResources);
+    return _playerInitLock.synchronized(() async {
+      await _disposePlayerResources();
+      await _playbackLeaseCoordinator.close();
+      _lastInitParams = null;
+    });
   }
 
   Future<void> _disposePlayerResources() async {

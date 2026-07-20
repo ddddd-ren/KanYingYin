@@ -28,6 +28,8 @@ class QuarkRelayStatus {
 }
 
 abstract interface class CloudPlaybackLease {
+  QuarkRelayStatus get currentStatus;
+
   Stream<QuarkRelayStatus> get statuses;
 
   Future<void> close();

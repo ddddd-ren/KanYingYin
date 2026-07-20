@@ -9,6 +9,8 @@ typedef QuarkRemoteUriValidator = bool Function(Uri uri);
 typedef QuarkHttpClientFactory = HttpClient Function();
 typedef QuarkRetryDelay = Future<void> Function(Duration duration);
 
+enum QuarkRemoteReaderEvent { reconnecting, refreshing }
+
 class QuarkRemoteResource {
   QuarkRemoteResource({
     required this.uri,
@@ -106,6 +108,8 @@ class QuarkRangeRemoteReader {
   final QuarkRetryDelay _delay;
   final Duration requestTimeout;
   final Set<HttpClient> _activeClients = <HttpClient>{};
+  final StreamController<QuarkRemoteReaderEvent> _events =
+      StreamController<QuarkRemoteReaderEvent>.broadcast(sync: true);
 
   int? _totalLength;
   String _contentType = 'application/octet-stream';
@@ -116,6 +120,7 @@ class QuarkRangeRemoteReader {
 
   int? get totalLength => _totalLength;
   String get contentType => _contentType;
+  Stream<QuarkRemoteReaderEvent> get events => _events.stream;
 
   Future<QuarkRemoteMetadata> probe() async {
     final metadata = await _readWithRecovery(const ByteRange(0, 0), null);
@@ -141,12 +146,14 @@ class QuarkRangeRemoteReader {
       try {
         return await _readOnce(range, destination);
       } on _AuthenticationStatusException {
+        _emitEvent(QuarkRemoteReaderEvent.refreshing);
         await _refreshAfterAuthenticationFailure();
       } on Object catch (error) {
         if (!_isTransportError(error)) rethrow;
         if (transportAttempt >= _retryDelays.length) {
           throw const QuarkRemoteTransportException('夸克远程连接重试后仍失败');
         }
+        _emitEvent(QuarkRemoteReaderEvent.reconnecting);
         await _delay(_retryDelays[transportAttempt]);
         transportAttempt++;
       }
@@ -346,6 +353,10 @@ class QuarkRangeRemoteReader {
       statusCode == HttpStatus.temporaryRedirect ||
       statusCode == HttpStatus.permanentRedirect;
 
+  void _emitEvent(QuarkRemoteReaderEvent event) {
+    if (!_closed && !_events.isClosed) _events.add(event);
+  }
+
   Future<void> close() => _closeFuture ??= _close();
 
   Future<void> _close() async {
@@ -354,6 +365,7 @@ class QuarkRangeRemoteReader {
       client.close(force: true);
     }
     _activeClients.clear();
+    await _events.close();
   }
 }
 

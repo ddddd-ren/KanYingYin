@@ -16,6 +16,17 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.21',
+    date: '2026-07-20',
+    isPrerelease: true,
+    changes: [
+      '本测试版会将同一季度的 4K、1080P 内封字幕和内嵌字幕多版本归入一张季度卡，按唯一集数统计，并在选集中保留和标注全部真实视频版本',
+      '同时配置作品目录和季度子目录时不再产生重复卡片；会优先使用分集文件中的共同标题搜索 TMDB，修复《回魂计》等作品被版本目录误认的问题',
+      '“需要确认”状态标签和卡片右上角菜单都可进入手动确认；窗口最大化时海报尺寸保持上限，只增加每行列数',
+      '版本 4 的旧网盘索引会自动重新识别；本次只更新看影音媒体库，不会修改网盘文件、目录、远程 ID 或播放路径，应用启动和播放器保持可用',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.20',
     date: '2026-07-20',
     isPrerelease: true,

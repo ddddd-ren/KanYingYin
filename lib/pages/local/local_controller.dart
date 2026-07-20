@@ -19,6 +19,7 @@ import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 import 'package:kanyingyin/services/cloud/cloud_cache_directories.dart';
 import 'package:kanyingyin/services/cloud/cloud_poster_cache.dart';
+import 'package:kanyingyin/services/cloud/cloud_source_path_scope.dart';
 import 'package:kanyingyin/services/cloud/cloud_tmdb_metadata_service.dart';
 import 'package:kanyingyin/services/local_media_indexer.dart';
 import 'package:kanyingyin/services/local_media_index_metadata_refresher.dart';
@@ -729,7 +730,16 @@ abstract class _LocalController with Store {
       final sources = await _cloudSourceRepository.getAll();
       final items = <CloudMediaIndexItem>[];
       for (final source in sources) {
-        items.addAll(await _cloudMediaIndexRepository.getBySource(source.id));
+        final sourceItems =
+            await _cloudMediaIndexRepository.getBySource(source.id);
+        items.addAll(
+          sourceItems.where(
+            (item) => CloudSourcePathScope.containsSourcePath(
+              source,
+              item.remotePath,
+            ),
+          ),
+        );
       }
       runInAction(() {
         cloudLibrarySources

@@ -545,7 +545,7 @@ Run: D:/flutter/bin/flutter.bat build windows --release --no-pub
 
 - [ ] **Step 5: 使用现有本机证书生成签名 MSIX**
 
-密码只在当前 PowerShell 进程内解密和清零，不输出或写入明文：
+本机 `msix 3.18.0` 在 YAML 为 `sign_msix: false` 时不会接受命令行 `true` 覆盖。仅在封装期间使用 `apply_patch` 把该字段临时改为 `true`，运行下列命令后立即再用 `apply_patch` 恢复为 `false`。密码只在当前 PowerShell 进程内解密和清零，不输出或写入明文：
 
 ~~~powershell
 $secure = Import-Clixml -LiteralPath "$env:USERPROFILE/.kanyingyin/signing/certificate-password.clixml"

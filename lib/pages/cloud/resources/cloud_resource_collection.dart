@@ -304,16 +304,15 @@ class CloudResourceCollectionGrouper {
     return sorted.map((item) {
       var displayName = item.displayName;
       final episode = item.episodeNumber;
+      String? variantLabel;
       if (episode != null && (duplicateCounts[episode] ?? 0) > 1) {
         final index = (duplicateIndexes[episode] ?? 0) + 1;
         duplicateIndexes[episode] = index;
         final summary = _releaseSummary(item);
-        if (summary.isNotEmpty || index > 1) {
-          final suffix = summary.isEmpty ? '版本 $index' : summary;
-          final extension = p.extension(displayName);
-          final base = p.basenameWithoutExtension(displayName);
-          displayName = '$base [$suffix]$extension';
-        }
+        variantLabel = summary.isEmpty ? '版本 $index' : summary;
+        final extension = p.extension(displayName);
+        final base = p.basenameWithoutExtension(displayName);
+        displayName = '$base [$variantLabel]$extension';
       }
       return CloudFileEntry(
         id: item.remoteId,
@@ -322,6 +321,9 @@ class CloudResourceCollectionGrouper {
         size: item.size,
         modifiedAt: item.modifiedAt,
         isDirectory: false,
+        seasonNumber: item.seasonNumber,
+        episodeNumber: item.episodeNumber,
+        variantLabel: variantLabel,
       );
     }).toList(growable: false);
   }

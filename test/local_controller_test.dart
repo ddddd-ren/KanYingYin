@@ -4,11 +4,14 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/library/application/local_library_metadata_coordinator.dart';
 import 'package:kanyingyin/features/library/application/local_library_preferences.dart';
+import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
+import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/local_media_source.dart';
 import 'package:kanyingyin/modules/local/poster_scrape.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
+import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/repositories/local_media_index_repository.dart';
 import 'package:kanyingyin/repositories/local_media_source_repository.dart';
@@ -737,6 +740,62 @@ void main() {
     );
   });
 
+  test('网盘根目录变化后本地媒体库立即过滤旧缓存和播放目标', () async {
+    const source = CloudSource(
+      id: 'cloud-scope',
+      type: CloudSourceType.openList,
+      name: '家庭网盘',
+      baseUrl: 'https://drive.example.com',
+      rootPaths: <String>['/B'],
+    );
+    final sourceRepository = CloudSourceRepository(
+      storage: MemoryCloudSourceStorage(),
+      credentialStore: MemoryCloudCredentialStore(),
+    );
+    await sourceRepository.save(source);
+    final indexRepository = CloudMediaIndexRepository(
+      storage: MemoryCloudMediaIndexStorage(),
+    );
+    await indexRepository.replaceSource(
+      source.id,
+      <CloudMediaIndexItem>[
+        _scopedCloudEpisode(
+          source.id,
+          'old-id',
+          '/A/旧剧/S01E01.mkv',
+          '旧剧',
+        ),
+        _scopedCloudEpisode(
+          source.id,
+          'new-id',
+          '/B/新剧/S01E01.mkv',
+          '新剧',
+        ),
+      ],
+      const <String, String>{},
+      const {},
+      const <String>['/A'],
+    );
+    final controller = LocalController(
+      cloudSourceRepository: sourceRepository,
+      cloudMediaIndexRepository: indexRepository,
+    );
+
+    await controller.reloadCloudLibraryIndex(throwOnFailure: true);
+
+    expect(
+      controller.cloudLibraryItems.map((item) => item.remoteId),
+      <String>['new-id'],
+    );
+    expect(
+      controller.combinedMediaLibrary.series
+          .expand((series) => series.episodes)
+          .map((episode) => episode.remoteId),
+      isNot(contains('old-id')),
+    );
+    expect(await indexRepository.getBySource(source.id), hasLength(2));
+  });
+
   test('LocalController repairs stale local library metadata', () async {
     final dir =
         await Directory.systemTemp.createTemp('kanyingyin_init_repair_');
@@ -1309,6 +1368,28 @@ class _CancelledMediaIndexer implements ILocalMediaIndexer {
     );
   }
 }
+
+CloudMediaIndexItem _scopedCloudEpisode(
+  String sourceId,
+  String remoteId,
+  String remotePath,
+  String seriesName,
+) =>
+    CloudMediaIndexItem(
+      sourceId: sourceId,
+      remoteId: remoteId,
+      remotePath: remotePath,
+      name: 'S01E01.mkv',
+      workKey: '$sourceId|$seriesName',
+      workRootId: seriesName,
+      workRootPath: remotePath.substring(0, remotePath.lastIndexOf('/')),
+      size: 1024,
+      modifiedAt: DateTime(2026, 7, 20),
+      seriesName: seriesName,
+      seasonNumber: 1,
+      episodeNumber: 1,
+      mediaType: CloudMediaType.episode,
+    );
 
 class _ThrowingCloudSourceStorage implements CloudSourceStorage {
   @override

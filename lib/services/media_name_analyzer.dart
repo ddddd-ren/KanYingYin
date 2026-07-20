@@ -174,6 +174,19 @@ class MediaNameAnalyzer {
     );
   }
 
+  String cleanReleaseTokens(String value) {
+    return value
+        .replaceAll(_resolutionPattern, ' ')
+        .replaceAll(_sourcePattern, ' ')
+        .replaceAll(_codecPattern, ' ')
+        .replaceAll(_dvPattern, ' ')
+        .replaceAll(_hdrPattern, ' ')
+        .replaceAll(_ddpPattern, ' ')
+        .replaceAll(_atmosPattern, ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
   String _withoutExtension(String value) {
     return value.replaceFirst(RegExp(r'\.[^.\\/]+$'), '').trim();
   }
@@ -258,7 +271,7 @@ class MediaNameAnalyzer {
   }
 
   String _cleanTitle(String value) {
-    var result = value
+    var result = cleanReleaseTokens(value)
         .replaceFirst(RegExp(r'^\d{4,}[\s._-]+'), '')
         .replaceAll(_seasonEpisodePattern, ' ')
         .replaceAll(_chineseSeasonEpisodePattern, ' ')
@@ -269,13 +282,6 @@ class MediaNameAnalyzer {
         .replaceAll(_standaloneEpisodePattern, ' ')
         .replaceAll(_versionPattern, ' ')
         .replaceAll(RegExp(r'[（(](?:19|20)\d{2}[)）]'), ' ')
-        .replaceAll(_resolutionPattern, ' ')
-        .replaceAll(_sourcePattern, ' ')
-        .replaceAll(_codecPattern, ' ')
-        .replaceAll(_dvPattern, ' ')
-        .replaceAll(_hdrPattern, ' ')
-        .replaceAll(_ddpPattern, ' ')
-        .replaceAll(_atmosPattern, ' ')
         .replaceAll(RegExp(r'全\s*\d+\s*集|全集|完结'), ' ')
         .replaceAll(RegExp(r'内附.*$', unicode: true), ' ')
         .replaceAll(_leadingReleaseGroupPattern, ' ')

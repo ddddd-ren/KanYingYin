@@ -116,4 +116,31 @@ void main() {
 
     expect(info, isNull);
   });
+
+  test('LocalEpisodeParser 复用共享动态范围和音轨清理', () {
+    final info = parser.parse(
+      'Alice in Borderland S03E01 '
+      '2160p WEB-DL H265 DV HDR DDP 5.1 Atmos.mkv',
+    );
+
+    expect(info, isNotNull);
+    expect(info!.seriesName, 'Alice in Borderland');
+    expect(info.seasonNumber, 3);
+    expect(info.episodeNumber, 1);
+    expect(info.episodeTitle, isNull);
+    expect(info.resolution, '2160p');
+    expect(info.source, 'Web-DL');
+    expect(info.codec, 'H265');
+  });
+
+  test('LocalEpisodeParser 继续保护年份画质和数字电影名', () {
+    for (final name in <String>[
+      '流浪地球2 2023 4K.mkv',
+      'interstellar 2014 imax 4K-kc.mkv',
+      'The 100.mkv',
+      '1923.mkv',
+    ]) {
+      expect(parser.parse(name), isNull, reason: name);
+    }
+  });
 }

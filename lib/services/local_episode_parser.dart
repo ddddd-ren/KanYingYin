@@ -1,7 +1,12 @@
 import 'package:kanyingyin/modules/local/local_episode_info.dart';
+import 'package:kanyingyin/modules/media/media_name_analysis.dart';
+import 'package:kanyingyin/services/media_name_analyzer.dart';
 import 'package:path/path.dart' as p;
 
 class LocalEpisodeParser {
+  LocalEpisodeParser({MediaNameAnalyzer? nameAnalyzer})
+      : _nameAnalyzer = nameAnalyzer ?? const MediaNameAnalyzer();
+
   static final _releaseGroupPattern = RegExp(
     r'^[\[\(\u3010\u300c\uff08](?<group>[^\]\)\u3011\u300d\uff09]{2,32})[\]\)\u3011\u300d\uff09]',
     unicode: true,
@@ -63,16 +68,27 @@ class LocalEpisodeParser {
     _bareEpisodePattern,
   ];
 
+  final MediaNameAnalyzer _nameAnalyzer;
+
   LocalEpisodeInfo? parse(String filePath) {
     final fileName = p.basenameWithoutExtension(filePath);
     final normalized = _normalizeName(fileName);
+    final shared = _nameAnalyzer.analyze(
+      p.basename(filePath),
+      isDirectory: false,
+    );
     final seasonFromDirectory = _seasonFromDirectory(filePath);
     final releaseGroup =
         _extractNamed(normalized, _releaseGroupPattern, 'group');
-    final resolution =
+    final resolution = shared.releaseTags.resolution ??
         _extractNamed(normalized, _resolutionPattern, 'resolution');
-    final source = _extractNamed(normalized, _sourcePattern, 'source');
-    final codec = _extractNamed(normalized, _codecPattern, 'codec');
+    final source = shared.releaseTags.source ??
+        _extractNamed(normalized, _sourcePattern, 'source');
+    final codec = shared.releaseTags.codec ??
+        _extractNamed(normalized, _codecPattern, 'codec');
+    if (shared.role == MediaNodeRole.work && seasonFromDirectory == null) {
+      return null;
+    }
     for (final pattern in _patterns) {
       final match = pattern.firstMatch(normalized);
       if (match == null) continue;
@@ -193,7 +209,8 @@ class LocalEpisodeParser {
   }
 
   String _cleanEpisodeTitle(String value) {
-    var cleaned = value
+    var cleaned = _nameAnalyzer
+        .cleanReleaseTokens(value)
         .replaceAll(
           RegExp(r'^[\s._\-\]\)\uff09:\uff1a]+', unicode: true),
           '',

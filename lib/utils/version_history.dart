@@ -16,6 +16,17 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.18',
+    date: '2026-07-20',
+    isPrerelease: true,
+    changes: [
+      '本测试版重做网盘剧集识别与 TMDB 刮削，同一作品只匹配一次，并让每一季在海报墙显示自己的季度海报',
+      '季度目录中的年份、4K、WEB-DL、H265、DV、HDR 和 Atmos 等发布规格不再被误认成剧名，纯数字视频会继承所在作品、季度和集号',
+      '选集统一显示应用内规范剧名和季集编号；修改刮削名称会同步同一作品的各季，网盘原名与真实路径可在媒体详情中核对',
+      '规范名称只用于看影音媒体库展示和刮削，不会修改网盘文件、目录、远程 ID 或播放路径；无 API Key、断网时应用启动、本地媒体库和播放器仍可使用',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.17',
     date: '2026-07-20',
     isPrerelease: true,

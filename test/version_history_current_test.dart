@@ -121,6 +121,18 @@ void main() {
     expect(entries.single.isPrerelease, isTrue);
   });
 
+  test('二点一二十二说明重复集号和本地海报尺寸', () {
+    final entries = versionHistoryForCurrent('2.1.22');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('同一集'));
+    expect(changes, contains('本地海报墙'));
+    expect(changes, contains('海报尺寸'));
+    expect(changes, contains('不会修改网盘文件'));
+    expect(entries.single.isPrerelease, isTrue);
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

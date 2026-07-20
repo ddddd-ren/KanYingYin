@@ -16,6 +16,17 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.22',
+    date: '2026-07-20',
+    isPrerelease: true,
+    changes: [
+      '本测试版修复同一集的不同网盘资源被按列表位置显示成新集数的问题，现在每个版本都使用相同的 SxxExx 标识',
+      '所有真实视频版本仍会保留并显示各自规格，季度卡片继续按唯一集号统计，选集不会漏掉可播放文件',
+      '本地海报墙现在与网盘海报墙采用一致的海报尺寸上限，窗口最大化时只增加列数，不再放大海报',
+      '本次只调整看影音媒体库显示，不会修改网盘文件、目录、远程 ID 或播放路径，应用启动和播放器保持可用',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.21',
     date: '2026-07-20',
     isPrerelease: true,

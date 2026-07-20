@@ -16,6 +16,17 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.19',
+    date: '2026-07-20',
+    isPrerelease: true,
+    changes: [
+      '本测试版修复“内嵌中字”“中文字幕”等目录被误认成作品名的问题，现在会继承上级剧名并显示正确集数',
+      '没有季度名称但包含多个纯数字视频时，会按第 1 季生成规范选集；推广图片和其他非视频文件不会计入集数',
+      '即使暂时无法判断季度，多视频资源也会显示完整选集，不再出现顶部有集数但列表空白的情况',
+      '版本 2 的错误网盘索引会自动重新识别；修复只更新看影音媒体库，不会修改网盘文件、目录或播放路径，应用启动和播放器保持可用',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.18',
     date: '2026-07-20',
     isPrerelease: true,

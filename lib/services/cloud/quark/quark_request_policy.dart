@@ -43,6 +43,26 @@ class QuarkRequestPolicy {
     return Map<String, String>.unmodifiable(redirected);
   }
 
+  bool isTrustedOriginalDownloadUri(Uri uri) {
+    if (uri.scheme.toLowerCase() != 'https') return false;
+    final host = uri.host.toLowerCase();
+    return host == 'drive.quark.cn' || host.endsWith('.drive.quark.cn');
+  }
+
+  Map<String, String> originalDownloadHeadersFor(
+    Uri uri, {
+    required String cookie,
+  }) {
+    if (!isTrustedOriginalDownloadUri(uri)) {
+      return const <String, String>{};
+    }
+    return Map<String, String>.unmodifiable(<String, String>{
+      'Cookie': cookie,
+      'Referer': 'https://pan.quark.cn',
+      'User-Agent': userAgent,
+    });
+  }
+
   bool shouldRetry({required int statusCode, required int attempt}) =>
       attempt < 2 &&
       statusCode != 401 &&

@@ -53,6 +53,29 @@ void main() {
     );
   });
 
+  test('原文件请求头只允许夸克 HTTPS 下载主机', () {
+    final trusted = policy.originalDownloadHeadersFor(
+      Uri.parse('https://download.drive.quark.cn/file'),
+      cookie: cookie,
+    );
+    expect(trusted, <String, String>{
+      'Cookie': cookie,
+      'Referer': 'https://pan.quark.cn',
+      'User-Agent': QuarkRequestPolicy.userAgent,
+    });
+    for (final uri in <Uri>[
+      Uri.parse('http://download.drive.quark.cn/file'),
+      Uri.parse('https://evilquark.cn/file'),
+      Uri.parse('https://drive.quark.cn.example.com/file'),
+    ]) {
+      expect(policy.isTrustedOriginalDownloadUri(uri), isFalse);
+      expect(
+        policy.originalDownloadHeadersFor(uri, cookie: cookie),
+        isEmpty,
+      );
+    }
+  });
+
   test('认证错误不重试，429 和暂时性服务错误有上限重试', () {
     expect(policy.shouldRetry(statusCode: 401, attempt: 0), isFalse);
     expect(policy.shouldRetry(statusCode: 403, attempt: 0), isFalse);

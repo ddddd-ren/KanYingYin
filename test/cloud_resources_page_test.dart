@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
+import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
@@ -163,6 +164,89 @@ CloudResourceMediaGroup _variantMediaGroup() {
     uniqueEpisodeCount: 9,
     isWorkScoped: true,
   );
+}
+
+CloudResourceMediaGroup _indexedVariantMediaGroup() {
+  const sourceId = 'source';
+  const workKey = 'source|work|duplicate-episodes';
+  const root = CloudFileEntry(
+    id: 'duplicate-episodes',
+    remotePath: '/影视/测试剧',
+    name: '测试剧',
+    size: 0,
+    modifiedAt: null,
+    isDirectory: true,
+  );
+  const work = CloudWorkIdentity(
+    sourceId: sourceId,
+    workKey: workKey,
+    root: root,
+    remoteName: '测试剧',
+    displayTitle: '测试剧',
+    titleCandidates: <String>['测试剧'],
+    seasons: <CloudSeasonIdentity>[
+      CloudSeasonIdentity(
+        workKey: workKey,
+        seasonNumber: 3,
+        displayName: '测试剧 第 3 季',
+        remoteDirectories: <CloudFileEntry>[],
+        episodes: <CloudEpisodeIdentity>[],
+      ),
+    ],
+  );
+  final items = <CloudMediaIndexItem>[];
+  for (var episode = 1; episode <= 6; episode++) {
+    final token = episode.toString().padLeft(2, '0');
+    for (final (id, folder, tags) in const <(String, String, MediaReleaseTags)>[
+      (
+        'web',
+        '第 3 季 - 2160p WEB-DL H265 DDP 5.1 Atmos',
+        MediaReleaseTags(
+          resolution: '2160p',
+          source: 'WEB-DL',
+          codec: 'H265',
+          audio: <String>['DDP 5.1', 'Atmos'],
+        ),
+      ),
+      (
+        'dv',
+        '第三季（2025）4K DV&HDR',
+        MediaReleaseTags(
+          resolution: '4K',
+          dynamicRange: <String>['DV', 'HDR'],
+        ),
+      ),
+    ]) {
+      items.add(
+        CloudMediaIndexItem(
+          sourceId: sourceId,
+          remoteId: '$id-$episode',
+          remotePath: '/影视/测试剧/$folder/$token.mkv',
+          name: '$token.mkv',
+          remoteName: '$token.mkv',
+          displayName: '测试剧 S03E$token.mkv',
+          workKey: workKey,
+          workRootId: root.id,
+          workRootPath: root.remotePath,
+          size: 1024,
+          modifiedAt: null,
+          seriesName: '测试剧',
+          seasonNumber: 3,
+          episodeNumber: episode,
+          mediaType: CloudMediaType.episode,
+          releaseTags: tags,
+        ),
+      );
+    }
+  }
+  return CloudResourceCollectionGrouper()
+      .group(
+        items: items,
+        works: const <CloudWorkIdentity>[work],
+        query: '',
+      )
+      .groups
+      .single;
 }
 
 CloudResourceMediaGroup _conflictMediaGroup() {
@@ -368,6 +452,40 @@ void main() {
     expect(find.text('S01E01 · 1080p 内封简繁英'), findsOneWidget);
     expect(find.text('S01E01 · 1080p 内嵌中字'), findsOneWidget);
     expect(find.byType(ListTile), findsNWidgets(3));
+  });
+
+  testWidgets('不同资源的重复集号使用索引身份且保留全部版本', (tester) async {
+    final group = _indexedVariantMediaGroup();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showCloudResourceEpisodeSheet(
+                context: context,
+                sourceId: 'source',
+                group: group,
+              ),
+              child: const Text('打开重复集号选集'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('打开重复集号选集'));
+    await tester.pumpAndSettle();
+
+    expect(group.uniqueEpisodeCount, 6);
+    expect(group.videos, hasLength(12));
+    expect(find.text('6 集'), findsNWidgets(2));
+    expect(find.byType(ListTile), findsNWidgets(12));
+    expect(
+      find.text('S03E01 · 2160p WEB-DL H265 DDP 5.1 Atmos'),
+      findsOneWidget,
+    );
+    expect(find.text('S03E01 · 4K DV HDR'), findsOneWidget);
+    expect(find.textContaining('第 2 集'), findsNothing);
   });
 
   testWidgets('待确认卡片提供菜单和状态标签双入口', (tester) async {

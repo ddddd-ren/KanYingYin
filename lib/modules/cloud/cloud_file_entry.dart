@@ -6,6 +6,9 @@ class CloudFileEntry {
     required this.size,
     required this.modifiedAt,
     required this.isDirectory,
+    this.seasonNumber,
+    this.episodeNumber,
+    this.variantLabel,
   });
 
   final String id;
@@ -14,4 +17,7 @@ class CloudFileEntry {
   final int size;
   final DateTime? modifiedAt;
   final bool isDirectory;
+  final int? seasonNumber;
+  final int? episodeNumber;
+  final String? variantLabel;
 }

@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
-import 'package:kanyingyin/modules/local/local_episode_info.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
 import 'package:kanyingyin/services/local_episode_parser.dart';
@@ -183,9 +182,17 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
     CloudFileEntry video,
     int index,
   ) {
-    final episode = LocalEpisodeParser().parse(video.remotePath);
-    final episodeLabel = _episodeLabel(episode, index);
-    final variant = _variantLabel(video.name);
+    final hasIndexedEpisode = video.episodeNumber != null;
+    final parsed =
+        hasIndexedEpisode ? null : LocalEpisodeParser().parse(video.remotePath);
+    final episodeLabel = _episodeLabel(
+      seasonNumber: hasIndexedEpisode
+          ? video.seasonNumber
+          : video.seasonNumber ?? parsed?.seasonNumber,
+      episodeNumber: video.episodeNumber ?? parsed?.episodeNumber,
+      index: index,
+    );
+    final variant = video.variantLabel ?? _variantLabel(video.name);
     final label = variant == null ? episodeLabel : '$episodeLabel · $variant';
     final hasSubtitle = subtitleVideoKeys.contains(
       cloudResourceTmdbKey(
@@ -300,12 +307,15 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
         : normalized.substring(0, 4);
   }
 
-  static String _episodeLabel(LocalEpisodeInfo? episode, int index) {
-    if (episode == null) return '第 ${index + 1} 集';
-    final season = episode.seasonNumber;
-    final episodeNumber = episode.episodeNumber.toString().padLeft(2, '0');
-    if (season == null) return 'E$episodeNumber';
-    return 'S${season.toString().padLeft(2, '0')}E$episodeNumber';
+  static String _episodeLabel({
+    required int? seasonNumber,
+    required int? episodeNumber,
+    required int index,
+  }) {
+    if (episodeNumber == null) return '第 ${index + 1} 集';
+    final episodeToken = episodeNumber.toString().padLeft(2, '0');
+    if (seasonNumber == null) return 'E$episodeToken';
+    return 'S${seasonNumber.toString().padLeft(2, '0')}E$episodeToken';
   }
 
   static String? _variantLabel(String name) {

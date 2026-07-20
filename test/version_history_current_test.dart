@@ -133,6 +133,18 @@ void main() {
     expect(entries.single.isPrerelease, isTrue);
   });
 
+  test('二点一二十三说明网盘目录实时刷新和旧资源隐藏', () {
+    final entries = versionHistoryForCurrent('2.1.23');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('目录'));
+    expect(changes, contains('实时'));
+    expect(changes, contains('旧资源'));
+    expect(changes, contains('不会修改网盘文件'));
+    expect(entries.single.isPrerelease, isTrue);
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

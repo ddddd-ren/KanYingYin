@@ -81,6 +81,19 @@ void main() {
     expect(entries.single.isPrerelease, isTrue);
   });
 
+  test('二点一十九说明修复网盘集数和选集空白', () {
+    final entries = versionHistoryForCurrent('2.1.19');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('内嵌中字'));
+    expect(changes, contains('集数'));
+    expect(changes, contains('选集'));
+    expect(changes, contains('自动重新识别'));
+    expect(changes, contains('不会修改网盘文件'));
+    expect(entries.single.isPrerelease, isTrue);
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

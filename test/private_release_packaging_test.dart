@@ -12,6 +12,7 @@ void main() {
     expect(script, contains('finally {'));
     expect(script, contains('Remove-Item'));
     expect(script, contains('Test-Path -LiteralPath \$temporaryRoot'));
+    expect(script, contains('[AllowEmptyString()][string[]]\$Lines'));
     expect(script, isNot(contains('KANYINGYIN_TMDB_API_KEY=')));
   });
 

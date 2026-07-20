@@ -42,7 +42,7 @@ function Invoke-Checked {
 
 function Get-PubspecValue {
   param(
-    [Parameter(Mandatory = $true)][string[]]$Lines,
+    [Parameter(Mandatory = $true)][AllowEmptyString()][string[]]$Lines,
     [Parameter(Mandatory = $true)][string]$Pattern,
     [Parameter(Mandatory = $true)][string]$Name
   )

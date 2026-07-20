@@ -246,6 +246,59 @@ void main() {
     expect(resource.networkRoute, PlaybackNetworkRoute.direct);
     expect(resource.transport, CloudPlaybackTransport.rangeRelay);
   });
+
+  test('文件详情鉴权失效时强制刷新令牌后重新获取 dlink', () async {
+    final store = await _authorizedStore();
+    var refreshCalls = 0;
+    final apiTokens = <String>[];
+    final client = BaiduDriveClient(
+      source: source,
+      credentialStore: store,
+      tokenRefresher: ({
+        required clientId,
+        required clientSecret,
+        required refreshToken,
+      }) async {
+        refreshCalls++;
+        return BaiduOAuthTokens(
+          accessToken: 'access-refreshed',
+          refreshToken: 'refresh-refreshed',
+          expiresAt: DateTime.utc(2099, 2),
+          scopes: <String>{'basic', 'netdisk'},
+        );
+      },
+      apiFactory: (accessToken) {
+        apiTokens.add(accessToken);
+        return _FakeBaiduApi(
+          fileDetailsError: accessToken == 'access-fixture'
+              ? const CloudDriveException(
+                  CloudDriveErrorType.authentication,
+                )
+              : null,
+          details: BaiduFileDetails(
+            fsId: '1002',
+            path: '/影视/示例电影.mkv',
+            name: '示例电影.mkv',
+            size: 4096,
+            modifiedAt: DateTime.utc(2026, 7, 21),
+            isDirectory: false,
+            downloadUri: Uri.parse(
+              'https://d.pcs.baidu.com/file/refreshed',
+            ),
+          ),
+        );
+      },
+    );
+
+    final resource = await client.resolvePlayback(
+      const CloudRemoteRef(id: '1002', path: '/影视/示例电影.mkv'),
+    );
+
+    expect(resource.uri.host, 'd.pcs.baidu.com');
+    expect(refreshCalls, 1);
+    expect(apiTokens, <String>['access-fixture', 'access-refreshed']);
+    expect((await store.read(source.id))?.refreshToken, 'refresh-refreshed');
+  });
 }
 
 Future<MemoryCloudCredentialStore> _authorizedStore() async {
@@ -267,10 +320,12 @@ class _FakeBaiduApi implements BaiduApi {
   _FakeBaiduApi({
     this.entries = const <BaiduFileEntry>[],
     this.details,
+    this.fileDetailsError,
   });
 
   final List<BaiduFileEntry> entries;
   final BaiduFileDetails? details;
+  final Object? fileDetailsError;
   int accountCalls = 0;
 
   @override
@@ -290,16 +345,19 @@ class _FakeBaiduApi implements BaiduApi {
   Future<BaiduFileDetails> fileDetails(
     CloudRemoteRef file, {
     required bool includeDownloadLink,
-  }) async =>
-      details ??
-      BaiduFileDetails(
-        fsId: file.id,
-        path: file.path,
-        name: file.path.split('/').last,
-        size: 0,
-        modifiedAt: DateTime.utc(2026, 7, 21),
-        isDirectory: false,
-      );
+  }) async {
+    final error = fileDetailsError;
+    if (error != null) throw error;
+    return details ??
+        BaiduFileDetails(
+          fsId: file.id,
+          path: file.path,
+          name: file.path.split('/').last,
+          size: 0,
+          modifiedAt: DateTime.utc(2026, 7, 21),
+          isDirectory: false,
+        );
+  }
 
   @override
   Future<List<BaiduFileEntry>> listDirectory(CloudRemoteRef directory) async =>

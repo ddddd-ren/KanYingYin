@@ -2,8 +2,11 @@ import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/baidu/baidu_drive_client.dart';
+import 'package:kanyingyin/services/cloud/baidu/baidu_range_remote_reader.dart';
+import 'package:kanyingyin/services/cloud/range/cloud_range_remote_reader.dart';
 import 'package:kanyingyin/services/cloud/openlist/openlist_client.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_drive_client.dart';
+import 'package:kanyingyin/services/cloud/quark/quark_range_remote_reader.dart';
 
 typedef CloudProviderClientFactory = CloudDriveClient Function(
   CloudSource source,
@@ -11,18 +14,35 @@ typedef CloudProviderClientFactory = CloudDriveClient Function(
   bool allowSelfSignedCertificate,
 );
 
+typedef CloudProviderRangeReaderFactory = CloudRangeRemoteReader Function({
+  required CloudSource source,
+  required CloudPlaybackResource resource,
+  required Future<CloudPlaybackResource> Function() refreshResource,
+  required CloudCredentialStore credentialStore,
+});
+
 class CloudProviderRegistry {
   CloudProviderRegistry({
     Map<CloudSourceType, CloudProviderClientFactory> clientFactories =
         const <CloudSourceType, CloudProviderClientFactory>{},
-  }) : _clientFactories = <CloudSourceType, CloudProviderClientFactory>{
+    Map<CloudSourceType, CloudProviderRangeReaderFactory> rangeReaderFactories =
+        const <CloudSourceType, CloudProviderRangeReaderFactory>{},
+  })  : _clientFactories = <CloudSourceType, CloudProviderClientFactory>{
           CloudSourceType.openList: _createOpenListClient,
           CloudSourceType.quark: _createQuarkClient,
           CloudSourceType.baidu: _createBaiduClient,
           ...clientFactories,
+        },
+        _rangeReaderFactories =
+            <CloudSourceType, CloudProviderRangeReaderFactory>{
+          CloudSourceType.quark: _createQuarkRangeReader,
+          CloudSourceType.baidu: _createBaiduRangeReader,
+          ...rangeReaderFactories,
         };
 
   final Map<CloudSourceType, CloudProviderClientFactory> _clientFactories;
+  final Map<CloudSourceType, CloudProviderRangeReaderFactory>
+      _rangeReaderFactories;
 
   CloudDriveClient createClient(
     CloudSource source,
@@ -37,6 +57,24 @@ class CloudProviderRegistry {
       credentialStore,
       supportsSelfSignedCertificate(source.type) &&
           source.allowSelfSignedCertificate,
+    );
+  }
+
+  CloudRangeRemoteReader createRangeReader({
+    required CloudSource source,
+    required CloudPlaybackResource resource,
+    required Future<CloudPlaybackResource> Function() refreshResource,
+    required CloudCredentialStore credentialStore,
+  }) {
+    final factory = _rangeReaderFactories[source.type];
+    if (factory == null) {
+      throw const CloudDriveException(CloudDriveErrorType.incompatible);
+    }
+    return factory(
+      source: source,
+      resource: resource,
+      refreshResource: refreshResource,
+      credentialStore: credentialStore,
     );
   }
 
@@ -224,4 +262,49 @@ class CloudProviderRegistry {
         source: source,
         credentialStore: credentialStore,
       );
+
+  static CloudRangeRemoteReader _createQuarkRangeReader({
+    required CloudSource source,
+    required CloudPlaybackResource resource,
+    required Future<CloudPlaybackResource> Function() refreshResource,
+    required CloudCredentialStore credentialStore,
+  }) =>
+      QuarkRangeRemoteReader(
+        resource: _toQuarkRemoteResource(resource),
+        refreshResource: () async =>
+            _toQuarkRemoteResource(await refreshResource()),
+      );
+
+  static CloudRangeRemoteReader _createBaiduRangeReader({
+    required CloudSource source,
+    required CloudPlaybackResource resource,
+    required Future<CloudPlaybackResource> Function() refreshResource,
+    required CloudCredentialStore credentialStore,
+  }) =>
+      BaiduRangeRemoteReader(
+        resource: _toCloudRangeResource(resource),
+        accessTokenProvider: () async {
+          final credential = await credentialStore.read(source.id);
+          final token = credential?.accessToken?.trim() ?? '';
+          if (token.isEmpty) {
+            throw const CloudRangeRemoteAuthenticationException('百度授权无效');
+          }
+          return token;
+        },
+        refreshResource: () async =>
+            _toCloudRangeResource(await refreshResource()),
+      );
+
+  static QuarkRemoteResource _toQuarkRemoteResource(
+    CloudPlaybackResource resource,
+  ) =>
+      QuarkRemoteResource(
+        uri: resource.uri,
+        headers: resource.headers,
+      );
+
+  static CloudRangeRemoteResource _toCloudRangeResource(
+    CloudPlaybackResource resource,
+  ) =>
+      CloudRangeRemoteResource(uri: resource.uri);
 }

@@ -94,6 +94,20 @@ void main() {
     expect(entries.single.isPrerelease, isTrue);
   });
 
+  test('二点一二十说明修复媒体根目录识别', () {
+    final entries = versionHistoryForCurrent('2.1.20');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('媒体根目录'));
+    expect(changes, contains('高码率'));
+    expect(changes, contains('第 3 季'));
+    expect(changes, contains('重复卡片'));
+    expect(changes, contains('自动重新识别'));
+    expect(changes, contains('不会修改网盘文件'));
+    expect(entries.single.isPrerelease, isTrue);
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

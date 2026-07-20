@@ -154,6 +154,153 @@ void main() {
       );
     });
 
+    test('配置根目录本身为透明中字目录时继承路径中的作品名', () {
+      const contentPath = '/影视/正确剧名/内嵌中字';
+      final tree = resolver.resolve(
+        sourceId: 'quark-a',
+        configuredRoots: const <String>[contentPath],
+        directoryEntries: <String, List<CloudFileEntry>>{
+          contentPath: <CloudFileEntry>[
+            for (var episode = 1; episode <= 3; episode++)
+              _video(
+                'episode-$episode',
+                '$contentPath/${episode.toString().padLeft(2, '0')}.mkv',
+                '${episode.toString().padLeft(2, '0')}.mkv',
+              ),
+          ],
+        },
+        minSizeBytes: 100,
+      );
+
+      expect(tree.works, hasLength(1));
+      final work = tree.works.single;
+      expect(work.displayTitle, '正确剧名');
+      expect(work.standaloneVideos, isEmpty);
+      expect(work.seasons.single.seasonNumber, 1);
+      expect(
+        work.seasons.single.episodes.map((episode) => episode.displayName),
+        <String>[
+          '正确剧名 S01E01.mkv',
+          '正确剧名 S01E02.mkv',
+          '正确剧名 S01E03.mkv',
+        ],
+      );
+    });
+
+    test('配置根目录本身为带规格的季度目录时继承剧名和季号', () {
+      const seasonPath = '/影视/正确剧名/第 3 季 - 2160p WEB-DL H265 DDP 5.1 Atmos';
+      final tree = resolver.resolve(
+        sourceId: 'quark-a',
+        configuredRoots: const <String>[seasonPath],
+        directoryEntries: <String, List<CloudFileEntry>>{
+          seasonPath: <CloudFileEntry>[
+            for (var episode = 1; episode <= 3; episode++)
+              _video(
+                'episode-$episode',
+                '$seasonPath/${episode.toString().padLeft(2, '0')}.mkv',
+                '${episode.toString().padLeft(2, '0')}.mkv',
+              ),
+          ],
+        },
+        minSizeBytes: 100,
+      );
+
+      expect(tree.works, hasLength(1));
+      final work = tree.works.single;
+      expect(work.displayTitle, '正确剧名');
+      expect(work.standaloneVideos, isEmpty);
+      expect(work.seasons.single.seasonNumber, 3);
+      expect(
+        work.seasons.single.episodes.map((episode) => episode.displayName),
+        <String>[
+          '正确剧名 S03E01.mkv',
+          '正确剧名 S03E02.mkv',
+          '正确剧名 S03E03.mkv',
+        ],
+      );
+    });
+
+    test('配置根目录本身为作品目录时归并直接存放的纯集号文件', () {
+      const workPath = '/影视/正确剧名';
+      final tree = resolver.resolve(
+        sourceId: 'quark-a',
+        configuredRoots: const <String>[workPath],
+        directoryEntries: <String, List<CloudFileEntry>>{
+          workPath: <CloudFileEntry>[
+            for (var episode = 1; episode <= 3; episode++)
+              _video(
+                'episode-$episode',
+                '$workPath/${episode.toString().padLeft(2, '0')}.mkv',
+                '${episode.toString().padLeft(2, '0')}.mkv',
+              ),
+          ],
+        },
+        minSizeBytes: 100,
+      );
+
+      expect(tree.works, hasLength(1));
+      final work = tree.works.single;
+      expect(work.displayTitle, '正确剧名');
+      expect(work.standaloneVideos, isEmpty);
+      expect(work.seasons.single.seasonNumber, 1);
+      expect(
+        work.seasons.single.episodes.map((episode) => episode.episodeNumber),
+        <int>[1, 2, 3],
+      );
+    });
+
+    test('配置根目录本身为作品目录时归并其多个季度目录', () {
+      const workPath = '/影视/正确剧名';
+      const season1Path = '$workPath/第一季';
+      const season2Path = '$workPath/第二季';
+      final tree = resolver.resolve(
+        sourceId: 'quark-a',
+        configuredRoots: const <String>[workPath],
+        directoryEntries: <String, List<CloudFileEntry>>{
+          workPath: <CloudFileEntry>[
+            _dir('season-1', season1Path, '第一季'),
+            _dir('season-2', season2Path, '第二季'),
+          ],
+          season1Path: <CloudFileEntry>[
+            _video('s1e1', '$season1Path/01.mkv', '01.mkv'),
+          ],
+          season2Path: <CloudFileEntry>[
+            _video('s2e1', '$season2Path/01.mkv', '01.mkv'),
+          ],
+        },
+        minSizeBytes: 100,
+      );
+
+      expect(tree.works, hasLength(1));
+      final work = tree.works.single;
+      expect(work.displayTitle, '正确剧名');
+      expect(
+        work.seasons.map((season) => season.seasonNumber),
+        <int>[1, 2],
+      );
+    });
+
+    test('媒体集合根同时存在独立电影时不与季度目录误合并', () {
+      const rootPath = '/影视';
+      const seasonPath = '$rootPath/Season 1';
+      final tree = resolver.resolve(
+        sourceId: 'quark-a',
+        configuredRoots: const <String>[rootPath],
+        directoryEntries: <String, List<CloudFileEntry>>{
+          rootPath: <CloudFileEntry>[
+            _video('movie', '$rootPath/独立电影.mkv', '独立电影.mkv'),
+            _dir('season', seasonPath, 'Season 1'),
+          ],
+          seasonPath: <CloudFileEntry>[
+            _video('episode', '$seasonPath/01.mkv', '01.mkv'),
+          ],
+        },
+        minSizeBytes: 100,
+      );
+
+      expect(tree.works, hasLength(2));
+    });
+
     test('遍历多个媒体根并隔离同名异目录作品', () {
       final directoryEntries = <String, List<CloudFileEntry>>{
         '/剧集': <CloudFileEntry>[],

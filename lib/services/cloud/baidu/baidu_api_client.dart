@@ -7,7 +7,20 @@ import 'package:kanyingyin/services/cloud/baidu/baidu_response_parser.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 
-class BaiduApiClient {
+abstract interface class BaiduApi {
+  Future<BaiduAccount> account();
+
+  Future<List<BaiduFileEntry>> listDirectory(CloudRemoteRef directory);
+
+  Future<BaiduFileDetails> fileDetails(
+    CloudRemoteRef file, {
+    required bool includeDownloadLink,
+  });
+
+  Future<void> close();
+}
+
+class BaiduApiClient implements BaiduApi {
   BaiduApiClient({
     required this.accessToken,
     Dio? dio,
@@ -35,12 +48,14 @@ class BaiduApiClient {
   final int maxRateLimitRetries;
   bool _closed = false;
 
+  @override
   Future<BaiduAccount> account() async => _parser.parseAccount(
         await _get(BaiduEndpoints.account, <String, Object?>{
           'method': 'uinfo',
         }),
       );
 
+  @override
   Future<List<BaiduFileEntry>> listDirectory(
     CloudRemoteRef directory,
   ) async {
@@ -79,6 +94,7 @@ class BaiduApiClient {
     return List<BaiduFileEntry>.unmodifiable(entries);
   }
 
+  @override
   Future<BaiduFileDetails> fileDetails(
     CloudRemoteRef file, {
     required bool includeDownloadLink,
@@ -156,6 +172,7 @@ class BaiduApiClient {
     return CloudDriveErrorType.incompatible;
   }
 
+  @override
   Future<void> close() async {
     if (_closed) return;
     _closed = true;

@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/services/cloud/baidu/baidu_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
@@ -157,6 +158,24 @@ void main() {
       final client =
           registry.createClient(source, MemoryCloudCredentialStore());
       expect(client, isA<QuarkDriveClient>());
+      await client.close();
+    });
+
+    test('注册器创建百度客户端', () async {
+      const source = CloudSource(
+        id: 'baidu-fixture',
+        type: CloudSourceType.baidu,
+        name: '百度网盘',
+        baseUrl: 'https://pan.baidu.com',
+        rootPaths: <String>[],
+      );
+
+      final client = registry.createClient(
+        source,
+        MemoryCloudCredentialStore(),
+      );
+
+      expect(client, isA<BaiduDriveClient>());
       await client.close();
     });
   });

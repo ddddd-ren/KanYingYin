@@ -1,6 +1,7 @@
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/baidu/baidu_drive_client.dart';
 import 'package:kanyingyin/services/cloud/openlist/openlist_client.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_drive_client.dart';
 
@@ -17,6 +18,7 @@ class CloudProviderRegistry {
   }) : _clientFactories = <CloudSourceType, CloudProviderClientFactory>{
           CloudSourceType.openList: _createOpenListClient,
           CloudSourceType.quark: _createQuarkClient,
+          CloudSourceType.baidu: _createBaiduClient,
           ...clientFactories,
         };
 
@@ -209,6 +211,16 @@ class CloudProviderRegistry {
     bool allowSelfSignedCertificate,
   ) =>
       QuarkDriveClient(
+        source: source,
+        credentialStore: credentialStore,
+      );
+
+  static CloudDriveClient _createBaiduClient(
+    CloudSource source,
+    CloudCredentialStore credentialStore,
+    bool allowSelfSignedCertificate,
+  ) =>
+      BaiduDriveClient(
         source: source,
         credentialStore: credentialStore,
       );

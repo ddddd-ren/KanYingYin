@@ -1,4 +1,4 @@
-enum CloudPlaybackTransport { direct, quarkRangeRelay }
+enum CloudPlaybackTransport { direct, quarkRangeRelay, rangeRelay }
 
 enum QuarkRelayPhase {
   connecting,

@@ -24,6 +24,7 @@ class CloudPlaybackCachePolicy {
       switch (transport) {
         CloudPlaybackTransport.direct => direct,
         CloudPlaybackTransport.quarkRangeRelay => quarkRelay,
+        CloudPlaybackTransport.rangeRelay => quarkRelay,
       };
 }
 

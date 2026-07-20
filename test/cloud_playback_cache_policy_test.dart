@@ -24,6 +24,15 @@ void main() {
     );
   });
 
+  test('通用 Range 中转沿用夸克已验证的缓存参数', () {
+    expect(
+      CloudPlaybackCachePolicy.forTransport(
+        CloudPlaybackTransport.rangeRelay,
+      ).mpvProperties,
+      CloudPlaybackCachePolicy.quarkRelay.mpvProperties,
+    );
+  });
+
   test('租约协调器在新媒体接管后释放旧租约', () async {
     final coordinator = CloudPlaybackLeaseCoordinator();
     final first = _FakeLease();

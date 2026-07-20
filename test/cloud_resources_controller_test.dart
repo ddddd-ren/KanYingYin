@@ -4,11 +4,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
+import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
+import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_indexer.dart';
@@ -18,12 +21,100 @@ import 'package:kanyingyin/services/cloud/cloud_resource_auto_organizer.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
+import 'package:kanyingyin/services/cloud/cloud_work_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_series_match_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
 void main() {
   group('CloudResourcesController', () {
+    test('作品级索引生成季度卡且修改刮削名称同步同作品季度', () async {
+      final workCoordinator = _RecordingWorkTmdbCoordinator();
+      final fixture = await _Fixture.create(
+        sources: const <CloudSource>[
+          CloudSource(
+            id: 'source-work',
+            type: CloudSourceType.quark,
+            name: '作品媒体库',
+            baseUrl: 'https://pan.quark.cn',
+            rootPaths: <String>['/影视'],
+            rootRefs: <CloudRemoteRef>[
+              CloudRemoteRef(id: 'root-fid', path: '/影视'),
+            ],
+          ),
+        ],
+        clients: <String, _FakeCloudClient>{
+          'source-work': _FakeCloudClient(
+            entriesById: <String, List<CloudFileEntry>>{
+              'root-fid': const <CloudFileEntry>[
+                CloudFileEntry(
+                  id: 'work-fid',
+                  remotePath: '/影视/规范剧名',
+                  name: '规范剧名',
+                  size: 0,
+                  modifiedAt: null,
+                  isDirectory: true,
+                ),
+              ],
+              'work-fid': <CloudFileEntry>[
+                for (var season = 1; season <= 3; season++)
+                  CloudFileEntry(
+                    id: 'season-$season',
+                    remotePath: '/影视/规范剧名/第$season季',
+                    name: '第$season季',
+                    size: 0,
+                    modifiedAt: null,
+                    isDirectory: true,
+                  ),
+              ],
+              for (var season = 1; season <= 3; season++)
+                'season-$season': <CloudFileEntry>[
+                  CloudFileEntry(
+                    id: 's${season}e1',
+                    remotePath: '/影视/规范剧名/第$season季/01.mkv',
+                    name: '01.mkv',
+                    size: 200,
+                    modifiedAt: null,
+                    isDirectory: false,
+                  ),
+                ],
+            },
+          ),
+        },
+        workTmdbCoordinator: workCoordinator,
+        minRecognizedVideoSizeBytesProvider: () => 100,
+      );
+
+      await fixture.load();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        fixture.controller.collection.groups.map((group) => group.displayName),
+        <String>[
+          '规范剧名 第 1 季',
+          '规范剧名 第 2 季',
+          '规范剧名 第 3 季',
+        ],
+      );
+      final thirdSeason = fixture.controller.collection.groups.last;
+      await fixture.controller.saveScrapeTitle(thirdSeason, '修正剧名');
+      expect(
+        fixture.controller.collection.groups.every(
+          (group) => group.displayName.startsWith('修正剧名'),
+        ),
+        isTrue,
+      );
+      expect(
+        fixture.controller.detailsFor(thirdSeason.videos.single).remoteName,
+        '01.mkv',
+      );
+      expect(
+        fixture.controller.detailsFor(thirdSeason.videos.single).remotePath,
+        '/影视/规范剧名/第3季/01.mkv',
+      );
+      fixture.controller.dispose();
+    });
+
     test('只显示已启用来源且递归扫描配置根目录', () async {
       final fixture = await _Fixture.create(
         sources: const <CloudSource>[
@@ -1005,6 +1096,7 @@ class _Fixture {
     required List<CloudSource> sources,
     required Map<String, _FakeCloudClient> clients,
     CloudResourceTmdbCoordinator? tmdbCoordinator,
+    CloudWorkTmdbCoordinator? workTmdbCoordinator,
     CloudResourceAutoOrganizer? autoOrganizer,
     int Function()? minRecognizedVideoSizeBytesProvider,
   }) async {
@@ -1037,6 +1129,7 @@ class _Fixture {
           minRecognizedVideoSizeBytesProvider: minSizeProvider,
         ),
         tmdbCoordinator: tmdbCoordinator,
+        workTmdbCoordinator: workTmdbCoordinator,
         autoOrganizer: autoOrganizer ??
             CloudResourceAutoOrganizer(
               minRecognizedVideoSizeBytesProvider: () => 0,
@@ -1045,6 +1138,54 @@ class _Fixture {
       ),
       clients: clients,
     );
+  }
+}
+
+class _RecordingWorkTmdbCoordinator extends CloudWorkTmdbCoordinator {
+  _RecordingWorkTmdbCoordinator()
+      : super(
+          repository: CloudWorkTmdbRepository(
+            storage: MemoryCloudWorkTmdbStorage(),
+          ),
+          legacyRepository: CloudResourceTmdbRepository(
+            storage: MemoryCloudResourceTmdbStorage(),
+          ),
+          indexRepository: CloudMediaIndexRepository(
+            storage: MemoryCloudMediaIndexStorage(),
+          ),
+          serviceFactory: (_) => throw UnimplementedError(),
+          apiKeyProvider: () => '',
+        );
+
+  final Map<String, CloudWorkTmdbRecord> testRecords =
+      <String, CloudWorkTmdbRecord>{};
+
+  @override
+  Map<String, CloudWorkTmdbRecord> get recordsByWorkKey => testRecords;
+
+  @override
+  Future<void> loadAndSchedule(CloudMediaTree tree) async {
+    for (final work in tree.works) {
+      testRecords.putIfAbsent(
+        work.workKey,
+        () => CloudWorkTmdbRecord.uncheckedFromWork(
+          work,
+          checkedAt: _matchedAt,
+        ),
+      );
+    }
+    notifyListeners();
+  }
+
+  @override
+  Future<CloudWorkTmdbRecord> saveScrapeTitle(
+    CloudWorkIdentity work,
+    String title,
+  ) async {
+    final updated = testRecords[work.workKey]!.copyWithScrapeTitle(title);
+    testRecords[work.workKey] = updated;
+    notifyListeners();
+    return updated;
   }
 }
 

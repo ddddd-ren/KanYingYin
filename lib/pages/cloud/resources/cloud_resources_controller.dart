@@ -22,6 +22,7 @@ import 'package:kanyingyin/services/cloud/cloud_resource_auto_organizer.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
+import 'package:kanyingyin/services/cloud/cloud_source_path_scope.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_tmdb_service.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
@@ -238,7 +239,15 @@ class CloudResourcesController extends ChangeNotifier {
   bool hasSubtitle(CloudFileEntry video) =>
       _indexedItemFor(video)?.subtitleRefs.isNotEmpty == true;
 
-  Future<void> load() async {
+  Future<void> load() => _loadSources(startScan: true);
+
+  Future<void> reloadSourcesAndSnapshot() async {
+    _scanToken?.cancel();
+    await scanCompletion;
+    await _loadSources(startScan: false);
+  }
+
+  Future<void> _loadSources({required bool startScan}) async {
     final generation = ++_generation;
     _scanToken?.cancel();
     loading = true;
@@ -254,7 +263,11 @@ class CloudResourcesController extends ChangeNotifier {
       final nextId = loadedSources.any((source) => source.id == currentId)
           ? currentId
           : loadedSources.firstOrNull?.id;
-      await selectSource(nextId);
+      await _selectSource(
+        nextId,
+        generation: generation,
+        startScan: startScan,
+      );
     } on Object {
       if (!_isCurrent(generation)) return;
       sources = <CloudSource>[];
@@ -270,9 +283,21 @@ class CloudResourcesController extends ChangeNotifier {
     }
   }
 
-  Future<void> selectSource(String? sourceId) async {
+  Future<void> selectSource(String? sourceId) {
     final generation = ++_generation;
     _scanToken?.cancel();
+    return _selectSource(
+      sourceId,
+      generation: generation,
+      startScan: true,
+    );
+  }
+
+  Future<void> _selectSource(
+    String? sourceId, {
+    required int generation,
+    required bool startScan,
+  }) async {
     query = '';
     entries = <CloudFileEntry>[];
     _indexedItems.clear();
@@ -304,16 +329,26 @@ class CloudResourcesController extends ChangeNotifier {
     loading = false;
     _notify();
     _scheduleTmdb(source, entries);
-    _startScan(source, generation);
+    if (startScan) {
+      _startScan(source, generation);
+    }
   }
 
   Future<void> _loadSnapshot(CloudSource source, int generation) async {
     final snapshot = await _mediaIndexRepository.snapshot(source.id);
     if (!_isCurrent(generation) || selectedSource?.id != source.id) return;
+    final scopedItems = snapshot.items
+        .where(
+          (item) => CloudSourcePathScope.containsSourcePath(
+            source,
+            item.remotePath,
+          ),
+        )
+        .toList(growable: false);
     _indexedItems
       ..clear()
       ..addEntries(
-        snapshot.items.map(
+        scopedItems.map(
           (item) => MapEntry(_resourceKeyForItem(item), item),
         ),
       );
@@ -326,7 +361,7 @@ class CloudResourcesController extends ChangeNotifier {
     );
     _mediaTree = tree;
     _works = tree.works;
-    entries = snapshot.items
+    entries = scopedItems
         .map(
           (item) => CloudFileEntry(
             id: item.remoteId,

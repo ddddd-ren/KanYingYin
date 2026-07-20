@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
+import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
@@ -28,6 +29,109 @@ import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
 void main() {
   group('CloudResourcesController', () {
+    test('无扫描重载按最新根目录过滤旧快照且不回退旧资源', () async {
+      final credentials = MemoryCloudCredentialStore();
+      final sourceRepository = CloudSourceRepository(
+        storage: MemoryCloudSourceStorage(),
+        credentialStore: credentials,
+      );
+      const source = CloudSource(
+        id: 'scope-source',
+        type: CloudSourceType.openList,
+        name: '家庭网盘',
+        baseUrl: 'https://drive.example.com',
+        rootPaths: <String>['/B'],
+      );
+      await sourceRepository.save(source);
+      final indexRepository = CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      );
+      await indexRepository.replaceSource(
+        source.id,
+        <CloudMediaIndexItem>[
+          _scopedCloudEpisode(
+            source.id,
+            'old-id',
+            '/A/旧剧/S01E01.mkv',
+            '旧剧',
+          ),
+          _scopedCloudEpisode(
+            source.id,
+            'new-id',
+            '/B/新剧/S01E01.mkv',
+            '新剧',
+          ),
+        ],
+        const <String, String>{},
+        const {},
+        const <String>['/A'],
+      );
+      final controller = CloudResourcesController(
+        repository: sourceRepository,
+        credentialStore: credentials,
+        mediaIndexRepository: indexRepository,
+      );
+
+      await controller.reloadSourcesAndSnapshot();
+
+      expect(controller.entries.map((entry) => entry.id), <String>['new-id']);
+      expect(
+        controller.collection.groups
+            .expand((group) => group.videos)
+            .map((entry) => entry.id),
+        isNot(contains('old-id')),
+      );
+      expect(controller.scanning, isFalse);
+      expect(await indexRepository.getBySource(source.id), hasLength(2));
+      controller.dispose();
+    });
+
+    test('空根来源重载后不显示旧缓存且不自动扫描', () async {
+      final credentials = MemoryCloudCredentialStore();
+      final sourceRepository = CloudSourceRepository(
+        storage: MemoryCloudSourceStorage(),
+        credentialStore: credentials,
+      );
+      const source = CloudSource(
+        id: 'empty-scope-source',
+        type: CloudSourceType.quark,
+        name: '夸克网盘',
+        baseUrl: 'https://pan.quark.cn',
+        rootPaths: <String>[],
+      );
+      await sourceRepository.save(source);
+      final indexRepository = CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      );
+      await indexRepository.replaceSource(
+        source.id,
+        <CloudMediaIndexItem>[
+          _scopedCloudEpisode(
+            source.id,
+            'old-id',
+            '/A/旧剧/S01E01.mkv',
+            '旧剧',
+          ),
+        ],
+        const <String, String>{},
+        const {},
+        const <String>['/A'],
+      );
+      final controller = CloudResourcesController(
+        repository: sourceRepository,
+        credentialStore: credentials,
+        mediaIndexRepository: indexRepository,
+      );
+
+      await controller.reloadSourcesAndSnapshot();
+
+      expect(controller.entries, isEmpty);
+      expect(controller.works, isEmpty);
+      expect(controller.collection.groups, isEmpty);
+      expect(controller.scanning, isFalse);
+      controller.dispose();
+    });
+
     test('作品级索引生成季度卡且修改刮削名称同步同作品季度', () async {
       final workCoordinator = _RecordingWorkTmdbCoordinator();
       final fixture = await _Fixture.create(
@@ -1080,6 +1184,28 @@ void main() {
 }
 
 final _matchedAt = DateTime.utc(2026, 7, 19);
+
+CloudMediaIndexItem _scopedCloudEpisode(
+  String sourceId,
+  String remoteId,
+  String remotePath,
+  String seriesName,
+) =>
+    CloudMediaIndexItem(
+      sourceId: sourceId,
+      remoteId: remoteId,
+      remotePath: remotePath,
+      name: 'S01E01.mkv',
+      workKey: '$sourceId|$seriesName',
+      workRootId: seriesName,
+      workRootPath: remotePath.substring(0, remotePath.lastIndexOf('/')),
+      size: 1024,
+      modifiedAt: DateTime(2026, 7, 20),
+      seriesName: seriesName,
+      seasonNumber: 1,
+      episodeNumber: 1,
+      mediaType: CloudMediaType.episode,
+    );
 
 class _Fixture {
   const _Fixture({required this.controller, required this.clients});

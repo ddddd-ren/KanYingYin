@@ -84,6 +84,7 @@ void main() {
       record: null,
       workRecord: workRecord,
       seasonMetadata: workRecord.seasons.single,
+      isWorkScoped: true,
     );
 
     final data = CloudResourceCardViewData.fromGroup(

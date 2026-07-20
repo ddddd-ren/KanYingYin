@@ -39,7 +39,7 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = group.record?.effectiveTitle ?? group.seriesName;
+    final title = group.displayName;
     return SafeArea(
       child: SizedBox(
         key: const ValueKey<String>('cloud-resource-episode-sheet'),
@@ -63,7 +63,11 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                            '${group.seasons.length} 季 · ${group.videos.length} 集'),
+                          group.isWorkScoped
+                              ? '${group.videos.length} 集'
+                              : '${group.seasons.length} 季 · '
+                                  '${group.videos.length} 集',
+                        ),
                       ],
                     ),
                   ),
@@ -241,7 +245,8 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
   }
 
   Widget _seriesPoster(BuildContext context) {
-    final cached = group.record?.posterCachePath;
+    final cached =
+        group.workRecord?.posterCachePath ?? group.record?.posterCachePath;
     if (cached != null && File(cached).existsSync()) {
       return Image.file(
         File(cached),
@@ -254,7 +259,7 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
 
   Widget _seriesNetworkOrPlaceholder(BuildContext context) {
     final url = TmdbMatchSheet.imageUrl(
-      group.record?.posterUrl,
+      group.workRecord?.metadata?.posterUrl ?? group.record?.posterUrl,
       size: 'w500',
     );
     if (url == null) return _placeholder(context);

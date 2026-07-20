@@ -541,6 +541,18 @@ class CloudResourcesController extends ChangeNotifier {
     );
   }
 
+  Future<CloudWorkTmdbOutcome> scrapeWork(
+    CloudResourceMediaGroup group, {
+    TmdbScrapeOptions? options,
+  }) {
+    final coordinator = _workTmdbCoordinator;
+    if (coordinator == null) throw StateError('作品级 TMDB 刮削服务不可用');
+    return coordinator.scrape(
+      workForGroup(group),
+      options: options,
+    );
+  }
+
   Future<CloudWorkTmdbRecord> saveScrapeTitle(
     CloudResourceMediaGroup group,
     String title,
@@ -548,6 +560,14 @@ class CloudResourcesController extends ChangeNotifier {
     final coordinator = _workTmdbCoordinator;
     if (coordinator == null) throw StateError('作品级 TMDB 元数据服务不可用');
     return coordinator.saveScrapeTitle(workForGroup(group), title);
+  }
+
+  Future<CloudWorkTmdbRecord> clearScrapeTitle(
+    CloudResourceMediaGroup group,
+  ) {
+    final coordinator = _workTmdbCoordinator;
+    if (coordinator == null) throw StateError('作品级 TMDB 元数据服务不可用');
+    return coordinator.clearScrapeTitle(workForGroup(group));
   }
 
   CloudMediaIndexItem detailsFor(CloudFileEntry video) {

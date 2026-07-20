@@ -8,6 +8,7 @@ import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_episode_sheet.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_poster_wall.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_media_details_dialog.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_tmdb_match_dialog.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
@@ -159,31 +160,66 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       )
       .toSet();
 
-  Future<void> _scrapeEntry(CloudFileEntry entry) async {
-    await _openTmdbDialog(entry, rematch: false);
+  Future<void> _scrapeEntry(CloudResourceMediaGroup group) async {
+    await _openTmdbDialog(group, rematch: false);
   }
 
-  Future<void> _rematchEntry(CloudFileEntry entry) async {
-    await _openTmdbDialog(entry, rematch: true);
+  Future<void> _rematchEntry(CloudResourceMediaGroup group) async {
+    await _openTmdbDialog(group, rematch: true);
   }
 
   Future<void> _openTmdbDialog(
-    CloudFileEntry entry, {
+    CloudResourceMediaGroup group, {
     required bool rematch,
   }) async {
     try {
+      final entry = group.anchor;
+      final workGroup = _isWorkGroup(group);
       final outcome = await showDialog<CloudResourceTmdbSelectionOutcome>(
         context: context,
         builder: (context) => CloudTmdbMatchDialog(
           title: rematch ? '重新匹配 TMDB' : 'TMDB 刮削',
-          draft: _controller.tmdbDraftFor(entry),
+          draft: workGroup
+              ? _controller.tmdbDraftForGroup(group)
+              : _controller.tmdbDraftFor(entry),
           initialOptions: _controller.tmdbScrapeOptions,
-          onSearch: (request) => _controller.searchTmdb(entry, request),
-          onApply: (candidate, options) => _controller.applyTmdbCandidate(
-            entry,
-            candidate,
-            options: options,
-          ),
+          onSearch: (request) async {
+            if (workGroup) {
+              return CloudResourceTmdbSearchOutcome(
+                ranked: await _controller.searchWorkTmdb(group, request),
+              );
+            }
+            return _controller.searchTmdb(entry, request);
+          },
+          onApply: (candidate, options) async {
+            if (!workGroup) {
+              return _controller.applyTmdbCandidate(
+                entry,
+                candidate,
+                options: options,
+              );
+            }
+            final selected = await _controller.applyWorkTmdbCandidate(
+              group,
+              candidate,
+              options: options,
+            );
+            final metadata = selected.record.metadata!;
+            return CloudResourceTmdbSelectionOutcome(
+              record: CloudResourceTmdbRecord.matched(
+                sourceId: selected.record.sourceId,
+                remoteId: entry.id,
+                remotePath: entry.remotePath,
+                displayName: group.displayName,
+                resourceKind: CloudResourceKind.standaloneVideo,
+                metadata: metadata,
+                checkedAt: selected.record.checkedAt,
+                posterCachePath: selected.record.posterCachePath,
+              ),
+              posterCached: selected.posterCached,
+              indexSynced: selected.indexSynced,
+            );
+          },
         ),
       );
       if (!mounted || outcome == null) return;
@@ -215,9 +251,20 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     }
   }
 
-  Future<void> _editTitle(CloudFileEntry entry) async {
-    final record = _controller.tmdbRecordFor(entry);
-    var inputValue = record?.effectiveTitle ?? entry.name;
+  bool _isWorkGroup(CloudResourceMediaGroup group) {
+    return _controller.works.any((work) => work.workKey == group.workKey);
+  }
+
+  Future<void> _editTitle(CloudResourceMediaGroup group) async {
+    final entry = group.anchor;
+    final workGroup = _isWorkGroup(group);
+    final workRecord = workGroup ? _controller.workRecordForGroup(group) : null;
+    final record = workGroup ? null : _controller.tmdbRecordFor(entry);
+    var inputValue = workGroup
+        ? workRecord?.scrapeTitleOverride ??
+            workRecord?.metadata?.title ??
+            group.seriesName
+        : record?.effectiveTitle ?? entry.name;
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
@@ -225,23 +272,24 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
         var saving = false;
         return StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
-            title: const Text('修改剧名'),
+            title: Text(workGroup ? '修改刮削名称' : '修改剧名'),
             content: TextFormField(
               key: const ValueKey<String>('cloud-title-input'),
               initialValue: inputValue,
               autofocus: true,
               maxLines: 1,
               decoration: InputDecoration(
-                labelText: '显示剧名',
+                labelText: workGroup ? 'TMDB 搜索名称' : '显示剧名',
                 errorText: errorText,
-                helperText: '只修改看影音中的显示，不会重命名网盘文件',
+                helperText:
+                    workGroup ? '用于整部作品刮削，不会重命名网盘文件' : '只修改看影音中的显示，不会重命名网盘文件',
               ),
               onChanged: (value) => inputValue = value,
               onFieldSubmitted: saving
                   ? null
                   : (value) async {
                       await _saveEditedTitle(
-                        entry,
+                        group,
                         value,
                         dialogContext,
                         setDialogState,
@@ -251,14 +299,20 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
                     },
             ),
             actions: [
-              if (record?.customTitle != null)
+              if (workGroup
+                  ? workRecord?.scrapeTitleOverride != null
+                  : record?.customTitle != null)
                 TextButton(
                   onPressed: saving
                       ? null
                       : () async {
                           setDialogState(() => saving = true);
                           try {
-                            await _controller.clearCustomTitle(entry);
+                            if (workGroup) {
+                              await _controller.clearScrapeTitle(group);
+                            } else {
+                              await _controller.clearCustomTitle(entry);
+                            }
                             if (dialogContext.mounted) {
                               Navigator.of(dialogContext).pop();
                             }
@@ -266,12 +320,14 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
                             if (dialogContext.mounted) {
                               setDialogState(() {
                                 saving = false;
-                                errorText = '修改剧名失败';
+                                errorText = workGroup ? '修改刮削名称失败' : '修改剧名失败';
                               });
                             }
                           }
                         },
-                  child: const Text('恢复 TMDB 标题'),
+                  child: Text(
+                    workGroup ? '清除刮削名称' : '恢复 TMDB 标题',
+                  ),
                 ),
               TextButton(
                 onPressed:
@@ -282,7 +338,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
                 onPressed: saving
                     ? null
                     : () => _saveEditedTitle(
-                          entry,
+                          group,
                           inputValue,
                           dialogContext,
                           setDialogState,
@@ -299,7 +355,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
   }
 
   Future<void> _saveEditedTitle(
-    CloudFileEntry entry,
+    CloudResourceMediaGroup group,
     String value,
     BuildContext dialogContext,
     StateSetter setDialogState,
@@ -308,7 +364,11 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
   ) async {
     final normalized = value.trim();
     if (normalized.isEmpty) {
-      setDialogState(() => setError('剧名不能为空'));
+      setDialogState(
+        () => setError(
+          _isWorkGroup(group) ? '刮削名称不能为空' : '剧名不能为空',
+        ),
+      );
       return;
     }
     setDialogState(() {
@@ -316,49 +376,86 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       setSaving(true);
     });
     try {
-      await _controller.saveCustomTitle(entry, normalized);
+      if (_isWorkGroup(group)) {
+        await _controller.saveScrapeTitle(group, normalized);
+      } else {
+        await _controller.saveCustomTitle(group.anchor, normalized);
+      }
       if (dialogContext.mounted) Navigator.of(dialogContext).pop();
     } on Object {
       if (!dialogContext.mounted) return;
       setDialogState(() {
         setSaving(false);
-        setError('修改剧名失败');
+        setError(
+          _isWorkGroup(group) ? '修改刮削名称失败' : '修改剧名失败',
+        );
       });
     }
   }
 
+  Future<void> _showMediaDetails(CloudResourceMediaGroup group) {
+    return showCloudMediaDetailsDialog(
+      context: context,
+      item: _controller.detailsFor(group.anchor),
+    );
+  }
+
   Future<void> _scrapeSelectedSource() async {
     if (_batchScraping || _autoOrganizing) return;
+    final workGroups = <String, CloudResourceMediaGroup>{
+      for (final group in _controller.collection.groups)
+        if (_isWorkGroup(group)) group.workKey: group,
+    }.values.toList(growable: false);
     final entries = _controller.tmdbEntriesForSelectedSource;
-    if (entries.isEmpty) {
+    if (workGroups.isEmpty && entries.isEmpty) {
       _showMessage('当前来源没有需要刮削的资源');
       return;
     }
     setState(() {
       _batchScraping = true;
       _batchCurrent = 0;
-      _batchTotal = entries.length;
+      _batchTotal = workGroups.isNotEmpty ? workGroups.length : entries.length;
     });
     var matched = 0;
     var pending = 0;
     var noResult = 0;
     var failed = 0;
     try {
-      for (final entry in entries) {
-        if (!mounted) return;
-        setState(() => _batchCurrent++);
-        try {
-          final outcome = await _controller.scrapeTmdb(entry);
-          if (outcome.selected != null) {
-            matched++;
-          } else if (outcome.candidates.isNotEmpty) {
-            pending++;
-          } else {
-            noResult++;
+      if (workGroups.isNotEmpty) {
+        for (final group in workGroups) {
+          if (!mounted) return;
+          setState(() => _batchCurrent++);
+          try {
+            final outcome = await _controller.scrapeWork(group);
+            if (outcome.selected != null) {
+              matched++;
+            } else if (outcome.candidates.isNotEmpty) {
+              pending++;
+            } else {
+              noResult++;
+            }
+          } on Object {
+            failed++;
+            continue;
           }
-        } on Object {
-          failed++;
-          continue;
+        }
+      } else {
+        for (final entry in entries) {
+          if (!mounted) return;
+          setState(() => _batchCurrent++);
+          try {
+            final outcome = await _controller.scrapeTmdb(entry);
+            if (outcome.selected != null) {
+              matched++;
+            } else if (outcome.candidates.isNotEmpty) {
+              pending++;
+            } else {
+              noResult++;
+            }
+          } on Object {
+            failed++;
+            continue;
+          }
         }
       }
       if (mounted) {
@@ -737,6 +834,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
               onEditTitle: _editTitle,
               onScrape: _scrapeEntry,
               onRematch: _rematchEntry,
+              onDetails: _showMediaDetails,
             ),
           ),
         ],

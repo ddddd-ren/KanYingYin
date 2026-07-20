@@ -145,6 +145,8 @@ void main() {
     expect(
         shouldRefreshCloudLink(const CloudPlaybackHttpException(403)), isTrue);
     expect(
+        shouldRefreshCloudLink(const CloudPlaybackHttpException(412)), isTrue);
+    expect(
       shouldRefreshCloudLink(
         const CloudDriveException(CloudDriveErrorType.expiredLink),
       ),
@@ -158,6 +160,11 @@ void main() {
       shouldRefreshCloudLink('Failed to open https://cdn.example.com'),
       isTrue,
     );
+    expect(
+      shouldRefreshCloudLink('HTTP error 412 Precondition Failed'),
+      isTrue,
+    );
+    expect(shouldRefreshCloudLink('status code 412'), isTrue);
     expect(shouldRefreshCloudLink('decoder initialization failed'), isFalse);
     expect(
       cloudPlaybackFailureMessage('夸克'),
@@ -660,6 +667,9 @@ void main() {
     guard.reset();
     expect(guard.tryAcquire('Failed to open https://cdn.example.com'), isTrue);
     expect(guard.tryAcquire('Failed to open https://cdn.example.com'), isFalse);
+    guard.reset();
+    expect(guard.tryAcquire('HTTP error 412 Precondition Failed'), isTrue);
+    expect(guard.tryAcquire('HTTP error 412 Precondition Failed'), isFalse);
   });
 
   test('生产媒体库注入云播放回调且不再显示服务不可用', () {

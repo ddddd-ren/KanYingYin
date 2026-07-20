@@ -35,6 +35,8 @@ migrate_working_dir/
 /build/
 /msix_pack/
 *.pfx
+*.private-build.json
+/tool/windows/private-output/
 
 # Symbolication related
 app.*.symbols

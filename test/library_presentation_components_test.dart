@@ -293,7 +293,75 @@ void main() {
       heroTag: 'library-show-1',
     );
 
-    testWidgets('桌面宽度按断点切换列数且点击卡片', (tester) async {
+    testWidgets('本地海报墙保持海报尺寸并随宽度增加列数', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final layoutItems = <LibraryMediaItemViewData>[
+        for (var index = 0; index < 20; index++)
+          LibraryMediaItemViewData(
+            id: 'show-$index',
+            title: '测试动画 $index',
+            subtitle: '第 1 季',
+            infoText: 'MKV  1.0 GB',
+            modifiedText: '2026-07-20',
+            hasMultipleEpisodes: true,
+            hasSubtitle: false,
+            scrapeLabel: '未刮削',
+          ),
+      ];
+
+      Future<void> pumpAt(double width) async {
+        tester.view.physicalSize = Size(width, 720);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: LibraryMediaGrid(
+                data: LibraryMediaGridViewData(items: layoutItems),
+              ),
+            ),
+          ),
+        );
+      }
+
+      Future<({int columns, double cardWidth})> layoutAt(double width) async {
+        await pumpAt(width);
+        final grid = tester.widget<GridView>(find.byType(GridView));
+        expect(
+          grid.gridDelegate,
+          isA<SliverGridDelegateWithMaxCrossAxisExtent>(),
+        );
+        final delegate =
+            grid.gridDelegate as SliverGridDelegateWithMaxCrossAxisExtent;
+        expect(delegate.maxCrossAxisExtent, 300);
+        expect(delegate.childAspectRatio, 0.68);
+        expect(delegate.crossAxisSpacing, 12);
+        expect(delegate.mainAxisSpacing, 12);
+        final cards = find.byType(ImmersiveMediaCard);
+        final firstTop = tester.getTopLeft(cards.first).dy;
+        final firstRow = <Rect>[
+          for (var index = 0; index < cards.evaluate().length; index++)
+            tester.getRect(cards.at(index)),
+        ].where((rect) => (rect.top - firstTop).abs() < 0.5).toList();
+        return (
+          columns: firstRow.length,
+          cardWidth: firstRow.first.width,
+        );
+      }
+
+      final narrow = await layoutAt(620);
+      final regular = await layoutAt(1320);
+      final maximized = await layoutAt(1920);
+
+      expect(narrow.columns, lessThan(regular.columns));
+      expect(maximized.columns, greaterThan(regular.columns));
+      expect(narrow.cardWidth, lessThanOrEqualTo(300));
+      expect(regular.cardWidth, lessThanOrEqualTo(300));
+      expect(maximized.cardWidth, lessThanOrEqualTo(300));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('桌面卡片保持悬浮信息且点击卡片', (tester) async {
       String? played;
 
       Future<void> pumpAt(Size size) async {
@@ -314,17 +382,7 @@ void main() {
 
       addTearDown(tester.view.resetDevicePixelRatio);
       addTearDown(tester.view.resetPhysicalSize);
-      await pumpAt(const Size(800, 700));
-      var grid = tester.widget<GridView>(find.byType(GridView));
-      var delegate =
-          grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
-      expect(delegate.crossAxisCount, 3);
-      expect(delegate.crossAxisSpacing, 12);
-
       await pumpAt(const Size(1000, 700));
-      grid = tester.widget<GridView>(find.byType(GridView));
-      delegate = grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
-      expect(delegate.crossAxisCount, 4);
       expect(find.byType(ImmersiveMediaCard), findsOneWidget);
       expect(
         tester

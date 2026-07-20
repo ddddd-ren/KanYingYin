@@ -1,5 +1,6 @@
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
+import 'package:kanyingyin/modules/media/media_name_analysis.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:synchronized/synchronized.dart';
@@ -307,6 +308,11 @@ class CloudMediaIndexRepository {
       remoteId: requiredString('remoteId'),
       remotePath: requiredString('remotePath'),
       name: requiredString('name'),
+      remoteName: json['remoteName'] as String? ?? requiredString('name'),
+      displayName: json['displayName'] as String? ?? requiredString('name'),
+      workKey: json['workKey'] as String?,
+      workRootId: json['workRootId'] as String?,
+      workRootPath: json['workRootPath'] as String?,
       size: size,
       modifiedAt: DateTime.tryParse(
           json['modifiedAt'] is String ? json['modifiedAt'] as String : ''),
@@ -340,6 +346,14 @@ class CloudMediaIndexRepository {
       tmdbPosterUrl: json['tmdbPosterUrl'] as String?,
       tmdbBackdropUrl: json['tmdbBackdropUrl'] as String?,
       posterCachePath: json['posterCachePath'] as String?,
+      recognitionVersion: json['recognitionVersion'] is int
+          ? json['recognitionVersion'] as int
+          : 0,
+      releaseTags: json['releaseTags'] is Map
+          ? MediaReleaseTags.fromJson(
+              Map<String, Object?>.from(json['releaseTags'] as Map),
+            )
+          : const MediaReleaseTags(),
     );
   }
 
@@ -349,6 +363,11 @@ class CloudMediaIndexRepository {
         'remoteId': item.remoteId,
         'remotePath': item.remotePath,
         'name': item.name,
+        'remoteName': item.remoteName,
+        'displayName': item.displayName,
+        'workKey': item.workKey,
+        'workRootId': item.workRootId,
+        'workRootPath': item.workRootPath,
         'size': item.size,
         'modifiedAt': item.modifiedAt?.toIso8601String(),
         'seriesName': item.seriesName,
@@ -366,6 +385,8 @@ class CloudMediaIndexRepository {
         'tmdbPosterUrl': item.tmdbPosterUrl,
         'tmdbBackdropUrl': item.tmdbBackdropUrl,
         'posterCachePath': item.posterCachePath,
+        'recognitionVersion': item.recognitionVersion,
+        'releaseTags': item.releaseTags.toJson(),
       };
 
   static CloudFileEntry _entryFromJson(Map<String, Object?> json) {

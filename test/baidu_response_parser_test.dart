@@ -37,6 +37,7 @@ void main() {
     );
 
     expect(details.fsId, '1002');
+    expect(details.name, '示例电影.mkv');
     expect(details.downloadUri?.scheme, 'https');
     expect(details.downloadUri?.host, 'download.baidu-fixture.invalid');
 
@@ -52,6 +53,53 @@ void main() {
               'size': 4,
               'isdir': 0,
               'server_mtime': 1,
+            },
+          ],
+        },
+        expectedFsId: '1002',
+      ),
+      throwsA(isA<CloudDriveException>().having(
+        (error) => error.type,
+        'type',
+        CloudDriveErrorType.incompatible,
+      )),
+    );
+  });
+
+  test('文件详情兼容旧 server_filename 字段', () {
+    final details = parser.parseFileDetails(
+      <String, Object?>{
+        'errno': 0,
+        'list': <Object?>[
+          <String, Object?>{
+            'fs_id': 1002,
+            'path': '/影视/旧响应.mkv',
+            'server_filename': '旧响应.mkv',
+            'size': 8,
+            'isdir': 0,
+            'server_mtime': 1700000100,
+            'dlink': 'https://download.baidu-fixture.invalid/legacy',
+          },
+        ],
+      },
+      expectedFsId: '1002',
+    );
+
+    expect(details.name, '旧响应.mkv');
+  });
+
+  test('文件详情缺少两个文件名字段时拒绝响应', () {
+    expect(
+      () => parser.parseFileDetails(
+        <String, Object?>{
+          'errno': 0,
+          'list': <Object?>[
+            <String, Object?>{
+              'fs_id': 1002,
+              'path': '/影视/无文件名.mkv',
+              'size': 8,
+              'isdir': 0,
+              'server_mtime': 1700000100,
             },
           ],
         },

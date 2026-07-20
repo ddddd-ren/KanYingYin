@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
+import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
@@ -13,12 +15,15 @@ import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_indexer.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_name_parser.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_tree_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_auto_organizer.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
+import 'package:kanyingyin/services/cloud/cloud_work_tmdb_coordinator.dart';
+import 'package:kanyingyin/services/cloud/cloud_work_tmdb_service.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
@@ -66,21 +71,26 @@ class CloudResourcesController extends ChangeNotifier {
     required CloudCredentialStore credentialStore,
     CloudProviderRegistry? providerRegistry,
     CloudResourceTmdbCoordinator? tmdbCoordinator,
+    CloudWorkTmdbCoordinator? workTmdbCoordinator,
     CloudResourceAutoOrganizer? autoOrganizer,
     int Function()? minRecognizedVideoSizeBytesProvider,
     CloudResourceCollectionGrouper? collectionGrouper,
     CloudMediaIndexRepository? mediaIndexRepository,
     CloudMediaIndexer? mediaIndexer,
+    CloudMediaTreeResolver? mediaTreeResolver,
   })  : _repository = repository,
         _credentialStore = credentialStore,
         _mediaIndexRepository =
             mediaIndexRepository ?? CloudMediaIndexRepository(),
         _providerRegistry = providerRegistry ?? CloudProviderRegistry(),
         _tmdbCoordinator = tmdbCoordinator,
+        _workTmdbCoordinator = workTmdbCoordinator,
         _minRecognizedVideoSizeBytesProvider =
             minRecognizedVideoSizeBytesProvider ?? _defaultCloudMinSizeBytes,
         _collectionGrouper =
             collectionGrouper ?? CloudResourceCollectionGrouper(),
+        _mediaTreeResolver =
+            mediaTreeResolver ?? const CloudMediaTreeResolver(),
         _autoOrganizer = autoOrganizer ??
             CloudResourceAutoOrganizer(
               minRecognizedVideoSizeBytesProvider:
@@ -94,6 +104,7 @@ class CloudResourcesController extends ChangeNotifier {
               _minRecognizedVideoSizeBytesProvider,
         );
     _tmdbCoordinator?.addListener(_notify);
+    _workTmdbCoordinator?.addListener(_notify);
   }
 
   final CloudSourceRepository _repository;
@@ -102,11 +113,15 @@ class CloudResourcesController extends ChangeNotifier {
   late final CloudMediaIndexer _mediaIndexer;
   final CloudProviderRegistry _providerRegistry;
   final CloudResourceTmdbCoordinator? _tmdbCoordinator;
+  final CloudWorkTmdbCoordinator? _workTmdbCoordinator;
   final CloudResourceAutoOrganizer _autoOrganizer;
   final int Function() _minRecognizedVideoSizeBytesProvider;
   final CloudResourceCollectionGrouper _collectionGrouper;
+  final CloudMediaTreeResolver _mediaTreeResolver;
   final Map<String, CloudMediaIndexItem> _indexedItems =
       <String, CloudMediaIndexItem>{};
+  List<CloudWorkIdentity> _works = <CloudWorkIdentity>[];
+  CloudMediaTree? _mediaTree;
 
   List<CloudSource> sources = <CloudSource>[];
   List<CloudFileEntry> entries = <CloudFileEntry>[];
@@ -134,13 +149,28 @@ class CloudResourcesController extends ChangeNotifier {
   Map<String, CloudResourceTmdbRecord> get tmdbRecords =>
       _tmdbCoordinator?.records ?? const <String, CloudResourceTmdbRecord>{};
 
-  Set<String> get tmdbScrapingKeys =>
-      _tmdbCoordinator?.scrapingKeys ?? const <String>{};
+  Map<String, CloudWorkTmdbRecord> get workTmdbRecords =>
+      _workTmdbCoordinator?.recordsByWorkKey ??
+      const <String, CloudWorkTmdbRecord>{};
 
-  int get tmdbCompletedCount => _tmdbCoordinator?.completedCount ?? 0;
-  int get tmdbTotalCount => _tmdbCoordinator?.totalCount ?? 0;
+  List<CloudWorkIdentity> get works =>
+      List<CloudWorkIdentity>.unmodifiable(_works);
+
+  Set<String> get tmdbScrapingKeys =>
+      _workTmdbCoordinator?.scrapingWorkKeys ??
+      _tmdbCoordinator?.scrapingKeys ??
+      const <String>{};
+
+  int get tmdbCompletedCount =>
+      _workTmdbCoordinator?.completedCount ??
+      _tmdbCoordinator?.completedCount ??
+      0;
+  int get tmdbTotalCount =>
+      _workTmdbCoordinator?.totalCount ?? _tmdbCoordinator?.totalCount ?? 0;
   TmdbScrapeOptions get tmdbScrapeOptions =>
-      _tmdbCoordinator?.options ?? const TmdbScrapeOptions.defaults();
+      _workTmdbCoordinator?.options ??
+      _tmdbCoordinator?.options ??
+      const TmdbScrapeOptions.defaults();
 
   bool get isCurrentDirectoryConfiguredRoot => false;
 
@@ -167,13 +197,23 @@ class CloudResourcesController extends ChangeNotifier {
     return filtered;
   }
 
-  CloudResourceCollection get collection => _collectionGrouper.group(
-        sourceId: selectedSource?.id ?? '',
-        entries: entries,
-        records: tmdbRecords,
-        minSizeBytes: _minRecognizedVideoSizeBytesProvider(),
+  CloudResourceCollection get collection {
+    if (_workTmdbCoordinator != null && _works.isNotEmpty) {
+      return _collectionGrouper.group(
+        items: _indexedItems.values.toList(growable: false),
+        works: _works,
+        recordsByWorkKey: workTmdbRecords,
         query: query,
       );
+    }
+    return _collectionGrouper.group(
+      sourceId: selectedSource?.id ?? '',
+      entries: entries,
+      records: tmdbRecords,
+      minSizeBytes: _minRecognizedVideoSizeBytesProvider(),
+      query: query,
+    );
+  }
 
   List<CloudFileEntry> get tmdbEntriesForSelectedSource {
     final minSizeBytes = _minRecognizedVideoSizeBytesProvider();
@@ -222,6 +262,8 @@ class CloudResourcesController extends ChangeNotifier {
       currentDirectory = null;
       entries = <CloudFileEntry>[];
       _indexedItems.clear();
+      _works = <CloudWorkIdentity>[];
+      _mediaTree = null;
       loading = false;
       errorMessage = '网盘来源加载失败';
       _notify();
@@ -234,6 +276,8 @@ class CloudResourcesController extends ChangeNotifier {
     query = '';
     entries = <CloudFileEntry>[];
     _indexedItems.clear();
+    _works = <CloudWorkIdentity>[];
+    _mediaTree = null;
     currentDirectory = null;
     isVirtualRoot = false;
     errorMessage = null;
@@ -273,6 +317,15 @@ class CloudResourcesController extends ChangeNotifier {
           (item) => MapEntry(_resourceKeyForItem(item), item),
         ),
       );
+    final tree = _mediaTreeResolver.resolve(
+      sourceId: source.id,
+      configuredRoots:
+          source.remoteRoots.map((root) => root.path).toList(growable: false),
+      directoryEntries: snapshot.directoryEntries,
+      minSizeBytes: _minRecognizedVideoSizeBytesProvider(),
+    );
+    _mediaTree = tree;
+    _works = tree.works;
     entries = snapshot.items
         .map(
           (item) => CloudFileEntry(
@@ -423,6 +476,84 @@ class CloudResourcesController extends ChangeNotifier {
       seasonNumber: indexed.seasonNumber ?? parsed.seasonNumber,
       episodeNumber: indexed.episodeNumber ?? parsed.episodeNumber,
     );
+  }
+
+  CloudWorkIdentity workForGroup(CloudResourceMediaGroup group) {
+    return _works.firstWhere(
+      (work) => work.workKey == group.workKey,
+      orElse: () => throw StateError('找不到季度卡对应的作品'),
+    );
+  }
+
+  CloudWorkTmdbRecord? workRecordForGroup(CloudResourceMediaGroup group) {
+    return workTmdbRecords[group.workKey];
+  }
+
+  TmdbMatchDraft tmdbDraftForGroup(CloudResourceMediaGroup group) {
+    final work = workForGroup(group);
+    final record = workRecordForGroup(group);
+    final title = record?.scrapeTitleOverride?.trim().isNotEmpty == true
+        ? record!.scrapeTitleOverride!.trim()
+        : record?.metadata?.title.trim().isNotEmpty == true
+            ? record!.metadata!.title.trim()
+            : work.displayTitle;
+    return TmdbMatchDraft(
+      originalName: work.remoteName,
+      searchTitle: title,
+      mediaTypeMode:
+          work.seasons.isEmpty ? TmdbMediaTypeMode.auto : TmdbMediaTypeMode.tv,
+      seasonNumber: group.seasonNumber,
+    );
+  }
+
+  Future<TmdbRankedResult> searchWorkTmdb(
+    CloudResourceMediaGroup group,
+    CloudResourceTmdbSearchRequest request,
+  ) {
+    final coordinator = _workTmdbCoordinator;
+    if (coordinator == null) throw StateError('作品级 TMDB 刮削服务不可用');
+    return coordinator.searchPrepared(workForGroup(group), request);
+  }
+
+  Future<CloudWorkTmdbSelectionOutcome> applyWorkTmdbCandidate(
+    CloudResourceMediaGroup group,
+    TmdbRankedCandidate candidate, {
+    required TmdbScrapeOptions options,
+  }) {
+    final coordinator = _workTmdbCoordinator;
+    if (coordinator == null) throw StateError('作品级 TMDB 刮削服务不可用');
+    return coordinator.selectPrepared(
+      workForGroup(group),
+      candidate,
+      options: options,
+    );
+  }
+
+  Future<List<TmdbMetadata>> rematchWork(
+    CloudResourceMediaGroup group, {
+    TmdbScrapeOptions? options,
+  }) {
+    final coordinator = _workTmdbCoordinator;
+    if (coordinator == null) throw StateError('作品级 TMDB 刮削服务不可用');
+    return coordinator.rematch(
+      workForGroup(group),
+      options: options,
+    );
+  }
+
+  Future<CloudWorkTmdbRecord> saveScrapeTitle(
+    CloudResourceMediaGroup group,
+    String title,
+  ) {
+    final coordinator = _workTmdbCoordinator;
+    if (coordinator == null) throw StateError('作品级 TMDB 元数据服务不可用');
+    return coordinator.saveScrapeTitle(workForGroup(group), title);
+  }
+
+  CloudMediaIndexItem detailsFor(CloudFileEntry video) {
+    final item = _indexedItemFor(video);
+    if (item == null) throw StateError('找不到媒体索引详情');
+    return item;
   }
 
   Future<CloudResourceTmdbSearchOutcome> searchTmdb(
@@ -626,6 +757,12 @@ class CloudResourcesController extends ChangeNotifier {
     CloudSource source,
     List<CloudFileEntry> loadedEntries,
   ) {
+    final workCoordinator = _workTmdbCoordinator;
+    final tree = _mediaTree;
+    if (workCoordinator != null && tree != null) {
+      unawaited(workCoordinator.loadAndSchedule(tree).catchError((_) {}));
+      return;
+    }
     final coordinator = _tmdbCoordinator;
     if (coordinator == null) return;
     unawaited(
@@ -676,6 +813,7 @@ class CloudResourcesController extends ChangeNotifier {
     _generation++;
     _scanToken?.cancel();
     _tmdbCoordinator?.removeListener(_notify);
+    _workTmdbCoordinator?.removeListener(_notify);
     super.dispose();
   }
 }

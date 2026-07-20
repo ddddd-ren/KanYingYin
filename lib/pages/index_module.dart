@@ -28,6 +28,7 @@ import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/repositories/cloud_series_match_rule_repository.dart';
+import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_cache_directories.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_indexer.dart';
@@ -35,6 +36,8 @@ import 'package:kanyingyin/services/cloud/cloud_poster_cache.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
 import 'package:kanyingyin/services/cloud/cloud_series_match_service.dart';
+import 'package:kanyingyin/services/cloud/cloud_work_tmdb_coordinator.dart';
+import 'package:kanyingyin/services/cloud/cloud_work_tmdb_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/utils/storage.dart';
@@ -58,6 +61,7 @@ class IndexModule extends Module {
     i.addSingleton<CloudResourceTmdbRepository>(
       CloudResourceTmdbRepository.new,
     );
+    i.addSingleton<CloudWorkTmdbRepository>(CloudWorkTmdbRepository.new);
     i.addSingleton<CloudSeriesMatchRuleRepository>(
       CloudSeriesMatchRuleRepository.new,
     );
@@ -88,6 +92,7 @@ class IndexModule extends Module {
           credentialStore: Modular.get<CloudCredentialStore>(),
           mediaIndexRepository: Modular.get<CloudMediaIndexRepository>(),
           resourceTmdbRepository: Modular.get<CloudResourceTmdbRepository>(),
+          workTmdbRepository: Modular.get<CloudWorkTmdbRepository>(),
           seriesMatchRuleRepository:
               Modular.get<CloudSeriesMatchRuleRepository>(),
           mediaIndexer: Modular.get<CloudMediaIndexer>(),
@@ -109,11 +114,30 @@ class IndexModule extends Module {
         seriesMatchService: Modular.get<CloudSeriesMatchService>(),
       ),
     );
+    i.addSingleton<CloudWorkTmdbCoordinator>(
+      () => CloudWorkTmdbCoordinator(
+        repository: Modular.get<CloudWorkTmdbRepository>(),
+        legacyRepository: Modular.get<CloudResourceTmdbRepository>(),
+        indexRepository: Modular.get<CloudMediaIndexRepository>(),
+        serviceFactory: (apiKey) async => CloudWorkTmdbService(
+          repository: Modular.get<CloudWorkTmdbRepository>(),
+          indexRepository: Modular.get<CloudMediaIndexRepository>(),
+          client: TmdbClient(apiKey: apiKey),
+          posterCache: CloudPosterCache(
+            cacheRoot: await defaultCloudCacheRoot(),
+            downloader: _downloadCloudPoster,
+          ),
+        ),
+        apiKeyProvider: _tmdbApiKey,
+        optionsProvider: _tmdbScrapeOptions,
+      ),
+    );
     i.addSingleton<CloudResourcesController>(
       () => CloudResourcesController(
         repository: Modular.get<CloudSourceRepository>(),
         credentialStore: Modular.get<CloudCredentialStore>(),
         tmdbCoordinator: Modular.get<CloudResourceTmdbCoordinator>(),
+        workTmdbCoordinator: Modular.get<CloudWorkTmdbCoordinator>(),
         mediaIndexRepository: Modular.get<CloudMediaIndexRepository>(),
         mediaIndexer: Modular.get<CloudMediaIndexer>(),
         minRecognizedVideoSizeBytesProvider: () =>

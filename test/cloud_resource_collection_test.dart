@@ -1,10 +1,126 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
+import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
+import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
+import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/modules/media/media_name_analysis.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 
 void main() {
+  test('作品集合直接产出三张季度卡和虚拟分集名', () {
+    final work = _workIdentity();
+    final record = CloudWorkTmdbRecord.matched(
+      sourceId: work.sourceId,
+      workKey: work.workKey,
+      workRootId: work.root.id,
+      workRootPath: work.root.remotePath,
+      remoteName: work.remoteName,
+      metadata: _workMetadata,
+      checkedAt: DateTime.utc(2026, 7, 20),
+    );
+    final items = <CloudMediaIndexItem>[
+      for (var season = 1; season <= 3; season++)
+        CloudMediaIndexItem(
+          sourceId: work.sourceId,
+          remoteId: 's${season}e1',
+          remotePath: '/影视/作品/第$season季/01.mkv',
+          name: '01.mkv',
+          remoteName: '01.mkv',
+          displayName: '规则标题 S0${season}E01.mkv',
+          workKey: work.workKey,
+          workRootId: work.root.id,
+          workRootPath: work.root.remotePath,
+          size: 200,
+          modifiedAt: null,
+          seriesName: '规则标题',
+          seasonNumber: season,
+          episodeNumber: 1,
+          mediaType: CloudMediaType.episode,
+        ),
+    ];
+
+    final collection = CloudResourceCollectionGrouper().group(
+      items: items,
+      works: <CloudWorkIdentity>[work],
+      recordsByWorkKey: <String, CloudWorkTmdbRecord>{work.workKey: record},
+      query: '',
+    );
+
+    expect(collection.groups, hasLength(3));
+    expect(
+      collection.groups.map((group) => group.displayName),
+      <String>[
+        'TMDB 中文标题 第 1 季',
+        'TMDB 中文标题 第 2 季',
+        'TMDB 中文标题 第 3 季',
+      ],
+    );
+    expect(
+      collection.groups.map((group) => group.seasonMetadata?.posterUrl),
+      <String?>['/season-1.jpg', '/season-2.jpg', '/season-3.jpg'],
+    );
+    expect(collection.groups.last.videos.single.name, '规则标题 S03E01.mkv');
+    expect(
+      collection.groups.last.videos.single.remotePath,
+      '/影视/作品/第3季/01.mkv',
+    );
+    expect(collection.groups.last.videos.single.id, 's3e1');
+  });
+
+  test('同季同集多个版本使用发布规格区分虚拟名称', () {
+    final work = _workIdentity();
+    CloudMediaIndexItem version(
+      String id,
+      String path,
+      MediaReleaseTags tags,
+    ) {
+      return CloudMediaIndexItem(
+        sourceId: work.sourceId,
+        remoteId: id,
+        remotePath: path,
+        name: path.split('/').last,
+        displayName: '规则标题 S01E01.mkv',
+        workKey: work.workKey,
+        workRootId: work.root.id,
+        workRootPath: work.root.remotePath,
+        size: 200,
+        modifiedAt: null,
+        seriesName: '规则标题',
+        seasonNumber: 1,
+        episodeNumber: 1,
+        mediaType: CloudMediaType.episode,
+        releaseTags: tags,
+      );
+    }
+
+    final collection = CloudResourceCollectionGrouper().group(
+      items: <CloudMediaIndexItem>[
+        version(
+          'first',
+          '/影视/作品/第一季/01-2160p.mkv',
+          const MediaReleaseTags(resolution: '2160p', source: 'Web-DL'),
+        ),
+        version(
+          'second',
+          '/影视/作品/第一季/01-1080p.mkv',
+          const MediaReleaseTags(resolution: '1080p'),
+        ),
+      ],
+      works: <CloudWorkIdentity>[work],
+      query: '',
+    );
+
+    expect(
+      collection.groups.single.videos.map((video) => video.name),
+      unorderedEquals(<String>[
+        '规则标题 S01E01 [2160p Web-DL].mkv',
+        '规则标题 S01E01 [1080p].mkv',
+      ]),
+    );
+  });
+
   test('按作品合并剧集并隐藏非视频和不大于阈值的视频', () {
     final entries = <CloudFileEntry>[
       _entry('folder', '/影视/子目录', '子目录', 0, isDirectory: true),
@@ -204,6 +320,56 @@ void main() {
     );
   });
 }
+
+CloudWorkIdentity _workIdentity() {
+  const workKey = 'quark|work|work-id';
+  const root = CloudFileEntry(
+    id: 'work-id',
+    remotePath: '/影视/作品',
+    name: '作品原名',
+    size: 0,
+    modifiedAt: null,
+    isDirectory: true,
+  );
+  return CloudWorkIdentity(
+    sourceId: 'quark',
+    workKey: workKey,
+    root: root,
+    remoteName: root.name,
+    displayTitle: '规则标题',
+    titleCandidates: const <String>['规则标题', 'Original Title'],
+    seasons: <CloudSeasonIdentity>[
+      for (var season = 1; season <= 3; season++)
+        CloudSeasonIdentity(
+          workKey: workKey,
+          seasonNumber: season,
+          displayName: '规则标题 第 $season 季',
+          remoteDirectories: const <CloudFileEntry>[],
+          episodes: const <CloudEpisodeIdentity>[],
+        ),
+    ],
+  );
+}
+
+final _workMetadata = TmdbMetadata(
+  id: 42,
+  mediaType: TmdbMediaType.tv,
+  title: 'TMDB 中文标题',
+  originalTitle: 'Original Title',
+  language: 'zh-CN',
+  matchedAt: DateTime.utc(2026, 7, 20),
+  matchConfidence: 1,
+  seasons: <TmdbSeasonMetadata>[
+    for (var season = 1; season <= 3; season++)
+      TmdbSeasonMetadata(
+        id: season * 100,
+        seasonNumber: season,
+        name: '第 $season 季',
+        episodeCount: 8,
+        posterUrl: '/season-$season.jpg',
+      ),
+  ],
+);
 
 CloudFileEntry _entry(
   String id,

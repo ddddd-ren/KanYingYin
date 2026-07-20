@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
+import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 
 enum CloudResourceCardKind { media, directory }
 
@@ -72,6 +74,48 @@ class CloudResourceCardViewData {
     );
   }
 
+  factory CloudResourceCardViewData.fromGroup({
+    required CloudResourceMediaGroup group,
+    required bool scraping,
+  }) {
+    final record = group.workRecord;
+    final matched = record?.status == CloudWorkTmdbStatus.matched;
+    final metadata = record?.metadata;
+    final details = <String>[];
+    final rating = metadata?.rating;
+    if (rating != null) details.add('${rating.toStringAsFixed(1)} ★');
+    final mediaType = metadata?.mediaType;
+    if (mediaType != null) details.add(_formatMediaType(mediaType));
+    final year = _releaseYear(metadata?.releaseDate);
+    if (year != null) details.add(year);
+    if (group.isSeries) {
+      final episodeCount = group.seasonMetadata?.episodeCount;
+      details.add(
+        episodeCount != null && episodeCount > 0
+            ? '$episodeCount 集'
+            : '${group.videos.length} 集',
+      );
+    } else if (group.videos.isNotEmpty) {
+      details.add(_formatBytes(group.videos.first.size));
+    }
+    return CloudResourceCardViewData(
+      kind: CloudResourceCardKind.media,
+      title: group.displayName,
+      subtitle: '',
+      details: details.join('  ·  '),
+      badges: <ImmersiveMediaCardBadge>[
+        _workScrapeBadge(record?.status, scraping: scraping),
+      ],
+      isScraping: scraping,
+      posterCachePath: matched
+          ? group.seasonMetadata?.posterCachePath ?? record?.posterCachePath
+          : null,
+      posterUrl: matched
+          ? group.seasonMetadata?.posterUrl ?? metadata?.posterUrl
+          : null,
+    );
+  }
+
   final CloudResourceCardKind kind;
   final String title;
   final String subtitle;
@@ -97,6 +141,30 @@ class CloudResourceCardViewData {
       CloudResourceTmdbStatus.unmatched => '未匹配',
       CloudResourceTmdbStatus.failed => '刮削失败',
       CloudResourceTmdbStatus.unchecked || null => '未刮削',
+    };
+    return ImmersiveMediaCardBadge(
+      icon: Icons.image_search_outlined,
+      label: label,
+    );
+  }
+
+  static ImmersiveMediaCardBadge _workScrapeBadge(
+    CloudWorkTmdbStatus? status, {
+    required bool scraping,
+  }) {
+    if (scraping) {
+      return const ImmersiveMediaCardBadge(
+        icon: Icons.image_search_outlined,
+        label: '刮削中',
+        loading: true,
+      );
+    }
+    final label = switch (status) {
+      CloudWorkTmdbStatus.matched => '已刮削',
+      CloudWorkTmdbStatus.unmatched => '未匹配',
+      CloudWorkTmdbStatus.failed => '刮削失败',
+      CloudWorkTmdbStatus.conflict => '需要确认',
+      CloudWorkTmdbStatus.unchecked || null => '未刮削',
     };
     return ImmersiveMediaCardBadge(
       icon: Icons.image_search_outlined,

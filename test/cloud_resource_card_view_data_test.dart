@@ -1,8 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
+import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_card_view_data.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 
 void main() {
   const directory = CloudFileEntry(
@@ -37,6 +39,62 @@ void main() {
     expect(data.posterCachePath, r'C:\cache\poster.jpg');
     expect(data.posterUrl, '/poster.jpg');
     expect(data.badges.map((badge) => badge.label), <String>['已刮削']);
+  });
+
+  test('季度卡优先使用季度海报和季度名称', () {
+    final workRecord = CloudWorkTmdbRecord.matched(
+      sourceId: 'source',
+      workKey: 'source|work|show',
+      workRootId: 'show',
+      workRootPath: '/影视/Show',
+      remoteName: 'Show',
+      metadata: TmdbMetadata(
+        id: 42,
+        mediaType: TmdbMediaType.tv,
+        title: '中文剧名',
+        rating: 8.7,
+        releaseDate: '2025-01-01',
+        posterUrl: '/work.jpg',
+        language: 'zh-CN',
+        matchedAt: DateTime.utc(2026, 7, 20),
+        matchConfidence: 1,
+        seasons: const <TmdbSeasonMetadata>[
+          TmdbSeasonMetadata(
+            id: 300,
+            seasonNumber: 3,
+            name: '第 3 季',
+            episodeCount: 6,
+            posterUrl: '/season-3.jpg',
+            posterCachePath: r'C:\cache\season-3.jpg',
+          ),
+        ],
+      ),
+      posterCachePath: r'C:\cache\work.jpg',
+      checkedAt: DateTime.utc(2026, 7, 20),
+    );
+    final group = CloudResourceMediaGroup(
+      stableKey: 'source|work|show|season:3',
+      workKey: 'source|work|show',
+      displayName: '中文剧名 第 3 季',
+      seriesName: '中文剧名',
+      isSeries: true,
+      seasonNumber: 3,
+      videos: const <CloudFileEntry>[video],
+      seasons: const <CloudResourceSeasonGroup>[],
+      record: null,
+      workRecord: workRecord,
+      seasonMetadata: workRecord.seasons.single,
+    );
+
+    final data = CloudResourceCardViewData.fromGroup(
+      group: group,
+      scraping: false,
+    );
+
+    expect(data.title, '中文剧名 第 3 季');
+    expect(data.details, contains('6 集'));
+    expect(data.posterCachePath, r'C:\cache\season-3.jpg');
+    expect(data.posterUrl, '/season-3.jpg');
   });
 
   test('未匹配、失败和未检查目录保持普通目录卡', () {

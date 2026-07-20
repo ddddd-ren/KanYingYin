@@ -19,6 +19,9 @@ class CloudCacheDirectories {
   static Directory subtitleRoot(Directory cacheRoot) =>
       Directory(p.join(cacheRoot.path, 'cloud_subtitles'));
 
+  static Directory quarkRelayRoot(Directory cacheRoot) =>
+      Directory(p.join(cacheRoot.path, 'quark_range_relay'));
+
   static Directory posterSource(Directory cacheRoot, String sourceId) =>
       Directory(p.join(posterRoot(cacheRoot).path, sourceSegment(sourceId)));
 

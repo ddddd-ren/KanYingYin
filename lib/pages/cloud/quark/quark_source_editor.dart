@@ -4,16 +4,19 @@ import 'package:kanyingyin/pages/cloud/quark/quark_directory_picker.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+import 'package:kanyingyin/services/cloud/cloud_source_path_scope.dart';
 
 class QuarkSourceEditorPage extends StatefulWidget {
   const QuarkSourceEditorPage({
     super.key,
     this.source,
     this.controller,
+    this.onRootSelectionChanged,
   });
 
   final CloudSource? source;
   final CloudLibraryController? controller;
+  final Future<void> Function(String sourceId)? onRootSelectionChanged;
 
   @override
   State<QuarkSourceEditorPage> createState() => _QuarkSourceEditorPageState();
@@ -30,6 +33,9 @@ class _QuarkSourceEditorPageState extends State<QuarkSourceEditorPage> {
   CloudRemoteRef? _defaultTransferDirectory;
   bool _enabled = true;
   String? _testedCookie;
+  bool _updatingLibrary = false;
+
+  bool get _busy => _controller.saving || _updatingLibrary;
 
   @override
   void initState() {
@@ -113,7 +119,24 @@ class _QuarkSourceEditorPageState extends State<QuarkSourceEditorPage> {
       _showMessage('新 Cookie 必须先通过测试登录');
       return;
     }
+    final rootsChanged = CloudSourcePathScope.hasRootSelectionChanged(
+      widget.source,
+      source,
+    );
     await _controller.save(source, credential: _formCredential);
+    if (!mounted) return;
+    if (rootsChanged && widget.onRootSelectionChanged != null) {
+      setState(() => _updatingLibrary = true);
+      try {
+        await widget.onRootSelectionChanged!(source.id);
+      } on Object {
+        if (!mounted) return;
+        _showMessage('目录已保存，但媒体库更新失败，请稍后手动重试');
+        return;
+      } finally {
+        if (mounted) setState(() => _updatingLibrary = false);
+      }
+    }
     if (mounted) Navigator.of(context).maybePop();
   }
 
@@ -214,14 +237,16 @@ class _QuarkSourceEditorPageState extends State<QuarkSourceEditorPage> {
                   ? '尚未选择'
                   : _rootRefs.map((reference) => reference.path).join('、'),
               buttonLabel: '选择目录',
-              onPressed: _chooseRoots,
+              onPressed: _busy || _controller.browsing ? null : _chooseRoots,
             ),
             const SizedBox(height: 16),
             _DirectorySection(
               title: '默认转存目录',
               value: _defaultTransferDirectory?.path ?? '尚未选择',
               buttonLabel: '选择目录',
-              onPressed: _chooseTransferDirectory,
+              onPressed: _busy || _controller.browsing
+                  ? null
+                  : _chooseTransferDirectory,
             ),
             const SizedBox(height: 24),
             Wrap(
@@ -229,14 +254,14 @@ class _QuarkSourceEditorPageState extends State<QuarkSourceEditorPage> {
               spacing: 12,
               children: [
                 OutlinedButton.icon(
-                  onPressed: _controller.testing ? null : _test,
+                  onPressed: _controller.testing || _busy ? null : _test,
                   icon: const Icon(Icons.verified_user_outlined),
                   label: Text(_controller.testing ? '正在测试' : '测试登录'),
                 ),
                 FilledButton.icon(
-                  onPressed: _controller.saving ? null : _save,
+                  onPressed: _busy ? null : _save,
                   icon: const Icon(Icons.save_outlined),
-                  label: const Text('保存'),
+                  label: Text(_updatingLibrary ? '正在更新媒体库' : '保存'),
                 ),
               ],
             ),
@@ -258,7 +283,7 @@ class _DirectorySection extends StatelessWidget {
   final String title;
   final String value;
   final String buttonLabel;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) => Row(

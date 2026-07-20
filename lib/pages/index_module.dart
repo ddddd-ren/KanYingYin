@@ -36,6 +36,7 @@ import 'package:kanyingyin/services/cloud/cloud_poster_cache.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
 import 'package:kanyingyin/services/cloud/cloud_series_match_service.dart';
+import 'package:kanyingyin/services/cloud/cloud_source_root_refresh_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_tmdb_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
@@ -176,6 +177,18 @@ class IndexModule extends Module {
             await Modular.get<CloudLibraryController>().scanSource(sourceId);
           },
         ));
+    i.addSingleton<CloudSourceRootRefreshCoordinator>(
+      () => CloudSourceRootRefreshCoordinator(
+        reloadLocalLibrary: () =>
+            Modular.get<LocalController>().reloadCloudLibraryIndex(
+          throwOnFailure: true,
+        ),
+        reloadCloudResources: () =>
+            Modular.get<CloudResourcesController>().reloadSourcesAndSnapshot(),
+        scanSource: (sourceId) =>
+            Modular.get<CloudLibraryController>().scanSource(sourceId),
+      ),
+    );
   }
 
   @override

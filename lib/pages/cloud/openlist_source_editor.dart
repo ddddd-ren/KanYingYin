@@ -4,6 +4,7 @@ import 'package:kanyingyin/pages/cloud/openlist_directory_picker.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/cloud_source_path_scope.dart';
 import 'package:kanyingyin/services/cloud/openlist/openlist_client.dart';
 
 class OpenListSourceEditorPage extends StatefulWidget {
@@ -11,10 +12,12 @@ class OpenListSourceEditorPage extends StatefulWidget {
     super.key,
     this.source,
     this.controller,
+    this.onRootSelectionChanged,
   });
 
   final CloudSource? source;
   final CloudLibraryController? controller;
+  final Future<void> Function(String sourceId)? onRootSelectionChanged;
 
   @override
   State<OpenListSourceEditorPage> createState() =>
@@ -32,6 +35,9 @@ class _OpenListSourceEditorPageState extends State<OpenListSourceEditorPage> {
   late final String _sourceId;
   late List<String> _rootPaths;
   bool _allowSelfSignedCertificate = false;
+  bool _updatingLibrary = false;
+
+  bool get _busy => _controller.saving || _updatingLibrary;
 
   @override
   void initState() {
@@ -101,6 +107,10 @@ class _OpenListSourceEditorPageState extends State<OpenListSourceEditorPage> {
   Future<void> _save() async {
     final source = _sourceFromForm();
     if (source == null) return;
+    final rootsChanged = CloudSourcePathScope.hasRootSelectionChanged(
+      widget.source,
+      source,
+    );
     await _controller.save(
       source,
       credential:
@@ -109,7 +119,26 @@ class _OpenListSourceEditorPageState extends State<OpenListSourceEditorPage> {
               : _credential,
     );
     if (!mounted) return;
+    if (rootsChanged && widget.onRootSelectionChanged != null) {
+      setState(() => _updatingLibrary = true);
+      try {
+        await widget.onRootSelectionChanged!(source.id);
+      } on Object {
+        if (!mounted) return;
+        _showMessage('目录已保存，但媒体库更新失败，请稍后手动重试');
+        return;
+      } finally {
+        if (mounted) setState(() => _updatingLibrary = false);
+      }
+    }
+    if (!mounted) return;
     Navigator.of(context).maybePop();
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   Future<void> _chooseDirectories() async {
@@ -218,14 +247,14 @@ class _OpenListSourceEditorPageState extends State<OpenListSourceEditorPage> {
               spacing: 12,
               children: [
                 OutlinedButton.icon(
-                  onPressed: _controller.testing ? null : _test,
+                  onPressed: _controller.testing || _busy ? null : _test,
                   icon: const Icon(Icons.network_check_outlined),
                   label: Text(_controller.testing ? '正在测试' : '测试连接'),
                 ),
                 FilledButton.icon(
-                  onPressed: _controller.saving ? null : _save,
+                  onPressed: _busy ? null : _save,
                   icon: const Icon(Icons.save_outlined),
-                  label: const Text('保存'),
+                  label: Text(_updatingLibrary ? '正在更新媒体库' : '保存'),
                 ),
               ],
             ),
@@ -236,9 +265,8 @@ class _OpenListSourceEditorPageState extends State<OpenListSourceEditorPage> {
                   child: Text('扫描目录', style: TextStyle(fontSize: 16)),
                 ),
                 OutlinedButton.icon(
-                  onPressed: _controller.saving || _controller.browsing
-                      ? null
-                      : _chooseDirectories,
+                  onPressed:
+                      _busy || _controller.browsing ? null : _chooseDirectories,
                   icon: const Icon(Icons.folder_open_outlined),
                   label: const Text('选择扫描目录'),
                 ),

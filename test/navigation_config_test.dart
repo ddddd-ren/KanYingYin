@@ -86,6 +86,29 @@ void main() {
         'seriesMatchService: Modular.get<CloudSeriesMatchService>()',
       ),
     );
+    expect(
+      indexModule,
+      contains('i.addSingleton<CloudSourceRootRefreshCoordinator>('),
+    );
+    expect(
+      indexModule,
+      contains('reloadCloudLibraryIndex(\n          throwOnFailure: true,'),
+    );
+    expect(
+      indexModule,
+      contains('reloadSourcesAndSnapshot()'),
+    );
+    expect(
+      indexModule,
+      contains('Modular.get<CloudLibraryController>().scanSource(sourceId)'),
+    );
+    expect(
+      RegExp(
+        r'onRootSelectionChanged:\s*Modular\.get<'
+        r'CloudSourceRootRefreshCoordinator>\(\)\.refreshSource',
+      ).allMatches(settingsModule),
+      hasLength(3),
+    );
   });
 
   test('网盘部分或全部扫描失败时转换为强类型异常', () {

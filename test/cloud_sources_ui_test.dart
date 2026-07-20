@@ -176,6 +176,13 @@ void main() {
         '        controller: Modular.get<CloudLibraryController>(),',
       ),
     );
+    expect(
+      RegExp(
+        r'onRootSelectionChanged:\s*Modular\.get<'
+        r'CloudSourceRootRefreshCoordinator>\(\)\.refreshSource',
+      ).allMatches(source),
+      hasLength(3),
+    );
   });
 
   testWidgets('设置页销毁时不会销毁外部共享控制器', (tester) async {
@@ -409,11 +416,15 @@ void main() {
       credentialStore: MemoryCloudCredentialStore(),
       clientFactory: (_, __, ___) => _DirectoryCloudClient(),
     );
+    final refreshedSourceIds = <String>[];
 
     await tester.pumpWidget(MaterialApp(
       home: OpenListSourceEditorPage(
         source: source,
         controller: controller,
+        onRootSelectionChanged: (sourceId) async {
+          refreshedSourceIds.add(sourceId);
+        },
       ),
     ));
     await tester.pumpAndSettle();
@@ -432,6 +443,103 @@ void main() {
     expect(saved?.scanStatus, CloudScanStatus.completed);
     expect(saved?.indexedVideoCount, 9);
     expect(saved?.matchedSubtitleCount, 4);
+    expect(refreshedSourceIds, <String>[source.id]);
+    controller.dispose();
+  });
+
+  testWidgets('OpenList 更新媒体库期间禁用保存和目录选择', (tester) async {
+    const source = CloudSource(
+      id: 'busy-directory-source',
+      type: CloudSourceType.openList,
+      name: '家庭网盘',
+      baseUrl: 'https://drive.example.com',
+      rootPaths: <String>['/动漫'],
+    );
+    final repository = CloudSourceRepository(
+      storage: MemoryCloudSourceStorage(),
+      credentialStore: MemoryCloudCredentialStore(),
+    );
+    await repository.save(source);
+    final controller = CloudLibraryController(
+      repository: repository,
+      credentialStore: MemoryCloudCredentialStore(),
+      clientFactory: (_, __, ___) => _DirectoryCloudClient(),
+    );
+    final refreshStarted = Completer<void>();
+    final releaseRefresh = Completer<void>();
+
+    await tester.pumpWidget(MaterialApp(
+      home: OpenListSourceEditorPage(
+        source: source,
+        controller: controller,
+        onRootSelectionChanged: (_) async {
+          refreshStarted.complete();
+          await releaseRefresh.future;
+        },
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('选择扫描目录'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey<String>('select-/电影')));
+    await tester.tap(find.text('确定'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存'));
+    await refreshStarted.future;
+    await tester.pump();
+
+    expect(find.text('正在更新媒体库'), findsOneWidget);
+    expect(
+      tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<OutlinedButton>(find.widgetWithText(OutlinedButton, '选择扫描目录'))
+          .onPressed,
+      isNull,
+    );
+
+    releaseRefresh.complete();
+    await tester.pumpAndSettle();
+    controller.dispose();
+  });
+
+  testWidgets('OpenList 只修改名称时不触发媒体库刷新', (tester) async {
+    const source = CloudSource(
+      id: 'rename-only-source',
+      type: CloudSourceType.openList,
+      name: '家庭网盘',
+      baseUrl: 'https://drive.example.com',
+      rootPaths: <String>['/动漫'],
+    );
+    final repository = CloudSourceRepository(
+      storage: MemoryCloudSourceStorage(),
+      credentialStore: MemoryCloudCredentialStore(),
+    );
+    await repository.save(source);
+    final controller = CloudLibraryController(
+      repository: repository,
+      credentialStore: MemoryCloudCredentialStore(),
+    );
+    var refreshCount = 0;
+
+    await tester.pumpWidget(MaterialApp(
+      home: OpenListSourceEditorPage(
+        source: source,
+        controller: controller,
+        onRootSelectionChanged: (_) async => refreshCount++,
+      ),
+    ));
+    await tester.enterText(
+      find.widgetWithText(TextFormField, '名称'),
+      '仅修改来源名称',
+    );
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    expect(refreshCount, 0);
+    expect((await repository.getById(source.id))?.name, '仅修改来源名称');
     controller.dispose();
   });
 

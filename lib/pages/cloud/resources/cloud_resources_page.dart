@@ -18,6 +18,12 @@ import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
+import 'package:kanyingyin/utils/logger.dart';
+
+String cloudPlaybackFailureDiagnostic(CloudSource source, Object error) =>
+    'CloudResourcesPage: playback failed '
+    'provider=${source.type.name} sourceId=${source.id} '
+    'stage=resolve-or-load errorType=${error.runtimeType}';
 
 class CloudResourcesPage extends StatefulWidget {
   const CloudResourcesPage({
@@ -122,7 +128,11 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
         resolver: _playbackResolver.resolve,
       );
       if (mounted) Modular.to.pushNamed('/video/');
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      AppLogger().w(
+        cloudPlaybackFailureDiagnostic(source, error),
+        stackTrace: stackTrace,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('网盘视频解析或加载失败')),

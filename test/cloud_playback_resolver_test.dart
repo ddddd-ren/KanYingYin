@@ -188,6 +188,44 @@ void main() {
     expect(client.closed, isTrue);
   });
 
+  test('恶意相似域名中转失败时禁止携带 Cookie 直连回退', () async {
+    const quarkSource = CloudSource(
+      id: 'quark-untrusted',
+      name: '夸克网盘',
+      type: CloudSourceType.quark,
+      baseUrl: 'https://pan.quark.cn',
+      rootPaths: <String>['/'],
+    );
+    await repository.save(quarkSource);
+    final client = _FakeClient(
+      resource: CloudPlaybackResource(
+        uri: Uri.parse('https://drive.quark.cn.example.com/original'),
+        headers: const <String, String>{'Cookie': 'session=secret'},
+        networkRoute: PlaybackNetworkRoute.direct,
+        transport: CloudPlaybackTransport.quarkRangeRelay,
+      ),
+    );
+    final resolver = CloudPlaybackResolver(
+      sourceRepository: repository,
+      credentialStore: MemoryCloudCredentialStore(),
+      clientFactory: (_, __, ___) => client,
+      relayStarter: ({required resource, required refreshResource}) async =>
+          throw const QuarkRemoteProtocolException('不可信地址'),
+    );
+
+    await expectLater(
+      resolver.resolve(const CloudPlaybackTarget(
+        sourceId: 'quark-untrusted',
+        remoteId: 'fid-video',
+        remotePath: '/Show/E01.mkv',
+        stableId: 'episode-1',
+        title: '第 1 集',
+      )),
+      throwsA(isA<QuarkRemoteProtocolException>()),
+    );
+    expect(client.closed, isTrue);
+  });
+
   test('解析失败也会关闭客户端', () async {
     final client = _FakeClient(error: StateError('解析失败'));
     final resolver = CloudPlaybackResolver(

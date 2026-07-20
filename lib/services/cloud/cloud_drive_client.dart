@@ -1,6 +1,7 @@
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
+import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 
 enum CloudDriveErrorType {
@@ -40,12 +41,14 @@ class CloudPlaybackResource {
     this.headers = const <String, String>{},
     this.expiresAt,
     this.networkRoute = PlaybackNetworkRoute.inheritProxy,
+    this.transport = CloudPlaybackTransport.direct,
   });
 
   final Uri uri;
   final Map<String, String> headers;
   final DateTime? expiresAt;
   final PlaybackNetworkRoute networkRoute;
+  final CloudPlaybackTransport transport;
 }
 
 abstract interface class CloudDriveClient {

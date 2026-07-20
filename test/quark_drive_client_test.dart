@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_api_client.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_drive_client.dart';
@@ -128,6 +129,7 @@ void main() {
     expect(api.requestedPlaybackIds, <String>['fid_fixture_video']);
     expect(resource.headers, isEmpty);
     expect(resource.networkRoute, PlaybackNetworkRoute.direct);
+    expect(resource.transport, CloudPlaybackTransport.direct);
   });
 
   test('原文件播放只向可信夸克下载主机发送必要请求头', () async {
@@ -165,6 +167,7 @@ void main() {
     expect(resource.headers, isNot(contains('Accept')));
     expect(resource.headers, isNot(contains('Content-Type')));
     expect(resource.networkRoute, PlaybackNetworkRoute.direct);
+    expect(resource.transport, CloudPlaybackTransport.quarkRangeRelay);
     expect(
       (await store.read(source.id))?.cookie,
       'session=cookie-fixture; __puus=refreshed-cookie',

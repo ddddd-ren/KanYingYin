@@ -101,7 +101,7 @@ void main() {
     );
   });
 
-  test('播放使用持久化文件 ID 并透传必要请求头', () async {
+  test('播放使用持久化文件 ID 且不向转码 CDN 透传 API 请求头', () async {
     final store = MemoryCloudCredentialStore();
     await store.write(
       source.id,
@@ -125,9 +125,7 @@ void main() {
     ));
 
     expect(api.requestedPlaybackIds, <String>['fid_fixture_video']);
-    expect(resource.headers['Cookie'], 'session=cookie-fixture');
-    expect(resource.headers['Referer'], 'https://pan.quark.cn');
-    expect(resource.headers['User-Agent'], isNotEmpty);
+    expect(resource.headers, isEmpty);
     expect(resource.networkRoute, PlaybackNetworkRoute.direct);
   });
 }

@@ -8,6 +8,7 @@ import 'package:kanyingyin/pages/player/player_controller.dart';
 import 'package:kanyingyin/pages/video/video_page_controller_interface.dart';
 import 'package:kanyingyin/services/local_playback_request_builder.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
+import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:kanyingyin/utils/utils.dart';
 import 'package:mobx/mobx.dart';
 
@@ -49,6 +50,10 @@ class LocalVideoController implements IVideoPageController {
   final Observable<bool> _isFullscreen = Observable(false);
   final Observable<bool> _isPip = Observable(false);
   final Observable<bool> _showTabBody = Observable(true);
+  final Observable<QuarkRelayStatus?> _relayStatus = Observable(null);
+  final Observable<int?> _relayTotalBytes = Observable(null);
+  StreamSubscription<QuarkRelayStatus>? _relayStatusSubscription;
+  var _relayStatusGeneration = 0;
 
   @override
   int get currentEpisode => _currentEpisode.value;
@@ -108,6 +113,12 @@ class LocalVideoController implements IVideoPageController {
   @override
   bool get isCloudPlayback => _cloudTargets != null;
 
+  @override
+  QuarkRelayStatus? get relayStatus => _relayStatus.value;
+
+  @override
+  int? get relayTotalBytes => _relayTotalBytes.value;
+
   LocalPlaybackSession get session {
     final value = _session;
     if (value == null) {
@@ -121,6 +132,7 @@ class LocalVideoController implements IVideoPageController {
     _cloudTargets = null;
     _cloudSeriesTitle = null;
     _replacePreparedCloudParams(null);
+    _trackRelayLease(null, null);
     _session = session;
     title = session.seriesTitle;
     currentRoad = 0;
@@ -372,6 +384,7 @@ class LocalVideoController implements IVideoPageController {
     int episode,
     int offset,
   ) {
+    _trackRelayLease(resolved.lease, resolved.totalBytes);
     final target = resolved.target;
     return PlaybackInitParams(
       videoUrl: resolved.videoUrl,
@@ -408,7 +421,23 @@ class LocalVideoController implements IVideoPageController {
     _playbackOperations.beginSession();
     _playbackSessionToken = null;
     _replacePreparedCloudParams(null);
+    _trackRelayLease(null, null);
     _playerLifecycleToken = null;
+  }
+
+  void _trackRelayLease(CloudPlaybackLease? lease, int? totalBytes) {
+    final generation = ++_relayStatusGeneration;
+    unawaited(_relayStatusSubscription?.cancel());
+    _relayStatusSubscription = null;
+    runInAction(() {
+      _relayStatus.value = lease?.currentStatus;
+      _relayTotalBytes.value = totalBytes;
+    });
+    if (lease == null) return;
+    _relayStatusSubscription = lease.statuses.listen((status) {
+      if (generation != _relayStatusGeneration) return;
+      runInAction(() => _relayStatus.value = status);
+    });
   }
 
   void _replacePreparedCloudParams(PlaybackInitParams? params) {

@@ -1,5 +1,6 @@
 import 'package:kanyingyin/modules/bangumi/bangumi_item.dart';
 import 'package:kanyingyin/modules/roads/road_module.dart';
+import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:mobx/mobx.dart';
 
 /// VideoPageController 的抽象接口，供 player/ 层依赖
@@ -18,6 +19,8 @@ abstract class IVideoPageController {
   bool get showTabBody;
   int get actualEpisodeNumber;
   bool get isCloudPlayback;
+  QuarkRelayStatus? get relayStatus;
+  int? get relayTotalBytes;
 
   set isFullscreen(bool value);
   set isPip(bool value);

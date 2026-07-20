@@ -186,6 +186,20 @@ void main() {
     expect(entries.single.isPrerelease, isTrue);
   });
 
+  test('二点一二十八说明百度官方授权分段播放和私人安装包', () {
+    final entries = versionHistoryForCurrent('2.1.28');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('百度网盘'));
+    expect(changes, contains('官方授权'));
+    expect(changes, contains('分段播放'));
+    expect(changes, contains('内置默认 TMDB Key'));
+    expect(changes, contains('私人安装包'));
+    expect(changes, contains('不会修改百度网盘文件'));
+    expect(entries.single.isPrerelease, isTrue);
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

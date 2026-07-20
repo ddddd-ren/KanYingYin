@@ -44,6 +44,31 @@ void main() {
       }
     });
 
+    test('组合画质字幕和全季目录只产生版本标签', () {
+      for (final (name, resolution, bitrate, subtitle)
+          in <(String, String?, String?, String?)>[
+        ('4K 高码率', '4K', '高码率', null),
+        ('【全9集】【1080P】【内封简繁英】', '1080p', null, '内封简繁英'),
+        ('【全9集】【1080P】【内嵌中字】', '1080p', null, '内嵌中字'),
+      ]) {
+        final analysis = analyzer.analyze(name, isDirectory: true);
+
+        expect(
+          analyzer.isTransparentDirectoryName(name),
+          isTrue,
+          reason: name,
+        );
+        expect(analysis.titleCandidates, isEmpty, reason: name);
+        expect(analysis.releaseTags.resolution, resolution, reason: name);
+        expect(analysis.releaseTags.bitrate, bitrate, reason: name);
+        expect(
+          analysis.releaseTags.subtitles,
+          subtitle == null ? isEmpty : <String>[subtitle],
+          reason: name,
+        );
+      }
+    });
+
     test('纯数字和常见集号文件只输出集号证据', () {
       final cases = <String, int>{
         '006.mkv': 6,
@@ -141,6 +166,12 @@ void main() {
         audio: <String>['DDP 5.1', 'Atmos'],
         releaseGroup: 'Group',
       );
+
+      expect(MediaReleaseTags.fromJson(tags.toJson()), tags);
+    });
+
+    test('字幕版本标签支持 JSON 往返', () {
+      const tags = MediaReleaseTags(subtitles: <String>['内封简繁英']);
 
       expect(MediaReleaseTags.fromJson(tags.toJson()), tags);
     });

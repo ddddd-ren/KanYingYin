@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/modules/bangumi/bangumi_item.dart';
 import 'package:kanyingyin/modules/roads/road_module.dart';
@@ -118,7 +120,7 @@ class LocalVideoController implements IVideoPageController {
     _playbackSessionToken = _playbackOperations.beginSession();
     _cloudTargets = null;
     _cloudSeriesTitle = null;
-    _preparedCloudParams = null;
+    _replacePreparedCloudParams(null);
     _session = session;
     title = session.seriesTitle;
     currentRoad = 0;
@@ -169,23 +171,27 @@ class LocalVideoController implements IVideoPageController {
         targets.indexWhere((target) => target.stableId == selectedStableId);
     if (selectedIndex < 0) throw ArgumentError('选中的云媒体不在播放列表中');
     final sessionToken = _playbackOperations.beginSession();
+    _replacePreparedCloudParams(null);
     _playbackSessionToken = null;
     final requestToken = _playbackOperations.beginRequest(sessionToken);
     final playbackResolver = resolver ?? _resolveCloudPlayback;
     if (playbackResolver == null) throw StateError('网盘播放解析器尚未配置');
     try {
       final resolved = await playbackResolver(targets[selectedIndex]);
-      if (!_playbackOperations.isCurrent(requestToken)) return;
+      if (!_playbackOperations.isCurrent(requestToken)) {
+        await resolved.lease?.close();
+        return;
+      }
       _session = null;
       _resolveCloudPlayback = playbackResolver;
       _cloudTargets = List<CloudPlaybackTarget>.unmodifiable(targets);
       _cloudSeriesTitle = seriesTitle;
       _playbackSessionToken = sessionToken;
-      _preparedCloudParams = _cloudParams(
+      _replacePreparedCloudParams(_cloudParams(
         resolved,
         selectedIndex + 1,
         0,
-      );
+      ));
       title = seriesTitle;
       currentRoad = 0;
       currentEpisode = selectedIndex + 1;
@@ -288,6 +294,7 @@ class LocalVideoController implements IVideoPageController {
           await _initializePlayback(prepared.withOffset(offset));
           if (!_playbackOperations.isCurrent(requestToken)) return;
         } catch (error) {
+          await prepared.lease?.close();
           if (!_playbackOperations.isCurrent(requestToken)) return;
           errorMessage = '播放器加载失败：$error';
           rethrow;
@@ -337,8 +344,17 @@ class LocalVideoController implements IVideoPageController {
     final target = targets[episode - 1];
     try {
       final resolved = await resolver(target);
-      if (!_playbackOperations.isCurrent(requestToken)) return;
-      await _initializePlayback(_cloudParams(resolved, episode, offset));
+      if (!_playbackOperations.isCurrent(requestToken)) {
+        await resolved.lease?.close();
+        return;
+      }
+      final params = _cloudParams(resolved, episode, offset);
+      try {
+        await _initializePlayback(params);
+      } on Object {
+        await params.lease?.close();
+        rethrow;
+      }
       if (!_playbackOperations.isCurrent(requestToken)) return;
       currentEpisode = episode;
       errorMessage = null;
@@ -375,6 +391,9 @@ class LocalVideoController implements IVideoPageController {
       stableMediaKey: '${target.sourceId}|${target.stableId}',
       networkRoute: resolved.networkRoute,
       cloudProviderName: resolved.cloudProviderName,
+      transport: resolved.transport,
+      lease: resolved.lease,
+      totalBytes: resolved.totalBytes,
       refreshCloudPlayback: () async {
         final refreshed = await _resolveCloudPlayback!(target);
         return _cloudParams(refreshed, episode, offset);
@@ -388,8 +407,16 @@ class LocalVideoController implements IVideoPageController {
   void invalidatePlaybackOperations() {
     _playbackOperations.beginSession();
     _playbackSessionToken = null;
-    _preparedCloudParams = null;
+    _replacePreparedCloudParams(null);
     _playerLifecycleToken = null;
+  }
+
+  void _replacePreparedCloudParams(PlaybackInitParams? params) {
+    final previous = _preparedCloudParams;
+    _preparedCloudParams = params;
+    if (previous != null && !identical(previous.lease, params?.lease)) {
+      unawaited(previous.lease?.close());
+    }
   }
 
   @override

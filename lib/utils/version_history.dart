@@ -16,6 +16,17 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.28',
+    date: '2026-07-21',
+    isPrerelease: true,
+    changes: [
+      '本测试版新增百度网盘原生挂载：使用用户自己的百度开放平台 API Key、Secret 和官方授权，支持添加多个账号并为每个来源选择多个媒体目录',
+      '百度视频会进入现有媒体库，继续使用剧名与季度识别、TMDB 季度海报、同集多版本、外部字幕和完整选集；修改根目录后会实时刷新旧资源',
+      '百度原文件通过本机安全中转进行分段播放，播放器支持预读、拖动和鉴权过期后自动续期；夸克同步复用公共分段中转，OpenList 播放方式不变',
+      '本次私人安装包内置默认 TMDB Key，用户 Key 仍优先；Key 可从安装包提取，因此私人安装包不得公开分发。百度来源严格只读，不会修改百度网盘文件、目录或远程 ID，应用启动、本地媒体库和播放器在无 Key 或断网时仍可使用',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.27',
     date: '2026-07-21',
     isPrerelease: true,

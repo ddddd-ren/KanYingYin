@@ -108,6 +108,19 @@ void main() {
     expect(entries.single.isPrerelease, isTrue);
   });
 
+  test('二点一二十一说明多版本归并手动确认和固定海报尺寸', () {
+    final entries = versionHistoryForCurrent('2.1.21');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('多版本'));
+    expect(changes, contains('唯一集数'));
+    expect(changes, contains('手动确认'));
+    expect(changes, contains('海报尺寸'));
+    expect(changes, contains('不会修改网盘文件'));
+    expect(entries.single.isPrerelease, isTrue);
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

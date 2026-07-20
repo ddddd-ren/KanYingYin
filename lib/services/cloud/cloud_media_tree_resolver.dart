@@ -33,10 +33,21 @@ class CloudMediaTreeResolver {
       minSizeBytes: minSizeBytes,
       nameAnalyzer: nameAnalyzer,
     );
-    for (final root in configuredRoots) {
-      context.discoverConfiguredRoot(
-        CloudSeriesIdentityResolver.normalizeRemotePath(root),
+    final roots = configuredRoots
+        .map(CloudSeriesIdentityResolver.normalizeRemotePath)
+        .toSet()
+        .toList()
+      ..sort((first, second) => first.length.compareTo(second.length));
+    final canonicalRoots = <String>[];
+    for (final root in roots) {
+      final isNested = canonicalRoots.any(
+        (parent) =>
+            root == parent || parent == '/' || root.startsWith('$parent/'),
       );
+      if (!isNested) canonicalRoots.add(root);
+    }
+    for (final root in canonicalRoots) {
+      context.discoverConfiguredRoot(root);
     }
     return context.build();
   }
@@ -271,6 +282,7 @@ class _ResolutionContext {
     final workKey = workKeyFor(sourceId, root);
     final builders = <int, _SeasonBuilder>{};
     final standaloneVideos = <CloudFileEntry>[];
+    final standaloneReleaseTags = <String, MediaReleaseTags>{};
     final transparentDirectories = <CloudFileEntry>[];
     final aliases = <String>[];
     final entries = directoryEntries[rootPath] ?? const <CloudFileEntry>[];
@@ -336,6 +348,8 @@ class _ResolutionContext {
           _collectStandaloneVideos(
             directoryPath: _pathOf(entry),
             videos: standaloneVideos,
+            inheritedReleaseTags: analysis.releaseTags,
+            releaseTagsByEntry: standaloneReleaseTags,
             visited: <String>{},
           );
         } else {
@@ -345,6 +359,7 @@ class _ResolutionContext {
       _promoteImplicitEpisodes(
         builders: builders,
         standaloneVideos: standaloneVideos,
+        releaseTagsByEntry: standaloneReleaseTags,
         transparentDirectories: transparentDirectories,
         aliases: aliases,
       );
@@ -416,6 +431,8 @@ class _ResolutionContext {
   void _collectStandaloneVideos({
     required String directoryPath,
     required List<CloudFileEntry> videos,
+    required MediaReleaseTags inheritedReleaseTags,
+    required Map<String, MediaReleaseTags> releaseTagsByEntry,
     required Set<String> visited,
   }) {
     if (!visited.add(directoryPath)) return;
@@ -431,10 +448,19 @@ class _ResolutionContext {
         _collectStandaloneVideos(
           directoryPath: _pathOf(entry),
           videos: videos,
+          inheritedReleaseTags: _mergeReleaseTags(
+            analysis.releaseTags,
+            inheritedReleaseTags,
+          ),
+          releaseTagsByEntry: releaseTagsByEntry,
           visited: visited,
         );
       } else if (_isRecognizedVideo(entry)) {
         videos.add(entry);
+        releaseTagsByEntry[_pathOf(entry)] = _mergeReleaseTags(
+          analysis.releaseTags,
+          inheritedReleaseTags,
+        );
       } else {
         _ignore(entry);
       }
@@ -444,6 +470,7 @@ class _ResolutionContext {
   void _promoteImplicitEpisodes({
     required Map<int, _SeasonBuilder> builders,
     required List<CloudFileEntry> standaloneVideos,
+    required Map<String, MediaReleaseTags> releaseTagsByEntry,
     required List<CloudFileEntry> transparentDirectories,
     required List<String> aliases,
   }) {
@@ -465,7 +492,7 @@ class _ResolutionContext {
         entry: video,
         seasonNumber: analysis.seasonNumber ?? 1,
         episodeNumber: episodeNumber,
-        releaseTags: analysis.releaseTags,
+        releaseTags: releaseTagsByEntry[_pathOf(video)] ?? analysis.releaseTags,
       ));
     }
     standaloneVideos.clear();
@@ -587,6 +614,9 @@ class _ResolutionContext {
     List<String> aliases,
   ) {
     final result = <String>[];
+    for (final alias in aliases) {
+      _addUnique(result, alias);
+    }
     final sourceCandidates = rootAnalysis.titleCandidates.isEmpty
         ? <String>[root.name.trim()]
         : rootAnalysis.titleCandidates;
@@ -599,9 +629,6 @@ class _ResolutionContext {
       );
       _addUnique(result, normalized);
       _addUnique(result, candidate);
-    }
-    for (final alias in aliases) {
-      _addUnique(result, alias);
     }
     if (result.isEmpty) _addUnique(result, root.name.trim());
     return result;
@@ -646,10 +673,12 @@ class _ResolutionContext {
 
     return MediaReleaseTags(
       resolution: primary.resolution ?? fallback.resolution,
+      bitrate: primary.bitrate ?? fallback.bitrate,
       source: primary.source ?? fallback.source,
       codec: primary.codec ?? fallback.codec,
       dynamicRange: merged(primary.dynamicRange, fallback.dynamicRange),
       audio: merged(primary.audio, fallback.audio),
+      subtitles: merged(primary.subtitles, fallback.subtitles),
       releaseGroup: primary.releaseGroup ?? fallback.releaseGroup,
     );
   }

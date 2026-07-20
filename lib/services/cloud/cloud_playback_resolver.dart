@@ -359,6 +359,7 @@ class CloudPlaybackResolver {
         totalBytes: totalBytes,
         cloudProviderName: switch (source.type) {
           CloudSourceType.quark => '夸克',
+          CloudSourceType.baidu => '百度网盘',
           CloudSourceType.openList => 'OpenList',
         },
       );

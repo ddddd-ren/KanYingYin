@@ -28,13 +28,78 @@ void main() {
       expect(client, isA<OpenListClient>());
       expect(registry.providerName(CloudSourceType.openList), 'OpenList');
       expect(registry.providerName(CloudSourceType.quark), '夸克网盘');
+      expect(registry.providerName(CloudSourceType.baidu), '百度网盘');
       expect(registry.supportsSelfSignedCertificate(CloudSourceType.openList),
           isTrue);
       expect(registry.supportsSelfSignedCertificate(CloudSourceType.quark),
           isFalse);
       expect(registry.supportsShareTransfer(CloudSourceType.openList), isFalse);
       expect(registry.supportsShareTransfer(CloudSourceType.quark), isTrue);
+      expect(registry.supportsSelfSignedCertificate(CloudSourceType.baidu),
+          isFalse);
+      expect(registry.supportsShareTransfer(CloudSourceType.baidu), isFalse);
       await client.close();
+    });
+
+    test('百度来源固定使用官方地址且不支持分享写操作', () {
+      const source = CloudSource(
+        id: 'baidu-fixture',
+        type: CloudSourceType.baidu,
+        name: '百度网盘',
+        baseUrl: 'https://example.invalid',
+        rootPaths: <String>[],
+        allowSelfSignedCertificate: true,
+      );
+
+      final normalized = registry.normalizeSource(source);
+
+      expect(normalized.baseUrl, 'https://pan.baidu.com');
+      expect(normalized.allowSelfSignedCertificate, isFalse);
+      expect(registry.providerName(CloudSourceType.baidu), '百度网盘');
+      expect(registry.supportsShareTransfer(CloudSourceType.baidu), isFalse);
+    });
+
+    test('百度凭据留空保留密钥且更换密钥清除旧令牌', () {
+      const source = CloudSource(
+        id: 'baidu-fixture',
+        type: CloudSourceType.baidu,
+        name: '百度网盘',
+        baseUrl: 'https://pan.baidu.com',
+        rootPaths: <String>[],
+      );
+      final expiresAt = DateTime.utc(2026, 8, 1);
+      final existing = CloudCredential(
+        clientId: 'client-old',
+        clientSecret: 'secret-old',
+        accessToken: 'access-old',
+        refreshToken: 'refresh-old',
+        accessTokenExpiresAt: expiresAt,
+      );
+
+      final unchanged = registry.mergeCredential(
+        source: source,
+        form: const CloudCredential(),
+        existing: existing,
+        endpointUnchanged: true,
+      );
+      final changed = registry.mergeCredential(
+        source: source,
+        form: const CloudCredential(
+          clientId: 'client-new',
+          clientSecret: 'secret-new',
+        ),
+        existing: existing,
+        endpointUnchanged: true,
+      );
+
+      expect(unchanged.clientId, 'client-old');
+      expect(unchanged.accessToken, 'access-old');
+      expect(unchanged.accessTokenExpiresAt, expiresAt);
+      expect(changed.clientId, 'client-new');
+      expect(changed.clientSecret, 'secret-new');
+      expect(changed.accessToken, isNull);
+      expect(changed.refreshToken, isNull);
+      expect(changed.accessTokenExpiresAt, isNull);
     });
 
     test('规范化来源并合并 OpenList 凭据', () {

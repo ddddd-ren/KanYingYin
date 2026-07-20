@@ -41,6 +41,7 @@ class CloudProviderRegistry {
   String providerName(CloudSourceType type) => switch (type) {
         CloudSourceType.openList => 'OpenList',
         CloudSourceType.quark => '夸克网盘',
+        CloudSourceType.baidu => '百度网盘',
       };
 
   bool supportsSelfSignedCertificate(CloudSourceType type) =>
@@ -55,6 +56,10 @@ class CloudProviderRegistry {
           ),
         CloudSourceType.quark => source.copyWith(
             baseUrl: 'https://pan.quark.cn',
+            allowSelfSignedCertificate: false,
+          ),
+        CloudSourceType.baidu => source.copyWith(
+            baseUrl: 'https://pan.baidu.com',
             allowSelfSignedCertificate: false,
           ),
       };
@@ -83,6 +88,10 @@ class CloudProviderRegistry {
             form: form,
             existing: existing,
           ),
+        CloudSourceType.baidu => _mergeBaiduCredential(
+            form: form,
+            existing: existing,
+          ),
       };
 
   String errorMessage(
@@ -94,11 +103,14 @@ class CloudProviderRegistry {
           '用户名或密码错误',
         (CloudSourceType.quark, CloudDriveErrorType.authentication) =>
           '夸克 Cookie 无效或已失效',
+        (CloudSourceType.baidu, CloudDriveErrorType.authentication) =>
+          '百度网盘授权无效或已失效',
         (_, CloudDriveErrorType.permission) => '当前账号没有访问权限',
         (_, CloudDriveErrorType.network) => '连接失败，请检查网络',
         (CloudSourceType.openList, CloudDriveErrorType.notFound) =>
           '未找到 OpenList 服务',
         (CloudSourceType.quark, CloudDriveErrorType.notFound) => '夸克目录或文件不存在',
+        (CloudSourceType.baidu, CloudDriveErrorType.notFound) => '百度目录或文件不存在',
         (_, CloudDriveErrorType.certificate) => '服务器证书不受信任',
         (_, CloudDriveErrorType.invalidAddress) => '服务器地址格式无效',
         (_, CloudDriveErrorType.timeout) => '网络请求超时',
@@ -111,6 +123,8 @@ class CloudProviderRegistry {
         (_, CloudDriveErrorType.cancelled) => '操作已取消',
         (CloudSourceType.quark, CloudDriveErrorType.incompatible) =>
           '当前版本暂不兼容夸克接口',
+        (CloudSourceType.baidu, CloudDriveErrorType.incompatible) =>
+          '当前版本暂不兼容百度网盘接口',
         _ => '服务响应不兼容',
       };
 
@@ -142,6 +156,41 @@ class CloudProviderRegistry {
             ? form.cookie
             : existing?.cookie,
       );
+
+  static CloudCredential _mergeBaiduCredential({
+    required CloudCredential form,
+    required CloudCredential? existing,
+  }) {
+    final clientId = form.clientId?.trim().isNotEmpty == true
+        ? form.clientId!.trim()
+        : existing?.clientId;
+    final clientSecret = form.clientSecret?.trim().isNotEmpty == true
+        ? form.clientSecret!.trim()
+        : existing?.clientSecret;
+    final keysUnchanged = clientId == existing?.clientId &&
+        clientSecret == existing?.clientSecret;
+    final suppliedTokens = form.accessToken?.trim().isNotEmpty == true &&
+        form.refreshToken?.trim().isNotEmpty == true;
+    return CloudCredential(
+      clientId: clientId,
+      clientSecret: clientSecret,
+      accessToken: suppliedTokens
+          ? form.accessToken!.trim()
+          : keysUnchanged
+              ? existing?.accessToken
+              : null,
+      refreshToken: suppliedTokens
+          ? form.refreshToken!.trim()
+          : keysUnchanged
+              ? existing?.refreshToken
+              : null,
+      accessTokenExpiresAt: suppliedTokens
+          ? form.accessTokenExpiresAt
+          : keysUnchanged
+              ? existing?.accessTokenExpiresAt
+              : null,
+    );
+  }
 
   static CloudDriveClient _createOpenListClient(
     CloudSource source,

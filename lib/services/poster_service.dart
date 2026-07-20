@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:kanyingyin/services/local_cover_finder.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/modules/local/local_episode_info.dart';
 import 'package:kanyingyin/utils/storage.dart';
@@ -18,11 +19,12 @@ class PosterService {
 
   final Dio _dio;
   final Dio _downloadDio;
-  final String Function() _apiKeyProvider;
+  final TmdbApiKeyProvider _apiKeyProvider;
   String? _workingProxy;
 
-  PosterService({String Function()? apiKeyProvider, Dio? downloadDio})
-      : _apiKeyProvider = apiKeyProvider ?? _readApiKey,
+  PosterService({TmdbApiKeyProvider? apiKeyProvider, Dio? downloadDio})
+      : _apiKeyProvider = apiKeyProvider ??
+            TmdbApiKeyProvider(userKeyReader: _readUserApiKey),
         _downloadDio = downloadDio ??
             Dio(
               BaseOptions(
@@ -37,7 +39,7 @@ class PosterService {
           ),
         );
 
-  static String _readApiKey() {
+  static String _readUserApiKey() {
     try {
       return GStorage.setting
           .get('tmdbApiKey', defaultValue: '')
@@ -188,7 +190,7 @@ class PosterService {
 
   Future<String?> _searchTmdb(String query) async {
     if (query.isEmpty) return null;
-    final apiKey = _apiKeyProvider().trim();
+    final apiKey = _apiKeyProvider.read();
     if (apiKey.isEmpty) return null;
 
     final baseUrl = await _ensureBaseUrl(apiKey);

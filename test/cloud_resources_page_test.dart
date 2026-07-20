@@ -86,6 +86,38 @@ CloudResourceMediaGroup _seasonMediaGroup() {
   );
 }
 
+CloudResourceMediaGroup _standaloneMediaGroup() {
+  const videos = <CloudFileEntry>[
+    CloudFileEntry(
+      id: 'first',
+      remotePath: '/影视/作品/01.mp4',
+      name: '01.mp4',
+      size: 200,
+      modifiedAt: null,
+      isDirectory: false,
+    ),
+    CloudFileEntry(
+      id: 'second',
+      remotePath: '/影视/作品/02.mp4',
+      name: '02.mp4',
+      size: 200,
+      modifiedAt: null,
+      isDirectory: false,
+    ),
+  ];
+  return CloudResourceMediaGroup(
+    stableKey: 'source|work|standalone',
+    workKey: 'source|work|standalone',
+    displayName: '未识别季度作品',
+    seriesName: '未识别季度作品',
+    isSeries: false,
+    videos: videos,
+    seasons: const <CloudResourceSeasonGroup>[],
+    record: null,
+    isWorkScoped: true,
+  );
+}
+
 void main() {
   testWidgets('季度海报墙和选集只显示当前季度虚拟名称', (tester) async {
     final group = _seasonMediaGroup();
@@ -195,6 +227,34 @@ void main() {
     );
     expect(find.text('S03E01'), findsOneWidget);
     expect(find.text('4K · DV · HDR'), findsOneWidget);
+  });
+
+  testWidgets('无季度多视频作品的选集弹层仍显示全部视频', (tester) async {
+    final group = _standaloneMediaGroup();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showCloudResourceEpisodeSheet(
+                context: context,
+                sourceId: 'source',
+                group: group,
+              ),
+              child: const Text('打开选集'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('打开选集'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('未识别季度作品'), findsOneWidget);
+    expect(find.text('2 集'), findsNWidgets(2));
+    expect(find.text('01.mp4'), findsOneWidget);
+    expect(find.text('02.mp4'), findsOneWidget);
   });
 
   testWidgets('无来源时显示两种添加入口', (tester) async {

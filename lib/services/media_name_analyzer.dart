@@ -81,6 +81,13 @@ class MediaNameAnalyzer {
     r'^\[([^\]]{2,32})\]',
     unicode: true,
   );
+  static final RegExp _transparentDirectoryPattern = RegExp(
+    r'^(?:(?:内嵌|内封)[\s._-]*)?'
+    r'(?:中字|中文字幕|简中|繁中|简体中字|繁体中字|字幕|双语字幕)'
+    r'(?:版|版本)?$|^(?:sub|subs|subtitle|subtitles)$',
+    caseSensitive: false,
+    unicode: true,
+  );
 
   MediaNameAnalysis analyze(
     String name, {
@@ -185,6 +192,13 @@ class MediaNameAnalyzer {
         .replaceAll(_atmosPattern, ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
+  }
+
+  bool isTransparentDirectoryName(String name) {
+    final normalized = _normalize(name)
+        .replaceAll(RegExp(r'^[\[【(（]+|[\]】)）]+$', unicode: true), '')
+        .trim();
+    return _transparentDirectoryPattern.hasMatch(normalized);
   }
 
   String _withoutExtension(String value) {

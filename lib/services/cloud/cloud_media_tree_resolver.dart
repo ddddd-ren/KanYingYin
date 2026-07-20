@@ -118,6 +118,11 @@ class _ResolutionContext {
           _containsRecognizedVideo(_pathOf(entry), <String>{})) {
         return true;
       }
+      if (entry.isDirectory &&
+          nameAnalyzer.isTransparentDirectoryName(entry.name) &&
+          _containsRecognizedVideo(_pathOf(entry), <String>{})) {
+        return true;
+      }
     }
     return false;
   }
@@ -146,6 +151,7 @@ class _ResolutionContext {
     final workKey = workKeyFor(sourceId, root);
     final builders = <int, _SeasonBuilder>{};
     final standaloneVideos = <CloudFileEntry>[];
+    final transparentDirectories = <CloudFileEntry>[];
     final aliases = <String>[];
     final entries = directoryEntries[rootPath] ?? const <CloudFileEntry>[];
     for (final entry in entries) {
@@ -178,6 +184,9 @@ class _ResolutionContext {
       } else if (!entry.isDirectory && _isRecognizedVideo(entry)) {
         standaloneVideos.add(entry);
       } else if (entry.isDirectory) {
+        if (nameAnalyzer.isTransparentDirectoryName(entry.name)) {
+          transparentDirectories.add(entry);
+        }
         _collectStandaloneVideos(
           directoryPath: _pathOf(entry),
           videos: standaloneVideos,
@@ -187,6 +196,12 @@ class _ResolutionContext {
         _ignore(entry);
       }
     }
+    _promoteImplicitEpisodes(
+      builders: builders,
+      standaloneVideos: standaloneVideos,
+      transparentDirectories: transparentDirectories,
+      aliases: aliases,
+    );
 
     final rootAnalysis = nameAnalyzer.analyze(root.name, isDirectory: true);
     final seasonNumbers = builders.keys.toList(growable: false)..sort();
@@ -276,6 +291,55 @@ class _ResolutionContext {
       } else {
         _ignore(entry);
       }
+    }
+  }
+
+  void _promoteImplicitEpisodes({
+    required Map<int, _SeasonBuilder> builders,
+    required List<CloudFileEntry> standaloneVideos,
+    required List<CloudFileEntry> transparentDirectories,
+    required List<String> aliases,
+  }) {
+    if (builders.isNotEmpty || standaloneVideos.length < 2) return;
+    final parsed = <({
+      CloudFileEntry entry,
+      int seasonNumber,
+      int episodeNumber,
+      MediaReleaseTags releaseTags,
+    })>[];
+    for (final video in standaloneVideos) {
+      final analysis = nameAnalyzer.analyze(video.name, isDirectory: false);
+      final episodeNumber = analysis.episodeNumber;
+      if (episodeNumber == null || episodeNumber <= 0) return;
+      for (final candidate in analysis.titleCandidates) {
+        _addUnique(aliases, candidate);
+      }
+      parsed.add((
+        entry: video,
+        seasonNumber: analysis.seasonNumber ?? 1,
+        episodeNumber: episodeNumber,
+        releaseTags: analysis.releaseTags,
+      ));
+    }
+    standaloneVideos.clear();
+    final seasonNumbers = parsed.map((item) => item.seasonNumber).toSet();
+    for (final item in parsed) {
+      final builder = builders.putIfAbsent(
+        item.seasonNumber,
+        _SeasonBuilder.new,
+      );
+      builder.episodes.add(
+        _ParsedEpisode(
+          entry: item.entry,
+          episodeNumber: item.episodeNumber,
+          releaseTags: item.releaseTags,
+        ),
+      );
+    }
+    if (seasonNumbers.length == 1) {
+      builders[seasonNumbers.single]!.directories.addAll(
+            transparentDirectories,
+          );
     }
   }
 

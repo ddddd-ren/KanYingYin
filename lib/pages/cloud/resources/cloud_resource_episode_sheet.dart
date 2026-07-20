@@ -40,6 +40,14 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final title = group.displayName;
+    final visibleSeasons = group.seasons.isEmpty && group.videos.isNotEmpty
+        ? <CloudResourceSeasonGroup>[
+            CloudResourceSeasonGroup(
+              seasonNumber: null,
+              videos: group.videos,
+            ),
+          ]
+        : group.seasons;
     return SafeArea(
       child: SizedBox(
         key: const ValueKey<String>('cloud-resource-episode-sheet'),
@@ -83,10 +91,10 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                itemCount: group.seasons.length,
+                itemCount: visibleSeasons.length,
                 itemBuilder: (context, index) => _seasonSection(
                   context,
-                  group.seasons[index],
+                  visibleSeasons[index],
                 ),
               ),
             ),

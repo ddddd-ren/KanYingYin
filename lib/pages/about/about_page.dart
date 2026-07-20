@@ -6,6 +6,7 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/bean/appbar/sys_app_bar.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
+import 'package:kanyingyin/core/app_version.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:kanyingyin/utils/utils.dart';
 import 'package:path_provider/path_provider.dart';
@@ -226,6 +227,16 @@ class _AboutPageState extends State<AboutPage> {
                       ? Text('统计中...', style: TextStyle(fontFamily: fontFamily))
                       : Text('${_cacheSizeMB.toStringAsFixed(2)}MB',
                           style: TextStyle(fontFamily: fontFamily)),
+                ),
+                SettingsTile<void>(
+                  title: Text(
+                    '当前版本',
+                    style: TextStyle(fontFamily: fontFamily),
+                  ),
+                  trailing: Text(
+                    AppVersion.current,
+                    style: TextStyle(fontFamily: fontFamily),
+                  ),
                 ),
               ],
             ),

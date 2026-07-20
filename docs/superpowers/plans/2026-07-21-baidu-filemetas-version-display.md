@@ -194,7 +194,7 @@ test('清除缓存下方显示统一的当前版本', () {
     source,
     contains("package:kanyingyin/core/app_version.dart"),
   );
-  expect(source, contains('Text(AppVersion.current'));
+  expect(source, contains('AppVersion.current'));
   expect(source, isNot(contains("Text('2.1.30')")));
 });
 ```

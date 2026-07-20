@@ -150,9 +150,7 @@ class _CloudSourcesSettingsPageState extends State<CloudSourcesSettingsPage> {
                       ],
                     ),
                     onTap: () => Modular.to.pushNamed(
-                      source.type == CloudSourceType.openList
-                          ? '/settings/cloud-sources/openlist/edit'
-                          : '/settings/cloud-sources/quark/edit',
+                      _editorRoute(source.type),
                       arguments: source,
                     ),
                   ),
@@ -161,9 +159,7 @@ class _CloudSourcesSettingsPageState extends State<CloudSourcesSettingsPage> {
                   alignment: Alignment.centerRight,
                   child: PopupMenuButton<CloudSourceType>(
                     onSelected: (type) => Modular.to.pushNamed(
-                      type == CloudSourceType.openList
-                          ? '/settings/cloud-sources/openlist/edit'
-                          : '/settings/cloud-sources/quark/edit',
+                      _editorRoute(type),
                     ),
                     itemBuilder: (_) => const [
                       PopupMenuItem(
@@ -173,6 +169,10 @@ class _CloudSourcesSettingsPageState extends State<CloudSourcesSettingsPage> {
                       PopupMenuItem(
                         value: CloudSourceType.quark,
                         child: Text('添加夸克网盘'),
+                      ),
+                      PopupMenuItem(
+                        value: CloudSourceType.baidu,
+                        child: Text('添加百度网盘'),
                       ),
                     ],
                     child: const Padding(
@@ -203,6 +203,12 @@ class _CloudSourcesSettingsPageState extends State<CloudSourcesSettingsPage> {
             '${source.lastScanFailureCount == 0 ? '' : ' · ${source.lastScanFailureCount} 个目录失败'}',
     };
   }
+
+  static String _editorRoute(CloudSourceType type) => switch (type) {
+        CloudSourceType.openList => '/settings/cloud-sources/openlist/edit',
+        CloudSourceType.quark => '/settings/cloud-sources/quark/edit',
+        CloudSourceType.baidu => '/settings/cloud-sources/baidu/edit',
+      };
 }
 
 class CloudSourceTypePickerPage extends StatelessWidget {
@@ -225,6 +231,12 @@ class CloudSourceTypePickerPage extends StatelessWidget {
               title: const Text('添加夸克网盘'),
               onTap: () =>
                   Modular.to.pushNamed('/settings/cloud-sources/quark/edit'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.cloud_sync_outlined),
+              title: const Text('添加百度网盘'),
+              onTap: () =>
+                  Modular.to.pushNamed('/settings/cloud-sources/baidu/edit'),
             ),
           ],
         ),

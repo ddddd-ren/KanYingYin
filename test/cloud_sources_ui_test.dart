@@ -31,7 +31,7 @@ void main() {
     expect(find.text('还没有添加网盘数据源'), findsOneWidget);
   });
 
-  testWidgets('添加菜单包含 OpenList 和夸克网盘', (tester) async {
+  testWidgets('添加菜单包含 OpenList、夸克网盘和百度网盘', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(home: CloudSourcesSettingsPage()),
     );
@@ -42,6 +42,7 @@ void main() {
 
     expect(find.text('添加 OpenList'), findsOneWidget);
     expect(find.text('添加夸克网盘'), findsOneWidget);
+    expect(find.text('添加百度网盘'), findsOneWidget);
   });
 
   testWidgets('只有存在可用夸克来源时显示分享导入操作', (tester) async {
@@ -161,6 +162,7 @@ void main() {
     expect(source, contains('"/cloud-sources/openlist/edit"'));
     expect(source, contains('"/cloud-sources/quark/edit"'));
     expect(source, contains('"/cloud-sources/quark/import"'));
+    expect(source, contains('"/cloud-sources/baidu/edit"'));
     expect(source, contains('"/cloud-sources/edit"'));
     expect(
       source,
@@ -181,8 +183,47 @@ void main() {
         r'onRootSelectionChanged:\s*Modular\.get<'
         r'CloudSourceRootRefreshCoordinator>\(\)\.refreshSource',
       ).allMatches(source),
-      hasLength(3),
+      hasLength(4),
     );
+  });
+
+  testWidgets('百度来源没有夸克分享导入按钮', (tester) async {
+    final storage = MemoryCloudSourceStorage();
+    final credentials = MemoryCloudCredentialStore();
+    final repository = CloudSourceRepository(
+      storage: storage,
+      credentialStore: credentials,
+    );
+    const source = CloudSource(
+      id: 'baidu-no-share',
+      type: CloudSourceType.baidu,
+      name: '百度媒体库',
+      baseUrl: 'https://pan.baidu.com',
+      rootPaths: <String>['/影视'],
+    );
+    await repository.save(source);
+    await credentials.write(
+      source.id,
+      CloudCredential(
+        clientId: 'client-fixture',
+        clientSecret: 'secret-fixture',
+        accessToken: 'access-fixture',
+        refreshToken: 'refresh-fixture',
+        accessTokenExpiresAt: DateTime.utc(2026, 8, 21),
+      ),
+    );
+    final controller = CloudLibraryController(
+      repository: repository,
+      credentialStore: credentials,
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: CloudSourcesSettingsPage(controller: controller),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('导入夸克分享'), findsNothing);
+    controller.dispose();
   });
 
   testWidgets('设置页销毁时不会销毁外部共享控制器', (tester) async {

@@ -4,7 +4,6 @@ import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_api_client.dart';
-import 'package:kanyingyin/services/cloud/quark/quark_request_policy.dart';
 import 'package:path/path.dart' as p;
 
 typedef QuarkApiFactory = QuarkApi Function(String cookie);
@@ -14,12 +13,10 @@ class QuarkDriveClient implements CloudDriveClient {
     required CloudSource source,
     required CloudCredentialStore credentialStore,
     QuarkApiFactory? apiFactory,
-    QuarkRequestPolicy requestPolicy = const QuarkRequestPolicy(),
   })  : _source = source,
         _credentialStore = credentialStore,
         _apiFactory =
-            apiFactory ?? ((cookie) => QuarkApiClient(cookie: cookie)),
-        _requestPolicy = requestPolicy;
+            apiFactory ?? ((cookie) => QuarkApiClient(cookie: cookie));
 
   static const int _pageSize = 50;
   static const int _maxPages = 200;
@@ -27,7 +24,6 @@ class QuarkDriveClient implements CloudDriveClient {
   final CloudSource _source;
   final CloudCredentialStore _credentialStore;
   final QuarkApiFactory _apiFactory;
-  final QuarkRequestPolicy _requestPolicy;
   QuarkApi? _api;
   String? _cookie;
 
@@ -121,11 +117,8 @@ class QuarkDriveClient implements CloudDriveClient {
     return CloudPlaybackResource(
       uri: playback.uri,
       networkRoute: PlaybackNetworkRoute.direct,
-      headers: _requestPolicy.headersFor(
-        playback.uri,
-        cookie: cookie,
-        playbackOrigin: playback.uri,
-      ),
+      // 转码 CDN 不接受夸克 API 使用的 JSON 请求头与 Cookie。
+      headers: const <String, String>{},
     );
   }
 

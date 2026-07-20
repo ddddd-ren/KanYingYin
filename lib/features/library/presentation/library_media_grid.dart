@@ -138,9 +138,6 @@ class LibraryMediaGrid extends StatelessWidget {
   final FutureOr<void> Function()? onRetry;
   final VoidCallback? onClearSearch;
 
-  bool get _isDesktop =>
-      Platform.isWindows || Platform.isMacOS || Platform.isLinux;
-
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -228,54 +225,31 @@ class LibraryMediaGrid extends StatelessWidget {
             label: const Text('切换文件夹')),
       ]));
     }
-    return LayoutBuilder(builder: (context, constraints) {
-      final mediaSize = MediaQuery.sizeOf(context);
-      final isTablet = !_isDesktop &&
-          mediaSize.shortestSide >= 600 &&
-          mediaSize.shortestSide / mediaSize.longestSide >= 9 / 16;
-      final count = _isDesktop
-          ? (constraints.maxWidth < 900 ? 3 : 4)
-          : isTablet
-              ? 4
-              : 3;
-      final spacing = _isDesktop ? 12.0 : 8.0;
-      final padding = _isDesktop ? 12.0 : 8.0;
-      double? extent;
-      if (_isDesktop &&
-          constraints.maxWidth.isFinite &&
-          constraints.maxWidth > 0) {
-        final width =
-            (constraints.maxWidth - padding * 2 - spacing * (count - 1)) /
-                count;
-        extent = (width / 0.68).clamp(320.0, 680.0);
-      }
-      return GridView.builder(
-        controller: scrollController,
-        padding: EdgeInsets.all(padding),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: count,
-          crossAxisSpacing: spacing,
-          mainAxisSpacing: spacing,
-          childAspectRatio: 0.68,
-          mainAxisExtent: extent,
-        ),
-        itemCount: data.items.length,
-        findChildIndexCallback: (key) {
-          if (key is! ValueKey<String>) return null;
-          final index = data.items.indexWhere((item) => item.id == key.value);
-          return index < 0 ? null : index;
-        },
-        itemBuilder: (context, index) {
-          final item = data.items[index];
-          return _LibraryMediaTile(
-            key: ValueKey<String>(item.id),
-            item: item,
-            onPlay: onPlay,
-            onShowActions: onShowActions,
-          );
-        },
-      );
-    });
+    return GridView.builder(
+      controller: scrollController,
+      padding: const EdgeInsets.all(12),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 300,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.68,
+      ),
+      itemCount: data.items.length,
+      findChildIndexCallback: (key) {
+        if (key is! ValueKey<String>) return null;
+        final index = data.items.indexWhere((item) => item.id == key.value);
+        return index < 0 ? null : index;
+      },
+      itemBuilder: (context, index) {
+        final item = data.items[index];
+        return _LibraryMediaTile(
+          key: ValueKey<String>(item.id),
+          item: item,
+          onPlay: onPlay,
+          onShowActions: onShowActions,
+        );
+      },
+    );
   }
 }
 

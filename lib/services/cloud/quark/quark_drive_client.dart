@@ -140,7 +140,7 @@ class QuarkDriveClient implements CloudDriveClient {
       transport: switch (playback.type) {
         QuarkPlaybackLinkType.transcode => CloudPlaybackTransport.direct,
         QuarkPlaybackLinkType.originalDownload =>
-          CloudPlaybackTransport.quarkRangeRelay,
+          CloudPlaybackTransport.rangeRelay,
       },
     );
   }

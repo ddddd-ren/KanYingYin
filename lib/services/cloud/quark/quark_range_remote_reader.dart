@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:kanyingyin/services/cloud/quark/quark_range_relay_protocol.dart';
+import 'package:kanyingyin/services/cloud/range/cloud_range_relay_protocol.dart';
+import 'package:kanyingyin/services/cloud/range/cloud_range_remote_reader.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_request_policy.dart';
 
 typedef QuarkRemoteResourceRefresher = Future<QuarkRemoteResource> Function();
@@ -9,72 +10,62 @@ typedef QuarkRemoteUriValidator = bool Function(Uri uri);
 typedef QuarkHttpClientFactory = HttpClient Function();
 typedef QuarkRetryDelay = Future<void> Function(Duration duration);
 
-enum QuarkRemoteReaderEvent { reconnecting, refreshing }
+typedef QuarkRemoteReaderEvent = CloudRangeReaderEvent;
 
-class QuarkRemoteResource {
+class QuarkRemoteResource extends CloudRangeRemoteResource {
   QuarkRemoteResource({
-    required this.uri,
-    Map<String, String> headers = const <String, String>{},
-    this.totalLength,
-    this.contentType,
-  }) : headers = Map<String, String>.unmodifiable(headers);
+    required super.uri,
+    super.headers,
+    super.totalLength,
+    super.contentType,
+  });
 
-  final Uri uri;
-  final Map<String, String> headers;
-  final int? totalLength;
-  final String? contentType;
-
+  @override
   QuarkRemoteResource copyWith({
     Uri? uri,
+    Map<String, String>? headers,
     int? totalLength,
     String? contentType,
   }) =>
       QuarkRemoteResource(
         uri: uri ?? this.uri,
-        headers: headers,
+        headers: headers ?? this.headers,
         totalLength: totalLength ?? this.totalLength,
         contentType: contentType ?? this.contentType,
       );
 }
 
-class QuarkRemoteMetadata {
+class QuarkRemoteMetadata extends CloudRangeRemoteMetadata {
   const QuarkRemoteMetadata({
-    required this.totalLength,
-    required this.contentType,
+    required super.totalLength,
+    required super.contentType,
+    super.supportsRanges = true,
   });
-
-  final int totalLength;
-  final String contentType;
 }
 
-class QuarkRemoteProtocolException implements Exception {
-  const QuarkRemoteProtocolException(this.message);
-
-  final String message;
+class QuarkRemoteProtocolException extends CloudRangeRemoteProtocolException {
+  const QuarkRemoteProtocolException(super.message);
 
   @override
   String toString() => 'QuarkRemoteProtocolException($message)';
 }
 
-class QuarkRemoteAuthenticationException implements Exception {
-  const QuarkRemoteAuthenticationException(this.message);
-
-  final String message;
+class QuarkRemoteAuthenticationException
+    extends CloudRangeRemoteAuthenticationException {
+  const QuarkRemoteAuthenticationException(super.message);
 
   @override
   String toString() => 'QuarkRemoteAuthenticationException($message)';
 }
 
-class QuarkRemoteTransportException implements Exception {
-  const QuarkRemoteTransportException(this.message);
-
-  final String message;
+class QuarkRemoteTransportException extends CloudRangeRemoteTransportException {
+  const QuarkRemoteTransportException(super.message);
 
   @override
   String toString() => 'QuarkRemoteTransportException($message)';
 }
 
-class QuarkRangeRemoteReader {
+class QuarkRangeRemoteReader implements CloudRangeRemoteReader {
   QuarkRangeRemoteReader({
     required QuarkRemoteResource resource,
     required QuarkRemoteResourceRefresher refreshResource,
@@ -108,8 +99,8 @@ class QuarkRangeRemoteReader {
   final QuarkRetryDelay _delay;
   final Duration requestTimeout;
   final Set<HttpClient> _activeClients = <HttpClient>{};
-  final StreamController<QuarkRemoteReaderEvent> _events =
-      StreamController<QuarkRemoteReaderEvent>.broadcast(sync: true);
+  final StreamController<CloudRangeReaderEvent> _events =
+      StreamController<CloudRangeReaderEvent>.broadcast(sync: true);
 
   int? _totalLength;
   String _contentType = 'application/octet-stream';
@@ -118,15 +109,20 @@ class QuarkRangeRemoteReader {
   bool _closed = false;
   Future<void>? _closeFuture;
 
+  @override
   int? get totalLength => _totalLength;
+  @override
   String get contentType => _contentType;
-  Stream<QuarkRemoteReaderEvent> get events => _events.stream;
+  @override
+  Stream<CloudRangeReaderEvent> get events => _events.stream;
 
+  @override
   Future<QuarkRemoteMetadata> probe() async {
     final metadata = await _readWithRecovery(const ByteRange(0, 0), null);
     return metadata;
   }
 
+  @override
   Future<void> readTo(ByteRange range, File destination) async {
     try {
       await _readWithRecovery(range, destination);
@@ -146,14 +142,14 @@ class QuarkRangeRemoteReader {
       try {
         return await _readOnce(range, destination);
       } on _AuthenticationStatusException {
-        _emitEvent(QuarkRemoteReaderEvent.refreshing);
+        _emitEvent(CloudRangeReaderEvent.refreshing);
         await _refreshAfterAuthenticationFailure();
       } on Object catch (error) {
         if (!_isTransportError(error)) rethrow;
         if (transportAttempt >= _retryDelays.length) {
           throw const QuarkRemoteTransportException('夸克远程连接重试后仍失败');
         }
-        _emitEvent(QuarkRemoteReaderEvent.reconnecting);
+        _emitEvent(CloudRangeReaderEvent.reconnecting);
         await _delay(_retryDelays[transportAttempt]);
         transportAttempt++;
       }
@@ -207,6 +203,36 @@ class QuarkRangeRemoteReader {
       if (_isAuthenticationStatus(response.statusCode)) {
         await response.drain<void>();
         throw _AuthenticationStatusException(response.statusCode);
+      }
+      if (destination == null &&
+          range.start == 0 &&
+          range.endInclusive == 0 &&
+          response.statusCode == HttpStatus.ok) {
+        final total = response.contentLength >= 0
+            ? response.contentLength
+            : _resource.totalLength;
+        if (total == null || total <= 0) {
+          throw const QuarkRemoteProtocolException('远程完整响应缺少文件长度');
+        }
+        if (_totalLength != null && _totalLength != total) {
+          throw const QuarkRemoteProtocolException('远程文件总长度发生变化');
+        }
+        final mimeType = response.headers.contentType?.mimeType;
+        final metadata = QuarkRemoteMetadata(
+          totalLength: total,
+          contentType: mimeType == null || mimeType.isEmpty
+              ? _contentType
+              : mimeType.toLowerCase(),
+          supportsRanges: false,
+        );
+        _resource = _resource.copyWith(
+          uri: uri,
+          totalLength: metadata.totalLength,
+          contentType: metadata.contentType,
+        );
+        _totalLength = metadata.totalLength;
+        _contentType = metadata.contentType;
+        return metadata;
       }
       if (response.statusCode != HttpStatus.partialContent) {
         await response.drain<void>();
@@ -284,6 +310,66 @@ class QuarkRangeRemoteReader {
     );
   }
 
+  @override
+  Future<void> streamAll(IOSink destination) async {
+    if (_closed) throw StateError('远程读取器已关闭');
+    final client = _httpClientFactory()
+      ..connectionTimeout = requestTimeout
+      ..findProxy = (_) => 'DIRECT';
+    _activeClients.add(client);
+    try {
+      var uri = _resource.uri;
+      HttpClientResponse? response;
+      for (var redirectCount = 0; redirectCount <= 5; redirectCount++) {
+        if (!_uriValidator(uri)) {
+          throw const QuarkRemoteProtocolException('重定向地址不在可信范围内');
+        }
+        final request = await client.getUrl(uri).timeout(requestTimeout);
+        request.followRedirects = false;
+        _setRequestHeaders(request, _resource.headers);
+        request.headers.set(HttpHeaders.acceptEncodingHeader, 'identity');
+        response = await request.close().timeout(requestTimeout);
+        if (_isRedirect(response.statusCode)) {
+          final location = response.headers.value(HttpHeaders.locationHeader);
+          await response.drain<void>();
+          if (location == null || redirectCount == 5) {
+            throw const QuarkRemoteProtocolException('远程重定向响应无效');
+          }
+          final redirected = uri.resolve(location);
+          if (!_uriValidator(redirected)) {
+            throw const QuarkRemoteProtocolException('重定向地址不在可信范围内');
+          }
+          uri = redirected;
+          continue;
+        }
+        break;
+      }
+      if (response == null || response.statusCode != HttpStatus.ok) {
+        if (response != null) await response.drain<void>();
+        throw const QuarkRemoteProtocolException('远程完整响应状态无效');
+      }
+      final expected = _totalLength ?? response.contentLength;
+      if (expected <= 0) {
+        throw const QuarkRemoteProtocolException('远程完整响应缺少文件长度');
+      }
+      var received = 0;
+      await for (final chunk in response.timeout(requestTimeout)) {
+        received += chunk.length;
+        destination.add(chunk);
+      }
+      if (received != expected) {
+        throw QuarkRemoteProtocolException(
+          '远程完整响应长度不符：期望 $expected，实际 $received',
+        );
+      }
+      _resource = _resource.copyWith(uri: uri, totalLength: expected);
+      _totalLength = expected;
+    } finally {
+      _activeClients.remove(client);
+      client.close(force: true);
+    }
+  }
+
   Future<void> _refreshAfterAuthenticationFailure() async {
     final existing = _refreshing;
     if (existing != null) return existing;
@@ -353,10 +439,11 @@ class QuarkRangeRemoteReader {
       statusCode == HttpStatus.temporaryRedirect ||
       statusCode == HttpStatus.permanentRedirect;
 
-  void _emitEvent(QuarkRemoteReaderEvent event) {
+  void _emitEvent(CloudRangeReaderEvent event) {
     if (!_closed && !_events.isClosed) _events.add(event);
   }
 
+  @override
   Future<void> close() => _closeFuture ??= _close();
 
   Future<void> _close() async {

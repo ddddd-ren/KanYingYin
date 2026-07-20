@@ -1,6 +1,6 @@
-enum CloudPlaybackTransport { direct, quarkRangeRelay, rangeRelay }
+enum CloudPlaybackTransport { direct, rangeRelay }
 
-enum QuarkRelayPhase {
+enum CloudRangeRelayPhase {
   connecting,
   prefetching,
   ready,
@@ -9,8 +9,9 @@ enum QuarkRelayPhase {
   failed,
 }
 
-class QuarkRelayStatus {
-  const QuarkRelayStatus({
+class CloudRangeRelayStatus {
+  const CloudRangeRelayStatus({
+    required this.providerName,
     required this.phase,
     this.bytesPerSecond = 0,
     this.receivedBytes = 0,
@@ -19,7 +20,8 @@ class QuarkRelayStatus {
     this.message,
   });
 
-  final QuarkRelayPhase phase;
+  final String providerName;
+  final CloudRangeRelayPhase phase;
   final double bytesPerSecond;
   final int receivedBytes;
   final int cachedBytes;
@@ -28,9 +30,9 @@ class QuarkRelayStatus {
 }
 
 abstract interface class CloudPlaybackLease {
-  QuarkRelayStatus get currentStatus;
+  CloudRangeRelayStatus get currentStatus;
 
-  Stream<QuarkRelayStatus> get statuses;
+  Stream<CloudRangeRelayStatus> get statuses;
 
   Future<void> close();
 }

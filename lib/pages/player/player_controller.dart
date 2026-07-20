@@ -676,12 +676,11 @@ abstract class _PlayerController with Store {
         CloudPlaybackCachePolicy.forTransport(initParams.transport);
     mediaPlayer = Player(
       configuration: PlayerConfiguration(
-        bufferSize:
-            initParams.transport == CloudPlaybackTransport.quarkRangeRelay
-                ? 256 * 1024 * 1024
-                : lowMemoryMode
-                    ? 15 * 1024 * 1024
-                    : 1500 * 1024 * 1024,
+        bufferSize: initParams.transport == CloudPlaybackTransport.rangeRelay
+            ? 256 * 1024 * 1024
+            : lowMemoryMode
+                ? 15 * 1024 * 1024
+                : 1500 * 1024 * 1024,
         osc: false,
         libass: Platform.isWindows,
         logLevel: MPVLogLevel.v,

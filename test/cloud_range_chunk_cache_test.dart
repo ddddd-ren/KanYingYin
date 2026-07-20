@@ -1,12 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:kanyingyin/services/cloud/quark/quark_range_chunk_cache.dart';
-import 'package:kanyingyin/services/cloud/quark/quark_range_relay_protocol.dart';
+import 'package:kanyingyin/services/cloud/range/cloud_range_chunk_cache.dart';
+import 'package:kanyingyin/services/cloud/range/cloud_range_relay_protocol.dart';
 
 void main() {
   late Directory directory;
-  late QuarkRangeChunkCache cache;
+  late CloudRangeChunkCache cache;
   var loadCalls = 0;
 
   Future<void> loader(ByteRange range, File destination) async {
@@ -21,8 +21,8 @@ void main() {
   }
 
   setUp(() async {
-    directory = await Directory.systemTemp.createTemp('quark-cache-test-');
-    cache = QuarkRangeChunkCache(
+    directory = await Directory.systemTemp.createTemp('cloud-cache-test-');
+    cache = CloudRangeChunkCache(
       directory: directory,
       totalLength: 10,
       chunkSize: 4,
@@ -51,7 +51,7 @@ void main() {
   });
 
   test('同一分段并发获取只执行一次加载', () async {
-    final handles = await Future.wait(<Future<QuarkRangeChunkHandle>>[
+    final handles = await Future.wait(<Future<CloudRangeChunkHandle>>[
       cache.acquire(1, loader),
       cache.acquire(3, loader),
     ]);
@@ -95,7 +95,7 @@ void main() {
 
     await expectLater(
       cache.acquire(0, shortLoader),
-      throwsA(isA<QuarkChunkLoadException>()),
+      throwsA(isA<CloudChunkLoadException>()),
     );
     expect(cache.cachedChunkIndices, isEmpty);
     expect(directory.listSync(), isEmpty);
@@ -117,7 +117,7 @@ void main() {
 }
 
 Future<List<int>> _read(
-  QuarkRangeChunkHandle handle,
+  CloudRangeChunkHandle handle,
   int start,
   int endInclusive,
 ) =>

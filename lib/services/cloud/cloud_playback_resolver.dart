@@ -329,7 +329,7 @@ class CloudPlaybackResolver {
           : CloudPlaybackTransport.direct;
       CloudPlaybackLease? lease;
       int? totalBytes;
-      if (transport == CloudPlaybackTransport.quarkRangeRelay) {
+      if (transport == CloudPlaybackTransport.rangeRelay) {
         try {
           final relay = await _relayStarter(
             resource: _toQuarkRemoteResource(resource),
@@ -381,7 +381,7 @@ class CloudPlaybackResolver {
     final client = _providerRegistry.createClient(source, _credentialStore);
     try {
       final resource = await client.resolvePlayback(_remoteRef(target));
-      if (resource.transport != CloudPlaybackTransport.quarkRangeRelay) {
+      if (resource.transport != CloudPlaybackTransport.rangeRelay) {
         throw const QuarkRemoteProtocolException('刷新后未返回夸克原文件地址');
       }
       return _toQuarkRemoteResource(resource);

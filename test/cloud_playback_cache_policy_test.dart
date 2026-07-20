@@ -6,7 +6,7 @@ void main() {
   test('夸克中转使用独立 MPV 网络缓存参数', () {
     expect(
       CloudPlaybackCachePolicy.forTransport(
-        CloudPlaybackTransport.quarkRangeRelay,
+        CloudPlaybackTransport.rangeRelay,
       ).mpvProperties,
       const <String, String>{
         'stream-buffer-size': '4MiB',
@@ -57,12 +57,14 @@ class _FakeLease implements CloudPlaybackLease {
   var closeCalls = 0;
 
   @override
-  QuarkRelayStatus get currentStatus =>
-      const QuarkRelayStatus(phase: QuarkRelayPhase.ready);
+  CloudRangeRelayStatus get currentStatus => const CloudRangeRelayStatus(
+        providerName: '测试网盘',
+        phase: CloudRangeRelayPhase.ready,
+      );
 
   @override
-  Stream<QuarkRelayStatus> get statuses =>
-      const Stream<QuarkRelayStatus>.empty();
+  Stream<CloudRangeRelayStatus> get statuses =>
+      const Stream<CloudRangeRelayStatus>.empty();
 
   @override
   Future<void> close() async => closeCalls++;

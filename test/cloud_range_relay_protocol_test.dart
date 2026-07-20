@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:kanyingyin/services/cloud/quark/quark_range_relay_protocol.dart';
+import 'package:kanyingyin/services/cloud/range/cloud_range_relay_protocol.dart';
 
 void main() {
   group('parseSingleHttpRange', () {

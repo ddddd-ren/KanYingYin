@@ -97,7 +97,7 @@ void main() {
           uri: Uri.parse('https://dl-a.pds.quark.cn/original?token=old'),
           headers: const <String, String>{'Cookie': 'session=old'},
           networkRoute: PlaybackNetworkRoute.direct,
-          transport: CloudPlaybackTransport.quarkRangeRelay,
+          transport: CloudPlaybackTransport.rangeRelay,
         ),
       ),
       _FakeClient(
@@ -105,7 +105,7 @@ void main() {
           uri: Uri.parse('https://dl-b.pds.quark.cn/original?token=new'),
           headers: const <String, String>{'Cookie': 'session=new'},
           networkRoute: PlaybackNetworkRoute.direct,
-          transport: CloudPlaybackTransport.quarkRangeRelay,
+          transport: CloudPlaybackTransport.rangeRelay,
         ),
       ),
     ];
@@ -138,7 +138,7 @@ void main() {
     expect(result.videoUrl, 'http://127.0.0.1:32100/token');
     expect(result.httpHeaders, isEmpty);
     expect(result.networkRoute, PlaybackNetworkRoute.direct);
-    expect(result.transport, CloudPlaybackTransport.quarkRangeRelay);
+    expect(result.transport, CloudPlaybackTransport.rangeRelay);
     expect(result.lease, same(lease));
     expect(result.totalBytes, 1024);
     expect(clients.first.closed, isTrue);
@@ -162,7 +162,7 @@ void main() {
         uri: Uri.parse('https://dl-a.pds.quark.cn/original'),
         headers: const <String, String>{'Cookie': 'session=old'},
         networkRoute: PlaybackNetworkRoute.direct,
-        transport: CloudPlaybackTransport.quarkRangeRelay,
+        transport: CloudPlaybackTransport.rangeRelay,
       ),
     );
     final resolver = CloudPlaybackResolver(
@@ -202,7 +202,7 @@ void main() {
         uri: Uri.parse('https://drive.quark.cn.example.com/original'),
         headers: const <String, String>{'Cookie': 'session=secret'},
         networkRoute: PlaybackNetworkRoute.direct,
-        transport: CloudPlaybackTransport.quarkRangeRelay,
+        transport: CloudPlaybackTransport.rangeRelay,
       ),
     );
     final resolver = CloudPlaybackResolver(
@@ -383,7 +383,7 @@ void main() {
           httpHeaders: const {'X-Token': 'first'},
           networkRoute: PlaybackNetworkRoute.direct,
           cloudProviderName: '夸克',
-          transport: CloudPlaybackTransport.quarkRangeRelay,
+          transport: CloudPlaybackTransport.rangeRelay,
           lease: relayLease,
           totalBytes: 4096,
         );
@@ -414,7 +414,7 @@ void main() {
     expect(initialized.single.cloudProviderName, '夸克');
     expect(
       initialized.single.transport,
-      CloudPlaybackTransport.quarkRangeRelay,
+      CloudPlaybackTransport.rangeRelay,
     );
     expect(initialized.single.lease, same(relayLease));
     expect(initialized.single.totalBytes, 4096);
@@ -452,7 +452,7 @@ void main() {
         target: target,
         videoUrl: 'http://127.0.0.1:32000/token',
         httpHeaders: const <String, String>{},
-        transport: CloudPlaybackTransport.quarkRangeRelay,
+        transport: CloudPlaybackTransport.rangeRelay,
         lease: lease,
       ),
       initializePlayer: (_) async {},
@@ -521,7 +521,7 @@ void main() {
       refreshed: params(
         url: 'new',
         networkRoute: PlaybackNetworkRoute.direct,
-        transport: CloudPlaybackTransport.quarkRangeRelay,
+        transport: CloudPlaybackTransport.rangeRelay,
         lease: newLease,
         totalBytes: 8192,
       ),
@@ -532,7 +532,7 @@ void main() {
     expect(merged.subtitlePath, r'C:\cache\old.ass');
     expect(merged.offset, 42);
     expect(merged.networkRoute, PlaybackNetworkRoute.direct);
-    expect(merged.transport, CloudPlaybackTransport.quarkRangeRelay);
+    expect(merged.transport, CloudPlaybackTransport.rangeRelay);
     expect(merged.lease, same(newLease));
     expect(merged.totalBytes, 8192);
   });
@@ -952,12 +952,14 @@ class _FakePlaybackLease implements CloudPlaybackLease {
   var closeCalls = 0;
 
   @override
-  QuarkRelayStatus get currentStatus =>
-      const QuarkRelayStatus(phase: QuarkRelayPhase.ready);
+  CloudRangeRelayStatus get currentStatus => const CloudRangeRelayStatus(
+        providerName: '测试网盘',
+        phase: CloudRangeRelayPhase.ready,
+      );
 
   @override
-  Stream<QuarkRelayStatus> get statuses =>
-      const Stream<QuarkRelayStatus>.empty();
+  Stream<CloudRangeRelayStatus> get statuses =>
+      const Stream<CloudRangeRelayStatus>.empty();
 
   @override
   Future<void> close() async => closeCalls++;

@@ -200,6 +200,19 @@ void main() {
     expect(entries.single.isPrerelease, isTrue);
   });
 
+  test('二点一二十九说明百度播放修复和本地分季海报', () {
+    final entries = versionHistoryForCurrent('2.1.29');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('百度网盘视频'));
+    expect(changes, contains('解析或加载失败'));
+    expect(changes, contains('本地电视剧'));
+    expect(changes, contains('对应季海报'));
+    expect(changes, contains('不会修改百度网盘文件'));
+    expect(entries.single.isPrerelease, isTrue);
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

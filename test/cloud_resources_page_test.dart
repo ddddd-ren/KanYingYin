@@ -287,6 +287,27 @@ CloudResourceMediaGroup _conflictMediaGroup() {
 }
 
 void main() {
+  test('网盘播放失败诊断不包含异常中的远程地址', () {
+    const source = CloudSource(
+      id: 'baidu-source',
+      type: CloudSourceType.baidu,
+      name: '百度网盘',
+      baseUrl: 'https://pan.baidu.com',
+      rootPaths: <String>['/'],
+    );
+
+    final message = cloudPlaybackFailureDiagnostic(
+      source,
+      StateError('https://d.pcs.baidu.com/file?access_token=secret'),
+    );
+
+    expect(message, contains('provider=baidu'));
+    expect(message, contains('sourceId=baidu-source'));
+    expect(message, contains('errorType=StateError'));
+    expect(message, isNot(contains('d.pcs.baidu.com')));
+    expect(message, isNot(contains('secret')));
+  });
+
   testWidgets('季度海报墙和选集只显示当前季度虚拟名称', (tester) async {
     final group = _seasonMediaGroup();
     await tester.pumpWidget(

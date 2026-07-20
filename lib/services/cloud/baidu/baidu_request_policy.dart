@@ -10,6 +10,8 @@ abstract final class BaiduEndpoints {
 class BaiduRequestPolicy {
   const BaiduRequestPolicy();
 
+  static const String downloadUserAgent = 'pan.baidu.com';
+
   static const Set<String> _officialDownloadHosts = <String>{
     'pan.baidu.com',
     'd.pcs.baidu.com',

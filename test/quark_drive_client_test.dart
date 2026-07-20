@@ -6,6 +6,7 @@ import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_api_client.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_drive_client.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_models.dart';
+import 'package:kanyingyin/services/cloud/quark/quark_request_policy.dart';
 
 void main() {
   const source = CloudSource(
@@ -127,6 +128,71 @@ void main() {
     expect(api.requestedPlaybackIds, <String>['fid_fixture_video']);
     expect(resource.headers, isEmpty);
     expect(resource.networkRoute, PlaybackNetworkRoute.direct);
+  });
+
+  test('原文件播放只向可信夸克下载主机发送必要请求头', () async {
+    final store = MemoryCloudCredentialStore();
+    await store.write(
+      source.id,
+      const CloudCredential(cookie: 'session=cookie-fixture'),
+    );
+    final api = _FakeQuarkApi(
+      playback: QuarkPlaybackLink(
+        fileId: 'fid_fixture_video',
+        uri: Uri.parse('https://download.drive.quark.cn/original'),
+        type: QuarkPlaybackLinkType.originalDownload,
+      ),
+    );
+    final client = QuarkDriveClient(
+      source: source,
+      credentialStore: store,
+      apiFactory: (_) => api,
+    );
+
+    final resource = await client.resolvePlayback(const CloudRemoteRef(
+      id: 'fid_fixture_video',
+      path: '/影视/示例.mkv',
+    ));
+
+    expect(resource.headers, <String, String>{
+      'Cookie': 'session=cookie-fixture',
+      'Referer': 'https://pan.quark.cn',
+      'User-Agent': QuarkRequestPolicy.userAgent,
+    });
+    expect(resource.headers, isNot(contains('Accept')));
+    expect(resource.headers, isNot(contains('Content-Type')));
+    expect(resource.networkRoute, PlaybackNetworkRoute.direct);
+  });
+
+  test('原文件播放拒绝恶意相似域名', () async {
+    final store = MemoryCloudCredentialStore();
+    await store.write(
+      source.id,
+      const CloudCredential(cookie: 'session=cookie-fixture'),
+    );
+    final client = QuarkDriveClient(
+      source: source,
+      credentialStore: store,
+      apiFactory: (_) => _FakeQuarkApi(
+        playback: QuarkPlaybackLink(
+          fileId: 'fid_fixture_video',
+          uri: Uri.parse('https://drive.quark.cn.example.com/original'),
+          type: QuarkPlaybackLinkType.originalDownload,
+        ),
+      ),
+    );
+
+    await expectLater(
+      client.resolvePlayback(const CloudRemoteRef(
+        id: 'fid_fixture_video',
+        path: '/影视/示例.mkv',
+      )),
+      throwsA(isA<CloudDriveException>().having(
+        (error) => error.type,
+        'type',
+        CloudDriveErrorType.incompatible,
+      )),
+    );
   });
 }
 

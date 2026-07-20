@@ -4,6 +4,8 @@ import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_api_client.dart';
+import 'package:kanyingyin/services/cloud/quark/quark_models.dart';
+import 'package:kanyingyin/services/cloud/quark/quark_request_policy.dart';
 import 'package:path/path.dart' as p;
 
 typedef QuarkApiFactory = QuarkApi Function(String cookie);
@@ -13,10 +15,12 @@ class QuarkDriveClient implements CloudDriveClient {
     required CloudSource source,
     required CloudCredentialStore credentialStore,
     QuarkApiFactory? apiFactory,
+    QuarkRequestPolicy requestPolicy = const QuarkRequestPolicy(),
   })  : _source = source,
         _credentialStore = credentialStore,
         _apiFactory =
-            apiFactory ?? ((cookie) => QuarkApiClient(cookie: cookie));
+            apiFactory ?? ((cookie) => QuarkApiClient(cookie: cookie)),
+        _requestPolicy = requestPolicy;
 
   static const int _pageSize = 50;
   static const int _maxPages = 200;
@@ -24,6 +28,7 @@ class QuarkDriveClient implements CloudDriveClient {
   final CloudSource _source;
   final CloudCredentialStore _credentialStore;
   final QuarkApiFactory _apiFactory;
+  final QuarkRequestPolicy _requestPolicy;
   QuarkApi? _api;
   String? _cookie;
 
@@ -114,11 +119,22 @@ class QuarkDriveClient implements CloudDriveClient {
     if (cookie == null) {
       throw const CloudDriveException(CloudDriveErrorType.authentication);
     }
+    final headers = switch (playback.type) {
+      QuarkPlaybackLinkType.transcode => const <String, String>{},
+      QuarkPlaybackLinkType.originalDownload =>
+        _requestPolicy.originalDownloadHeadersFor(
+          playback.uri,
+          cookie: cookie,
+        ),
+    };
+    if (playback.type == QuarkPlaybackLinkType.originalDownload &&
+        headers.isEmpty) {
+      throw const CloudDriveException(CloudDriveErrorType.incompatible);
+    }
     return CloudPlaybackResource(
       uri: playback.uri,
       networkRoute: PlaybackNetworkRoute.direct,
-      // 转码 CDN 不接受夸克 API 使用的 JSON 请求头与 Cookie。
-      headers: const <String, String>{},
+      headers: headers,
     );
   }
 

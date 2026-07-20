@@ -25,7 +25,8 @@ class CloudResourceSeasonGroup {
     int? uniqueEpisodeCount,
     this.metadata,
   })  : videos = List<CloudFileEntry>.unmodifiable(videos),
-        uniqueEpisodeCount = uniqueEpisodeCount ?? videos.length;
+        uniqueEpisodeCount =
+            uniqueEpisodeCount ?? metadata?.episodeCount ?? videos.length;
 
   final int? seasonNumber;
   final List<CloudFileEntry> videos;
@@ -50,7 +51,8 @@ class CloudResourceMediaGroup {
     this.isWorkScoped = false,
   })  : videos = List<CloudFileEntry>.unmodifiable(videos),
         seasons = List<CloudResourceSeasonGroup>.unmodifiable(seasons),
-        uniqueEpisodeCount = uniqueEpisodeCount ?? videos.length,
+        uniqueEpisodeCount =
+            uniqueEpisodeCount ?? seasonMetadata?.episodeCount ?? videos.length,
         workKey = workKey ?? stableKey,
         displayName = displayName ?? seriesName;
 

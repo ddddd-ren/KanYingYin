@@ -3,20 +3,22 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
-import 'package:kanyingyin/services/cloud/quark/quark_range_relay_session.dart';
+import 'package:kanyingyin/services/cloud/range/cloud_range_relay_protocol.dart';
+import 'package:kanyingyin/services/cloud/range/cloud_range_relay_session.dart';
+import 'package:kanyingyin/services/cloud/range/cloud_range_remote_reader.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_range_remote_reader.dart';
 
 void main() {
   late Directory directory;
   late HttpServer remoteServer;
   late QuarkRangeRemoteReader reader;
-  late QuarkRangeRelaySession session;
+  late CloudRangeRelaySession session;
   final sourceBytes = <int>[for (var value = 0; value < 20; value++) value];
   var activeRequests = 0;
   var maxActiveRequests = 0;
 
   setUp(() async {
-    directory = await Directory.systemTemp.createTemp('quark-relay-test-');
+    directory = await Directory.systemTemp.createTemp('cloud-relay-test-');
     remoteServer = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     remoteServer.listen((request) async {
       activeRequests++;
@@ -50,9 +52,10 @@ void main() {
       refreshResource: () => throw StateError('不应刷新'),
       uriValidator: (uri) => uri.host == '127.0.0.1',
     );
-    session = await QuarkRangeRelaySession.start(
+    session = await CloudRangeRelaySession.start(
       reader: reader,
       directory: directory,
+      providerName: '夸克网盘',
       chunkSize: 4,
       maxChunks: 4,
     );
@@ -154,7 +157,7 @@ void main() {
   });
 
   test('成功读取后发布就绪速度与缓存状态', () async {
-    final statuses = <QuarkRelayStatus>[];
+    final statuses = <CloudRangeRelayStatus>[];
     final subscription = session.statuses.listen(statuses.add);
     final client = HttpClient()..findProxy = (_) => 'DIRECT';
     final request = await client.getUrl(session.uri);
@@ -162,10 +165,10 @@ void main() {
     await (await request.close()).drain<void>();
     await Future<void>.delayed(const Duration(milliseconds: 20));
 
-    expect(session.currentStatus.phase, QuarkRelayPhase.ready);
+    expect(session.currentStatus.phase, CloudRangeRelayPhase.ready);
     expect(session.currentStatus.receivedBytes, greaterThan(0));
     expect(session.currentStatus.cachedBytes, greaterThan(0));
-    expect(statuses.any((status) => status.phase == QuarkRelayPhase.ready),
+    expect(statuses.any((status) => status.phase == CloudRangeRelayPhase.ready),
         isTrue);
 
     client.close(force: true);
@@ -184,7 +187,84 @@ void main() {
     await expectLater(client.getUrl(uri), throwsA(isA<SocketException>()));
     client.close(force: true);
   });
+
+  test('远端不支持 Range 时只允许完整顺序流', () async {
+    await session.close();
+    final fallbackDirectory =
+        await Directory.systemTemp.createTemp('cloud-relay-fallback-');
+    final fallbackReader = _SequentialOnlyReader(<int>[1, 2, 3, 4, 5]);
+    session = await CloudRangeRelaySession.start(
+      reader: fallbackReader,
+      directory: fallbackDirectory,
+      providerName: '测试网盘',
+      chunkSize: 2,
+      maxChunks: 2,
+    );
+    final client = HttpClient()..findProxy = (_) => 'DIRECT';
+
+    final head = await client.openUrl('HEAD', session.uri);
+    final headResponse = await head.close();
+    expect(headResponse.headers.value(HttpHeaders.acceptRangesHeader), isNull);
+    await headResponse.drain<void>();
+
+    final ranged = await client.getUrl(session.uri);
+    ranged.headers.set(HttpHeaders.rangeHeader, 'bytes=1-3');
+    final rangedResponse = await ranged.close();
+    expect(
+      rangedResponse.statusCode,
+      HttpStatus.requestedRangeNotSatisfiable,
+    );
+    await rangedResponse.drain<void>();
+
+    final full = await client.getUrl(session.uri);
+    final fullResponse = await full.close();
+    expect(await _readResponse(fullResponse), <int>[1, 2, 3, 4, 5]);
+    expect(fallbackReader.readToCalls, 0);
+    expect(fallbackReader.streamAllCalls, 1);
+    expect(await fallbackDirectory.list().toList(), isEmpty);
+    client.close(force: true);
+  });
 }
 
 Future<List<int>> _readResponse(HttpClientResponse response) =>
     response.fold(<int>[], (bytes, chunk) => bytes..addAll(chunk));
+
+class _SequentialOnlyReader implements CloudRangeRemoteReader {
+  _SequentialOnlyReader(this.bytes);
+
+  final List<int> bytes;
+  int readToCalls = 0;
+  int streamAllCalls = 0;
+
+  @override
+  String get contentType => 'video/mp4';
+
+  @override
+  Stream<CloudRangeReaderEvent> get events =>
+      const Stream<CloudRangeReaderEvent>.empty();
+
+  @override
+  int? get totalLength => bytes.length;
+
+  @override
+  Future<void> close() async {}
+
+  @override
+  Future<CloudRangeRemoteMetadata> probe() async => CloudRangeRemoteMetadata(
+        totalLength: bytes.length,
+        contentType: contentType,
+        supportsRanges: false,
+      );
+
+  @override
+  Future<void> readTo(ByteRange range, File destination) async {
+    readToCalls++;
+    throw StateError('不应分段读取');
+  }
+
+  @override
+  Future<void> streamAll(IOSink destination) async {
+    streamAllCalls++;
+    destination.add(bytes);
+  }
+}

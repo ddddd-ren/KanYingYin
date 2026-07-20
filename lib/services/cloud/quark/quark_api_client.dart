@@ -10,6 +10,8 @@ import 'package:kanyingyin/modules/cloud/quark/quark_transfer_task.dart';
 typedef QuarkRequestDelay = Future<void> Function(Duration duration);
 
 abstract interface class QuarkApi {
+  String get sessionCookie;
+
   Future<QuarkAccount> getAccount();
 
   Future<QuarkDirectoryPage> listDirectoryPage({
@@ -79,10 +81,6 @@ class QuarkApiClient implements QuarkApi, QuarkShareApi {
   );
   static final Uri _directoryUri =
       Uri.https('drive.quark.cn', '/1/clouddrive/file/sort');
-  static final Uri _playbackUri = Uri.https(
-    'drive.quark.cn',
-    '/1/clouddrive/file/v2/play/project',
-  );
   static final Uri _downloadUri =
       Uri.https('drive.quark.cn', '/1/clouddrive/file/download');
   static final Uri _shareTokenUri =
@@ -94,12 +92,15 @@ class QuarkApiClient implements QuarkApi, QuarkShareApi {
   static final Uri _taskUri =
       Uri.https('drive-pc.quark.cn', '/1/clouddrive/task');
 
-  final String _cookie;
+  String _cookie;
   final Dio _dio;
   final bool _ownsDio;
   final QuarkRequestPolicy _policy;
   final QuarkResponseParser _parser;
   final QuarkRequestDelay _delay;
+
+  @override
+  String get sessionCookie => _cookie;
 
   @override
   Future<QuarkAccount> getAccount() async =>
@@ -134,27 +135,13 @@ class QuarkApiClient implements QuarkApi, QuarkShareApi {
   Future<QuarkPlaybackLink> resolvePlayback(String fileId) async {
     final json = await _request(
       'POST',
-      _playbackUri,
+      _downloadUri,
       queryParameters: const <String, Object?>{'pr': 'ucpro', 'fr': 'pc'},
       data: <String, Object?>{
-        'fid': fileId,
-        'resolutions': 'low,normal,high,super,2k,4k',
-        'supports': 'fmp4_av,m3u8,dolby_vision',
+        'fids': <String>[fileId],
       },
     );
-    try {
-      return _parser.parsePlayback(json, fileId: fileId);
-    } on QuarkNoTranscodingLinkException {
-      final downloadJson = await _request(
-        'POST',
-        _downloadUri,
-        queryParameters: const <String, Object?>{'pr': 'ucpro', 'fr': 'pc'},
-        data: <String, Object?>{
-          'fids': <String>[fileId],
-        },
-      );
-      return _parser.parseDownload(downloadJson, fileId: fileId);
-    }
+    return _parser.parseDownload(json, fileId: fileId);
   }
 
   @override
@@ -272,6 +259,7 @@ class QuarkApiClient implements QuarkApi, QuarkShareApi {
             validateStatus: (_) => true,
           ),
         );
+        _mergeResponseCookies(response.headers.map['set-cookie']);
         final status = response.statusCode ?? 0;
         if (_policy.shouldRetry(statusCode: status, attempt: attempt)) {
           await _delay(_policy.retryDelay(attempt));
@@ -311,6 +299,28 @@ class QuarkApiClient implements QuarkApi, QuarkShareApi {
       }
     }
     throw const CloudDriveException(CloudDriveErrorType.network);
+  }
+
+  void _mergeResponseCookies(List<String>? setCookies) {
+    if (setCookies == null || setCookies.isEmpty) return;
+    final values = <String, String>{};
+    for (final part in _cookie.split(';')) {
+      final separator = part.indexOf('=');
+      if (separator <= 0) continue;
+      values[part.substring(0, separator).trim()] =
+          part.substring(separator + 1).trim();
+    }
+    for (final setCookie in setCookies) {
+      final pair = setCookie.split(';').first;
+      final separator = pair.indexOf('=');
+      if (separator <= 0) continue;
+      final name = pair.substring(0, separator).trim();
+      final value = pair.substring(separator + 1).trim();
+      if (name.isEmpty) continue;
+      values[name] = value;
+    }
+    _cookie =
+        values.entries.map((entry) => '${entry.key}=${entry.value}').join('; ');
   }
 
   @override

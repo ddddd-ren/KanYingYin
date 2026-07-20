@@ -115,6 +115,7 @@ class QuarkDriveClient implements CloudDriveClient {
   Future<CloudPlaybackResource> resolvePlayback(CloudRemoteRef file) async {
     final api = await _ensureApi();
     final playback = await api.resolvePlayback(file.id);
+    await _syncSessionCookie(api);
     final cookie = _cookie;
     if (cookie == null) {
       throw const CloudDriveException(CloudDriveErrorType.authentication);
@@ -148,6 +149,16 @@ class QuarkDriveClient implements CloudDriveClient {
     }
     _cookie = cookie;
     return _api = _apiFactory(cookie);
+  }
+
+  Future<void> _syncSessionCookie(QuarkApi api) async {
+    final sessionCookie = api.sessionCookie.trim();
+    if (sessionCookie.isEmpty || sessionCookie == _cookie) return;
+    _cookie = sessionCookie;
+    await _credentialStore.write(
+      _source.id,
+      CloudCredential(cookie: sessionCookie),
+    );
   }
 
   @override

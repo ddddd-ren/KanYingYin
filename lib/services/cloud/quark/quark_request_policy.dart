@@ -46,7 +46,10 @@ class QuarkRequestPolicy {
   bool isTrustedOriginalDownloadUri(Uri uri) {
     if (uri.scheme.toLowerCase() != 'https') return false;
     final host = uri.host.toLowerCase();
-    return host == 'drive.quark.cn' || host.endsWith('.drive.quark.cn');
+    return host == 'drive.quark.cn' ||
+        host.endsWith('.drive.quark.cn') ||
+        host == 'pds.quark.cn' ||
+        host.endsWith('.pds.quark.cn');
   }
 
   Map<String, String> originalDownloadHeadersFor(

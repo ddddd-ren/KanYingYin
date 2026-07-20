@@ -158,6 +158,20 @@ void main() {
     expect(entries.single.isPrerelease, isTrue);
   });
 
+  test('二点一二十六说明夸克播放 Cookie 自动更新', () {
+    final entries = versionHistoryForCurrent('2.1.26');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('夸克'));
+    expect(changes, contains('播放'));
+    expect(changes, contains('Cookie'));
+    expect(changes, contains('刷新'));
+    expect(changes, contains('官方'));
+    expect(changes, contains('不会修改网盘文件'));
+    expect(entries.single.isPrerelease, isTrue);
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

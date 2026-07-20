@@ -69,15 +69,20 @@ void main() {
     expect(authAdapter.requests, hasLength(1));
   });
 
-  test('播放使用夸克项目播放接口并请求全部清晰度', () async {
+  test('播放直接请求原文件下载接口并合并响应刷新 Cookie', () async {
     final adapter = _QueueAdapter(<_FakeResponse>[
       const _FakeResponse(
         200,
-        '{"status":200,"code":0,"data":{"video_list":[{"resolution":"4k","video_info":{"url":"https://media.quark-fixture.invalid/4k"}}]}}',
+        '{"status":200,"code":0,"data":[{"download_url":"https://dl-pc-zb.pds.quark.cn/original"}]}',
+        headers: <String, List<String>>{
+          'set-cookie': <String>[
+            '__puus=refreshed-cookie; Path=/; Secure; HttpOnly',
+          ],
+        },
       ),
     ]);
     final client = QuarkApiClient(
-      cookie: 'session=cookie-fixture',
+      cookie: 'session=cookie-fixture; __puus=expired-cookie',
       dio: Dio()..httpClientAdapter = adapter,
     );
 
@@ -85,32 +90,33 @@ void main() {
 
     final request = adapter.requests.single;
     expect(request.method, 'POST');
-    expect(request.uri.path, '/1/clouddrive/file/v2/play/project');
+    expect(request.uri.path, '/1/clouddrive/file/download');
     expect(request.uri.queryParameters, <String, String>{
       'pr': 'ucpro',
       'fr': 'pc',
     });
     expect(request.data, <String, Object?>{
-      'fid': 'fid_fixture_video',
-      'resolutions': 'low,normal,high,super,2k,4k',
-      'supports': 'fmp4_av,m3u8,dolby_vision',
+      'fids': <String>['fid_fixture_video'],
     });
-    expect(request.headers['Cookie'], 'session=cookie-fixture');
+    expect(
+      request.headers['Cookie'],
+      'session=cookie-fixture; __puus=expired-cookie',
+    );
     expect(request.headers['Referer'], 'https://pan.quark.cn');
     expect(playback.fileId, 'fid_fixture_video');
-    expect(playback.uri.path, '/4k');
+    expect(playback.uri.host, 'dl-pc-zb.pds.quark.cn');
+    expect(playback.type, QuarkPlaybackLinkType.originalDownload);
+    expect(client.sessionCookie, contains('session=cookie-fixture'));
+    expect(client.sessionCookie, contains('__puus=refreshed-cookie'));
+    expect(client.sessionCookie, isNot(contains('__puus=expired-cookie')));
     await client.close();
   });
 
-  test('项目播放没有转码地址时回退原文件下载接口', () async {
+  test('播放下载响应没有地址时明确报接口不兼容', () async {
     final adapter = _QueueAdapter(<_FakeResponse>[
       const _FakeResponse(
         200,
-        '{"status":200,"code":0,"data":{"video_list":[]}}',
-      ),
-      const _FakeResponse(
-        200,
-        '{"status":200,"code":0,"data":[{"download_url":"https://download.drive.quark.cn/original"}]}',
+        '{"status":200,"code":0,"data":[]}',
       ),
     ]);
     final client = QuarkApiClient(
@@ -118,27 +124,28 @@ void main() {
       dio: Dio()..httpClientAdapter = adapter,
     );
 
-    final playback = await client.resolvePlayback('fid_fixture_video');
-
-    expect(adapter.requests, hasLength(2));
-    expect(
-      adapter.requests.first.uri.path,
-      '/1/clouddrive/file/v2/play/project',
+    await expectLater(
+      client.resolvePlayback('fid_fixture_video'),
+      throwsA(isA<CloudDriveException>().having(
+        (error) => error.type,
+        'type',
+        CloudDriveErrorType.incompatible,
+      )),
     );
-    expect(adapter.requests.last.uri.path, '/1/clouddrive/file/download');
-    expect(adapter.requests.last.data, <String, Object?>{
-      'fids': <String>['fid_fixture_video'],
-    });
-    expect(playback.uri.path, '/original');
-    expect(playback.type, QuarkPlaybackLinkType.originalDownload);
+    expect(adapter.requests, hasLength(1));
     await client.close();
   });
 }
 
 class _FakeResponse {
-  const _FakeResponse(this.statusCode, this.body);
+  const _FakeResponse(
+    this.statusCode,
+    this.body, {
+    this.headers = const <String, List<String>>{},
+  });
   final int statusCode;
   final String body;
+  final Map<String, List<String>> headers;
 }
 
 class _QueueAdapter implements HttpClientAdapter {
@@ -160,6 +167,7 @@ class _QueueAdapter implements HttpClientAdapter {
       response.statusCode,
       headers: <String, List<String>>{
         Headers.contentTypeHeader: <String>['application/json'],
+        ...response.headers,
       },
     );
   }

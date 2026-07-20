@@ -134,12 +134,15 @@ void main() {
     final store = MemoryCloudCredentialStore();
     await store.write(
       source.id,
-      const CloudCredential(cookie: 'session=cookie-fixture'),
+      const CloudCredential(
+        cookie: 'session=cookie-fixture; __puus=expired-cookie',
+      ),
     );
     final api = _FakeQuarkApi(
+      sessionCookie: 'session=cookie-fixture; __puus=refreshed-cookie',
       playback: QuarkPlaybackLink(
         fileId: 'fid_fixture_video',
-        uri: Uri.parse('https://download.drive.quark.cn/original'),
+        uri: Uri.parse('https://dl-pc-zb.pds.quark.cn/original'),
         type: QuarkPlaybackLinkType.originalDownload,
       ),
     );
@@ -155,13 +158,17 @@ void main() {
     ));
 
     expect(resource.headers, <String, String>{
-      'Cookie': 'session=cookie-fixture',
+      'Cookie': 'session=cookie-fixture; __puus=refreshed-cookie',
       'Referer': 'https://pan.quark.cn',
       'User-Agent': QuarkRequestPolicy.userAgent,
     });
     expect(resource.headers, isNot(contains('Accept')));
     expect(resource.headers, isNot(contains('Content-Type')));
     expect(resource.networkRoute, PlaybackNetworkRoute.direct);
+    expect(
+      (await store.read(source.id))?.cookie,
+      'session=cookie-fixture; __puus=refreshed-cookie',
+    );
   });
 
   test('原文件播放拒绝恶意相似域名', () async {
@@ -218,12 +225,15 @@ class _FakeQuarkApi implements QuarkApi {
     this.pages = const <int, QuarkDirectoryPage>{},
     this.fallbackPage,
     this.playback,
+    this.sessionCookie = 'session=cookie-fixture',
   });
 
   final QuarkAccount account;
   final Map<int, QuarkDirectoryPage> pages;
   final QuarkDirectoryPage? fallbackPage;
   final QuarkPlaybackLink? playback;
+  @override
+  final String sessionCookie;
   int accountCalls = 0;
   final List<String> requestedDirectoryIds = <String>[];
   final List<String> requestedPlaybackIds = <String>[];

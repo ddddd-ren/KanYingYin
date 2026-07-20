@@ -54,19 +54,25 @@ void main() {
   });
 
   test('原文件请求头只允许夸克 HTTPS 下载主机', () {
-    final trusted = policy.originalDownloadHeadersFor(
+    for (final uri in <Uri>[
       Uri.parse('https://download.drive.quark.cn/file'),
-      cookie: cookie,
-    );
-    expect(trusted, <String, String>{
-      'Cookie': cookie,
-      'Referer': 'https://pan.quark.cn',
-      'User-Agent': QuarkRequestPolicy.userAgent,
-    });
+      Uri.parse('https://dl-pc-zb.pds.quark.cn/file'),
+    ]) {
+      expect(policy.isTrustedOriginalDownloadUri(uri), isTrue);
+      expect(
+        policy.originalDownloadHeadersFor(uri, cookie: cookie),
+        <String, String>{
+          'Cookie': cookie,
+          'Referer': 'https://pan.quark.cn',
+          'User-Agent': QuarkRequestPolicy.userAgent,
+        },
+      );
+    }
     for (final uri in <Uri>[
       Uri.parse('http://download.drive.quark.cn/file'),
       Uri.parse('https://evilquark.cn/file'),
       Uri.parse('https://drive.quark.cn.example.com/file'),
+      Uri.parse('https://pds.quark.cn.example.com/file'),
     ]) {
       expect(policy.isTrustedOriginalDownloadUri(uri), isFalse);
       expect(

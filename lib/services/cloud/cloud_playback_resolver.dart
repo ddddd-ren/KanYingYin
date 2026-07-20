@@ -10,6 +10,7 @@ import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_range_relay_service.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_range_remote_reader.dart';
+import 'package:kanyingyin/services/cloud/quark/quark_request_policy.dart';
 import 'package:path/path.dart' as p;
 
 typedef CloudPlaybackClientFactory = CloudDriveClient Function(
@@ -340,6 +341,10 @@ class CloudPlaybackResolver {
           lease = relay.lease;
           totalBytes = relay.totalLength;
         } on Object {
+          if (!const QuarkRequestPolicy()
+              .isTrustedOriginalDownloadUri(resource.uri)) {
+            rethrow;
+          }
           transport = CloudPlaybackTransport.direct;
         }
       }

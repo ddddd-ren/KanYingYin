@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
+import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_card_view_data.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
@@ -24,6 +25,7 @@ class CloudResourcePosterWall extends StatelessWidget {
     required this.onEditTitle,
     required this.onScrape,
     required this.onRematch,
+    this.onManualMatch,
     this.onDetails,
   });
 
@@ -35,6 +37,7 @@ class CloudResourcePosterWall extends StatelessWidget {
   final CloudResourceGroupAction onEditTitle;
   final CloudResourceGroupAction onScrape;
   final CloudResourceGroupAction onRematch;
+  final CloudResourceGroupAction? onManualMatch;
   final CloudResourceGroupAction? onDetails;
 
   @override
@@ -109,7 +112,7 @@ class CloudResourcePosterWall extends StatelessWidget {
               subtitle:
                   group.isSeries ? '${group.videos.length} 集' : anchor.name,
               details: data.details,
-              badges: data.badges,
+              badges: _badges(group, data),
               loading: scraping,
               overlayMode: ImmersiveMediaCardOverlayMode.always,
               trailing: _resourceMenu(context, group),
@@ -140,6 +143,9 @@ class CloudResourcePosterWall extends StatelessWidget {
             case _ResourceAction.rematch:
               onRematch(group);
               return;
+            case _ResourceAction.manualMatch:
+              onManualMatch?.call(group);
+              return;
             case _ResourceAction.details:
               onDetails?.call(group);
               return;
@@ -160,6 +166,11 @@ class CloudResourcePosterWall extends StatelessWidget {
             value: _ResourceAction.rematch,
             child: Text('重新匹配'),
           ),
+          if (_needsManualConfirmation(group))
+            const PopupMenuItem(
+              value: _ResourceAction.manualMatch,
+              child: Text('手动确认匹配'),
+            ),
           const PopupMenuItem(
             value: _ResourceAction.details,
             child: Text('媒体详情'),
@@ -168,6 +179,31 @@ class CloudResourcePosterWall extends StatelessWidget {
       ),
     );
   }
+
+  List<ImmersiveMediaCardBadge> _badges(
+    CloudResourceMediaGroup group,
+    CloudResourceCardViewData data,
+  ) {
+    if (!_needsManualConfirmation(group) || onManualMatch == null) {
+      return data.badges;
+    }
+    return data.badges
+        .map(
+          (badge) => badge.label == '需要确认'
+              ? ImmersiveMediaCardBadge(
+                  key: const ValueKey<String>('cloud-manual-match-badge'),
+                  icon: badge.icon,
+                  label: badge.label,
+                  loading: badge.loading,
+                  onTap: () => onManualMatch?.call(group),
+                )
+              : badge,
+        )
+        .toList(growable: false);
+  }
+
+  bool _needsManualConfirmation(CloudResourceMediaGroup group) =>
+      group.workRecord?.status == CloudWorkTmdbStatus.conflict;
 
   Widget _mediaPoster(
     BuildContext context,
@@ -255,4 +291,4 @@ class CloudResourcePosterWall extends StatelessWidget {
       );
 }
 
-enum _ResourceAction { editTitle, scrape, rematch, details }
+enum _ResourceAction { editTitle, scrape, rematch, manualMatch, details }

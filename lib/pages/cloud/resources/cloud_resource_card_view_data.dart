@@ -89,12 +89,7 @@ class CloudResourceCardViewData {
     final year = _releaseYear(metadata?.releaseDate);
     if (year != null) details.add(year);
     if (group.isSeries) {
-      final episodeCount = group.seasonMetadata?.episodeCount;
-      details.add(
-        episodeCount != null && episodeCount > 0
-            ? '$episodeCount 集'
-            : '${group.videos.length} 集',
-      );
+      details.add('${group.uniqueEpisodeCount} 集');
     } else if (group.videos.isNotEmpty) {
       details.add(_formatBytes(group.videos.first.size));
     }

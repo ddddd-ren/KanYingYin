@@ -7,11 +7,15 @@ class ImmersiveMediaCardBadge {
     required this.icon,
     required this.label,
     this.loading = false,
+    this.key,
+    this.onTap,
   });
 
   final IconData icon;
   final String label;
   final bool loading;
+  final Key? key;
+  final VoidCallback? onTap;
 }
 
 class ImmersiveMediaCard extends StatefulWidget {
@@ -69,13 +73,11 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
             fit: StackFit.expand,
             children: [
               widget.cover,
-              IgnorePointer(
-                child: AnimatedOpacity(
-                  opacity: overlayVisible ? 1 : 0,
-                  duration: const Duration(milliseconds: 160),
-                  curve: Curves.easeOut,
-                  child: _buildOverlay(context),
-                ),
+              AnimatedOpacity(
+                opacity: overlayVisible ? 1 : 0,
+                duration: const Duration(milliseconds: 160),
+                curve: Curves.easeOut,
+                child: _buildOverlay(context),
               ),
               if (_hovered)
                 IgnorePointer(
@@ -177,7 +179,7 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
     BuildContext context,
     ImmersiveMediaCardBadge badge,
   ) {
-    return DecoratedBox(
+    final content = DecoratedBox(
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.16),
         borderRadius: BorderRadius.circular(999),
@@ -209,6 +211,18 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
             ),
           ],
         ),
+      ),
+    );
+    final onTap = badge.onTap;
+    if (onTap == null) return content;
+    return Material(
+      key: badge.key,
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: content,
       ),
     );
   }

@@ -72,9 +72,9 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           group.isWorkScoped
-                              ? '${group.videos.length} 集'
+                              ? '${group.uniqueEpisodeCount} 集'
                               : '${group.seasons.length} 季 · '
-                                  '${group.videos.length} 集',
+                                  '${group.uniqueEpisodeCount} 集',
                         ),
                       ],
                     ),
@@ -114,7 +114,7 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
     final year = _year(metadata?.airDate);
     final details = <String>[
       if (year != null) year,
-      '${season.videos.length} 集',
+      '${season.uniqueEpisodeCount} 集',
     ].join(' · ');
     return Container(
       key: ValueKey<String>('cloud-season-${seasonNumber ?? 'unknown'}'),
@@ -184,7 +184,9 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
     int index,
   ) {
     final episode = LocalEpisodeParser().parse(video.remotePath);
-    final label = _episodeLabel(episode, index);
+    final episodeLabel = _episodeLabel(episode, index);
+    final variant = _variantLabel(video.name);
+    final label = variant == null ? episodeLabel : '$episodeLabel · $variant';
     final hasSubtitle = subtitleVideoKeys.contains(
       cloudResourceTmdbKey(
         sourceId: sourceId,
@@ -304,6 +306,13 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
     final episodeNumber = episode.episodeNumber.toString().padLeft(2, '0');
     if (season == null) return 'E$episodeNumber';
     return 'S${season.toString().padLeft(2, '0')}E$episodeNumber';
+  }
+
+  static String? _variantLabel(String name) {
+    final matches = RegExp(r'\[([^\[\]]+)\](?=\.[^.]+$|$)').allMatches(name);
+    if (matches.isEmpty) return null;
+    final value = matches.last.group(1)?.trim();
+    return value == null || value.isEmpty ? null : value;
   }
 
   static String _formatBytes(int bytes) {

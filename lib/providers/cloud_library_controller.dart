@@ -5,10 +5,12 @@ import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_series_match_rule.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/repositories/cloud_series_match_rule_repository.dart';
+import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_cache_directories.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
@@ -42,6 +44,7 @@ class CloudLibraryController extends ChangeNotifier {
     CloudMediaIndexer? mediaIndexer,
     CloudMediaIndexRepository? mediaIndexRepository,
     CloudResourceTmdbRepository? resourceTmdbRepository,
+    CloudWorkTmdbRepository? workTmdbRepository,
     CloudSeriesMatchRuleRepository? seriesMatchRuleRepository,
     CloudCacheRootProvider? cacheRootProvider,
     CloudSourceCacheCleaner? posterCacheCleaner,
@@ -51,6 +54,7 @@ class CloudLibraryController extends ChangeNotifier {
         _mediaIndexRepository =
             mediaIndexRepository ?? CloudMediaIndexRepository(),
         _resourceTmdbRepository = resourceTmdbRepository,
+        _workTmdbRepository = workTmdbRepository,
         _seriesMatchRuleRepository = seriesMatchRuleRepository,
         _cacheRootProvider = cacheRootProvider ?? defaultCloudCacheRoot,
         _mediaIndexer = mediaIndexer ??
@@ -73,6 +77,7 @@ class CloudLibraryController extends ChangeNotifier {
   final CloudCredentialStore _credentialStore;
   final CloudMediaIndexRepository _mediaIndexRepository;
   final CloudResourceTmdbRepository? _resourceTmdbRepository;
+  final CloudWorkTmdbRepository? _workTmdbRepository;
   final CloudSeriesMatchRuleRepository? _seriesMatchRuleRepository;
   final CloudCacheRootProvider _cacheRootProvider;
   final CloudProviderRegistry _providerRegistry;
@@ -266,6 +271,7 @@ class CloudLibraryController extends ChangeNotifier {
     _notify();
     CloudMediaIndexSnapshot? removedIndex;
     List<CloudResourceTmdbRecord>? removedTmdbRecords;
+    List<CloudWorkTmdbRecord>? removedWorkTmdbRecords;
     List<CloudSeriesMatchRule>? removedSeriesRules;
     try {
       cancelScan(sourceId);
@@ -275,6 +281,11 @@ class CloudLibraryController extends ChangeNotifier {
       if (resourceTmdbRepository != null) {
         removedTmdbRecords = await resourceTmdbRepository.getBySource(sourceId);
         await resourceTmdbRepository.removeSource(sourceId);
+      }
+      final workTmdbRepository = _workTmdbRepository;
+      if (workTmdbRepository != null) {
+        removedWorkTmdbRecords = await workTmdbRepository.getBySource(sourceId);
+        await workTmdbRepository.removeSource(sourceId);
       }
       final seriesMatchRuleRepository = _seriesMatchRuleRepository;
       if (seriesMatchRuleRepository != null) {
@@ -311,6 +322,19 @@ class CloudLibraryController extends ChangeNotifier {
           tmdbRestored = false;
         }
       }
+      final workTmdbRepository = _workTmdbRepository;
+      if (removedWorkTmdbRecords != null && workTmdbRepository != null) {
+        try {
+          await workTmdbRepository.replaceSource(
+            sourceId,
+            removedWorkTmdbRecords,
+          );
+        } on Object {
+          tmdbRestored = false;
+        }
+      }
+      final removedAnyTmdb =
+          removedTmdbRecords != null || removedWorkTmdbRecords != null;
       final seriesMatchRuleRepository = _seriesMatchRuleRepository;
       if (removedSeriesRules != null && seriesMatchRuleRepository != null) {
         try {
@@ -347,9 +371,9 @@ class CloudLibraryController extends ChangeNotifier {
             errorMessage = '删除网盘数据源失败，媒体索引已恢复但 TMDB 信息恢复失败';
           } else if (!seriesRulesRestored) {
             errorMessage = '删除网盘数据源失败，媒体索引已恢复但系列规则恢复失败';
-          } else if (removedTmdbRecords != null && removedSeriesRules != null) {
+          } else if (removedAnyTmdb && removedSeriesRules != null) {
             errorMessage = '删除网盘数据源失败，原有索引、刮削信息和系列规则已恢复';
-          } else if (removedTmdbRecords != null) {
+          } else if (removedAnyTmdb) {
             errorMessage = '删除网盘数据源失败，原有索引和刮削信息已恢复';
           } else if (removedSeriesRules != null) {
             errorMessage = '删除网盘数据源失败，原有索引和系列规则已恢复';

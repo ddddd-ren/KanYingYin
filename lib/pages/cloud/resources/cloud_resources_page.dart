@@ -168,6 +168,10 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     await _openTmdbDialog(group, rematch: true);
   }
 
+  Future<void> _manualMatchEntry(CloudResourceMediaGroup group) async {
+    await _openTmdbDialog(group, rematch: true);
+  }
+
   Future<void> _openTmdbDialog(
     CloudResourceMediaGroup group, {
     required bool rematch,
@@ -834,6 +838,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
               onEditTitle: _editTitle,
               onScrape: _scrapeEntry,
               onRematch: _rematchEntry,
+              onManualMatch: _manualMatchEntry,
               onDetails: _showMediaDetails,
             ),
           ),

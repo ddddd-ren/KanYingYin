@@ -118,6 +118,90 @@ CloudResourceMediaGroup _standaloneMediaGroup() {
   );
 }
 
+CloudResourceMediaGroup _variantMediaGroup() {
+  const videos = <CloudFileEntry>[
+    CloudFileEntry(
+      id: '4k-1',
+      remotePath: '/作品/4K 高码率/The.Resurrected.S01E01.mkv',
+      name: '回魂计 S01E01 [4K 高码率].mkv',
+      size: 200,
+      modifiedAt: null,
+      isDirectory: false,
+    ),
+    CloudFileEntry(
+      id: 'embedded-1',
+      remotePath: '/作品/内封/The.Resurrected.S01E01.mkv',
+      name: '回魂计 S01E01 [1080p 内封简繁英].mkv',
+      size: 200,
+      modifiedAt: null,
+      isDirectory: false,
+    ),
+    CloudFileEntry(
+      id: 'burned-in-1',
+      remotePath: '/作品/内嵌/The.Resurrected.S01E01.mkv',
+      name: '回魂计 S01E01 [1080p 内嵌中字].mkv',
+      size: 200,
+      modifiedAt: null,
+      isDirectory: false,
+    ),
+  ];
+  final season = CloudResourceSeasonGroup(
+    seasonNumber: 1,
+    videos: videos,
+    uniqueEpisodeCount: 9,
+  );
+  return CloudResourceMediaGroup(
+    stableKey: 'source|work|resurrected|season:1',
+    workKey: 'source|work|resurrected',
+    displayName: '回魂计 第 1 季',
+    seriesName: '回魂计',
+    isSeries: true,
+    seasonNumber: 1,
+    videos: videos,
+    seasons: <CloudResourceSeasonGroup>[season],
+    record: null,
+    uniqueEpisodeCount: 9,
+    isWorkScoped: true,
+  );
+}
+
+CloudResourceMediaGroup _conflictMediaGroup() {
+  const video = CloudFileEntry(
+    id: 'conflict-episode',
+    remotePath: '/作品/The.Resurrected.S01E01.mkv',
+    name: 'The Resurrected S01E01.mkv',
+    size: 200,
+    modifiedAt: null,
+    isDirectory: false,
+  );
+  final record = CloudWorkTmdbRecord.conflict(
+    sourceId: 'source',
+    workKey: 'source|work|conflict',
+    workRootId: 'conflict',
+    workRootPath: '/作品',
+    remoteName: 'H-回-云鬼-计 【台剧】',
+    checkedAt: DateTime.utc(2026, 7, 20),
+  );
+  return CloudResourceMediaGroup(
+    stableKey: 'source|work|conflict|season:1',
+    workKey: 'source|work|conflict',
+    displayName: 'The Resurrected 第 1 季',
+    seriesName: 'The Resurrected',
+    isSeries: true,
+    seasonNumber: 1,
+    videos: const <CloudFileEntry>[video],
+    seasons: <CloudResourceSeasonGroup>[
+      CloudResourceSeasonGroup(
+        seasonNumber: 1,
+        videos: const <CloudFileEntry>[video],
+      ),
+    ],
+    record: null,
+    workRecord: record,
+    isWorkScoped: true,
+  );
+}
+
 void main() {
   testWidgets('季度海报墙和选集只显示当前季度虚拟名称', (tester) async {
     final group = _seasonMediaGroup();
@@ -255,6 +339,72 @@ void main() {
     expect(find.text('2 集'), findsNWidgets(2));
     expect(find.text('01.mp4'), findsOneWidget);
     expect(find.text('02.mp4'), findsOneWidget);
+  });
+
+  testWidgets('多版本选集显示唯一集数和每个版本标签', (tester) async {
+    final group = _variantMediaGroup();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showCloudResourceEpisodeSheet(
+                context: context,
+                sourceId: 'source',
+                group: group,
+              ),
+              child: const Text('打开多版本选集'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('打开多版本选集'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('9 集'), findsNWidgets(2));
+    expect(find.text('S01E01 · 4K 高码率'), findsOneWidget);
+    expect(find.text('S01E01 · 1080p 内封简繁英'), findsOneWidget);
+    expect(find.text('S01E01 · 1080p 内嵌中字'), findsOneWidget);
+    expect(find.byType(ListTile), findsNWidgets(3));
+  });
+
+  testWidgets('待确认卡片提供菜单和状态标签双入口', (tester) async {
+    final group = _conflictMediaGroup();
+    var manualMatchCalls = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CloudResourcePosterWall(
+            sourceId: 'source',
+            collection: CloudResourceCollection(
+              groups: <CloudResourceMediaGroup>[group],
+            ),
+            scrapingKeys: const <String>{},
+            onOpenGroup: (_) {},
+            onEditTitle: (_) {},
+            onScrape: (_) {},
+            onRematch: (_) {},
+            onManualMatch: (_) => manualMatchCalls++,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('资源操作'));
+    await tester.pumpAndSettle();
+    expect(find.text('手动确认匹配'), findsOneWidget);
+    await tester.tap(find.text('手动确认匹配'));
+    await tester.pumpAndSettle();
+    expect(manualMatchCalls, 1);
+
+    await tester.tap(
+      find.byKey(const ValueKey<String>('cloud-manual-match-badge')),
+    );
+    await tester.pump();
+    expect(manualMatchCalls, 2);
   });
 
   testWidgets('无来源时显示两种添加入口', (tester) async {

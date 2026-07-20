@@ -22,11 +22,14 @@ class CloudResourceSeasonGroup {
   CloudResourceSeasonGroup({
     required this.seasonNumber,
     required List<CloudFileEntry> videos,
+    int? uniqueEpisodeCount,
     this.metadata,
-  }) : videos = List<CloudFileEntry>.unmodifiable(videos);
+  })  : videos = List<CloudFileEntry>.unmodifiable(videos),
+        uniqueEpisodeCount = uniqueEpisodeCount ?? videos.length;
 
   final int? seasonNumber;
   final List<CloudFileEntry> videos;
+  final int uniqueEpisodeCount;
   final TmdbSeasonMetadata? metadata;
 }
 
@@ -38,6 +41,7 @@ class CloudResourceMediaGroup {
     required List<CloudFileEntry> videos,
     required List<CloudResourceSeasonGroup> seasons,
     required this.record,
+    int? uniqueEpisodeCount,
     String? workKey,
     String? displayName,
     this.seasonNumber,
@@ -46,6 +50,7 @@ class CloudResourceMediaGroup {
     this.isWorkScoped = false,
   })  : videos = List<CloudFileEntry>.unmodifiable(videos),
         seasons = List<CloudResourceSeasonGroup>.unmodifiable(seasons),
+        uniqueEpisodeCount = uniqueEpisodeCount ?? videos.length,
         workKey = workKey ?? stableKey,
         displayName = displayName ?? seriesName;
 
@@ -57,6 +62,7 @@ class CloudResourceMediaGroup {
   final int? seasonNumber;
   final List<CloudFileEntry> videos;
   final List<CloudResourceSeasonGroup> seasons;
+  final int uniqueEpisodeCount;
   final CloudResourceTmdbRecord? record;
   final CloudWorkTmdbRecord? workRecord;
   final TmdbSeasonMetadata? seasonMetadata;
@@ -241,6 +247,7 @@ class CloudResourceCollectionGrouper {
         final seasonGroup = CloudResourceSeasonGroup(
           seasonNumber: season.seasonNumber,
           videos: videos,
+          uniqueEpisodeCount: _uniqueEpisodeCount(seasonItems),
           metadata: seasonMetadata,
         );
         final group = CloudResourceMediaGroup(
@@ -253,6 +260,7 @@ class CloudResourceCollectionGrouper {
           videos: videos,
           seasons: <CloudResourceSeasonGroup>[seasonGroup],
           record: null,
+          uniqueEpisodeCount: seasonGroup.uniqueEpisodeCount,
           workRecord: record,
           seasonMetadata: seasonMetadata,
           isWorkScoped: true,
@@ -320,11 +328,19 @@ class CloudResourceCollectionGrouper {
     final tags = item.releaseTags;
     return <String?>[
       tags.resolution,
+      tags.bitrate,
       tags.source,
       tags.codec,
       ...tags.dynamicRange,
       ...tags.audio,
+      ...tags.subtitles,
     ].whereType<String>().where((value) => value.trim().isNotEmpty).join(' ');
+  }
+
+  int _uniqueEpisodeCount(List<CloudMediaIndexItem> items) {
+    final episodeNumbers =
+        items.map((item) => item.episodeNumber).whereType<int>().toSet();
+    return episodeNumbers.isEmpty ? items.length : episodeNumbers.length;
   }
 
   TmdbSeasonMetadata? _seasonMetadata(

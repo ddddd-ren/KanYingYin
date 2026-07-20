@@ -121,6 +121,85 @@ void main() {
     );
   });
 
+  test('回魂计按九个唯一集号展示并保留二十七个真实版本', () {
+    final work = _workIdentity();
+    final record = CloudWorkTmdbRecord.matched(
+      sourceId: work.sourceId,
+      workKey: work.workKey,
+      workRootId: work.root.id,
+      workRootPath: work.root.remotePath,
+      remoteName: work.remoteName,
+      metadata: _metadata,
+      checkedAt: DateTime.utc(2026, 7, 20),
+    );
+    final items = <CloudMediaIndexItem>[];
+    for (var episode = 1; episode <= 9; episode++) {
+      final episodeToken = episode.toString().padLeft(2, '0');
+      for (final (id, directory, tags) in <(String, String, MediaReleaseTags)>[
+        (
+          '4k',
+          '4K 高码率',
+          const MediaReleaseTags(resolution: '4K', bitrate: '高码率'),
+        ),
+        (
+          'embedded',
+          '【全9集】【1080P】【内封简繁英】',
+          const MediaReleaseTags(
+            resolution: '1080p',
+            subtitles: <String>['内封简繁英'],
+          ),
+        ),
+        (
+          'burned-in',
+          '【全9集】【1080P】【内嵌中字】',
+          const MediaReleaseTags(
+            resolution: '1080p',
+            subtitles: <String>['内嵌中字'],
+          ),
+        ),
+      ]) {
+        items.add(
+          CloudMediaIndexItem(
+            sourceId: work.sourceId,
+            remoteId: '$id-$episode',
+            remotePath:
+                '/影视/作品/$directory/The.Resurrected.S01E$episodeToken.mkv',
+            name: 'The.Resurrected.S01E$episodeToken.mkv',
+            displayName: '回魂计 S01E$episodeToken.mkv',
+            workKey: work.workKey,
+            workRootId: work.root.id,
+            workRootPath: work.root.remotePath,
+            size: 200,
+            modifiedAt: null,
+            seriesName: '回魂计',
+            seasonNumber: 1,
+            episodeNumber: episode,
+            mediaType: CloudMediaType.episode,
+            releaseTags: tags,
+          ),
+        );
+      }
+    }
+
+    final collection = CloudResourceCollectionGrouper().group(
+      items: items,
+      works: <CloudWorkIdentity>[work],
+      recordsByWorkKey: <String, CloudWorkTmdbRecord>{work.workKey: record},
+      query: '',
+    );
+
+    final group = collection.groups.single;
+    expect(group.displayName, '回魂计 第 1 季');
+    expect(group.uniqueEpisodeCount, 9);
+    expect(group.videos, hasLength(27));
+    expect(group.videos.take(3).map((video) => video.name), <String>[
+      '回魂计 S01E01 [4K 高码率].mkv',
+      '回魂计 S01E01 [1080p 内封简繁英].mkv',
+      '回魂计 S01E01 [1080p 内嵌中字].mkv',
+    ]);
+    expect(group.videos.map((video) => video.id).toSet(), hasLength(27));
+  });
+
   test('按作品合并剧集并隐藏非视频和不大于阈值的视频', () {
     final entries = <CloudFileEntry>[
       _entry('folder', '/影视/子目录', '子目录', 0, isDirectory: true),

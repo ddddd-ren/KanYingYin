@@ -63,11 +63,13 @@ class CloudPlaybackHttpException implements Exception {
 
 bool shouldRefreshCloudLink(Object error) {
   if (error is CloudPlaybackHttpException) {
-    return error.statusCode == 401 || error.statusCode == 403;
+    return error.statusCode == 401 ||
+        error.statusCode == 403 ||
+        error.statusCode == 412;
   }
   if (error is String) {
     return RegExp(
-          r'\b(?:http status|http error|status code)\s*[:=]?\s*(?:401|403)\b',
+          r'\b(?:http status|http error|status code)\s*[:=]?\s*(?:401|403|412)\b',
           caseSensitive: false,
         ).hasMatch(error) ||
         RegExp(

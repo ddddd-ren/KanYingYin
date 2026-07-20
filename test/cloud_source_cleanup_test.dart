@@ -6,10 +6,12 @@ import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
+import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/services/cloud/cloud_cache_directories.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
@@ -242,6 +244,14 @@ void main() {
     final retained = _resourceRecord('source-b', '/B');
     await tmdbRepository.upsert(removed);
     await tmdbRepository.upsert(retained);
+    final workTmdbRepository = CloudWorkTmdbRepository(
+      storage: MemoryCloudWorkTmdbStorage(),
+    );
+    final removedWork = _workRecord('source-a', 'work-a');
+    final retainedWork = _workRecord('source-b', 'work-b');
+    await workTmdbRepository.upsertAll(
+      <CloudWorkTmdbRecord>[removedWork, retainedWork],
+    );
     final controller = CloudLibraryController(
       repository: sourceRepository,
       credentialStore: credentials,
@@ -249,6 +259,7 @@ void main() {
         storage: MemoryCloudMediaIndexStorage(),
       ),
       resourceTmdbRepository: tmdbRepository,
+      workTmdbRepository: workTmdbRepository,
       posterCacheCleaner: (_) async {},
       subtitleCacheCleaner: (_) async {},
     );
@@ -263,6 +274,11 @@ void main() {
     expect(
       (await tmdbRepository.getBySource('source-b')).single.customTitle,
       '自定义剧名',
+    );
+    expect(await workTmdbRepository.getBySource('source-a'), isEmpty);
+    expect(
+      await workTmdbRepository.getBySource('source-b'),
+      <CloudWorkTmdbRecord>[retainedWork],
     );
     controller.dispose();
   });
@@ -280,6 +296,11 @@ void main() {
     );
     final record = _resourceRecord('source-a', '/A');
     await tmdbRepository.upsert(record);
+    final workTmdbRepository = CloudWorkTmdbRepository(
+      storage: MemoryCloudWorkTmdbStorage(),
+    );
+    final workRecord = _workRecord('source-a', 'work-a');
+    await workTmdbRepository.upsert(workRecord);
     final controller = CloudLibraryController(
       repository: sourceRepository,
       credentialStore: credentials,
@@ -287,6 +308,7 @@ void main() {
         storage: MemoryCloudMediaIndexStorage(),
       ),
       resourceTmdbRepository: tmdbRepository,
+      workTmdbRepository: workTmdbRepository,
       posterCacheCleaner: (_) async {},
       subtitleCacheCleaner: (_) async {},
     );
@@ -301,6 +323,10 @@ void main() {
     final restored = (await tmdbRepository.getBySource('source-a')).single;
     expect(restored.customTitle, '自定义剧名');
     expect(restored.remotePath, '/A');
+    expect(
+      await workTmdbRepository.getBySource('source-a'),
+      <CloudWorkTmdbRecord>[workRecord],
+    );
     controller.dispose();
   });
 }
@@ -330,6 +356,18 @@ CloudResourceTmdbRecord _resourceRecord(String sourceId, String path) {
     ),
     checkedAt: DateTime.utc(2026, 7, 19),
   ).withCustomTitle('自定义剧名');
+}
+
+CloudWorkTmdbRecord _workRecord(String sourceId, String rootId) {
+  return CloudWorkTmdbRecord.unmatched(
+    sourceId: sourceId,
+    workKey: '$sourceId|work|$rootId',
+    workRootId: rootId,
+    workRootPath: '/影视/$rootId',
+    remoteName: rootId,
+    checkedAt: DateTime.utc(2026, 7, 20),
+    scrapeTitleOverride: '作品刮削名',
+  );
 }
 
 CloudMediaIndexItem _item(String sourceId, String remotePath) =>

@@ -4,6 +4,8 @@
 
 **Goal:** 将网盘媒体重构为“作品级识别与 TMDB 匹配、季度级海报卡、分集级播放”，并让用户界面显示不会改动远程文件的虚拟规范名称。
 
+**Generality Rule:** 生产代码禁止包含任何示例作品名、固定 TMDB ID 或面向单一目录的分支；同一流程遍历每个已配置来源、每个媒体根和每个解析出的作品键。示例名称只允许出现在测试夹具和面向用户的说明中。
+
 **Architecture:** 抽取本地与网盘共享的强类型名称分析器，再由网盘目录树解析器建立稳定的作品、季度和分集身份。索引保存原始名称、虚拟名称和作品边界；TMDB 记录改为作品级，一次详情请求向实际季度分配海报；资源页直接渲染季度卡，播放仍使用真实远程 ID 和路径。
 
 **Tech Stack:** Dart 3、Flutter 3.41.9、Flutter Modular、MobX、Hive CE、Dio、path、Flutter Test、Windows MSIX。
@@ -106,6 +108,13 @@ void main() {
     );
     expect(result.role, MediaNodeRole.version);
     expect(result.evidence, contains('director-cut'));
+  });
+
+  test('合法数字作品标题不会按季度编号删除', () {
+    for (final title in <String>['The 100', '1923', '86 -不存在战区-']) {
+      final result = analyzer.analyze(title, isDirectory: true);
+      expect(result.titleCandidates, contains(title), reason: title);
+    }
   });
 }
 ~~~
@@ -424,7 +433,8 @@ git commit -m "统一本地媒体名称识别规则"
 测试夹具包含第一季、第二季、两个第三季目录、01 至 06 纯数字视频、英文完整分集、广告目录和推广图片。
 
 ~~~dart
-final tree = const CloudMediaTreeResolver().resolve(
+const resolver = CloudMediaTreeResolver();
+final tree = resolver.resolve(
   sourceId: 'quark-a',
   configuredRoots: const <String>['/影视'],
   directoryEntries: fixture.directoryEntries,
@@ -446,6 +456,27 @@ expect(
   <int>[1, 2, 3, 4, 5, 6],
 );
 expect(tree.ignored.map((entry) => entry.name), contains('更多【神秘入口】.png'));
+~~~
+
+同一测试文件再构造包含“葬送的芙莉莲”“The 100”“1923”、独立电影和两个不同根同名作品的快照：
+
+~~~dart
+final matrix = resolver.resolve(
+  sourceId: 'quark-a',
+  configuredRoots: const <String>['/剧集', '/电影'],
+  directoryEntries: multiWorkFixture.directoryEntries,
+  minSizeBytes: 100,
+);
+expect(matrix.works.map((work) => work.displayTitle), containsAll(<String>[
+  '葬送的芙莉莲',
+  'The 100',
+  '1923',
+  '流浪地球2',
+]));
+expect(
+  matrix.works.where((work) => work.displayTitle == '同名作品').map((work) => work.workKey).toSet(),
+  hasLength(2),
+);
 ~~~
 
 - [ ] **Step 2: 运行测试并确认作品树类型不存在**
@@ -528,6 +559,7 @@ class CloudWorkIdentity {
 6. 相同作品根和季号合并；不同作品根永不合并。
 7. 冲突季号写入 `conflicts`，不覆盖远程数据。
 8. 没有季度结构的合格视频写入 `standaloneVideos`，继续作为电影候选进入海报墙。
+9. 对 `directoryEntries` 中每个候选作品根执行相同算法；解析器不得比较任何固定作品标题或 TMDB ID。
 
 作品键使用来源和远程根 ID：
 
@@ -1308,17 +1340,62 @@ for (final forbidden in <String>['rename(', 'move(', 'delete(']) {
 
 覆盖无 API Key、TMDB 搜索失败、单季海报缓存失败、一个目录读取失败和旧索引识别版本为 0。每个用例断言季度卡仍存在且视频可解析播放。
 
-- [ ] **Step 3: 增加清理安全断言**
+- [ ] **Step 3: 增加多作品、跨来源和规模矩阵**
+
+~~~dart
+final quarkTree = resolver.resolve(
+  sourceId: 'quark-a',
+  configuredRoots: quarkFixture.roots,
+  directoryEntries: quarkFixture.directoryEntries,
+  minSizeBytes: 100,
+);
+final openListTree = resolver.resolve(
+  sourceId: 'openlist-a',
+  configuredRoots: openListFixture.roots,
+  directoryEntries: openListFixture.directoryEntries,
+  minSizeBytes: 100,
+);
+expect(quarkTree.works, hasLength(50));
+expect(openListTree.works, hasLength(50));
+expect(
+  quarkTree.works.map((work) => work.workKey).toSet()
+      .intersection(openListTree.works.map((work) => work.workKey).toSet()),
+  isEmpty,
+);
+await coordinator.loadAndSchedule(quarkTree);
+expect(fakeWorkService.scheduledWorkKeys.toSet(), hasLength(50));
+~~~
+
+矩阵同时包含中文、英文、中英双语、数字标题、动漫发布组、电影、特别篇、同名异目录以及四种季度写法。断言每个作品仅接收自己的虚拟名称、TMDB 记录和季度海报。
+
+- [ ] **Step 4: 增加禁止作品硬编码与清理安全断言**
+
+~~~dart
+for (final path in <String>[
+  'lib/services/media_name_analyzer.dart',
+  'lib/services/cloud/cloud_media_tree_resolver.dart',
+  'lib/services/cloud/cloud_work_tmdb_service.dart',
+]) {
+  final source = File(path).readAsStringSync();
+  for (final forbidden in <String>[
+    '弥留之国的爱丽丝',
+    'Alice in Borderland',
+    'tmdbId == 42',
+  ]) {
+    expect(source, isNot(contains(forbidden)), reason: '$path: $forbidden');
+  }
+}
+~~~
 
 删除来源、索引和缓存只调用本地仓库与缓存目录；假 `CloudDriveClient` 不增加任何删除或重命名方法。保留广告远程条目，断言仅不进入媒体集合。
 
-- [ ] **Step 4: 运行网盘完整相关测试组**
+- [ ] **Step 5: 运行网盘完整相关测试组**
 
 Run: `D:\flutter\bin\flutter.bat test --no-pub test\cloud_library_integration_test.dart test\cloud_source_cleanup_test.dart test\cloud_media_indexer_test.dart test\cloud_resource_collection_test.dart test\cloud_work_tmdb_coordinator_test.dart`
 
 Expected: PASS。
 
-- [ ] **Step 5: 提交端到端回归**
+- [ ] **Step 6: 提交端到端回归**
 
 ~~~powershell
 git add -- test/cloud_library_integration_test.dart test/cloud_source_cleanup_test.dart test/cloud_series_match_rule_repository_test.dart test/cloud_resource_collection_test.dart test/cloud_media_indexer_test.dart

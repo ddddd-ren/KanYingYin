@@ -113,6 +113,47 @@ void main() {
       );
     });
 
+    test('透明中字目录继承上级作品名并把纯数字视频归入第一季', () {
+      const workPath = '/影视/正确剧名';
+      const contentPath = '$workPath/内嵌中字';
+      final tree = resolver.resolve(
+        sourceId: 'quark-a',
+        configuredRoots: const <String>['/影视'],
+        directoryEntries: <String, List<CloudFileEntry>>{
+          '/影视': <CloudFileEntry>[
+            _dir('work', workPath, '正确剧名'),
+          ],
+          workPath: <CloudFileEntry>[
+            _dir('content', contentPath, '内嵌中字'),
+          ],
+          contentPath: <CloudFileEntry>[
+            for (var episode = 1; episode <= 3; episode++)
+              _video(
+                'episode-$episode',
+                '$contentPath/${episode.toString().padLeft(2, '0')}.mp4',
+                '${episode.toString().padLeft(2, '0')}.mp4',
+              ),
+          ],
+        },
+        minSizeBytes: 100,
+      );
+
+      expect(tree.works, hasLength(1));
+      final work = tree.works.single;
+      expect(work.displayTitle, '正确剧名');
+      expect(work.standaloneVideos, isEmpty);
+      expect(work.seasons, hasLength(1));
+      expect(work.seasons.single.seasonNumber, 1);
+      expect(
+        work.seasons.single.episodes.map((episode) => episode.episodeNumber),
+        <int>[1, 2, 3],
+      );
+      expect(
+        work.seasons.single.episodes.first.displayName,
+        '正确剧名 S01E01.mp4',
+      );
+    });
+
     test('遍历多个媒体根并隔离同名异目录作品', () {
       final directoryEntries = <String, List<CloudFileEntry>>{
         '/剧集': <CloudFileEntry>[],

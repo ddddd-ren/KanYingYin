@@ -86,7 +86,47 @@ void main() {
       );
     });
 
-    test('目录指纹未变化时仍重算旧识别版本的派生字段', () async {
+    test('透明中字目录只统计实际视频并按上级作品第一季索引', () async {
+      final repository =
+          CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());
+      const workPath = '/动漫/正确剧名';
+      const contentPath = '$workPath/内嵌中字';
+      final client = _FakeCloudClient(<String, List<CloudFileEntry>>{
+        '/动漫': <CloudFileEntry>[_dir('work', workPath)],
+        workPath: <CloudFileEntry>[_dir('content', contentPath)],
+        contentPath: <CloudFileEntry>[
+          for (var episode = 1; episode <= 3; episode++)
+            _file(
+              'episode-$episode',
+              '$contentPath/${episode.toString().padLeft(2, '0')}.mp4',
+              size: 200,
+            ),
+          _file('promotion', '$contentPath/更多【神秘入口】.png', size: 200),
+        ],
+      });
+
+      final result = await CloudMediaIndexer(
+        repository: repository,
+        minRecognizedVideoSizeBytesProvider: () => 100,
+      ).scan(source: source, client: client);
+      final items = await repository.getBySource(source.id);
+
+      expect(result.videoCount, 3);
+      expect(items, hasLength(3));
+      expect(items.map((item) => item.workKey).toSet(), hasLength(1));
+      expect(items.map((item) => item.seriesName).toSet(), <String>{'正确剧名'});
+      expect(items.map((item) => item.seasonNumber).toSet(), <int?>{1});
+      expect(
+        items.map((item) => item.displayName),
+        <String>[
+          '正确剧名 S01E01.mp4',
+          '正确剧名 S01E02.mp4',
+          '正确剧名 S01E03.mp4',
+        ],
+      );
+    });
+
+    test('目录指纹未变化时仍重算版本二的错误派生字段', () async {
       final repository =
           CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());
       final directories = <String, List<CloudFileEntry>>{
@@ -119,13 +159,17 @@ void main() {
             remoteId: 'episode-1',
             remotePath: '/动漫/规范剧名/第三季/01.mkv',
             name: '01.mkv',
+            displayName: '内嵌中字 S03E01.mkv',
+            workKey: 'openlist-a|work|content',
+            workRootId: 'content',
+            workRootPath: '/动漫/规范剧名/第三季/内嵌中字',
             size: 200,
             modifiedAt: null,
             seriesName: '旧错误标题',
             seasonNumber: 3,
             episodeNumber: 1,
             mediaType: CloudMediaType.episode,
-            recognitionVersion: 0,
+            recognitionVersion: 2,
           ),
         ],
         snapshot.fingerprints,

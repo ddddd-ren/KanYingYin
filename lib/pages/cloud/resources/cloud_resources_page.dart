@@ -7,6 +7,7 @@ import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_episode_sheet.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resource_playback_request.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_poster_wall.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_media_details_dialog.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
@@ -17,7 +18,6 @@ import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
-import 'package:path/path.dart' as p;
 
 class CloudResourcesPage extends StatefulWidget {
   const CloudResourcesPage({
@@ -26,7 +26,7 @@ class CloudResourcesPage extends StatefulWidget {
     this.onAddOpenList,
     this.onAddQuark,
     this.onManageSources,
-    this.onPlayTarget,
+    this.onPlayRequest,
     this.onDeleteSource,
   });
 
@@ -34,7 +34,8 @@ class CloudResourcesPage extends StatefulWidget {
   final VoidCallback? onAddOpenList;
   final VoidCallback? onAddQuark;
   final VoidCallback? onManageSources;
-  final FutureOr<void> Function(CloudPlaybackTarget target)? onPlayTarget;
+  final FutureOr<void> Function(CloudResourcePlaybackRequest request)?
+      onPlayRequest;
   final FutureOr<void> Function(String sourceId)? onDeleteSource;
 
   @override
@@ -96,29 +97,28 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     }
   }
 
-  Future<void> _play(CloudFileEntry entry) async {
+  Future<void> _play(
+    CloudResourceMediaGroup group,
+    CloudFileEntry entry,
+  ) async {
     final source = _controller.selectedSource;
     if (source == null) return;
-    final subtitle = _matchingSubtitle(entry);
-    final target = CloudPlaybackTarget(
+    final request = buildCloudResourcePlaybackRequest(
       sourceId: source.id,
-      remoteId: entry.id,
-      remotePath: entry.remotePath,
-      stableId: '${source.id}:${entry.id}:${entry.remotePath}',
-      title: entry.name,
-      subtitleRemoteId: subtitle?.id,
-      subtitleRemotePath: subtitle?.path,
+      group: group,
+      selected: entry,
+      subtitleFor: _matchingSubtitle,
     );
-    final callback = widget.onPlayTarget;
+    final callback = widget.onPlayRequest;
     if (callback != null) {
-      await callback(target);
+      await callback(request);
       return;
     }
     try {
       await Modular.get<LocalVideoController>().openCloudPlayback(
-        seriesTitle: p.posix.basenameWithoutExtension(entry.name),
-        targets: <CloudPlaybackTarget>[target],
-        selectedStableId: target.stableId,
+        seriesTitle: request.seriesTitle,
+        targets: request.targets,
+        selectedStableId: request.selectedStableId,
         resolver: _playbackResolver.resolve,
       );
       if (mounted) Modular.to.pushNamed('/video/');
@@ -132,7 +132,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
 
   Future<void> _openGroup(CloudResourceMediaGroup group) async {
     if (!group.isSeries && group.videos.length == 1) {
-      await _play(group.anchor);
+      await _play(group, group.anchor);
       return;
     }
     final source = _controller.selectedSource;
@@ -143,7 +143,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       group: group,
       subtitleVideoKeys: _subtitleVideoKeys(source.id),
     );
-    if (selected != null && mounted) await _play(selected);
+    if (selected != null && mounted) await _play(group, selected);
   }
 
   CloudRemoteRef? _matchingSubtitle(CloudFileEntry video) =>

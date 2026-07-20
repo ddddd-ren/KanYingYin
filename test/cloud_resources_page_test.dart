@@ -14,6 +14,7 @@ import 'package:kanyingyin/modules/media/media_name_analysis.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_media_details_dialog.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_episode_sheet.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resource_playback_request.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_poster_wall.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_page.dart';
@@ -608,7 +609,7 @@ void main() {
   });
 
   testWidgets('点击视频使用来源 ID、远程 ID 和同名字幕播放', (tester) async {
-    CloudPlaybackTarget? target;
+    CloudResourcePlaybackRequest? playbackRequest;
     final fixture = await _PageFixture.create(
       source: _quarkSource,
       entries: const <CloudFileEntry>[
@@ -635,7 +636,7 @@ void main() {
       MaterialApp(
         home: CloudResourcesPage(
           controller: fixture.controller,
-          onPlayTarget: (value) async => target = value,
+          onPlayRequest: (value) async => playbackRequest = value,
         ),
       ),
     );
@@ -650,16 +651,19 @@ void main() {
     );
     await tester.pump();
 
+    expect(playbackRequest?.targets, hasLength(1));
+    final target = playbackRequest?.targets.single;
     expect(target?.sourceId, 'quark-source');
     expect(target?.remoteId, 'video-fid');
     expect(target?.remotePath, '/影视/第01集.mkv');
     expect(target?.subtitleRemoteId, 'subtitle-fid');
     expect(target?.subtitleRemotePath, '/影视/第01集.ass');
+    expect(playbackRequest?.selectedStableId, target?.stableId);
     fixture.controller.dispose();
   });
 
   testWidgets('网盘目录按作品显示海报墙并从选集播放真实分集', (tester) async {
-    CloudPlaybackTarget? target;
+    CloudResourcePlaybackRequest? playbackRequest;
     final fixture = await _PageFixture.create(
       source: _quarkSource,
       entries: const <CloudFileEntry>[
@@ -727,7 +731,7 @@ void main() {
       MaterialApp(
         home: CloudResourcesPage(
           controller: fixture.controller,
-          onPlayTarget: (value) => target = value,
+          onPlayRequest: (value) => playbackRequest = value,
         ),
       ),
     );
@@ -769,10 +773,36 @@ void main() {
     await tester.tap(find.text('Show.S01E02.mkv'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    expect(target?.remoteId, 'episode-2');
-    expect(target?.remotePath, '/影视/Show.S01E02.mkv');
-    expect(target?.subtitleRemoteId, 'subtitle-2');
+    expect(playbackRequest?.seriesTitle, 'Show');
+    expect(
+      playbackRequest?.targets.map((target) => target.remoteId),
+      <String>['episode-1', 'episode-2'],
+    );
+    expect(
+      playbackRequest?.targets.map((target) => target.remoteId),
+      isNot(contains('episode-s2')),
+    );
+    final selected = playbackRequest?.targets.last;
+    expect(selected?.remotePath, '/影视/Show.S01E02.mkv');
+    expect(selected?.subtitleRemoteId, 'subtitle-2');
+    expect(playbackRequest?.selectedStableId, selected?.stableId);
     fixture.controller.dispose();
+  });
+
+  test('未识别季度播放请求保留作品全部视频', () {
+    final group = _standaloneMediaGroup();
+    final request = buildCloudResourcePlaybackRequest(
+      sourceId: 'source',
+      group: group,
+      selected: group.videos.last,
+      subtitleFor: (_) => null,
+    );
+
+    expect(
+      request.targets.map((target) => target.remoteId),
+      <String>['first', 'second'],
+    );
+    expect(request.selectedStableId, request.targets.last.stableId);
   });
 
   testWidgets('移除来源先提示不删除远程文件', (tester) async {
@@ -850,7 +880,8 @@ void main() {
       MaterialApp(
         home: CloudResourcesPage(
           controller: fixture.controller,
-          onPlayTarget: (target) => playedId = target.remoteId,
+          onPlayRequest: (request) =>
+              playedId = request.targets.single.remoteId,
         ),
       ),
     );

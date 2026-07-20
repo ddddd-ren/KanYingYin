@@ -74,6 +74,16 @@ class MediaNameAnalyzer {
     r'\bAtmos\b',
     caseSensitive: false,
   );
+  static final RegExp _bitratePattern = RegExp(
+    r'高码率|低码率',
+    caseSensitive: false,
+    unicode: true,
+  );
+  static final RegExp _subtitlePattern = RegExp(
+    r'(?:内封|内嵌)(?:简繁英|简繁|简中|繁中|简体中字|繁体中字|中文字幕|中字|双语字幕|字幕)',
+    caseSensitive: false,
+    unicode: true,
+  );
   static final RegExp _yearPattern = RegExp(
     r'(?:^|[\s._（(])((?:19|20)\d{2})(?=$|[\s._）)])',
   );
@@ -106,6 +116,8 @@ class MediaNameAnalyzer {
     }
 
     final releaseTags = _releaseTags(normalized);
+    final transparentDirectory =
+        isDirectory && isTransparentDirectoryName(normalized);
     final versionMatch = _versionPattern.firstMatch(normalized);
     final seasonEpisode = _seasonEpisodePattern.firstMatch(normalized);
     final chineseSeasonEpisode =
@@ -137,20 +149,24 @@ class MediaNameAnalyzer {
       chineseEpisode?.group(2),
     ]);
 
-    final role = versionMatch != null
+    final role = transparentDirectory
         ? MediaNodeRole.version
-        : episodeNumber != null
-            ? MediaNodeRole.episode
-            : seasonNumber != null
-                ? MediaNodeRole.season
-                : normalized.isEmpty
-                    ? MediaNodeRole.unknown
-                    : MediaNodeRole.work;
-    final titleCandidates = _titleCandidates(
-      normalized,
-      role: role,
-      releaseTags: releaseTags,
-    );
+        : versionMatch != null
+            ? MediaNodeRole.version
+            : episodeNumber != null
+                ? MediaNodeRole.episode
+                : seasonNumber != null
+                    ? MediaNodeRole.season
+                    : normalized.isEmpty
+                        ? MediaNodeRole.unknown
+                        : MediaNodeRole.work;
+    final titleCandidates = transparentDirectory
+        ? const <String>[]
+        : _titleCandidates(
+            normalized,
+            role: role,
+            releaseTags: releaseTags,
+          );
     final evidence = <String>[
       if (versionMatch != null) _versionEvidence(versionMatch.group(0)!),
       if (seasonNumber != null) 'season-token',
@@ -191,15 +207,24 @@ class MediaNameAnalyzer {
         .replaceAll(_hdrPattern, ' ')
         .replaceAll(_ddpPattern, ' ')
         .replaceAll(_atmosPattern, ' ')
+        .replaceAll(_bitratePattern, ' ')
+        .replaceAll(_subtitlePattern, ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
   }
 
   bool isTransparentDirectoryName(String name) {
-    final normalized = _normalize(name)
-        .replaceAll(RegExp(r'^[\[【(（]+|[\]】)）]+$', unicode: true), '')
+    final normalized = _normalize(name);
+    if (_transparentDirectoryPattern.hasMatch(normalized)) return true;
+    final remaining = normalized
+        .replaceAll(RegExp(r'[\[\]【】()（）《》]', unicode: true), ' ')
+        .replaceAll(RegExp(r'全\s*\d+\s*集|全集', unicode: true), ' ')
+        .replaceAll(_resolutionPattern, ' ')
+        .replaceAll(_bitratePattern, ' ')
+        .replaceAll(_subtitlePattern, ' ')
+        .replaceAll(RegExp(r'[\s._&+\-–—]+', unicode: true), '')
         .trim();
-    return _transparentDirectoryPattern.hasMatch(normalized);
+    return remaining.isEmpty;
   }
 
   String _withoutExtension(String value) {
@@ -217,10 +242,17 @@ class MediaNameAnalyzer {
     final resolution = _resolutionPattern.firstMatch(value)?.group(1);
     final source = _sourcePattern.firstMatch(value)?.group(1);
     final codec = _codecPattern.firstMatch(value)?.group(1);
+    final bitrate = _bitratePattern.firstMatch(value)?.group(0);
     final ddp = _ddpPattern.firstMatch(value);
+    final subtitles = _subtitlePattern
+        .allMatches(value)
+        .map((match) => match.group(0)!)
+        .toSet()
+        .toList(growable: false);
     final releaseGroup = _releaseGroup(value);
     return MediaReleaseTags(
       resolution: _canonicalResolution(resolution),
+      bitrate: bitrate,
       source: _canonicalSource(source),
       codec: codec?.toUpperCase(),
       dynamicRange: <String>[
@@ -231,6 +263,7 @@ class MediaNameAnalyzer {
         if (ddp != null) ddp.group(1) == null ? 'DDP' : 'DDP ${ddp.group(1)}',
         if (_atmosPattern.hasMatch(value)) 'Atmos',
       ],
+      subtitles: subtitles,
       releaseGroup: releaseGroup,
     );
   }

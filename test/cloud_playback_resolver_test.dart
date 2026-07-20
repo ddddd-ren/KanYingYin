@@ -7,9 +7,12 @@ import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_subtitle_cache.dart';
+import 'package:kanyingyin/services/cloud/quark/quark_range_relay_service.dart';
+import 'package:kanyingyin/services/cloud/quark/quark_range_remote_reader.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/pages/player/player_controller.dart';
 import 'package:kanyingyin/modules/local/local_episode.dart';
@@ -36,6 +39,7 @@ void main() {
 
   test('点击解析时才创建客户端并透传实时地址与请求头', () async {
     var factoryCalls = 0;
+    var relayCalls = 0;
     final client = _FakeClient(
       resource: CloudPlaybackResource(
         uri: Uri.parse('https://cdn.example.com/live-token'),
@@ -49,6 +53,10 @@ void main() {
       clientFactory: (_, __, ___) {
         factoryCalls++;
         return client;
+      },
+      relayStarter: ({required resource, required refreshResource}) async {
+        relayCalls++;
+        throw StateError('OpenList 不应启动中转');
       },
     );
 
@@ -67,7 +75,116 @@ void main() {
     expect(result.videoUrl, 'https://cdn.example.com/live-token');
     expect(result.httpHeaders, {'Authorization': 'Bearer token'});
     expect(result.networkRoute, PlaybackNetworkRoute.direct);
+    expect(result.transport, CloudPlaybackTransport.direct);
+    expect(result.lease, isNull);
     expect(result.cloudProviderName, 'OpenList');
+    expect(client.closed, isTrue);
+    expect(relayCalls, 0);
+  });
+
+  test('夸克原文件转换为本机地址并返回租约', () async {
+    const quarkSource = CloudSource(
+      id: 'quark-home',
+      name: '夸克网盘',
+      type: CloudSourceType.quark,
+      baseUrl: 'https://pan.quark.cn',
+      rootPaths: <String>['/'],
+    );
+    await repository.save(quarkSource);
+    final clients = <_FakeClient>[
+      _FakeClient(
+        resource: CloudPlaybackResource(
+          uri: Uri.parse('https://dl-a.pds.quark.cn/original?token=old'),
+          headers: const <String, String>{'Cookie': 'session=old'},
+          networkRoute: PlaybackNetworkRoute.direct,
+          transport: CloudPlaybackTransport.quarkRangeRelay,
+        ),
+      ),
+      _FakeClient(
+        resource: CloudPlaybackResource(
+          uri: Uri.parse('https://dl-b.pds.quark.cn/original?token=new'),
+          headers: const <String, String>{'Cookie': 'session=new'},
+          networkRoute: PlaybackNetworkRoute.direct,
+          transport: CloudPlaybackTransport.quarkRangeRelay,
+        ),
+      ),
+    ];
+    var clientIndex = 0;
+    QuarkRemoteResourceRefresher? capturedRefresh;
+    final lease = _FakePlaybackLease();
+    final resolver = CloudPlaybackResolver(
+      sourceRepository: repository,
+      credentialStore: MemoryCloudCredentialStore(),
+      clientFactory: (_, __, ___) => clients[clientIndex++],
+      relayStarter: ({required resource, required refreshResource}) async {
+        expect(resource.uri.host, 'dl-a.pds.quark.cn');
+        capturedRefresh = refreshResource;
+        return QuarkRangeRelayPlayback(
+          uri: Uri.parse('http://127.0.0.1:32100/token'),
+          lease: lease,
+          totalLength: 1024,
+        );
+      },
+    );
+
+    final result = await resolver.resolve(const CloudPlaybackTarget(
+      sourceId: 'quark-home',
+      remoteId: 'fid-video',
+      remotePath: '/Show/E01.mkv',
+      stableId: 'episode-1',
+      title: '第 1 集',
+    ));
+
+    expect(result.videoUrl, 'http://127.0.0.1:32100/token');
+    expect(result.httpHeaders, isEmpty);
+    expect(result.networkRoute, PlaybackNetworkRoute.direct);
+    expect(result.transport, CloudPlaybackTransport.quarkRangeRelay);
+    expect(result.lease, same(lease));
+    expect(result.totalBytes, 1024);
+    expect(clients.first.closed, isTrue);
+
+    final refreshed = await capturedRefresh!();
+    expect(refreshed.uri.host, 'dl-b.pds.quark.cn');
+    expect(clients.last.closed, isTrue);
+  });
+
+  test('中转启动失败时回退现有夸克直连', () async {
+    const quarkSource = CloudSource(
+      id: 'quark-fallback',
+      name: '夸克网盘',
+      type: CloudSourceType.quark,
+      baseUrl: 'https://pan.quark.cn',
+      rootPaths: <String>['/'],
+    );
+    await repository.save(quarkSource);
+    final client = _FakeClient(
+      resource: CloudPlaybackResource(
+        uri: Uri.parse('https://dl-a.pds.quark.cn/original'),
+        headers: const <String, String>{'Cookie': 'session=old'},
+        networkRoute: PlaybackNetworkRoute.direct,
+        transport: CloudPlaybackTransport.quarkRangeRelay,
+      ),
+    );
+    final resolver = CloudPlaybackResolver(
+      sourceRepository: repository,
+      credentialStore: MemoryCloudCredentialStore(),
+      clientFactory: (_, __, ___) => client,
+      relayStarter: ({required resource, required refreshResource}) async =>
+          throw const QuarkRemoteTransportException('启动失败'),
+    );
+
+    final result = await resolver.resolve(const CloudPlaybackTarget(
+      sourceId: 'quark-fallback',
+      remoteId: 'fid-video',
+      remotePath: '/Show/E01.mkv',
+      stableId: 'episode-1',
+      title: '第 1 集',
+    ));
+
+    expect(result.videoUrl, 'https://dl-a.pds.quark.cn/original');
+    expect(result.httpHeaders, const <String, String>{'Cookie': 'session=old'});
+    expect(result.transport, CloudPlaybackTransport.direct);
+    expect(result.lease, isNull);
     expect(client.closed, isTrue);
   });
 
@@ -720,4 +837,19 @@ class _FakeClient implements CloudDriveClient {
     if (error != null) throw error!;
     return resource!;
   }
+}
+
+class _FakePlaybackLease implements CloudPlaybackLease {
+  var closeCalls = 0;
+
+  @override
+  QuarkRelayStatus get currentStatus =>
+      const QuarkRelayStatus(phase: QuarkRelayPhase.ready);
+
+  @override
+  Stream<QuarkRelayStatus> get statuses =>
+      const Stream<QuarkRelayStatus>.empty();
+
+  @override
+  Future<void> close() async => closeCalls++;
 }

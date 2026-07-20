@@ -4,10 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
+import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/modules/media/media_name_analysis.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_media_details_dialog.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resource_episode_sheet.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_poster_wall.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_page.dart';
@@ -26,7 +31,172 @@ import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
+CloudResourceMediaGroup _seasonMediaGroup() {
+  const video = CloudFileEntry(
+    id: 'episode',
+    remotePath: '/影视/作品/第三季/01.mkv',
+    name: '中文剧名 S03E01.mkv',
+    size: 200,
+    modifiedAt: null,
+    isDirectory: false,
+  );
+  final record = CloudWorkTmdbRecord.matched(
+    sourceId: 'source',
+    workKey: 'source|work|show',
+    workRootId: 'show',
+    workRootPath: '/影视/作品',
+    remoteName: '作品原名',
+    metadata: TmdbMetadata(
+      id: 42,
+      mediaType: TmdbMediaType.tv,
+      title: '中文剧名',
+      language: 'zh-CN',
+      matchedAt: DateTime.utc(2026, 7, 20),
+      matchConfidence: 1,
+      seasons: const <TmdbSeasonMetadata>[
+        TmdbSeasonMetadata(
+          id: 300,
+          seasonNumber: 3,
+          name: '第 3 季',
+          episodeCount: 6,
+          posterUrl: '/season-3.jpg',
+        ),
+      ],
+    ),
+    checkedAt: DateTime.utc(2026, 7, 20),
+  );
+  final season = CloudResourceSeasonGroup(
+    seasonNumber: 3,
+    videos: const <CloudFileEntry>[video],
+    metadata: record.seasons.single,
+  );
+  return CloudResourceMediaGroup(
+    stableKey: 'source|work|show|season:3',
+    workKey: 'source|work|show',
+    displayName: '中文剧名 第 3 季',
+    seriesName: '中文剧名',
+    isSeries: true,
+    seasonNumber: 3,
+    videos: const <CloudFileEntry>[video],
+    seasons: <CloudResourceSeasonGroup>[season],
+    record: null,
+    workRecord: record,
+    seasonMetadata: record.seasons.single,
+    isWorkScoped: true,
+  );
+}
+
 void main() {
+  testWidgets('季度海报墙和选集只显示当前季度虚拟名称', (tester) async {
+    final group = _seasonMediaGroup();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => Column(
+              children: [
+                Expanded(
+                  child: CloudResourcePosterWall(
+                    sourceId: 'source',
+                    collection: CloudResourceCollection(
+                        groups: <CloudResourceMediaGroup>[group]),
+                    scrapingKeys: const <String>{},
+                    onOpenGroup: (_) => showCloudResourceEpisodeSheet(
+                      context: context,
+                      sourceId: 'source',
+                      group: group,
+                    ),
+                    onEditTitle: (_) {},
+                    onScrape: (_) {},
+                    onRematch: (_) {},
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('中文剧名 第 3 季'), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey<String>('season-poster-3')), findsOneWidget);
+    await tester.tap(find.byTooltip('资源操作'));
+    await tester.pumpAndSettle();
+    expect(find.text('修改刮削名称'), findsOneWidget);
+    expect(find.text('媒体详情'), findsOneWidget);
+    await tester.tap(find.text('媒体详情'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(ImmersiveMediaCard));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey<String>('cloud-resource-episode-sheet')),
+        findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(
+          const ValueKey<String>('cloud-resource-episode-sheet'),
+        ),
+        matching: find.text('中文剧名 第 3 季'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('中文剧名 S03E01.mkv'), findsOneWidget);
+    expect(find.text('01.mkv'), findsNothing);
+    expect(
+        find.byKey(const ValueKey<String>('cloud-season-3')), findsOneWidget);
+  });
+
+  testWidgets('媒体详情显示真实原名路径和发布规格', (tester) async {
+    final item = CloudMediaIndexItem(
+      sourceId: 'source',
+      remoteId: 'episode',
+      remotePath: '/影视/作品/第三季（2025）4K DV&HDR/01.mkv',
+      name: '01.mkv',
+      remoteName: '01.mkv',
+      displayName: '中文剧名 S03E01.mkv',
+      workKey: 'source|work|show',
+      workRootId: 'show',
+      workRootPath: '/影视/作品',
+      size: 200,
+      modifiedAt: null,
+      seriesName: '中文剧名',
+      seasonNumber: 3,
+      episodeNumber: 1,
+      mediaType: CloudMediaType.episode,
+      releaseTags: const MediaReleaseTags(
+        resolution: '4K',
+        dynamicRange: <String>['DV', 'HDR'],
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showCloudMediaDetailsDialog(
+                context: context,
+                item: item,
+              ),
+              child: const Text('打开详情'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('打开详情'));
+    await tester.pumpAndSettle();
+    expect(find.text('媒体详情'), findsOneWidget);
+    expect(find.text('01.mkv'), findsOneWidget);
+    expect(
+      find.text('/影视/作品/第三季（2025）4K DV&HDR/01.mkv'),
+      findsOneWidget,
+    );
+    expect(find.text('S03E01'), findsOneWidget);
+    expect(find.text('4K · DV · HDR'), findsOneWidget);
+  });
+
   testWidgets('无来源时显示两种添加入口', (tester) async {
     final fixture = await _PageFixture.create();
 

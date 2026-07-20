@@ -43,6 +43,7 @@ class CloudResourceMediaGroup {
     this.seasonNumber,
     this.workRecord,
     this.seasonMetadata,
+    this.isWorkScoped = false,
   })  : videos = List<CloudFileEntry>.unmodifiable(videos),
         seasons = List<CloudResourceSeasonGroup>.unmodifiable(seasons),
         workKey = workKey ?? stableKey,
@@ -59,6 +60,7 @@ class CloudResourceMediaGroup {
   final CloudResourceTmdbRecord? record;
   final CloudWorkTmdbRecord? workRecord;
   final TmdbSeasonMetadata? seasonMetadata;
+  final bool isWorkScoped;
 
   CloudFileEntry get anchor => videos.first;
 }
@@ -221,6 +223,7 @@ class CloudResourceCollectionGrouper {
           seasons: const <CloudResourceSeasonGroup>[],
           record: null,
           workRecord: record,
+          isWorkScoped: true,
         );
         if (_matchesWork(group, work, workItems, query)) groups.add(group);
         continue;
@@ -252,6 +255,7 @@ class CloudResourceCollectionGrouper {
           record: null,
           workRecord: record,
           seasonMetadata: seasonMetadata,
+          isWorkScoped: true,
         );
         if (_matchesWork(group, work, seasonItems, query)) groups.add(group);
       }

@@ -9,9 +9,6 @@ import 'package:kanyingyin/pages/cloud/resources/cloud_resource_card_view_data.d
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
 
-typedef CloudResourceEntryAction = FutureOr<void> Function(
-  CloudFileEntry entry,
-);
 typedef CloudResourceGroupAction = FutureOr<void> Function(
   CloudResourceMediaGroup group,
 );
@@ -27,6 +24,7 @@ class CloudResourcePosterWall extends StatelessWidget {
     required this.onEditTitle,
     required this.onScrape,
     required this.onRematch,
+    this.onDetails,
   });
 
   final String sourceId;
@@ -34,9 +32,10 @@ class CloudResourcePosterWall extends StatelessWidget {
   final Set<String> scrapingKeys;
   final Set<String> subtitleVideoKeys;
   final CloudResourceGroupAction onOpenGroup;
-  final CloudResourceEntryAction onEditTitle;
-  final CloudResourceEntryAction onScrape;
-  final CloudResourceEntryAction onRematch;
+  final CloudResourceGroupAction onEditTitle;
+  final CloudResourceGroupAction onScrape;
+  final CloudResourceGroupAction onRematch;
+  final CloudResourceGroupAction? onDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -82,29 +81,38 @@ class CloudResourcePosterWall extends StatelessWidget {
           itemBuilder: (context, index) {
             final group = collection.groups[index];
             final anchor = group.anchor;
-            final scraping = group.videos.any(
-              (video) => scrapingKeys.contains(_resourceKey(video)),
-            );
+            final scraping = group.isWorkScoped
+                ? scrapingKeys.contains(group.workKey)
+                : group.videos.any(
+                    (video) => scrapingKeys.contains(_resourceKey(video)),
+                  );
             final hasSubtitle = group.videos.any(
               (video) => subtitleVideoKeys.contains(_resourceKey(video)),
             );
-            final data = CloudResourceCardViewData.fromEntry(
-              entry: anchor,
-              record: group.record,
-              scraping: scraping,
-              hasSubtitle: hasSubtitle,
-            );
+            final data = group.isWorkScoped
+                ? CloudResourceCardViewData.fromGroup(
+                    group: group,
+                    scraping: scraping,
+                  )
+                : CloudResourceCardViewData.fromEntry(
+                    entry: anchor,
+                    record: group.record,
+                    scraping: scraping,
+                    hasSubtitle: hasSubtitle,
+                  );
             return ImmersiveMediaCard(
               key: ValueKey<String>(group.stableKey),
-              cover: _mediaPoster(context, group.record, data),
-              title: group.record?.effectiveTitle ?? group.seriesName,
+              cover: _mediaPoster(context, group, data),
+              title: group.isWorkScoped
+                  ? group.displayName
+                  : group.record?.effectiveTitle ?? group.seriesName,
               subtitle:
                   group.isSeries ? '${group.videos.length} 集' : anchor.name,
               details: data.details,
               badges: data.badges,
               loading: scraping,
               overlayMode: ImmersiveMediaCardOverlayMode.always,
-              trailing: _resourceMenu(context, anchor),
+              trailing: _resourceMenu(context, group),
               onTap: () => onOpenGroup(group),
             );
           },
@@ -113,7 +121,7 @@ class CloudResourcePosterWall extends StatelessWidget {
     );
   }
 
-  Widget _resourceMenu(BuildContext context, CloudFileEntry entry) {
+  Widget _resourceMenu(BuildContext context, CloudResourceMediaGroup group) {
     final colors = Theme.of(context).colorScheme;
     return Material(
       color: colors.surface.withValues(alpha: 0.86),
@@ -124,28 +132,37 @@ class CloudResourcePosterWall extends StatelessWidget {
         onSelected: (action) {
           switch (action) {
             case _ResourceAction.editTitle:
-              onEditTitle(entry);
+              onEditTitle(group);
               return;
             case _ResourceAction.scrape:
-              onScrape(entry);
+              onScrape(group);
               return;
             case _ResourceAction.rematch:
-              onRematch(entry);
+              onRematch(group);
+              return;
+            case _ResourceAction.details:
+              onDetails?.call(group);
               return;
           }
         },
-        itemBuilder: (context) => const [
+        itemBuilder: (context) => [
           PopupMenuItem(
             value: _ResourceAction.editTitle,
-            child: Text('修改剧名'),
+            child: Text(
+              group.isWorkScoped ? '修改刮削名称' : '修改剧名',
+            ),
           ),
-          PopupMenuItem(
+          const PopupMenuItem(
             value: _ResourceAction.scrape,
             child: Text('TMDB 刮削'),
           ),
-          PopupMenuItem(
+          const PopupMenuItem(
             value: _ResourceAction.rematch,
             child: Text('重新匹配'),
+          ),
+          const PopupMenuItem(
+            value: _ResourceAction.details,
+            child: Text('媒体详情'),
           ),
         ],
       ),
@@ -154,9 +171,16 @@ class CloudResourcePosterWall extends StatelessWidget {
 
   Widget _mediaPoster(
     BuildContext context,
-    CloudResourceTmdbRecord? record,
+    CloudResourceMediaGroup group,
     CloudResourceCardViewData data,
   ) {
+    final record = group.record;
+    if (group.isWorkScoped && group.seasonNumber != null) {
+      return KeyedSubtree(
+        key: ValueKey<String>('season-poster-${group.seasonNumber}'),
+        child: _cachedPoster(context, data) ?? _networkPoster(context, data),
+      );
+    }
     final key = record?.status == CloudResourceTmdbStatus.matched
         ? ValueKey<String>('tmdb-poster-${record!.stableKey}')
         : null;
@@ -231,4 +255,4 @@ class CloudResourcePosterWall extends StatelessWidget {
       );
 }
 
-enum _ResourceAction { editTitle, scrape, rematch }
+enum _ResourceAction { editTitle, scrape, rematch, details }

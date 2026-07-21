@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:card_settings_ui/card_settings_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
@@ -7,12 +5,14 @@ import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/bean/appbar/sys_app_bar.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/core/app_version.dart';
+import 'package:kanyingyin/services/local_image_cache_service.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:kanyingyin/utils/utils.dart';
-import 'package:path_provider/path_provider.dart';
 
 class AboutPage extends StatefulWidget {
-  const AboutPage({super.key});
+  const AboutPage({super.key, this.cacheService});
+
+  final LocalImageCacheService? cacheService;
 
   @override
   State<AboutPage> createState() => _AboutPageState();
@@ -20,8 +20,6 @@ class AboutPage extends StatefulWidget {
 
 class _AboutPageState extends State<AboutPage> {
   final exitBehaviorTitles = <String>['退出看影音', '最小化至托盘', '每次都询问'];
-  late dynamic defaultThemeMode;
-  late dynamic defaultThemeColor;
   Box<Object?> setting = GStorage.setting;
   late int exitBehavior = setting.getTyped<int>(
     SettingBoxKey.exitBehavior,
@@ -29,10 +27,12 @@ class _AboutPageState extends State<AboutPage> {
   );
   double _cacheSizeMB = -1;
   final MenuController menuController = MenuController();
+  late final LocalImageCacheService _cacheService;
 
   @override
   void initState() {
     super.initState();
+    _cacheService = widget.cacheService ?? LocalImageCacheService();
     _getCacheSize();
   }
 
@@ -43,53 +43,25 @@ class _AboutPageState extends State<AboutPage> {
     }
   }
 
-  Future<Directory> _getCacheDir() async {
-    Directory tempDir = await getTemporaryDirectory();
-    return Directory('${tempDir.path}/libCachedImageData');
-  }
-
   Future<void> _getCacheSize() async {
-    Directory cacheDir = await _getCacheDir();
-
-    if (await cacheDir.exists()) {
-      int totalSizeBytes = await _getTotalSizeOfFilesInDir(cacheDir);
-      double totalSizeMB = (totalSizeBytes / (1024 * 1024));
-
-      if (mounted) {
-        setState(() {
-          _cacheSizeMB = totalSizeMB;
-        });
-      }
-    } else {
-      if (mounted) {
-        setState(() {
-          _cacheSizeMB = 0.0;
-        });
-      }
+    try {
+      final totalSizeBytes = await _cacheService.sizeBytes();
+      if (!mounted) return;
+      setState(() {
+        _cacheSizeMB = totalSizeBytes / (1024 * 1024);
+      });
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _cacheSizeMB = 0;
+      });
     }
   }
 
-  Future<int> _getTotalSizeOfFilesInDir(final Directory directory) async {
-    final List<FileSystemEntity> children = directory.listSync();
-    int total = 0;
-
-    try {
-      for (final FileSystemEntity child in children) {
-        if (child is File) {
-          final int length = await child.length();
-          total += length;
-        } else if (child is Directory) {
-          total += await _getTotalSizeOfFilesInDir(child);
-        }
-      }
-    } catch (_) {}
-    return total;
-  }
-
-  Future<void> _clearCache() async {
-    final Directory libCacheDir = await _getCacheDir();
-    await libCacheDir.delete(recursive: true);
-    _getCacheSize();
+  Future<bool> _clearCache() async {
+    final cleared = await _cacheService.tryClear();
+    if (cleared) await _getCacheSize();
+    return cleared;
   }
 
   void _showCacheDialog() {
@@ -110,10 +82,11 @@ class _AboutPageState extends State<AboutPage> {
             ),
             TextButton(
               onPressed: () async {
-                try {
-                  _clearCache();
-                } catch (_) {}
                 AppDialog.dismiss<void>();
+                final cleared = await _clearCache();
+                AppDialog.showToast(
+                  message: cleared ? '缓存已清理' : '清理缓存失败，请稍后重试',
+                );
               },
               child: const Text('确认'),
             ),

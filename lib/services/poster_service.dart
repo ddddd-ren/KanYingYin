@@ -11,18 +11,16 @@ class PosterService {
   static const _baseUrl = 'https://api.themoviedb.org/3';
   static const _imageBaseUrl = 'https://image.tmdb.org/t/p/w780';
 
-  static const _proxies = [
-    'https://tmdb.lsmcloud.cc/3',
-    'https://api.tmdb.org/3',
-  ];
-
   final Dio _dio;
   final Dio _downloadDio;
   final TmdbApiKeyProvider _apiKeyProvider;
-  String? _workingProxy;
+  String? _workingBaseUrl;
 
-  PosterService({TmdbApiKeyProvider? apiKeyProvider, Dio? downloadDio})
-      : _apiKeyProvider =
+  PosterService({
+    TmdbApiKeyProvider? apiKeyProvider,
+    Dio? apiDio,
+    Dio? downloadDio,
+  })  : _apiKeyProvider =
             apiKeyProvider ?? TmdbApiKeyProvider(userKeyReader: () => ''),
         _downloadDio = downloadDio ??
             Dio(
@@ -31,12 +29,13 @@ class PosterService {
                 receiveTimeout: const Duration(seconds: 30),
               ),
             ),
-        _dio = Dio(
-          BaseOptions(
-            connectTimeout: const Duration(seconds: 8),
-            receiveTimeout: const Duration(seconds: 10),
-          ),
-        );
+        _dio = apiDio ??
+            Dio(
+              BaseOptions(
+                connectTimeout: const Duration(seconds: 8),
+                receiveTimeout: const Duration(seconds: 10),
+              ),
+            );
 
   final Map<String, String?> _searchCache = {};
 
@@ -218,7 +217,7 @@ class PosterService {
       }
     } catch (e) {
       AppLogger().w('PosterService: TMDB search failed for "$query": $e');
-      _workingProxy = null;
+      _workingBaseUrl = null;
     }
     return null;
   }
@@ -304,27 +303,16 @@ class PosterService {
   }
 
   Future<String?> _ensureBaseUrl(String apiKey) async {
-    if (_workingProxy != null) return _workingProxy;
+    if (_workingBaseUrl != null) return _workingBaseUrl;
 
     try {
       await _dio.get<Object?>(
         '$_baseUrl/configuration',
         queryParameters: {'api_key': apiKey},
       );
-      _workingProxy = _baseUrl;
+      _workingBaseUrl = _baseUrl;
       return _baseUrl;
     } catch (_) {}
-
-    for (final proxy in _proxies) {
-      try {
-        await _dio.get<Object?>(
-          '$proxy/configuration',
-          queryParameters: {'api_key': apiKey},
-        );
-        _workingProxy = proxy;
-        return proxy;
-      } catch (_) {}
-    }
 
     return null;
   }

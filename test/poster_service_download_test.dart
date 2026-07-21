@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/services/poster_service.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -15,6 +16,38 @@ void main() {
 
   tearDown(() async {
     await directory.delete(recursive: true);
+  });
+
+  test('TMDB 主站失败时不向非官方域名发送凭据', () async {
+    final hosts = <String>[];
+    final apiDio = Dio()
+      ..interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            hosts.add(options.uri.host);
+            handler.reject(
+              DioException(
+                requestOptions: options,
+                type: DioExceptionType.connectionError,
+                message: '模拟主站不可用',
+              ),
+            );
+          },
+        ),
+      );
+    final service = PosterService(
+      apiDio: apiDio,
+      apiKeyProvider: TmdbApiKeyProvider(
+        userKeyReader: () => 'user-key',
+      ),
+    );
+
+    expect(
+      await service.searchPoster(rawFilename: 'Avatar.mkv'),
+      isNull,
+    );
+    expect(hosts, isNotEmpty);
+    expect(hosts, everyElement('api.themoviedb.org'));
   });
 
   for (final responseData in <List<int>?>[null, <int>[]]) {

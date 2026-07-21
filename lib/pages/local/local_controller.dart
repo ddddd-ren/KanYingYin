@@ -29,6 +29,7 @@ import 'package:kanyingyin/services/tmdb/local_tmdb_scrape_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_poster_policy.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scraper.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/local_cover_finder.dart';
@@ -1177,12 +1178,22 @@ abstract class _LocalController with Store {
 
   String? tmdbPosterUrlForPaths(Iterable<String> paths) {
     final ids = paths.map(LocalMediaIndexItem.normalizePath).toSet();
-    for (final item in localLibraryItems) {
-      if (!ids.contains(item.id)) continue;
-      final url = _tmdbImageUrl(item.tmdb?.posterUrl);
-      if (url != null && url.isNotEmpty) return url;
-    }
-    return null;
+    final matches = localLibraryItems
+        .where((item) => ids.contains(item.id))
+        .toList(growable: false);
+    final metadata = matches.map((item) => item.tmdb).nonNulls.firstOrNull;
+    if (metadata == null) return null;
+    final seasons = matches
+        .map((item) => item.seasonNumber)
+        .whereType<int>()
+        .where((value) => value > 0)
+        .toSet();
+    final poster = const TmdbPosterPolicy().select(
+      metadata,
+      seasonNumber: seasons.length == 1 ? seasons.single : null,
+      options: const TmdbScrapeOptions.defaults(),
+    );
+    return _tmdbImageUrl(poster);
   }
 
   @action

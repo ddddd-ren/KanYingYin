@@ -22,6 +22,7 @@ class LibraryMediaItemViewData {
     this.localCoverPath,
     this.networkCoverUrl,
     this.isScraping = false,
+    this.preferLocalCover = false,
     this.heroTag,
     this.networkCoverProvider,
     this.localCoverProvider,
@@ -39,6 +40,7 @@ class LibraryMediaItemViewData {
   final String? localCoverPath;
   final String? networkCoverUrl;
   final bool isScraping;
+  final bool preferLocalCover;
   final Object? heroTag;
   final ImageProvider<Object>? networkCoverProvider;
   final ImageProvider<Object>? localCoverProvider;
@@ -62,6 +64,24 @@ class LibraryMediaGridViewData {
 
 class LibraryMediaCoverFallback {
   const LibraryMediaCoverFallback._();
+
+  static Widget build(
+    LibraryMediaItemViewData item, {
+    required WidgetBuilder placeholderBuilder,
+  }) {
+    Widget local(BuildContext context) => buildLocal(
+          item,
+          placeholderBuilder: placeholderBuilder,
+        );
+    Widget network(BuildContext context) => buildNetwork(
+          item,
+          localBuilder: placeholderBuilder,
+        );
+    if (item.preferLocalCover) {
+      return buildLocal(item, placeholderBuilder: network);
+    }
+    return buildNetwork(item, localBuilder: local);
+  }
 
   static Widget buildLocal(
     LibraryMediaItemViewData item, {
@@ -327,12 +347,9 @@ class _LibraryMediaTileState extends State<_LibraryMediaTile> {
                       size: 48,
                       color: colors.primary))),
         );
-    return LibraryMediaCoverFallback.buildNetwork(
+    return LibraryMediaCoverFallback.build(
       widget.item,
-      localBuilder: (context) => LibraryMediaCoverFallback.buildLocal(
-        widget.item,
-        placeholderBuilder: (_) => placeholder(),
-      ),
+      placeholderBuilder: (_) => placeholder(),
     );
   }
 }

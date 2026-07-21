@@ -1058,6 +1058,76 @@ void main() {
     expect(client.lastQuery, 'The Wandering Earth');
     expect(client.lastMediaType, TmdbMediaType.movie);
   });
+
+  test('LocalController 为不同季度选择对应季度海报并回退作品总海报', () {
+    final metadata = TmdbMetadata(
+      id: 42,
+      mediaType: TmdbMediaType.tv,
+      title: '测试剧集',
+      posterUrl: '/show.jpg',
+      language: 'zh-CN',
+      matchedAt: DateTime(2026),
+      matchConfidence: 1,
+      seasons: const <TmdbSeasonMetadata>[
+        TmdbSeasonMetadata(
+          id: 101,
+          seasonNumber: 1,
+          name: '第 1 季',
+          episodeCount: 10,
+          posterUrl: '/season-1.jpg',
+        ),
+        TmdbSeasonMetadata(
+          id: 102,
+          seasonNumber: 2,
+          name: '第 2 季',
+          episodeCount: 10,
+          posterUrl: '/season-2.jpg',
+        ),
+      ],
+    );
+    LocalMediaIndexItem seasonItem(String path, int seasonNumber) {
+      return LocalMediaIndexItem(
+        path: path,
+        name: path.split(r'\').last,
+        parentPath: r'D:\Video',
+        sourcePath: r'D:\Video',
+        size: 100,
+        modified: DateTime(2026),
+        seriesName: '测试剧集',
+        seasonNumber: seasonNumber,
+        tmdb: metadata,
+        indexedAt: DateTime(2026),
+      );
+    }
+
+    final season1 = seasonItem(r'D:\Video\S01E01.mkv', 1);
+    final season2 = seasonItem(r'D:\Video\S02E01.mkv', 2);
+    final season3 = seasonItem(r'D:\Video\S03E01.mkv', 3);
+    final controller = LocalController(
+      scanner: _ImmediateScanner(const []),
+      mediaIndexRepository: _MemoryMediaIndexRepository(),
+      mediaSourceRepository: _MemoryMediaSourceRepository(),
+      preferences: _preferences(),
+    );
+    controller.localLibraryItems.addAll(<LocalMediaIndexItem>[
+      season1,
+      season2,
+      season3,
+    ]);
+
+    expect(
+      controller.tmdbPosterUrlForPaths(<String>[season1.path]),
+      'https://image.tmdb.org/t/p/w780/season-1.jpg',
+    );
+    expect(
+      controller.tmdbPosterUrlForPaths(<String>[season2.path]),
+      'https://image.tmdb.org/t/p/w780/season-2.jpg',
+    );
+    expect(
+      controller.tmdbPosterUrlForPaths(<String>[season3.path]),
+      'https://image.tmdb.org/t/p/w780/show.jpg',
+    );
+  });
 }
 
 LocalFileItem _item({required String path}) {

@@ -948,6 +948,7 @@ class _LocalPageState extends State<LocalPage>
       networkCoverUrl: localController
           .tmdbPosterUrlForPaths(group.episodes.map((item) => item.path)),
       isScraping: isScraping,
+      preferLocalCover: !group.needsOnlinePoster,
       heroTag: first.path,
     );
   }

@@ -16,6 +16,17 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.32',
+    date: '2026-07-21',
+    isPrerelease: true,
+    changes: [
+      '本测试版统一本地与网盘的 TMDB 刮削规则：名称清理、电影与电视剧判断、候选排序、简介与海报更新现在使用同一套标准',
+      '旧自动匹配只有在仍对应同一 TMDB 条目时才会安全刷新；手动结果和自定义标题继续保留，发现不同条目时会标记“需要确认”',
+      '没有 TMDB Key 或断网时，应用启动、本地扫描、媒体库和播放器仍可使用；本次不会修改或删除本地原始媒体，也不会修改网盘文件、目录或远程 ID',
+      'Windows 安装包现在使用项目证书签名，并附带可验证哈希和异机安装文件，解决未签名安装包无法覆盖更新的问题',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.31',
     date: '2026-07-21',
     isPrerelease: true,

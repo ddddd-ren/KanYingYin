@@ -22,6 +22,8 @@ import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/services/cloud/cloud_source_root_refresh_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/media_recognition_settings.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
 
 final class CloudLibraryRescanException implements Exception {
   const CloudLibraryRescanException({
@@ -70,7 +72,13 @@ class SettingsModule extends Module {
     r.child("/interface", child: (_) => const InterfaceSettingsPage());
     r.child("/player/super", child: (_) => const SuperResolutionSettings());
     r.module("/about", module: AboutModule());
-    r.child("/tmdb", child: (_) => const TmdbSettingsPage());
+    r.child(
+      "/tmdb",
+      child: (_) => TmdbSettingsPage(
+        credentialManager: Modular.get<TmdbCredentialManager>(),
+        apiKeyProvider: Modular.get<TmdbApiKeyProvider>(),
+      ),
+    );
     r.child("/media-recognition", child: (_) {
       final localController = Modular.get<LocalController>();
       return MediaRecognitionSettingsPage(

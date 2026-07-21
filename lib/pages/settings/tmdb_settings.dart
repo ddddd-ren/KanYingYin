@@ -4,15 +4,18 @@ import 'package:kanyingyin/bean/appbar/sys_app_bar.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/utils/storage.dart';
 
 class TmdbSettingsPage extends StatefulWidget {
   const TmdbSettingsPage({
     super.key,
+    required this.credentialManager,
     this.apiKeyProvider,
   });
 
+  final TmdbCredentialManager credentialManager;
   final TmdbApiKeyProvider? apiKeyProvider;
 
   @override
@@ -20,7 +23,6 @@ class TmdbSettingsPage extends StatefulWidget {
 }
 
 class _TmdbSettingsPageState extends State<TmdbSettingsPage> {
-  static const _apiKeySetting = 'tmdbApiKey';
   static const _autoScrapeSetting = 'tmdbAutoScrape';
   late final TextEditingController _apiKeyController;
   bool _autoScrape = true;
@@ -33,12 +35,9 @@ class _TmdbSettingsPageState extends State<TmdbSettingsPage> {
   void initState() {
     super.initState();
     _apiKeyProvider = widget.apiKeyProvider ??
-        TmdbApiKeyProvider(userKeyReader: _readStoredUserKey);
+        TmdbApiKeyProvider(userKeyReader: widget.credentialManager.read);
     _apiKeyController = TextEditingController(
-      text: GStorage.setting.getTyped<String>(
-        _apiKeySetting,
-        defaultValue: '',
-      ),
+      text: widget.credentialManager.read(),
     );
     _autoScrape = GStorage.setting.getTyped<bool>(
       _autoScrapeSetting,
@@ -56,9 +55,17 @@ class _TmdbSettingsPageState extends State<TmdbSettingsPage> {
   }
 
   Future<void> _save() async {
-    await GStorage.setting.put(_apiKeySetting, _apiKeyController.text.trim());
-    await GStorage.setting.put(_autoScrapeSetting, _autoScrape);
-    await GStorage.setting.put('tmdbScrapeOptions', _options.toMap());
+    try {
+      await widget.credentialManager.save(_apiKeyController.text);
+      await GStorage.setting.put(_autoScrapeSetting, _autoScrape);
+      await GStorage.setting.put('tmdbScrapeOptions', _options.toMap());
+    } on Object {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('TMDB 凭据保存失败，请稍后重试')),
+      );
+      return;
+    }
     if (!mounted) return;
     setState(() {});
     ScaffoldMessenger.of(context).showSnackBar(
@@ -279,12 +286,4 @@ class _TmdbSettingsPageState extends State<TmdbSettingsPage> {
         TmdbApiKeySource.builtin => '当前使用内置默认 Key',
         TmdbApiKeySource.none => '当前未配置可用 Key',
       };
-
-  static String _readStoredUserKey() {
-    try {
-      return GStorage.setting.get(_apiKeySetting, defaultValue: '').toString();
-    } on Object {
-      return '';
-    }
-  }
 }

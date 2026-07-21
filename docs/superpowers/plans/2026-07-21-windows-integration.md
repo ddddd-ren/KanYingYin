@@ -59,7 +59,7 @@ target_link_libraries(kanyingyin_external_player_tests PRIVATE shell32.lib ole32
 
 ```powershell
 D:\flutter\bin\flutter.bat build windows --release
-cmake --build build\windows\x64 --config Release --target kanyingyin_external_player_tests
+& 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe' --build build\windows\x64 --config Release --target kanyingyin_external_player_tests
 ```
 
 预期：第二条命令 FAIL，提示缺少 `ExternalPlayerOpenStatus`、`Utf8ToUtf16` 或接受操作集合的重载。
@@ -92,7 +92,7 @@ struct ExternalPlayerOperations {
 - [ ] **Step 4: 运行原生行为测试**
 
 ```powershell
-cmake --build build\windows\x64 --config Release --target kanyingyin_external_player_tests
+& 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe' --build build\windows\x64 --config Release --target kanyingyin_external_player_tests
 & .\build\windows\x64\runner\Release\kanyingyin_external_player_tests.exe
 ```
 
@@ -332,7 +332,7 @@ git commit -m "修复启动快捷方式询问逻辑"
 - [ ] **Step 1: 运行原生外部播放器测试**
 
 ```powershell
-cmake --build build\windows\x64 --config Release --target kanyingyin_external_player_tests
+& 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe' --build build\windows\x64 --config Release --target kanyingyin_external_player_tests
 & .\build\windows\x64\runner\Release\kanyingyin_external_player_tests.exe
 ```
 

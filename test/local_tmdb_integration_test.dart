@@ -5,6 +5,7 @@ import 'package:kanyingyin/repositories/local_media_index_repository.dart';
 import 'package:kanyingyin/repositories/tmdb_metadata_repository.dart';
 import 'package:kanyingyin/services/tmdb/local_tmdb_scrape_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
 void main() {
   test('没有 API Key 时跳过刮削且不修改索引', () async {
@@ -51,6 +52,14 @@ void main() {
     expect(result.status, TmdbScrapeStatus.matched);
     expect(index.getAll(), everyElement(isA<LocalMediaIndexItem>()));
     expect(index.getAll().map((item) => item.tmdb?.id), everyElement(1));
+    expect(
+      index.getAll().map((item) => item.tmdbMatchOrigin),
+      everyElement(TmdbMatchOrigin.automatic),
+    );
+    expect(
+      index.getAll().map((item) => item.tmdbRuleVersion),
+      everyElement(currentTmdbRuleVersion),
+    );
     expect(
       index.getAll().first.tmdb?.seasons.map((item) => item.seasonNumber),
       <int>[1, 2],
@@ -111,6 +120,80 @@ void main() {
       index.getAll().map((item) => item.scrapeStatus),
       everyElement(TmdbScrapeStatus.matched),
     );
+    expect(
+      index.getAll().map((item) => item.tmdbMatchOrigin),
+      everyElement(TmdbMatchOrigin.manual),
+    );
+  });
+
+  test('旧匹配同一TMDB条目时按统一规则刷新并记录版本', () async {
+    final index = _MemoryIndexRepository([
+      _item('a.mkv').copyWith(
+        tmdb: TmdbMetadata(
+          id: 1,
+          mediaType: TmdbMediaType.movie,
+          title: '流浪地球',
+          overview: '旧简介',
+          language: 'zh-CN',
+          matchedAt: DateTime(2025),
+          matchConfidence: 0.8,
+        ),
+        scrapeStatus: TmdbScrapeStatus.matched,
+      ),
+    ]);
+    final service = LocalTmdbScrapeService(
+      indexRepository: index,
+      metadataRepository: _MemoryMetadataRepository(),
+      clientFactory: (_) => _FakeClient(),
+      posterDownloader: _successfulDownload,
+    );
+
+    await service.scrapeSeries(
+      apiKey: 'configured-key',
+      seriesName: '流浪地球',
+      mediaType: TmdbMediaType.movie,
+    );
+
+    final item = index.getAll().single;
+    expect(item.tmdb?.id, 1);
+    expect(item.tmdb?.overview, '简介');
+    expect(item.tmdbMatchOrigin, TmdbMatchOrigin.automatic);
+    expect(item.tmdbRuleVersion, currentTmdbRuleVersion);
+  });
+
+  test('旧匹配与统一规则结果冲突时保留旧数据并等待确认', () async {
+    final index = _MemoryIndexRepository([
+      _item('a.mkv').copyWith(
+        tmdb: TmdbMetadata(
+          id: 9,
+          mediaType: TmdbMediaType.movie,
+          title: '用户曾确认的旧结果',
+          language: 'zh-CN',
+          matchedAt: DateTime(2025),
+          matchConfidence: 1,
+        ),
+        scrapeStatus: TmdbScrapeStatus.matched,
+      ),
+    ]);
+    final service = LocalTmdbScrapeService(
+      indexRepository: index,
+      metadataRepository: _MemoryMetadataRepository(),
+      clientFactory: (_) => _FakeClient(),
+      posterDownloader: _successfulDownload,
+    );
+
+    final result = await service.scrapeSeries(
+      apiKey: 'configured-key',
+      seriesName: '流浪地球',
+      mediaType: TmdbMediaType.movie,
+    );
+
+    final item = index.getAll().single;
+    expect(result.status, TmdbScrapeStatus.pending);
+    expect(item.tmdb?.id, 9);
+    expect(item.tmdb?.title, '用户曾确认的旧结果');
+    expect(item.scrapeStatus, TmdbScrapeStatus.pending);
+    expect(item.tmdbRuleVersion, currentTmdbRuleVersion);
   });
 
   test('匹配成功后按目录去重下载 TMDB 海报并更新索引封面', () async {

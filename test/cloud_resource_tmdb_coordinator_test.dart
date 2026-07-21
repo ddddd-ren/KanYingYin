@@ -16,6 +16,7 @@ import 'package:kanyingyin/services/cloud/cloud_series_match_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
 void main() {
   test('TMDB Key 缺失时只读缓存不发请求', () async {
@@ -68,6 +69,28 @@ void main() {
 
     expect(fixture.client.queries, contains('Failed'));
     expect(fixture.client.queries, isNot(contains('Recent')));
+  });
+
+  test('资源只调度旧自动匹配并跳过当前版本和手动结果', () async {
+    final fixture = _Fixture(apiKey: 'key');
+    final entries = <CloudFileEntry>[
+      _directory('old', '/影视/Old', 'Old'),
+      _directory('current', '/影视/Current', 'Current'),
+      _directory('manual', '/影视/Manual', 'Manual'),
+    ];
+    await fixture.repository.upsertAll(<CloudResourceTmdbRecord>[
+      _matchedResource(entries[0], TmdbMatchOrigin.automatic, 0),
+      _matchedResource(
+        entries[1],
+        TmdbMatchOrigin.automatic,
+        currentTmdbRuleVersion,
+      ),
+      _matchedResource(entries[2], TmdbMatchOrigin.manual, 0),
+    ]);
+
+    await fixture.coordinator.loadAndSchedule(_context(entries));
+
+    expect(fixture.client.queries, <String>['Old', 'Old']);
   });
 
   test('自动请求并发不超过二且媒体根目录包含独立视频', () async {
@@ -124,7 +147,7 @@ void main() {
     );
 
     expect(fixture.client.queries, isNotEmpty);
-    expect(fixture.client.queries, everyElement('三体'));
+    expect(fixture.client.queries, <String>['三体', '01']);
   });
 
   test('子目录只调度文件夹而不重复刮削单集', () async {
@@ -140,7 +163,7 @@ void main() {
       ),
     );
 
-    expect(fixture.client.queries, contains('Season 1'));
+    expect(fixture.client.queries, isNot(contains('Season 1')));
     expect(fixture.client.queries, isNot(contains('E01')));
   });
 
@@ -435,6 +458,31 @@ CloudFileEntry _video(
     size: size,
     modifiedAt: null,
     isDirectory: false,
+  );
+}
+
+CloudResourceTmdbRecord _matchedResource(
+  CloudFileEntry entry,
+  TmdbMatchOrigin origin,
+  int ruleVersion,
+) {
+  return CloudResourceTmdbRecord.matched(
+    sourceId: 'source-a',
+    remoteId: entry.id,
+    remotePath: entry.remotePath,
+    displayName: entry.name,
+    resourceKind: CloudResourceKind.directory,
+    metadata: TmdbMetadata(
+      id: 42,
+      mediaType: TmdbMediaType.tv,
+      title: entry.name,
+      language: 'zh-CN',
+      matchedAt: DateTime.utc(2026, 7, 18),
+      matchConfidence: 1,
+    ),
+    checkedAt: DateTime.utc(2026, 7, 18),
+    tmdbMatchOrigin: origin,
+    tmdbRuleVersion: ruleVersion,
   );
 }
 

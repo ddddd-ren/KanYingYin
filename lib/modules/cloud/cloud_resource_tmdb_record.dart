@@ -3,7 +3,7 @@ import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
 enum CloudResourceKind { directory, standaloneVideo }
 
-enum CloudResourceTmdbStatus { unchecked, matched, unmatched, failed }
+enum CloudResourceTmdbStatus { unchecked, matched, unmatched, failed, conflict }
 
 String cloudResourceTmdbKey({
   required String sourceId,
@@ -257,6 +257,32 @@ class CloudResourceTmdbRecord {
       resourceKind: resourceKind,
       checkedAt: checkedAt,
       customTitle: customTitle,
+    );
+  }
+
+  CloudResourceTmdbRecord asConflict(DateTime checkedAt) {
+    return CloudResourceTmdbRecord(
+      sourceId: sourceId,
+      remoteId: remoteId,
+      remotePath: remotePath,
+      displayName: displayName,
+      resourceKind: resourceKind,
+      status: CloudResourceTmdbStatus.conflict,
+      checkedAt: checkedAt,
+      tmdbId: tmdbId,
+      mediaType: mediaType,
+      title: title,
+      originalTitle: originalTitle,
+      overview: overview,
+      rating: rating,
+      releaseDate: releaseDate,
+      posterUrl: posterUrl,
+      backdropUrl: backdropUrl,
+      posterCachePath: posterCachePath,
+      customTitle: customTitle,
+      seasons: seasons,
+      tmdbMatchOrigin: tmdbMatchOrigin,
+      tmdbRuleVersion: tmdbRuleVersion,
     );
   }
 

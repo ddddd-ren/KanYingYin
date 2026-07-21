@@ -58,7 +58,7 @@ OpenList、夸克和百度网盘在本项目中仅作为用户自有媒体的数
 - 支持电影、电视剧、季度和剧集信息。
 - 支持自动匹配、手动选择候选、重新匹配和单独刮削。
 - 可配置语言、地区、匹配阈值以及标题和图片覆盖策略。
-- 用户填写的 TMDB Key 优先于构建时内置默认值；私人安装包可能包含可被提取的默认 Key，不得公开分发。
+- 公共安装包不内置 TMDB Key；用户可在设置中填写自己的 Key，并由 Windows 安全存储保护。
 - 没有可用 API Key、断网或 TMDB 不可用时，本地扫描和播放仍可使用。
 
 ### 播放器
@@ -90,7 +90,7 @@ OpenList、夸克和百度网盘在本项目中仅作为用户自有媒体的数
 | --- | --- |
 | 操作系统 | Windows 10 / Windows 11，64 位 |
 | 安装格式 | MSIX |
-| 当前版本 | 2.1.31 |
+| 当前版本 | 2.1.32 |
 | Dart 包名 | `kanyingyin` |
 | Windows 包标识 | `com.kanyingyin.player` |
 | Flutter | 3.41.9 |
@@ -110,7 +110,7 @@ OpenList、夸克和百度网盘在本项目中仅作为用户自有媒体的数
 
 1. 打开“本地”页面并添加包含视频的文件夹。
 2. 等待扫描完成后，从媒体库选择影片或剧集播放。
-3. 如需 TMDB 信息，可在“我的 > TMDB 刮削”中填写自己的 API Key；用户 Key 会覆盖私人构建中的内置默认值。
+3. 如需 TMDB 信息，可在“我的 > TMDB 刮削”中填写自己的 API Key；公共安装包不内置 TMDB Key。
 4. 如需访问个人网盘，在“我的 > 网盘数据源”中添加 OpenList、夸克或百度网盘来源；百度使用自己的开放平台凭据和官方授权。
 5. 播放器的解码、渲染、Anime4K、字幕和快捷键选项位于“我的 > 播放设置”与“操作设置”。
 
@@ -150,13 +150,13 @@ D:\flutter\bin\flutter.bat build windows --release --no-pub
 
 ### 生成 MSIX
 
-MSIX 必须基于本轮生成的 Windows Release 目录封装。签名密码通过命令行安全传入，不写入仓库。
+MSIX 必须基于本轮生成的 Windows Release 目录封装。签名脚本从当前用户保护的凭据文件读取密码，不写入仓库，也不依赖或内置 TMDB Key。
 
 ```powershell
-D:\flutter\bin\dart.bat run msix:create --build-windows false --sign-msix true --certificate-path <证书路径> --certificate-password <证书密码>
+powershell -NoProfile -ExecutionPolicy Bypass -File tool\windows\build_signed_release.ps1
 ```
 
-交付前应验证 `AppxManifest.xml` 中的版本、包身份和数字签名，并将最终安装包命名为 `看影音-版本号.msix`。
+脚本会验证 `AppxManifest.xml` 中的版本、包身份和数字签名，并将 `看影音-版本号.msix` 与异机安装包复制到当前用户桌面。
 
 ## 项目结构
 

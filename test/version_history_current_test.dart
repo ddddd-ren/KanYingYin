@@ -241,6 +241,20 @@ void main() {
     expect(entries.single.isPrerelease, isTrue);
   });
 
+  test('二点一三十二说明本地网盘刮削统一和旧结果保护', () {
+    final entries = versionHistoryForCurrent('2.1.32');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('本地与网盘'));
+    expect(changes, contains('TMDB'));
+    expect(changes, contains('手动'));
+    expect(changes, contains('需要确认'));
+    expect(changes, contains('断网'));
+    expect(changes, contains('不会修改'));
+    expect(entries.single.isPrerelease, isTrue);
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

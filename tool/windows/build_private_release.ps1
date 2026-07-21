@@ -2,7 +2,6 @@
 param(
   [string]$FlutterPath = 'D:\flutter\bin\flutter.bat',
   [string]$DartPath = 'D:\flutter\bin\dart.bat',
-  [string]$HiveDirectory = (Join-Path $env:APPDATA 'com.kanyingyin\看影音\kanyingyin\hive'),
   [string]$SigningDirectory = (Join-Path $env:USERPROFILE '.kanyingyin\signing'),
   [string]$DesktopDirectory = (Join-Path $env:USERPROFILE 'Desktop')
 )
@@ -18,8 +17,11 @@ $releaseDirectory = Join-Path $projectRoot 'build\windows\x64\runner\Release'
 $generatedMsix = Join-Path $releaseDirectory 'kanyingyin.msix'
 $pfxPath = Join-Path $SigningDirectory 'certificate.pfx'
 $passwordPath = Join-Path $SigningDirectory 'certificate-password.clixml'
+$tmdbApiKeyPath = Join-Path $SigningDirectory 'tmdb-api-key.clixml'
 $plainPassword = $null
 $passwordPointer = [IntPtr]::Zero
+$plainTmdbApiKey = $null
+$tmdbApiKeyPointer = [IntPtr]::Zero
 
 function Assert-PrivateTemporaryRoot {
   $temporaryBase = [System.IO.Path]::GetFullPath($env:TEMP).TrimEnd('\') + '\'
@@ -65,13 +67,10 @@ function Get-SignToolPath {
 if (Get-Process -Name 'kanyingyin' -ErrorAction SilentlyContinue) {
   throw '请先退出正在运行的看影音，再进行私人构建'
 }
-foreach ($requiredPath in @($FlutterPath, $DartPath, $pfxPath, $passwordPath)) {
+foreach ($requiredPath in @($FlutterPath, $DartPath, $pfxPath, $passwordPath, $tmdbApiKeyPath)) {
   if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
     throw "缺少构建所需文件：$requiredPath"
   }
-}
-if (-not (Test-Path -LiteralPath (Join-Path $HiveDirectory 'setting.hive') -PathType Leaf)) {
-  throw "当前看影音设置目录中缺少 setting.hive：$HiveDirectory"
 }
 if (-not (Test-Path -LiteralPath $DesktopDirectory -PathType Container)) {
   throw "桌面目录不存在：$DesktopDirectory"
@@ -106,14 +105,28 @@ try {
 
   Push-Location $projectRoot
   try {
-    Invoke-Checked -Executable $DartPath -Arguments @(
-      'run',
-      'tool/export_tmdb_build_define.dart',
-      '--hive-directory',
-      $HiveDirectory,
-      '--output',
-      $defineFile
-    )
+    $secureTmdbApiKey = Import-Clixml -LiteralPath $tmdbApiKeyPath
+    if ($secureTmdbApiKey -isnot [System.Security.SecureString]) {
+      throw 'TMDB Key 文件不是当前用户可读取的 SecureString'
+    }
+    $tmdbApiKeyPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureTmdbApiKey)
+    $plainTmdbApiKey = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($tmdbApiKeyPointer)
+    try {
+      $env:KANYINGYIN_TMDB_PRIVATE_BUILD_KEY = $plainTmdbApiKey
+      Invoke-Checked -Executable $DartPath -Arguments @(
+        'run',
+        'tool/export_tmdb_build_define.dart',
+        '--output',
+        $defineFile
+      )
+    } finally {
+      Remove-Item Env:KANYINGYIN_TMDB_PRIVATE_BUILD_KEY -ErrorAction SilentlyContinue
+      if ($tmdbApiKeyPointer -ne [IntPtr]::Zero) {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($tmdbApiKeyPointer)
+        $tmdbApiKeyPointer = [IntPtr]::Zero
+      }
+      $plainTmdbApiKey = $null
+    }
 
     Invoke-Checked -Executable $FlutterPath -Arguments @(
       'build',
@@ -237,6 +250,11 @@ try {
   Write-Host "异机安装包：$desktopZip"
   Write-Host "MSIX SHA256：$desktopHash"
 } finally {
+  Remove-Item Env:KANYINGYIN_TMDB_PRIVATE_BUILD_KEY -ErrorAction SilentlyContinue
+  if ($tmdbApiKeyPointer -ne [IntPtr]::Zero) {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($tmdbApiKeyPointer)
+  }
+  $plainTmdbApiKey = $null
   if ($passwordPointer -ne [IntPtr]::Zero) {
     [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
   }

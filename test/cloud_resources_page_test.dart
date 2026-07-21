@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -987,8 +988,20 @@ void main() {
       tester
           .widget<ImmersiveMediaCard>(find.byType(ImmersiveMediaCard))
           .overlayMode,
-      ImmersiveMediaCardOverlayMode.always,
+      ImmersiveMediaCardOverlayMode.hover,
     );
+    final cardOpacity = find.descendant(
+      of: find.byType(ImmersiveMediaCard),
+      matching: find.byType(AnimatedOpacity),
+    );
+    expect(tester.widget<AnimatedOpacity>(cardOpacity).opacity, 0);
+    expect(find.byTooltip('资源操作'), findsOneWidget);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(find.byType(ImmersiveMediaCard)));
+    await tester.pump(const Duration(milliseconds: 160));
+    expect(tester.widget<AnimatedOpacity>(cardOpacity).opacity, 1);
     expect(find.text('中文片名'), findsOneWidget);
     expect(find.textContaining('8.7 ★'), findsOneWidget);
     expect(find.textContaining('2025'), findsOneWidget);

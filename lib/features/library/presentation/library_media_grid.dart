@@ -7,6 +7,10 @@ import 'package:kanyingyin/features/library/presentation/immersive_media_card.da
 typedef LibraryMediaAction = FutureOr<void> Function(
   LibraryMediaItemViewData item,
 );
+typedef LibraryMediaTrailingBuilder = Widget Function(
+  BuildContext context,
+  LibraryMediaItemViewData item,
+);
 
 class LibraryMediaItemViewData {
   const LibraryMediaItemViewData({
@@ -148,6 +152,7 @@ class LibraryMediaGrid extends StatelessWidget {
     this.onPickDirectory,
     this.onRetry,
     this.onClearSearch,
+    this.trailingBuilder,
   });
 
   final LibraryMediaGridViewData data;
@@ -157,6 +162,7 @@ class LibraryMediaGrid extends StatelessWidget {
   final FutureOr<void> Function()? onPickDirectory;
   final FutureOr<void> Function()? onRetry;
   final VoidCallback? onClearSearch;
+  final LibraryMediaTrailingBuilder? trailingBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -267,6 +273,7 @@ class LibraryMediaGrid extends StatelessWidget {
           item: item,
           onPlay: onPlay,
           onShowActions: onShowActions,
+          trailingBuilder: trailingBuilder,
         );
       },
     );
@@ -279,10 +286,12 @@ class _LibraryMediaTile extends StatefulWidget {
     required this.item,
     this.onPlay,
     this.onShowActions,
+    this.trailingBuilder,
   });
   final LibraryMediaItemViewData item;
   final LibraryMediaAction? onPlay;
   final LibraryMediaAction? onShowActions;
+  final LibraryMediaTrailingBuilder? trailingBuilder;
 
   @override
   State<_LibraryMediaTile> createState() => _LibraryMediaTileState();
@@ -307,6 +316,7 @@ class _LibraryMediaTileState extends State<_LibraryMediaTile> {
       subtitle: item.subtitle,
       details: details,
       overlayMode: ImmersiveMediaCardOverlayMode.hover,
+      trailing: widget.trailingBuilder?.call(context, item),
       badges: <ImmersiveMediaCardBadge>[
         ImmersiveMediaCardBadge(
           icon: Icons.closed_caption_outlined,

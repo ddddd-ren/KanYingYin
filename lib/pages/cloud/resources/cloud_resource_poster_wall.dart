@@ -100,7 +100,7 @@ class CloudResourcePosterWall extends StatelessWidget {
           details: data.details,
           badges: _badges(group, data),
           loading: scraping,
-          overlayMode: ImmersiveMediaCardOverlayMode.always,
+          overlayMode: ImmersiveMediaCardOverlayMode.hover,
           trailing: _resourceMenu(context, group),
           onTap: () => onOpenGroup(group),
         );

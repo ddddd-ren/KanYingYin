@@ -461,6 +461,35 @@ void main() {
       expect(tester.widget<AnimatedOpacity>(opacityFinder).opacity, 1);
     });
 
+    testWidgets('本地三点菜单常驻且底部信息只在悬停后显示', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: LibraryMediaGrid(
+            data: LibraryMediaGridViewData(items: const [item]),
+            trailingBuilder: (context, item) => PopupMenuButton<String>(
+              tooltip: '本地媒体操作',
+              itemBuilder: (_) => const <PopupMenuEntry<String>>[
+                PopupMenuItem(value: 'scrape', child: Text('TMDB 刮削')),
+                PopupMenuItem(value: 'rematch', child: Text('重新匹配')),
+              ],
+            ),
+          ),
+        ),
+      ));
+
+      final opacityFinder = find.byType(AnimatedOpacity);
+      expect(tester.widget<AnimatedOpacity>(opacityFinder).opacity, 0);
+      expect(find.byTooltip('本地媒体操作'), findsOneWidget);
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(tester.getCenter(find.byType(ImmersiveMediaCard)));
+      await tester.pump(const Duration(milliseconds: 160));
+      expect(tester.widget<AnimatedOpacity>(opacityFinder).opacity, 1);
+      expect(find.byTooltip('本地媒体操作'), findsOneWidget);
+    });
+
     testWidgets('媒体项重排后悬浮状态按 id 跟随而不按位置串位', (tester) async {
       const first = LibraryMediaItemViewData(
         id: 'first',
@@ -741,6 +770,14 @@ void main() {
     );
     expect(source, contains('LibraryMediaGrid('));
     expect(source, contains('heroTag:'));
+    expect(source, contains('trailingBuilder:'));
+    expect(source, contains('PopupMenuButton<_LocalMediaAction>'));
+    expect(source, contains('_LocalMediaAction.scrapeTmdb'));
+    expect(source, contains('_LocalMediaAction.rematchTmdb'));
+    expect(source, contains('TmdbMatchDialog<TmdbScrapeResult>'));
+    expect(source, contains('仅更新看影音中的资料，不会修改本地文件'));
+    expect(source, isNot(contains('TmdbScrapeOptionsSheet(')));
+    expect(source, isNot(contains('TmdbMatchSheet(')));
   });
 }
 

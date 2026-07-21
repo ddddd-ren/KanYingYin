@@ -6,8 +6,8 @@ import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
   test('应用版本、MSIX 版本和更新日志保持一致', () {
-    const expectedVersion = '2.1.27';
-    const expectedBuildNumber = '20127';
+    const expectedVersion = '2.1.33';
+    const expectedBuildNumber = '20133';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
@@ -88,6 +88,15 @@ void main() {
     }
     expect(currentReleaseNotes, isNot(contains('正式版')));
     expect(currentVersionHistory, isNot(contains('正式版')));
+    for (final copy in <String>[
+      currentReleaseNotes,
+      currentVersionHistory,
+      updateDialogCopy,
+    ]) {
+      expect(copy, contains('本地与网盘'));
+      expect(copy, contains('TMDB'));
+      expect(copy, contains('不会修改'));
+    }
   });
 }
 

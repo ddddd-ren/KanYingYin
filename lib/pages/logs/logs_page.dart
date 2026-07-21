@@ -1,13 +1,14 @@
-import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:kanyingyin/bean/appbar/sys_app_bar.dart';
+import 'package:kanyingyin/utils/log_archive_reader.dart';
 
 class LogsPage extends StatefulWidget {
-  const LogsPage({super.key});
+  const LogsPage({super.key, this.reader});
+
+  final LogArchiveReader? reader;
 
   @override
   State<LogsPage> createState() => _LogsPageState();
@@ -16,6 +17,7 @@ class LogsPage extends StatefulWidget {
 class _LogsPageState extends State<LogsPage> {
   final List<String> _logLines = [];
   final ScrollController _scrollController = ScrollController();
+  late final LogArchiveReader _reader;
 
   bool _isLoading = true;
   bool _hasError = false;
@@ -29,6 +31,7 @@ class _LogsPageState extends State<LogsPage> {
   @override
   void initState() {
     super.initState();
+    _reader = widget.reader ?? LogArchiveReader();
     _loadLogs();
     _scrollController.addListener(_onScroll);
   }
@@ -58,13 +61,10 @@ class _LogsPageState extends State<LogsPage> {
     if (!mounted) return;
 
     try {
-      final file = await _getLogsFile();
+      final content = await _reader.readAll();
       if (!mounted) return;
 
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        if (!mounted) return;
-
+      if (content.isNotEmpty) {
         _allLines = content.split('\n');
         _fullContent = content;
 
@@ -117,16 +117,9 @@ class _LogsPageState extends State<LogsPage> {
     });
   }
 
-  Future<File> _getLogsFile() async {
-    final directory = await getApplicationSupportDirectory();
-    final path = directory.path;
-    return File('$path/logs/kanyingyin_logs.log');
-  }
-
   Future<void> _clearLogs() async {
     try {
-      final file = await _getLogsFile();
-      await file.writeAsString('');
+      await _reader.clear();
       if (!mounted) return;
 
       setState(() {
@@ -135,9 +128,9 @@ class _LogsPageState extends State<LogsPage> {
         _fullContent = '';
         _displayedLines = 0;
       });
-    } catch (e) {
+    } on Object {
       if (!mounted) return;
-      AppDialog.showToast(message: '清空失败: $e');
+      AppDialog.showToast(message: '清空日志失败，请稍后重试');
     }
   }
 
@@ -146,9 +139,9 @@ class _LogsPageState extends State<LogsPage> {
       await Clipboard.setData(ClipboardData(text: _fullContent));
       if (!mounted) return;
       AppDialog.showToast(message: '已复制到剪贴板');
-    } catch (e) {
+    } on Object {
       if (!mounted) return;
-      AppDialog.showToast(message: '复制失败: $e');
+      AppDialog.showToast(message: '复制日志失败，请稍后重试');
     }
   }
 

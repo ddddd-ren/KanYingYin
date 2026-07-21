@@ -361,6 +361,41 @@ void main() {
       );
     });
 
+    test('百度纯集号视频继承目录剧名季度并保留多个版本', () {
+      const workPath = '/剧集/回魂计';
+      const seasonPath = '$workPath/第二季';
+      final tree = resolver.resolve(
+        sourceId: 'baidu-a',
+        configuredRoots: const <String>[workPath],
+        directoryEntries: <String, List<CloudFileEntry>>{
+          workPath: <CloudFileEntry>[
+            _dir('season-2', seasonPath, '第二季'),
+          ],
+          seasonPath: <CloudFileEntry>[
+            _video('1001', '$seasonPath/01.mkv', '01.mkv'),
+            _video('1002', '$seasonPath/01.mp4', '01.mp4'),
+            _video('1003', '$seasonPath/02.mkv', '02.mkv'),
+          ],
+        },
+        minSizeBytes: 100,
+      );
+
+      expect(tree.sourceId, 'baidu-a');
+      expect(tree.works, hasLength(1));
+      final work = tree.works.single;
+      expect(work.displayTitle, '回魂计');
+      expect(work.seasons.single.seasonNumber, 2);
+      expect(work.seasons.single.episodes, hasLength(3));
+      expect(
+        work.seasons.single.episodes.map((episode) => episode.episodeNumber),
+        <int>[1, 1, 2],
+      );
+      expect(
+        work.seasons.single.episodes.map((episode) => episode.entry.id).toSet(),
+        <String>{'1001', '1002', '1003'},
+      );
+    });
+
     test('媒体集合根同时存在独立电影时不与季度目录误合并', () {
       const rootPath = '/影视';
       const seasonPath = '$rootPath/Season 1';

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
 enum CloudWorkTmdbStatus { unchecked, matched, unmatched, failed, conflict }
 
@@ -17,6 +18,8 @@ class CloudWorkTmdbRecord {
     this.scrapeTitleOverride,
     this.metadata,
     this.posterCachePath,
+    this.tmdbMatchOrigin = TmdbMatchOrigin.legacyUnknown,
+    this.tmdbRuleVersion = 0,
   });
 
   factory CloudWorkTmdbRecord.matched({
@@ -29,6 +32,8 @@ class CloudWorkTmdbRecord {
     required DateTime checkedAt,
     String? scrapeTitleOverride,
     String? posterCachePath,
+    TmdbMatchOrigin tmdbMatchOrigin = TmdbMatchOrigin.legacyUnknown,
+    int tmdbRuleVersion = 0,
   }) {
     return CloudWorkTmdbRecord(
       sourceId: sourceId,
@@ -41,6 +46,8 @@ class CloudWorkTmdbRecord {
       scrapeTitleOverride: _normalized(scrapeTitleOverride),
       metadata: metadata,
       posterCachePath: _normalized(posterCachePath),
+      tmdbMatchOrigin: tmdbMatchOrigin,
+      tmdbRuleVersion: tmdbRuleVersion,
     );
   }
 
@@ -159,6 +166,12 @@ class CloudWorkTmdbRecord {
           ? TmdbMetadata.fromJson(Map<String, dynamic>.from(rawMetadata))
           : null,
       posterCachePath: _normalized(json['posterCachePath'] as String?),
+      tmdbMatchOrigin: _enumValue(
+        TmdbMatchOrigin.values,
+        json['tmdbMatchOrigin'],
+        TmdbMatchOrigin.legacyUnknown,
+      ),
+      tmdbRuleVersion: _asInt(json['tmdbRuleVersion']),
     );
   }
 
@@ -172,6 +185,8 @@ class CloudWorkTmdbRecord {
   final TmdbMetadata? metadata;
   final String? posterCachePath;
   final DateTime checkedAt;
+  final TmdbMatchOrigin tmdbMatchOrigin;
+  final int tmdbRuleVersion;
 
   List<TmdbSeasonMetadata> get seasons =>
       metadata?.seasons ?? const <TmdbSeasonMetadata>[];
@@ -215,6 +230,23 @@ class CloudWorkTmdbRecord {
     );
   }
 
+  CloudWorkTmdbRecord asConflict(DateTime value) {
+    return CloudWorkTmdbRecord(
+      sourceId: sourceId,
+      workKey: workKey,
+      workRootId: workRootId,
+      workRootPath: workRootPath,
+      remoteName: remoteName,
+      status: CloudWorkTmdbStatus.conflict,
+      checkedAt: value,
+      scrapeTitleOverride: scrapeTitleOverride,
+      metadata: metadata,
+      posterCachePath: posterCachePath,
+      tmdbMatchOrigin: tmdbMatchOrigin,
+      tmdbRuleVersion: tmdbRuleVersion,
+    );
+  }
+
   Map<String, Object?> toJson() => <String, Object?>{
         'sourceId': sourceId,
         'workKey': workKey,
@@ -227,6 +259,9 @@ class CloudWorkTmdbRecord {
           'scrapeTitleOverride': scrapeTitleOverride,
         if (metadata != null) 'metadata': metadata!.toJson(),
         if (posterCachePath != null) 'posterCachePath': posterCachePath,
+        if (tmdbMatchOrigin != TmdbMatchOrigin.legacyUnknown)
+          'tmdbMatchOrigin': tmdbMatchOrigin.name,
+        if (tmdbRuleVersion > 0) 'tmdbRuleVersion': tmdbRuleVersion,
       };
 
   CloudWorkTmdbRecord _copyWith({
@@ -249,6 +284,8 @@ class CloudWorkTmdbRecord {
       metadata: metadata,
       posterCachePath:
           clearPosterCachePath ? null : posterCachePath ?? this.posterCachePath,
+      tmdbMatchOrigin: tmdbMatchOrigin,
+      tmdbRuleVersion: tmdbRuleVersion,
     );
   }
 
@@ -265,6 +302,8 @@ class CloudWorkTmdbRecord {
             status == other.status &&
             _metadataEquals(metadata, other.metadata) &&
             posterCachePath == other.posterCachePath &&
+            tmdbMatchOrigin == other.tmdbMatchOrigin &&
+            tmdbRuleVersion == other.tmdbRuleVersion &&
             checkedAt == other.checkedAt;
   }
 
@@ -279,6 +318,8 @@ class CloudWorkTmdbRecord {
         status,
         _metadataHash(metadata),
         posterCachePath,
+        tmdbMatchOrigin,
+        tmdbRuleVersion,
         checkedAt,
       );
 }
@@ -346,6 +387,14 @@ int _metadataHash(TmdbMetadata? metadata) {
 String? _normalized(String? value) {
   final normalized = value?.trim();
   return normalized == null || normalized.isEmpty ? null : normalized;
+}
+
+T _enumValue<T extends Enum>(List<T> values, Object? raw, T fallback) {
+  final name = raw?.toString();
+  for (final value in values) {
+    if (value.name == name) return value;
+  }
+  return fallback;
 }
 
 int _asInt(Object? value) {

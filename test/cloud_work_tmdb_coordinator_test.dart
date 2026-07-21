@@ -13,6 +13,7 @@ import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_tmdb_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
 void main() {
   test('同作品旧文件记录一致时迁移一次且不重复请求 TMDB', () async {
@@ -74,6 +75,58 @@ void main() {
       fixture.coordinator.recordsByWorkKey[work.workKey]?.status,
       CloudWorkTmdbStatus.matched,
     );
+  });
+
+  test('旧自动匹配按新规则刷新而当前版本不重复请求', () async {
+    final oldFixture = _Fixture();
+    final oldWork = _work('old-version');
+    await oldFixture.repository.upsert(
+      _workRecord(
+        oldWork,
+        origin: TmdbMatchOrigin.automatic,
+        ruleVersion: 0,
+      ),
+    );
+
+    await oldFixture.coordinator.loadAndSchedule(
+      _tree(<CloudWorkIdentity>[oldWork]),
+    );
+
+    expect(oldFixture.client.searchCalls, 1);
+    expect(
+      (await oldFixture.repository.get(oldWork.workKey))?.tmdbRuleVersion,
+      currentTmdbRuleVersion,
+    );
+
+    final currentFixture = _Fixture();
+    final currentWork = _work('current-version');
+    await currentFixture.repository.upsert(
+      _workRecord(
+        currentWork,
+        origin: TmdbMatchOrigin.automatic,
+        ruleVersion: currentTmdbRuleVersion,
+      ),
+    );
+
+    await currentFixture.coordinator.loadAndSchedule(
+      _tree(<CloudWorkIdentity>[currentWork]),
+    );
+
+    expect(currentFixture.client.searchCalls, 0);
+  });
+
+  test('旧手动作品不参与自动规则迁移', () async {
+    final fixture = _Fixture();
+    final work = _work('manual-version');
+    await fixture.repository.upsert(
+      _workRecord(work, origin: TmdbMatchOrigin.manual, ruleVersion: 0),
+    );
+
+    await fixture.coordinator.loadAndSchedule(
+      _tree(<CloudWorkIdentity>[work]),
+    );
+
+    expect(fixture.client.searchCalls, 0);
   });
 
   test('修改刮削名称只同步目标作品根', () async {
@@ -316,6 +369,31 @@ CloudResourceTmdbRecord _legacyEpisode(
     ),
     checkedAt: DateTime.utc(2026, 7, 20),
     customTitle: '手动刮削名',
+  );
+}
+
+CloudWorkTmdbRecord _workRecord(
+  CloudWorkIdentity work, {
+  required TmdbMatchOrigin origin,
+  required int ruleVersion,
+}) {
+  return CloudWorkTmdbRecord.matched(
+    sourceId: work.sourceId,
+    workKey: work.workKey,
+    workRootId: work.root.id,
+    workRootPath: work.root.remotePath,
+    remoteName: work.remoteName,
+    metadata: TmdbMetadata(
+      id: 42,
+      mediaType: TmdbMediaType.tv,
+      title: work.displayTitle,
+      language: 'zh-CN',
+      matchedAt: DateTime.utc(2026, 7, 19),
+      matchConfidence: 1,
+    ),
+    checkedAt: DateTime.utc(2026, 7, 19),
+    tmdbMatchOrigin: origin,
+    tmdbRuleVersion: ruleVersion,
   );
 }
 

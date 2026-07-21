@@ -140,9 +140,10 @@ void main() {
     expect(mediaItems, greaterThan(observerBuilder));
     expect(page, contains('tmdbPosterUrlForPaths'));
     expect(page, contains('networkCoverUrl:'));
+    expect(page, contains('preferLocalCover: !group.needsOnlinePoster'));
     expect(grid, contains('GridView.builder'));
     expect(grid, contains('final url = item.networkCoverUrl'));
-    expect(grid, contains('LibraryMediaCoverFallback.buildNetwork'));
+    expect(grid, contains('LibraryMediaCoverFallback.build('));
   });
 
   test('字幕设置支持按视频调节出现时间', () {

@@ -1,14 +1,15 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:kanyingyin/pages/video/quark_relay_status_presenter.dart';
+import 'package:kanyingyin/pages/video/cloud_relay_status_presenter.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 
 void main() {
   test('预缓冲状态显示实时速度', () {
-    final presentation = QuarkRelayStatusPresenter.present(
-      const QuarkRelayStatus(
-        phase: QuarkRelayPhase.prefetching,
+    final presentation = CloudRelayStatusPresenter.present(
+      const CloudRangeRelayStatus(
+        providerName: '夸克',
+        phase: CloudRangeRelayPhase.prefetching,
         bytesPerSecond: 12.3 * 1024 * 1024,
       ),
     );
@@ -18,9 +19,10 @@ void main() {
   });
 
   test('速度低于媒体平均消耗时显示速度不足和缓存时长', () {
-    final presentation = QuarkRelayStatusPresenter.present(
-      const QuarkRelayStatus(
-        phase: QuarkRelayPhase.ready,
+    final presentation = CloudRelayStatusPresenter.present(
+      const CloudRangeRelayStatus(
+        providerName: '夸克',
+        phase: CloudRangeRelayPhase.ready,
         bytesPerSecond: 5 * 1024 * 1024,
         cachedBytes: 20 * 1024 * 1024,
       ),
@@ -35,9 +37,10 @@ void main() {
   });
 
   test('总时长未知时只显示速度且就绪状态可自动隐藏', () {
-    final presentation = QuarkRelayStatusPresenter.present(
-      const QuarkRelayStatus(
-        phase: QuarkRelayPhase.ready,
+    final presentation = CloudRelayStatusPresenter.present(
+      const CloudRangeRelayStatus(
+        providerName: '夸克',
+        phase: CloudRangeRelayPhase.ready,
         bytesPerSecond: 8 * 1024 * 1024,
       ),
     );
@@ -49,14 +52,20 @@ void main() {
 
   test('重连和失败状态使用明确文案', () {
     expect(
-      QuarkRelayStatusPresenter.present(
-        const QuarkRelayStatus(phase: QuarkRelayPhase.reconnecting),
+      CloudRelayStatusPresenter.present(
+        const CloudRangeRelayStatus(
+          providerName: '夸克',
+          phase: CloudRangeRelayPhase.reconnecting,
+        ),
       ).text,
       '夸克正在重新连接',
     );
     expect(
-      QuarkRelayStatusPresenter.present(
-        const QuarkRelayStatus(phase: QuarkRelayPhase.failed),
+      CloudRelayStatusPresenter.present(
+        const CloudRangeRelayStatus(
+          providerName: '夸克',
+          phase: CloudRangeRelayPhase.failed,
+        ),
       ).text,
       '夸克分段读取失败',
     );
@@ -65,7 +74,7 @@ void main() {
   test('播放器页面复用现有加载层并使用短暂状态提示', () {
     final page = File('lib/pages/video/video_page.dart').readAsStringSync();
     expect(page, contains('CircularProgressIndicator'));
-    expect(page, contains('QuarkRelayStatusPresenter.present'));
+    expect(page, contains('CloudRelayStatusPresenter.present'));
     expect(page, contains('AnimatedOpacity'));
     expect(page, contains('StyleString.fastAnimationDuration'));
     expect(page, isNot(contains('夸克永久状态栏')));

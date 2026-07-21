@@ -477,6 +477,56 @@ void main() {
       expect(await repository.getBySource('roots'), hasLength(2));
     });
 
+    test('百度重叠根目录按 fs_id 去重并匹配外部字幕', () async {
+      final repository =
+          CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());
+      const baiduSource = CloudSource(
+        id: 'baidu-a',
+        type: CloudSourceType.baidu,
+        name: '百度媒体库',
+        baseUrl: 'https://pan.baidu.com',
+        rootPaths: <String>['/剧集/回魂计', '/剧集/回魂计/第二季'],
+      );
+      const workPath = '/剧集/回魂计';
+      const seasonPath = '$workPath/第二季';
+      final client = _FakeCloudClient(<String, List<CloudFileEntry>>{
+        workPath: <CloudFileEntry>[
+          _dir('season-2', seasonPath),
+        ],
+        seasonPath: <CloudFileEntry>[
+          _file(
+            '1001',
+            '$seasonPath/回魂计.S02E01.2160p.mkv',
+            size: 200,
+          ),
+          _file(
+            '1002',
+            '$seasonPath/回魂计.S02E01.1080p.mkv',
+            size: 200,
+          ),
+          _file('1003', '$seasonPath/回魂计.S02E02.mkv', size: 200),
+          _file('2001', '$seasonPath/回魂计.S02E01.ass', size: 20),
+        ],
+      });
+
+      final result = await CloudMediaIndexer(
+        repository: repository,
+        minRecognizedVideoSizeBytesProvider: () => 100,
+      ).scan(source: baiduSource, client: client);
+      final items = await repository.getBySource(baiduSource.id);
+
+      expect(result.videoCount, 3);
+      expect(items, hasLength(3));
+      expect(items.map((item) => item.remoteId).toSet(),
+          <String>{'1001', '1002', '1003'});
+      expect(
+        items
+            .where((item) => item.episodeNumber == 1)
+            .every((item) => item.subtitleRefs.single.id == '2001'),
+        isTrue,
+      );
+    });
+
     test('视频目录变化时仍可匹配未变化字幕目录', () async {
       final repository =
           CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());

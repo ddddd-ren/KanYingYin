@@ -20,6 +20,15 @@ add_executable(${BINARY_NAME} WIN32
   "runner.exe.manifest"
 )
 
+add_executable(kanyingyin_external_player_tests EXCLUDE_FROM_ALL
+  "external_player_utils_test.cpp"
+  "external_player_utils.cpp"
+)
+apply_standard_settings(kanyingyin_external_player_tests)
+target_compile_options(kanyingyin_external_player_tests PRIVATE /utf-8)
+target_compile_definitions(kanyingyin_external_player_tests PRIVATE "NOMINMAX")
+target_link_libraries(kanyingyin_external_player_tests PRIVATE shell32.lib ole32.lib)
+
 # Apply the standard set of build settings. This can be removed for applications
 # that need different build settings.
 apply_standard_settings(${BINARY_NAME})
@@ -41,6 +50,7 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
 # dependencies here.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app)
 target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")
+target_link_libraries(${BINARY_NAME} PRIVATE shell32.lib ole32.lib)
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
 # Run the Flutter tool portions of the build. This must not be removed.

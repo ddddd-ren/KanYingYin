@@ -10,17 +10,24 @@ import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/local_media_source.dart';
 import 'package:kanyingyin/modules/local/poster_scrape.dart';
+import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/repositories/local_media_index_repository.dart';
 import 'package:kanyingyin/repositories/local_media_source_repository.dart';
+import 'package:kanyingyin/repositories/tmdb_metadata_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/local_media_indexer.dart';
 import 'package:kanyingyin/services/local_media_scanner.dart';
 import 'package:kanyingyin/services/local_media_probe.dart';
 import 'package:kanyingyin/services/local_poster_scraper.dart';
 import 'package:kanyingyin/services/local_thumbnail_cache.dart';
+import 'package:kanyingyin/services/tmdb/local_tmdb_scrape_service.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
 void main() {
   test('LocalController 使用偏好组件和元数据协调器', () async {
@@ -872,6 +879,255 @@ void main() {
     );
     expect(controller.indexedSeriesNameForPaths([r'D:\Other.mkv']), isNull);
   });
+
+  test('LocalController 为单季媒体生成电视剧草稿和季度提示', () async {
+    final repository = _MemoryMediaIndexRepository();
+    final item = LocalMediaIndexItem(
+      path: r'D:\Video\Show.S02E03.mkv',
+      name: 'Show.S02E03.mkv',
+      parentPath: r'D:\Video',
+      sourcePath: r'D:\Video',
+      size: 100,
+      modified: DateTime(2026),
+      seriesName: '神探夏洛克',
+      seasonNumber: 2,
+      episodeNumber: 3,
+      tmdb: TmdbMetadata(
+        id: 42,
+        mediaType: TmdbMediaType.tv,
+        title: '神探夏洛克',
+        releaseDate: '2012-01-01',
+        language: 'zh-CN',
+        matchedAt: DateTime(2026),
+        matchConfidence: 1,
+      ),
+      indexedAt: DateTime(2026),
+    );
+    await repository
+        .saveForSource(item.sourcePath, <LocalMediaIndexItem>[item]);
+    final controller = LocalController(
+      scanner: _ImmediateScanner(const []),
+      mediaIndexRepository: repository,
+      mediaSourceRepository: _MemoryMediaSourceRepository(),
+      preferences: _preferences(),
+    );
+    await controller.init();
+
+    final draft = controller.localTmdbDraftForPaths(
+      originalName: '神探夏洛克 S02',
+      paths: <String>[item.path],
+    );
+
+    expect(draft.searchTitle, '神探夏洛克');
+    expect(draft.mediaTypeMode, TmdbMediaTypeMode.tv);
+    expect(draft.year, 2012);
+    expect(draft.seasonNumber, 2);
+    expect(draft.episodeNumber, 3);
+  });
+
+  test('LocalController 为跨季媒体隐藏单一季度和集数提示', () async {
+    final repository = _MemoryMediaIndexRepository();
+    final items = <LocalMediaIndexItem>[
+      LocalMediaIndexItem(
+        path: r'D:\Video\Show.S01E01.mkv',
+        name: 'Show.S01E01.mkv',
+        parentPath: r'D:\Video',
+        sourcePath: r'D:\Video',
+        size: 100,
+        modified: DateTime(2026),
+        seriesName: '连续剧',
+        seasonNumber: 1,
+        episodeNumber: 1,
+        indexedAt: DateTime(2026),
+      ),
+      LocalMediaIndexItem(
+        path: r'D:\Video\Show.S02E01.mkv',
+        name: 'Show.S02E01.mkv',
+        parentPath: r'D:\Video',
+        sourcePath: r'D:\Video',
+        size: 100,
+        modified: DateTime(2026),
+        seriesName: '连续剧',
+        seasonNumber: 2,
+        episodeNumber: 1,
+        indexedAt: DateTime(2026),
+      ),
+    ];
+    await repository.saveForSource(r'D:\Video', items);
+    final controller = LocalController(
+      scanner: _ImmediateScanner(const []),
+      mediaIndexRepository: repository,
+      mediaSourceRepository: _MemoryMediaSourceRepository(),
+      preferences: _preferences(),
+    );
+    await controller.init();
+
+    final draft = controller.localTmdbDraftForPaths(
+      originalName: '连续剧',
+      paths: items.map((item) => item.path),
+    );
+
+    expect(draft.mediaTypeMode, TmdbMediaTypeMode.tv);
+    expect(draft.seasonNumber, isNull);
+    expect(draft.episodeNumber, 1);
+  });
+
+  test('LocalController 为电影草稿使用自动类型且不显示季集提示', () async {
+    final repository = _MemoryMediaIndexRepository();
+    final item = LocalMediaIndexItem(
+      path: r'D:\Video\Movie.mkv',
+      name: 'Movie.mkv',
+      parentPath: r'D:\Video',
+      sourcePath: r'D:\Video',
+      size: 100,
+      modified: DateTime(2026),
+      seriesName: '流浪地球',
+      tmdb: TmdbMetadata(
+        id: 1,
+        mediaType: TmdbMediaType.movie,
+        title: '流浪地球',
+        releaseDate: '2019-02-05',
+        language: 'zh-CN',
+        matchedAt: DateTime(2026),
+        matchConfidence: 1,
+      ),
+      indexedAt: DateTime(2026),
+    );
+    await repository
+        .saveForSource(item.sourcePath, <LocalMediaIndexItem>[item]);
+    final controller = LocalController(
+      scanner: _ImmediateScanner(const []),
+      mediaIndexRepository: repository,
+      mediaSourceRepository: _MemoryMediaSourceRepository(),
+      preferences: _preferences(),
+    );
+    await controller.init();
+
+    final draft = controller.localTmdbDraftForPaths(
+      originalName: '流浪地球',
+      paths: <String>[item.path],
+    );
+
+    expect(draft.mediaTypeMode, TmdbMediaTypeMode.auto);
+    expect(draft.year, 2019);
+    expect(draft.seasonNumber, isNull);
+    expect(draft.episodeNumber, isNull);
+  });
+
+  test('LocalController 将本地准备搜索转发给只读 TMDB 服务', () async {
+    final repository = _MemoryMediaIndexRepository();
+    final item = LocalMediaIndexItem(
+      path: r'D:\Video\Movie.mkv',
+      name: 'Movie.mkv',
+      parentPath: r'D:\Video',
+      sourcePath: r'D:\Video',
+      size: 100,
+      modified: DateTime(2026),
+      seriesName: '流浪地球',
+      indexedAt: DateTime(2026),
+    );
+    await repository
+        .saveForSource(item.sourcePath, <LocalMediaIndexItem>[item]);
+    final client = _RecordingTmdbClient();
+    final controller = LocalController(
+      scanner: _ImmediateScanner(const []),
+      mediaIndexRepository: repository,
+      mediaSourceRepository: _MemoryMediaSourceRepository(),
+      preferences: _preferences(),
+      tmdbApiKeyProvider: TmdbApiKeyProvider(
+        userKeyReader: () => 'configured-key',
+      ),
+      tmdbScrapeService: LocalTmdbScrapeService(
+        indexRepository: repository,
+        metadataRepository: _MemoryTmdbMetadataRepository(),
+        clientFactory: (_) => client,
+      ),
+    );
+
+    final outcome = await controller.searchLocalTmdb(
+      '流浪地球',
+      const TmdbPreparedSearchRequest(
+        queryTitle: 'The Wandering Earth',
+        queryYear: 2019,
+        mediaTypeMode: TmdbMediaTypeMode.movie,
+        options: TmdbScrapeOptions.defaults(),
+      ),
+    );
+
+    expect(outcome.ranked.candidates, hasLength(1));
+    expect(client.lastQuery, 'The Wandering Earth');
+    expect(client.lastMediaType, TmdbMediaType.movie);
+  });
+
+  test('LocalController 为不同季度选择对应季度海报并回退作品总海报', () {
+    final metadata = TmdbMetadata(
+      id: 42,
+      mediaType: TmdbMediaType.tv,
+      title: '测试剧集',
+      posterUrl: '/show.jpg',
+      language: 'zh-CN',
+      matchedAt: DateTime(2026),
+      matchConfidence: 1,
+      seasons: const <TmdbSeasonMetadata>[
+        TmdbSeasonMetadata(
+          id: 101,
+          seasonNumber: 1,
+          name: '第 1 季',
+          episodeCount: 10,
+          posterUrl: '/season-1.jpg',
+        ),
+        TmdbSeasonMetadata(
+          id: 102,
+          seasonNumber: 2,
+          name: '第 2 季',
+          episodeCount: 10,
+          posterUrl: '/season-2.jpg',
+        ),
+      ],
+    );
+    LocalMediaIndexItem seasonItem(String path, int seasonNumber) {
+      return LocalMediaIndexItem(
+        path: path,
+        name: path.split(r'\').last,
+        parentPath: r'D:\Video',
+        sourcePath: r'D:\Video',
+        size: 100,
+        modified: DateTime(2026),
+        seriesName: '测试剧集',
+        seasonNumber: seasonNumber,
+        tmdb: metadata,
+        indexedAt: DateTime(2026),
+      );
+    }
+
+    final season1 = seasonItem(r'D:\Video\S01E01.mkv', 1);
+    final season2 = seasonItem(r'D:\Video\S02E01.mkv', 2);
+    final season3 = seasonItem(r'D:\Video\S03E01.mkv', 3);
+    final controller = LocalController(
+      scanner: _ImmediateScanner(const []),
+      mediaIndexRepository: _MemoryMediaIndexRepository(),
+      mediaSourceRepository: _MemoryMediaSourceRepository(),
+      preferences: _preferences(),
+    );
+    controller.localLibraryItems.addAll(<LocalMediaIndexItem>[
+      season1,
+      season2,
+      season3,
+    ]);
+
+    expect(
+      controller.tmdbPosterUrlForPaths(<String>[season1.path]),
+      'https://image.tmdb.org/t/p/w780/season-1.jpg',
+    );
+    expect(
+      controller.tmdbPosterUrlForPaths(<String>[season2.path]),
+      'https://image.tmdb.org/t/p/w780/season-2.jpg',
+    );
+    expect(
+      controller.tmdbPosterUrlForPaths(<String>[season3.path]),
+      'https://image.tmdb.org/t/p/w780/show.jpg',
+    );
+  });
 }
 
 LocalFileItem _item({required String path}) {
@@ -1497,4 +1753,50 @@ class _DelayedUpdateMediaIndexRepository extends _MemoryMediaIndexRepository {
   }
 
   void completeUpdate() => _allowUpdate.complete();
+}
+
+class _RecordingTmdbClient implements ITmdbClient {
+  String? lastQuery;
+  TmdbMediaType? lastMediaType;
+
+  @override
+  Future<List<TmdbMetadata>> search(
+    String query,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) async {
+    lastQuery = query;
+    lastMediaType = mediaType;
+    return <TmdbMetadata>[
+      TmdbMetadata(
+        id: 1,
+        mediaType: mediaType,
+        title: '流浪地球',
+        releaseDate: '2019-02-05',
+        language: language,
+        matchedAt: DateTime(2026),
+        matchConfidence: 1,
+      ),
+    ];
+  }
+
+  @override
+  Future<TmdbMetadata> details(
+    int id,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) {
+    throw UnimplementedError();
+  }
+}
+
+class _MemoryTmdbMetadataRepository implements ITmdbMetadataRepository {
+  @override
+  TmdbMetadata? get(String mediaKey) => null;
+
+  @override
+  Future<void> remove(String mediaKey) async {}
+
+  @override
+  Future<void> save(String mediaKey, TmdbMetadata metadata) async {}
 }

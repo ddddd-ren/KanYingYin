@@ -41,6 +41,20 @@ void main() {
     expect(data.badges.map((badge) => badge.label), <String>['已刮削']);
   });
 
+  test('规则冲突目录保留旧海报和标题并提示需要确认', () {
+    final data = CloudResourceCardViewData.fromEntry(
+      entry: directory,
+      record: _matchedRecord().asConflict(DateTime.utc(2026, 7, 20)),
+      scraping: false,
+      hasSubtitle: false,
+    );
+
+    expect(data.kind, CloudResourceCardKind.media);
+    expect(data.title, 'TMDB 中文片名');
+    expect(data.posterCachePath, r'C:\cache\poster.jpg');
+    expect(data.badges.single.label, '需要确认');
+  });
+
   test('季度卡优先使用季度海报和季度名称', () {
     final workRecord = CloudWorkTmdbRecord.matched(
       sourceId: 'source',

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +7,38 @@ import 'package:kanyingyin/utils/rotating_log_writer.dart';
 import 'package:logger/logger.dart';
 
 void main() {
+  test('控制台与文件使用相同脱敏日志', () async {
+    final tempDir = await Directory.systemTemp.createTemp('logger_console_');
+    addTearDown(() => tempDir.delete(recursive: true));
+    final writer = RotatingLogWriter(
+      directoryProvider: () async => tempDir,
+      maxBytes: 1024 * 1024,
+    );
+    final output = AppLogOutput(writer: writer);
+    final printed = <String>[];
+
+    runZoned(
+      () => output.output(OutputEvent(
+        LogEvent(Level.info, 'ignored'),
+        const <String>[
+          '\x1B[32mGET https://drive.example.com/private/a.mkv?token=secret\x1B[0m',
+        ],
+      )),
+      zoneSpecification: ZoneSpecification(
+        print: (_, __, ___, line) => printed.add(line),
+      ),
+    );
+    await output.flush();
+
+    expect(printed.single, 'GET https://drive.example.com');
+    final file = File(
+      '${tempDir.path}${Platform.pathSeparator}${RotatingLogWriter.activeFileName}',
+    );
+    final content = await file.readAsString();
+    expect(content, contains(printed.single));
+    expect(content, isNot(contains('secret')));
+  });
+
   test('所有日志等级默认写入脱敏文件管线', () async {
     final tempDir = await Directory.systemTemp.createTemp('logger_pipeline_');
     addTearDown(() => tempDir.delete(recursive: true));

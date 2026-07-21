@@ -11,6 +11,7 @@ import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_poster_cache.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_tmdb_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
 void main() {
   test('一个作品只请求一次详情并缓存实际三季海报', () async {
@@ -74,6 +75,8 @@ void main() {
       <int>[1, 2, 3],
     );
     expect(outcome.record.seasons.last.posterCachePath, 'cache-4.jpg');
+    expect(outcome.record.tmdbMatchOrigin, TmdbMatchOrigin.manual);
+    expect(outcome.record.tmdbRuleVersion, currentTmdbRuleVersion);
     expect(outcome.updatedIndexItems, 3);
     expect(await workRepository.get(work.workKey), outcome.record);
     final indexed = await indexRepository.getBySource(work.sourceId);
@@ -185,6 +188,30 @@ void main() {
     expect(outcome.record.seasons[1].posterUrl, '/season-2.jpg');
     expect(outcome.record.seasons[2].posterCachePath, isNotNull);
     expect(outcome.record.status, CloudWorkTmdbStatus.matched);
+  });
+
+  test('作品自动匹配记录统一规则来源和版本', () async {
+    final work = _work();
+    final repository = CloudWorkTmdbRepository(
+      storage: MemoryCloudWorkTmdbStorage(),
+    );
+    final service = CloudWorkTmdbService(
+      repository: repository,
+      indexRepository: CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      ),
+      client: _FakeTmdbClient(
+        detail: _details(),
+        searches: <String, List<TmdbMetadata>>{
+          '规范剧名': <TmdbMetadata>[_candidate('规范剧名')],
+        },
+      ),
+    );
+
+    final outcome = await service.match(work);
+
+    expect(outcome.selected?.tmdbMatchOrigin, TmdbMatchOrigin.automatic);
+    expect(outcome.selected?.tmdbRuleVersion, currentTmdbRuleVersion);
   });
 }
 

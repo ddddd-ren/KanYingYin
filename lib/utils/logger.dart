@@ -113,20 +113,23 @@ class AppLogOutput extends LogOutput {
 
   @override
   void output(OutputEvent event) {
-    for (var line in event.lines) {
+    final sanitizedLines = event.lines
+        .map((line) => _sanitizer.sanitize(_removeAnsiCodes(line)))
+        .toList(growable: false);
+    for (final line in sanitizedLines) {
       print(line);
     }
 
-    _writeToFile(event);
+    _writeToFile(event.level, sanitizedLines);
   }
 
-  void _writeToFile(OutputEvent event) {
+  void _writeToFile(Level level, List<String> lines) {
     final buffer = StringBuffer()
       ..writeln(
-        '[${DateTime.now().toIso8601String()}] ${event.level.name.toUpperCase()}',
+        '[${DateTime.now().toIso8601String()}] ${level.name.toUpperCase()}',
       );
-    for (final line in event.lines) {
-      buffer.writeln(_sanitizer.sanitize(_removeAnsiCodes(line)));
+    for (final line in lines) {
+      buffer.writeln(line);
     }
     unawaited(_writer.write(buffer.toString().trimRight()));
   }

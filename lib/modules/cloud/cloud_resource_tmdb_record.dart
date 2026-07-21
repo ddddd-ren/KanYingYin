@@ -1,8 +1,9 @@
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
 enum CloudResourceKind { directory, standaloneVideo }
 
-enum CloudResourceTmdbStatus { unchecked, matched, unmatched, failed }
+enum CloudResourceTmdbStatus { unchecked, matched, unmatched, failed, conflict }
 
 String cloudResourceTmdbKey({
   required String sourceId,
@@ -43,6 +44,8 @@ class CloudResourceTmdbRecord {
     this.posterCachePath,
     this.customTitle,
     this.seasons = const <TmdbSeasonMetadata>[],
+    this.tmdbMatchOrigin = TmdbMatchOrigin.legacyUnknown,
+    this.tmdbRuleVersion = 0,
   });
 
   factory CloudResourceTmdbRecord.matched({
@@ -55,6 +58,8 @@ class CloudResourceTmdbRecord {
     required DateTime checkedAt,
     String? posterCachePath,
     String? customTitle,
+    TmdbMatchOrigin tmdbMatchOrigin = TmdbMatchOrigin.legacyUnknown,
+    int tmdbRuleVersion = 0,
   }) {
     return CloudResourceTmdbRecord(
       sourceId: sourceId,
@@ -76,6 +81,8 @@ class CloudResourceTmdbRecord {
       posterCachePath: posterCachePath,
       customTitle: customTitle,
       seasons: metadata.seasons,
+      tmdbMatchOrigin: tmdbMatchOrigin,
+      tmdbRuleVersion: tmdbRuleVersion,
     );
   }
 
@@ -179,6 +186,12 @@ class CloudResourceTmdbRecord {
       backdropUrl: _asString(json['backdropUrl']),
       posterCachePath: _asString(json['posterCachePath']),
       customTitle: _asString(json['customTitle']),
+      tmdbMatchOrigin: _enumValue(
+        TmdbMatchOrigin.values,
+        json['tmdbMatchOrigin'],
+        TmdbMatchOrigin.legacyUnknown,
+      ),
+      tmdbRuleVersion: _asInt(json['tmdbRuleVersion']),
       seasons: json['seasons'] is List
           ? (json['seasons'] as List)
               .whereType<Map<Object?, Object?>>()
@@ -211,6 +224,8 @@ class CloudResourceTmdbRecord {
   final String? posterCachePath;
   final String? customTitle;
   final List<TmdbSeasonMetadata> seasons;
+  final TmdbMatchOrigin tmdbMatchOrigin;
+  final int tmdbRuleVersion;
 
   String get stableKey => cloudResourceTmdbKey(
         sourceId: sourceId,
@@ -245,6 +260,32 @@ class CloudResourceTmdbRecord {
     );
   }
 
+  CloudResourceTmdbRecord asConflict(DateTime checkedAt) {
+    return CloudResourceTmdbRecord(
+      sourceId: sourceId,
+      remoteId: remoteId,
+      remotePath: remotePath,
+      displayName: displayName,
+      resourceKind: resourceKind,
+      status: CloudResourceTmdbStatus.conflict,
+      checkedAt: checkedAt,
+      tmdbId: tmdbId,
+      mediaType: mediaType,
+      title: title,
+      originalTitle: originalTitle,
+      overview: overview,
+      rating: rating,
+      releaseDate: releaseDate,
+      posterUrl: posterUrl,
+      backdropUrl: backdropUrl,
+      posterCachePath: posterCachePath,
+      customTitle: customTitle,
+      seasons: seasons,
+      tmdbMatchOrigin: tmdbMatchOrigin,
+      tmdbRuleVersion: tmdbRuleVersion,
+    );
+  }
+
   Map<String, Object?> toJson() {
     return <String, Object?>{
       'sourceId': sourceId,
@@ -265,6 +306,9 @@ class CloudResourceTmdbRecord {
       if (backdropUrl != null) 'backdropUrl': backdropUrl,
       if (posterCachePath != null) 'posterCachePath': posterCachePath,
       if (customTitle != null) 'customTitle': customTitle,
+      if (tmdbMatchOrigin != TmdbMatchOrigin.legacyUnknown)
+        'tmdbMatchOrigin': tmdbMatchOrigin.name,
+      if (tmdbRuleVersion > 0) 'tmdbRuleVersion': tmdbRuleVersion,
       if (seasons.isNotEmpty)
         'seasons': seasons.map((item) => item.toJson()).toList(growable: false),
     };
@@ -292,11 +336,13 @@ class CloudResourceTmdbRecord {
             backdropUrl == other.backdropUrl &&
             posterCachePath == other.posterCachePath &&
             customTitle == other.customTitle &&
+            tmdbMatchOrigin == other.tmdbMatchOrigin &&
+            tmdbRuleVersion == other.tmdbRuleVersion &&
             _seasonListsEqual(seasons, other.seasons);
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll(<Object?>[
         sourceId,
         remoteId,
         remotePath,
@@ -315,8 +361,10 @@ class CloudResourceTmdbRecord {
         backdropUrl,
         posterCachePath,
         customTitle,
+        tmdbMatchOrigin,
+        tmdbRuleVersion,
         Object.hashAll(seasons),
-      );
+      ]);
 
   CloudResourceTmdbRecord _copyWithCustomTitle(String? value) {
     return CloudResourceTmdbRecord(
@@ -339,6 +387,8 @@ class CloudResourceTmdbRecord {
       posterCachePath: posterCachePath,
       customTitle: value,
       seasons: seasons,
+      tmdbMatchOrigin: tmdbMatchOrigin,
+      tmdbRuleVersion: tmdbRuleVersion,
     );
   }
 }

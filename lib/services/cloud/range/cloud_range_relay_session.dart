@@ -4,27 +4,30 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
-import 'package:kanyingyin/services/cloud/quark/quark_range_chunk_cache.dart';
-import 'package:kanyingyin/services/cloud/quark/quark_range_relay_protocol.dart';
-import 'package:kanyingyin/services/cloud/quark/quark_range_remote_reader.dart';
+import 'package:kanyingyin/services/cloud/range/cloud_range_chunk_cache.dart';
+import 'package:kanyingyin/services/cloud/range/cloud_range_relay_protocol.dart';
+import 'package:kanyingyin/services/cloud/range/cloud_range_remote_reader.dart';
 
-class QuarkRangeRelaySession implements CloudPlaybackLease {
-  QuarkRangeRelaySession._({
-    required QuarkRangeRemoteReader reader,
+class CloudRangeRelaySession implements CloudPlaybackLease {
+  CloudRangeRelaySession._({
+    required CloudRangeRemoteReader reader,
     required this.directory,
+    required this.providerName,
     required this.chunkSize,
     required this.maxChunks,
   }) : _reader = reader;
 
-  static Future<QuarkRangeRelaySession> start({
-    required QuarkRangeRemoteReader reader,
+  static Future<CloudRangeRelaySession> start({
+    required CloudRangeRemoteReader reader,
     required Directory directory,
+    required String providerName,
     int chunkSize = 16 * 1024 * 1024,
     int maxChunks = 16,
   }) async {
-    final session = QuarkRangeRelaySession._(
+    final session = CloudRangeRelaySession._(
       reader: reader,
       directory: directory,
+      providerName: providerName,
       chunkSize: chunkSize,
       maxChunks: maxChunks,
     );
@@ -37,22 +40,28 @@ class QuarkRangeRelaySession implements CloudPlaybackLease {
     }
   }
 
-  final QuarkRangeRemoteReader _reader;
+  final CloudRangeRemoteReader _reader;
   final Directory directory;
+  final String providerName;
   final int chunkSize;
   final int maxChunks;
   final _ReadScheduler _scheduler = _ReadScheduler(maxConcurrent: 2);
-  final StreamController<QuarkRelayStatus> _statuses =
-      StreamController<QuarkRelayStatus>.broadcast(sync: true);
+  final StreamController<CloudRangeRelayStatus> _statuses =
+      StreamController<CloudRangeRelayStatus>.broadcast(sync: true);
   final Queue<_TransferSample> _transferSamples = Queue<_TransferSample>();
   final Set<Future<void>> _prefetchTasks = <Future<void>>{};
   final Set<Future<void>> _requestTasks = <Future<void>>{};
 
-  QuarkRangeChunkCache? _cache;
+  CloudRangeChunkCache? _cache;
   HttpServer? _server;
-  StreamSubscription<QuarkRemoteReaderEvent>? _readerEvents;
+  StreamSubscription<CloudRangeReaderEvent>? _readerEvents;
   late Uri _uri;
-  var _status = const QuarkRelayStatus(phase: QuarkRelayPhase.connecting);
+  late var _status = CloudRangeRelayStatus(
+    providerName: providerName,
+    phase: CloudRangeRelayPhase.connecting,
+  );
+  late int _totalLength;
+  var _supportsRanges = false;
   var _receivedBytes = 0;
   var _prefetchGeneration = 0;
   int? _lastForegroundChunk;
@@ -60,33 +69,37 @@ class QuarkRangeRelaySession implements CloudPlaybackLease {
   Future<void>? _closeFuture;
 
   Uri get uri => _uri;
-  int get totalLength => _cache!.totalLength;
+  int get totalLength => _totalLength;
   String get contentType => _reader.contentType;
 
   @override
-  QuarkRelayStatus get currentStatus => _status;
+  CloudRangeRelayStatus get currentStatus => _status;
 
   @override
-  Stream<QuarkRelayStatus> get statuses => _statuses.stream;
+  Stream<CloudRangeRelayStatus> get statuses => _statuses.stream;
 
   Future<void> _start() async {
     _readerEvents = _reader.events.listen((event) {
-      if (event == QuarkRemoteReaderEvent.reconnecting ||
-          event == QuarkRemoteReaderEvent.refreshing) {
+      if (event == CloudRangeReaderEvent.reconnecting ||
+          event == CloudRangeReaderEvent.refreshing) {
         _publish(
-          phase: QuarkRelayPhase.reconnecting,
-          message: '夸克正在重新连接',
+          phase: CloudRangeRelayPhase.reconnecting,
+          message: '$providerName正在重新连接',
         );
       }
     });
     final metadata = await _reader.probe();
     if (_closed) throw StateError('中转会话已关闭');
-    _cache = QuarkRangeChunkCache(
-      directory: directory,
-      totalLength: metadata.totalLength,
-      chunkSize: chunkSize,
-      maxChunks: maxChunks,
-    );
+    _totalLength = metadata.totalLength;
+    _supportsRanges = metadata.supportsRanges;
+    if (_supportsRanges) {
+      _cache = CloudRangeChunkCache(
+        directory: directory,
+        totalLength: metadata.totalLength,
+        chunkSize: chunkSize,
+        maxChunks: maxChunks,
+      );
+    }
     final server = await HttpServer.bind(
       InternetAddress.loopbackIPv4,
       0,
@@ -107,14 +120,22 @@ class QuarkRangeRelaySession implements CloudPlaybackLease {
       });
       _requestTasks.add(task);
     });
-    _publish(
-      phase: QuarkRelayPhase.prefetching,
-      message: '夸克预缓冲中',
-    );
-    _launchPrefetch(0, _prefetchGeneration);
-    if (metadata.totalLength > chunkSize) {
-      final tailOffset = ((metadata.totalLength - 1) ~/ chunkSize) * chunkSize;
-      _launchPrefetch(tailOffset, _prefetchGeneration);
+    if (_supportsRanges) {
+      _publish(
+        phase: CloudRangeRelayPhase.prefetching,
+        message: '$providerName预缓冲中',
+      );
+      _launchPrefetch(0, _prefetchGeneration);
+      if (metadata.totalLength > chunkSize) {
+        final tailOffset =
+            ((metadata.totalLength - 1) ~/ chunkSize) * chunkSize;
+        _launchPrefetch(tailOffset, _prefetchGeneration);
+      }
+    } else {
+      _publish(
+        phase: CloudRangeRelayPhase.ready,
+        message: '$providerName仅支持顺序播放，拖动不可用',
+      );
     }
   }
 
@@ -148,6 +169,34 @@ class QuarkRangeRelaySession implements CloudPlaybackLease {
       }
 
       final rangeHeader = request.headers.value(HttpHeaders.rangeHeader);
+      if (!_supportsRanges) {
+        if (rangeHeader != null) {
+          try {
+            final requested = parseSingleHttpRange(rangeHeader, totalLength);
+            if (requested.start != 0 ||
+                requested.endInclusive != totalLength - 1) {
+              throw RangeNotSatisfiable(totalLength);
+            }
+          } on RangeNotSatisfiable catch (error) {
+            response.headers.set(
+              HttpHeaders.contentRangeHeader,
+              error.contentRange,
+            );
+            await _emptyResponse(
+              response,
+              HttpStatus.requestedRangeNotSatisfiable,
+            );
+            return;
+          }
+        }
+        response
+          ..statusCode = HttpStatus.ok
+          ..contentLength = totalLength;
+        await _reader.streamAll(response);
+        await response.close();
+        _publish(phase: CloudRangeRelayPhase.ready);
+        return;
+      }
       late final ByteRange range;
       if (rangeHeader == null) {
         range = ByteRange(0, totalLength - 1);
@@ -177,13 +226,13 @@ class QuarkRangeRelaySession implements CloudPlaybackLease {
       await _serveRange(response, range);
       await response.close();
     } on Object catch (error) {
-      if (error is QuarkRemoteProtocolException ||
-          error is QuarkRemoteAuthenticationException ||
-          error is QuarkRemoteTransportException ||
-          error is QuarkChunkLoadException) {
+      if (error is CloudRangeRemoteProtocolException ||
+          error is CloudRangeRemoteAuthenticationException ||
+          error is CloudRangeRemoteTransportException ||
+          error is CloudChunkLoadException) {
         _publish(
-          phase: QuarkRelayPhase.failed,
-          message: '夸克分段读取失败',
+          phase: CloudRangeRelayPhase.failed,
+          message: '$providerName分段读取失败',
         );
       }
       try {
@@ -212,8 +261,10 @@ class QuarkRangeRelaySession implements CloudPlaybackLease {
   }
 
   void _setCommonHeaders(HttpResponse response) {
+    if (_supportsRanges) {
+      response.headers.set(HttpHeaders.acceptRangesHeader, 'bytes');
+    }
     response.headers
-      ..set(HttpHeaders.acceptRangesHeader, 'bytes')
       ..set(HttpHeaders.contentTypeHeader, contentType)
       ..set(HttpHeaders.cacheControlHeader, 'no-store');
   }
@@ -258,7 +309,7 @@ class QuarkRangeRelaySession implements CloudPlaybackLease {
     return _prefetchGeneration;
   }
 
-  Future<QuarkRangeChunkHandle> _acquireChunk(
+  Future<CloudRangeChunkHandle> _acquireChunk(
     int offset, {
     required _ReadPriority priority,
   }) async {
@@ -271,7 +322,7 @@ class QuarkRangeRelaySession implements CloudPlaybackLease {
         _recordTransfer(range.length, stopwatch.elapsed);
       });
     });
-    _publish(phase: QuarkRelayPhase.ready);
+    _publish(phase: CloudRangeRelayPhase.ready);
     return handle;
   }
 
@@ -323,11 +374,12 @@ class QuarkRangeRelaySession implements CloudPlaybackLease {
   }
 
   void _publish({
-    required QuarkRelayPhase phase,
+    required CloudRangeRelayPhase phase,
     String? message,
   }) {
     if (_closed || _statuses.isClosed) return;
-    final status = QuarkRelayStatus(
+    final status = CloudRangeRelayStatus(
+      providerName: providerName,
       phase: phase,
       bytesPerSecond: _bytesPerSecond,
       receivedBytes: _receivedBytes,

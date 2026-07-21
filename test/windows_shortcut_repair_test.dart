@@ -27,29 +27,32 @@ void main() {
     expect(source, isNot(contains(r'\x5728\x7EBF')));
   });
 
-  test('启动时只自动修复已有快捷方式', () {
+  test('启动页通过组合状态协调修复和询问', () {
     final shortcutSource =
         File('lib/utils/windows_shortcut.dart').readAsStringSync();
     final initSource = File('lib/pages/init_page.dart').readAsStringSync();
 
-    expect(shortcutSource,
-        contains("invokeMethod<bool>('desktopShortcutExists')"));
     expect(
-        initSource, contains('await WindowsShortcut.desktopShortcutExists()'));
-    expect(initSource, contains('if (shortcutExists)'));
+      shortcutSource,
+      contains("invokeMethod<int>('inspectShortcutEntries')"),
+    );
+    expect(
+      initSource,
+      contains('await WindowsShortcut.inspectShortcutEntries()'),
+    );
+    expect(initSource, contains('WindowsShortcutStartupCoordinator'));
 
     final methodStart = initSource.indexOf('Future<void> _showShortcutDialog');
     final methodEnd = initSource.indexOf('void _showVersionChangelog');
     final methodSource = initSource.substring(methodStart, methodEnd);
     expect(
-      methodSource.indexOf('desktopShortcutExists'),
+      methodSource.indexOf('inspectShortcutEntries'),
       lessThan(methodSource.indexOf('shortcutDialogShown')),
     );
     expect(
       methodSource,
-      contains('if (shortcutExists) {\n'
-          '      await WindowsShortcut.createDesktopShortcut();\n'
-          '      return;'),
+      contains('repairOrCreate: WindowsShortcut.createDesktopShortcut'),
     );
+    expect(methodSource, contains('将在下次启动时重试'));
   });
 }

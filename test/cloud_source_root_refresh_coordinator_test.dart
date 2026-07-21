@@ -14,12 +14,12 @@ void main() {
       },
     );
 
-    await coordinator.refreshSource('source-a');
+    await coordinator.refreshSource('baidu-a');
 
     expect(calls, <String>[
       'local',
       'cloud',
-      'scan:source-a',
+      'scan:baidu-a',
       'local',
       'cloud',
     ]);

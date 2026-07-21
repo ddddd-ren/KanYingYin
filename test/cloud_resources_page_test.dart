@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -287,6 +288,27 @@ CloudResourceMediaGroup _conflictMediaGroup() {
 }
 
 void main() {
+  test('网盘播放失败诊断不包含异常中的远程地址', () {
+    const source = CloudSource(
+      id: 'baidu-source',
+      type: CloudSourceType.baidu,
+      name: '百度网盘',
+      baseUrl: 'https://pan.baidu.com',
+      rootPaths: <String>['/'],
+    );
+
+    final message = cloudPlaybackFailureDiagnostic(
+      source,
+      StateError('https://d.pcs.baidu.com/file?access_token=secret'),
+    );
+
+    expect(message, contains('provider=baidu'));
+    expect(message, contains('sourceId=baidu-source'));
+    expect(message, contains('errorType=StateError'));
+    expect(message, isNot(contains('d.pcs.baidu.com')));
+    expect(message, isNot(contains('secret')));
+  });
+
   testWidgets('季度海报墙和选集只显示当前季度虚拟名称', (tester) async {
     final group = _seasonMediaGroup();
     await tester.pumpWidget(
@@ -966,8 +988,20 @@ void main() {
       tester
           .widget<ImmersiveMediaCard>(find.byType(ImmersiveMediaCard))
           .overlayMode,
-      ImmersiveMediaCardOverlayMode.always,
+      ImmersiveMediaCardOverlayMode.hover,
     );
+    final cardOpacity = find.descendant(
+      of: find.byType(ImmersiveMediaCard),
+      matching: find.byType(AnimatedOpacity),
+    );
+    expect(tester.widget<AnimatedOpacity>(cardOpacity).opacity, 0);
+    expect(find.byTooltip('资源操作'), findsOneWidget);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(find.byType(ImmersiveMediaCard)));
+    await tester.pump(const Duration(milliseconds: 160));
+    expect(tester.widget<AnimatedOpacity>(cardOpacity).opacity, 1);
     expect(find.text('中文片名'), findsOneWidget);
     expect(find.textContaining('8.7 ★'), findsOneWidget);
     expect(find.textContaining('2025'), findsOneWidget);
@@ -1223,7 +1257,7 @@ void main() {
     await tester.tap(find.text('重新匹配'));
     await tester.pumpAndSettle();
     expect(
-      find.byKey(const ValueKey<String>('cloud-tmdb-match-dialog')),
+      find.byKey(const ValueKey<String>('tmdb-match-dialog')),
       findsOneWidget,
     );
     expect(find.text('动漫'), findsWidgets);
@@ -1293,7 +1327,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.byKey(const ValueKey<String>('cloud-tmdb-match-dialog')),
+      find.byKey(const ValueKey<String>('tmdb-match-dialog')),
       findsNothing,
     );
     expect(

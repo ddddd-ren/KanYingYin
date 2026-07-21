@@ -7,6 +7,10 @@ import 'package:kanyingyin/features/library/presentation/immersive_media_card.da
 typedef LibraryMediaAction = FutureOr<void> Function(
   LibraryMediaItemViewData item,
 );
+typedef LibraryMediaTrailingBuilder = Widget Function(
+  BuildContext context,
+  LibraryMediaItemViewData item,
+);
 
 class LibraryMediaItemViewData {
   const LibraryMediaItemViewData({
@@ -22,6 +26,7 @@ class LibraryMediaItemViewData {
     this.localCoverPath,
     this.networkCoverUrl,
     this.isScraping = false,
+    this.preferLocalCover = false,
     this.heroTag,
     this.networkCoverProvider,
     this.localCoverProvider,
@@ -39,6 +44,7 @@ class LibraryMediaItemViewData {
   final String? localCoverPath;
   final String? networkCoverUrl;
   final bool isScraping;
+  final bool preferLocalCover;
   final Object? heroTag;
   final ImageProvider<Object>? networkCoverProvider;
   final ImageProvider<Object>? localCoverProvider;
@@ -62,6 +68,24 @@ class LibraryMediaGridViewData {
 
 class LibraryMediaCoverFallback {
   const LibraryMediaCoverFallback._();
+
+  static Widget build(
+    LibraryMediaItemViewData item, {
+    required WidgetBuilder placeholderBuilder,
+  }) {
+    Widget local(BuildContext context) => buildLocal(
+          item,
+          placeholderBuilder: placeholderBuilder,
+        );
+    Widget network(BuildContext context) => buildNetwork(
+          item,
+          localBuilder: placeholderBuilder,
+        );
+    if (item.preferLocalCover) {
+      return buildLocal(item, placeholderBuilder: network);
+    }
+    return buildNetwork(item, localBuilder: local);
+  }
 
   static Widget buildLocal(
     LibraryMediaItemViewData item, {
@@ -128,6 +152,7 @@ class LibraryMediaGrid extends StatelessWidget {
     this.onPickDirectory,
     this.onRetry,
     this.onClearSearch,
+    this.trailingBuilder,
   });
 
   final LibraryMediaGridViewData data;
@@ -137,6 +162,7 @@ class LibraryMediaGrid extends StatelessWidget {
   final FutureOr<void> Function()? onPickDirectory;
   final FutureOr<void> Function()? onRetry;
   final VoidCallback? onClearSearch;
+  final LibraryMediaTrailingBuilder? trailingBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -247,6 +273,7 @@ class LibraryMediaGrid extends StatelessWidget {
           item: item,
           onPlay: onPlay,
           onShowActions: onShowActions,
+          trailingBuilder: trailingBuilder,
         );
       },
     );
@@ -259,10 +286,12 @@ class _LibraryMediaTile extends StatefulWidget {
     required this.item,
     this.onPlay,
     this.onShowActions,
+    this.trailingBuilder,
   });
   final LibraryMediaItemViewData item;
   final LibraryMediaAction? onPlay;
   final LibraryMediaAction? onShowActions;
+  final LibraryMediaTrailingBuilder? trailingBuilder;
 
   @override
   State<_LibraryMediaTile> createState() => _LibraryMediaTileState();
@@ -287,6 +316,7 @@ class _LibraryMediaTileState extends State<_LibraryMediaTile> {
       subtitle: item.subtitle,
       details: details,
       overlayMode: ImmersiveMediaCardOverlayMode.hover,
+      trailing: widget.trailingBuilder?.call(context, item),
       badges: <ImmersiveMediaCardBadge>[
         ImmersiveMediaCardBadge(
           icon: Icons.closed_caption_outlined,
@@ -327,12 +357,9 @@ class _LibraryMediaTileState extends State<_LibraryMediaTile> {
                       size: 48,
                       color: colors.primary))),
         );
-    return LibraryMediaCoverFallback.buildNetwork(
+    return LibraryMediaCoverFallback.build(
       widget.item,
-      localBuilder: (context) => LibraryMediaCoverFallback.buildLocal(
-        widget.item,
-        placeholderBuilder: (_) => placeholder(),
-      ),
+      placeholderBuilder: (_) => placeholder(),
     );
   }
 }

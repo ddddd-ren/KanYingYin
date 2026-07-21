@@ -121,6 +121,64 @@ void main() {
     );
   });
 
+  test('百度作品按季度显示 TMDB 海报并保留同集多个版本', () {
+    final work = _workIdentity(sourceId: 'baidu-a');
+    final record = CloudWorkTmdbRecord.matched(
+      sourceId: work.sourceId,
+      workKey: work.workKey,
+      workRootId: work.root.id,
+      workRootPath: work.root.remotePath,
+      remoteName: work.remoteName,
+      metadata: _workMetadata,
+      checkedAt: DateTime.utc(2026, 7, 21),
+    );
+    CloudMediaIndexItem item(
+      String id,
+      int season,
+      int episode,
+      String resolution,
+    ) =>
+        CloudMediaIndexItem(
+          sourceId: work.sourceId,
+          remoteId: id,
+          remotePath: '/回魂计/第$season季/$id.mkv',
+          name: '$id.mkv',
+          displayName: '回魂计 S0${season}E0$episode.mkv',
+          workKey: work.workKey,
+          workRootId: work.root.id,
+          workRootPath: work.root.remotePath,
+          size: 200,
+          modifiedAt: null,
+          seriesName: '回魂计',
+          seasonNumber: season,
+          episodeNumber: episode,
+          mediaType: CloudMediaType.episode,
+          releaseTags: MediaReleaseTags(resolution: resolution),
+        );
+
+    final collection = CloudResourceCollectionGrouper().group(
+      items: <CloudMediaIndexItem>[
+        item('s1e1', 1, 1, '1080p'),
+        item('s2e1-4k', 2, 1, '2160p'),
+        item('s2e1-hd', 2, 1, '1080p'),
+        item('s3e1', 3, 1, '2160p'),
+      ],
+      works: <CloudWorkIdentity>[work],
+      recordsByWorkKey: <String, CloudWorkTmdbRecord>{work.workKey: record},
+      query: '',
+    );
+
+    expect(
+      collection.groups.map((group) => group.seasonMetadata?.posterUrl),
+      <String?>['/season-1.jpg', '/season-2.jpg', '/season-3.jpg'],
+    );
+    expect(collection.groups[1].videos, hasLength(2));
+    expect(
+      collection.groups[1].videos.map((video) => video.id).toSet(),
+      <String>{'s2e1-4k', 's2e1-hd'},
+    );
+  });
+
   test('回魂计按九个唯一集号展示并保留二十七个真实版本', () {
     final work = _workIdentity();
     final record = CloudWorkTmdbRecord.matched(
@@ -400,8 +458,8 @@ void main() {
   });
 }
 
-CloudWorkIdentity _workIdentity() {
-  const workKey = 'quark|work|work-id';
+CloudWorkIdentity _workIdentity({String sourceId = 'quark'}) {
+  final workKey = '$sourceId|work|work-id';
   const root = CloudFileEntry(
     id: 'work-id',
     remotePath: '/影视/作品',
@@ -411,7 +469,7 @@ CloudWorkIdentity _workIdentity() {
     isDirectory: true,
   );
   return CloudWorkIdentity(
-    sourceId: 'quark',
+    sourceId: sourceId,
     workKey: workKey,
     root: root,
     remoteName: root.name,

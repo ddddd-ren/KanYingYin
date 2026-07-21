@@ -1,0 +1,8 @@
+{
+  "access_token": "access-fixture-new",
+  "refresh_token": "refresh-fixture-new",
+  "expires_in": 2592000,
+  "scope": "basic netdisk",
+  "session_key": "session-key-fixture",
+  "session_secret": "session-secret-fixture"
+}

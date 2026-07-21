@@ -114,6 +114,19 @@ void FlutterWindow::RegisterShortcutChannel() {
     constexpr wchar_t kShortcutDescription[] =
         L"\x542F\x52A8\x770B\x5F71\x97F3";
 
+    if (call.method_name() == "inspectShortcutEntries") {
+      const auto state =
+          ShortcutUtils::InspectShortcutEntries(kShortcutName);
+      if (!state.has_value()) {
+        result->Error("ShortcutInspectionFailed",
+                      "Failed to inspect shortcut entries");
+        return;
+      }
+      result->Success(
+          flutter::EncodableValue(static_cast<int>(state.value())));
+      return;
+    }
+
     if (call.method_name() == "desktopShortcutExists") {
       result->Success(flutter::EncodableValue(
           ShortcutUtils::DesktopShortcutExists(kShortcutName)));

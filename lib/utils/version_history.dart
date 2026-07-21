@@ -16,6 +16,17 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.33',
+    date: '2026-07-21',
+    isPrerelease: true,
+    changes: [
+      '本测试版修复本地电视剧季度海报显示：不同季度现在优先显示各自的 TMDB 季度海报；某一季没有专属海报时会自动使用整部作品海报',
+      '本地与网盘卡片的剧名、集数、评分、格式和刮削状态改为鼠标悬停后显示，右上角三点菜单保持常驻',
+      '本地三点菜单新增完整的 TMDB 刮削与重新匹配对话框，可修改搜索词、媒体类型、年份和刮削选项；搜索候选不会写入资料，确认应用后才保存',
+      '没有 TMDB Key 或断网时，应用启动、本地扫描、媒体库和播放器仍可使用；本次不会修改或删除本地原始媒体，也不会修改网盘文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.32',
     date: '2026-07-21',
     isPrerelease: true,

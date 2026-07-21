@@ -1,24 +1,8 @@
-import 'package:flutter/foundation.dart';
+export 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart'
+    show TmdbMatchDraft;
+
+import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
-
-@immutable
-class TmdbMatchDraft {
-  const TmdbMatchDraft({
-    required this.originalName,
-    required this.searchTitle,
-    required this.mediaTypeMode,
-    this.year,
-    this.seasonNumber,
-    this.episodeNumber,
-  });
-
-  final String originalName;
-  final String searchTitle;
-  final TmdbMediaTypeMode mediaTypeMode;
-  final int? year;
-  final int? seasonNumber;
-  final int? episodeNumber;
-}
 
 class CloudMediaNameParser {
   const CloudMediaNameParser();

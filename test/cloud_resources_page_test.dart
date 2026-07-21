@@ -1244,7 +1244,7 @@ void main() {
     await tester.tap(find.text('重新匹配'));
     await tester.pumpAndSettle();
     expect(
-      find.byKey(const ValueKey<String>('cloud-tmdb-match-dialog')),
+      find.byKey(const ValueKey<String>('tmdb-match-dialog')),
       findsOneWidget,
     );
     expect(find.text('动漫'), findsWidgets);
@@ -1314,7 +1314,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.byKey(const ValueKey<String>('cloud-tmdb-match-dialog')),
+      find.byKey(const ValueKey<String>('tmdb-match-dialog')),
       findsNothing,
     );
     expect(

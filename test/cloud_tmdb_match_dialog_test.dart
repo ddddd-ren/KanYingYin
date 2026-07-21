@@ -32,8 +32,7 @@ void main() {
     await tester.tap(find.text('打开'));
     await tester.pumpAndSettle();
 
-    expect(
-        find.byKey(const ValueKey('cloud-tmdb-match-dialog')), findsOneWidget);
+    expect(find.byKey(const ValueKey('tmdb-match-dialog')), findsOneWidget);
     expect(find.text('Alice in Borderland S01E01.mkv'), findsOneWidget);
     expect(find.text('第 1 季'), findsOneWidget);
     expect(find.text('第 1 集'), findsOneWidget);
@@ -41,7 +40,7 @@ void main() {
     expect(
       tester
           .widget<TextField>(
-            find.byKey(const ValueKey('cloud-tmdb-search-title')),
+            find.byKey(const ValueKey('tmdb-search-title')),
           )
           .controller
           ?.text,
@@ -77,7 +76,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(applied?.metadata.id, 42);
-    expect(find.byKey(const ValueKey('cloud-tmdb-match-dialog')), findsNothing);
+    expect(find.byKey(const ValueKey('tmdb-match-dialog')), findsNothing);
   });
 
   testWidgets('空搜索词显示验证错误且不请求 TMDB', (tester) async {
@@ -100,7 +99,7 @@ void main() {
     await tester.tap(find.text('打开'));
     await tester.pumpAndSettle();
     await tester.enterText(
-      find.byKey(const ValueKey('cloud-tmdb-search-title')),
+      find.byKey(const ValueKey('tmdb-search-title')),
       '   ',
     );
     await tester.tap(find.widgetWithText(FilledButton, '搜索 TMDB'));
@@ -130,8 +129,8 @@ void main() {
     await tester.tap(find.text('打开'));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('cloud-tmdb-stacked')), findsOneWidget);
-    expect(find.byKey(const ValueKey('cloud-tmdb-two-column')), findsNothing);
+    expect(find.byKey(const ValueKey('tmdb-stacked')), findsOneWidget);
+    expect(find.byKey(const ValueKey('tmdb-two-column')), findsNothing);
   });
 }
 
@@ -152,6 +151,7 @@ class _DialogHost extends StatelessWidget {
                 context: context,
                 builder: (context) => CloudTmdbMatchDialog(
                   title: '重新匹配 TMDB',
+                  safetyText: '仅更新看影音中的资料，不会修改网盘文件',
                   draft: const TmdbMatchDraft(
                     originalName: 'Alice in Borderland S01E01.mkv',
                     searchTitle: 'Alice in Borderland',

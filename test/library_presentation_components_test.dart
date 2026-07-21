@@ -601,6 +601,41 @@ void main() {
       expect(find.byIcon(Icons.play_circle_fill), findsOneWidget);
     });
 
+    test('封面优先级可选择本地已下载海报或季度网络海报', () {
+      final localProvider = MemoryImage(base64Decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      ));
+      final networkProvider = MemoryImage(base64Decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      ));
+      LibraryMediaItemViewData item({required bool preferLocalCover}) =>
+          LibraryMediaItemViewData(
+            id: 'season-2',
+            title: '第 2 季',
+            subtitle: '',
+            infoText: '',
+            modifiedText: '',
+            hasMultipleEpisodes: true,
+            hasSubtitle: false,
+            scrapeLabel: '已刮削',
+            preferLocalCover: preferLocalCover,
+            localCoverProvider: localProvider,
+            networkCoverProvider: networkProvider,
+          );
+
+      final localFirst = LibraryMediaCoverFallback.build(
+        item(preferLocalCover: true),
+        placeholderBuilder: (_) => const Icon(Icons.movie_outlined),
+      ) as Image;
+      final networkFirst = LibraryMediaCoverFallback.build(
+        item(preferLocalCover: false),
+        placeholderBuilder: (_) => const Icon(Icons.movie_outlined),
+      ) as Image;
+
+      expect(localFirst.image, same(localProvider));
+      expect(networkFirst.image, same(networkProvider));
+    });
+
     testWidgets('失败 ImageProvider 在真实卡片中依次回退到本地和占位', (tester) async {
       const failed = _FailingImageProvider();
       final local = MemoryImage(base64Decode(

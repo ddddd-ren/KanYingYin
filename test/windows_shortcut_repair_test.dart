@@ -32,8 +32,10 @@ void main() {
         File('lib/utils/windows_shortcut.dart').readAsStringSync();
     final initSource = File('lib/pages/init_page.dart').readAsStringSync();
 
-    expect(shortcutSource,
-        contains("invokeMethod<bool>('desktopShortcutExists')"));
+    expect(
+      shortcutSource,
+      contains("invokeMethod<int>('inspectShortcutEntries')"),
+    );
     expect(
         initSource, contains('await WindowsShortcut.desktopShortcutExists()'));
     expect(initSource, contains('if (shortcutExists)'));

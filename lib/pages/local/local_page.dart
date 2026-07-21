@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
 import 'package:kanyingyin/features/library/presentation/library_path_bar.dart';
 import 'package:kanyingyin/features/library/presentation/library_source_menu.dart';
+import 'package:kanyingyin/features/library/presentation/tmdb_match_dialog.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/local_media_source.dart';
@@ -13,8 +14,6 @@ import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
 import 'package:kanyingyin/pages/local/local_directory_picker.dart';
 import 'package:kanyingyin/pages/local/library_sheet.dart';
-import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
-import 'package:kanyingyin/pages/local/tmdb_scrape_options_sheet.dart';
 import 'package:kanyingyin/pages/cloud/quark/quark_share_import_action.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/services/local_custom_cover_service.dart';
@@ -22,11 +21,21 @@ import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/services/local_series_grouper.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
-import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scraper.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:path/path.dart' as p;
+
+enum _LocalMediaAction {
+  play,
+  editTitle,
+  customCover,
+  scrapeTmdb,
+  rematchTmdb,
+  findPoster,
+  copyPath,
+}
 
 class LocalPage extends StatefulWidget {
   const LocalPage({super.key});
@@ -519,6 +528,87 @@ class _LocalPageState extends State<LocalPage>
     );
   }
 
+  Widget _localMediaMenu(BuildContext context, LocalVideoGroup group) {
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: colors.surface.withValues(alpha: 0.86),
+      shape: const CircleBorder(),
+      child: PopupMenuButton<_LocalMediaAction>(
+        tooltip: '本地媒体操作',
+        icon: const Icon(Icons.more_vert, size: 20),
+        onSelected: (action) async {
+          switch (action) {
+            case _LocalMediaAction.play:
+              _playGroup(group);
+              return;
+            case _LocalMediaAction.editTitle:
+              await _editGroupTitle(context, group);
+              return;
+            case _LocalMediaAction.customCover:
+              await _setCustomCoverForGroup(context, group);
+              return;
+            case _LocalMediaAction.scrapeTmdb:
+              await _openLocalTmdbDialog(context, group, rematch: false);
+              return;
+            case _LocalMediaAction.rematchTmdb:
+              await _openLocalTmdbDialog(context, group, rematch: true);
+              return;
+            case _LocalMediaAction.findPoster:
+              await _fetchPosterForGroup(context, group);
+              return;
+            case _LocalMediaAction.copyPath:
+              await _copyGroupPath(context, group);
+              return;
+          }
+        },
+        itemBuilder: (_) => <PopupMenuEntry<_LocalMediaAction>>[
+          PopupMenuItem<_LocalMediaAction>(
+            value: _LocalMediaAction.play,
+            child: Text(group.episodeCount == 1 ? '播放' : '播放剧集'),
+          ),
+          const PopupMenuItem<_LocalMediaAction>(
+            value: _LocalMediaAction.editTitle,
+            child: Text('修改剧名'),
+          ),
+          const PopupMenuItem<_LocalMediaAction>(
+            value: _LocalMediaAction.customCover,
+            child: Text('自定义封面'),
+          ),
+          const PopupMenuItem<_LocalMediaAction>(
+            value: _LocalMediaAction.scrapeTmdb,
+            child: Text('TMDB 刮削'),
+          ),
+          const PopupMenuItem<_LocalMediaAction>(
+            value: _LocalMediaAction.rematchTmdb,
+            child: Text('重新匹配'),
+          ),
+          const PopupMenuItem<_LocalMediaAction>(
+            value: _LocalMediaAction.findPoster,
+            child: Text('在线查找封面'),
+          ),
+          const PopupMenuItem<_LocalMediaAction>(
+            value: _LocalMediaAction.copyPath,
+            child: Text('复制路径'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _copyGroupPath(
+    BuildContext context,
+    LocalVideoGroup group,
+  ) async {
+    await Clipboard.setData(ClipboardData(text: group.firstEpisode.path));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('路径已复制'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
   Future<void> _showGroupActions(
     BuildContext context,
     LocalVideoGroup group,
@@ -585,7 +675,16 @@ class _LocalPageState extends State<LocalPage>
                 onTap: () {
                   final navigator = Navigator.of(context);
                   navigator.pop();
-                  _scrapeTmdbForGroup(pageContext, group);
+                  _openLocalTmdbDialog(pageContext, group, rematch: false);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.find_replace_outlined),
+                title: const Text('重新匹配'),
+                onTap: () {
+                  final navigator = Navigator.of(context);
+                  navigator.pop();
+                  _openLocalTmdbDialog(pageContext, group, rematch: true);
                 },
               ),
               ListTile(
@@ -601,19 +700,8 @@ class _LocalPageState extends State<LocalPage>
                 leading: const Icon(Icons.copy_outlined),
                 title: const Text('复制路径'),
                 onTap: () async {
-                  final navigator = Navigator.of(context);
-                  final messenger = ScaffoldMessenger.of(context);
-                  await Clipboard.setData(
-                    ClipboardData(text: firstEpisode.path),
-                  );
-                  if (!mounted) return;
-                  navigator.pop();
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('路径已复制'),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
+                  Navigator.of(context).pop();
+                  await _copyGroupPath(pageContext, group);
                 },
               ),
             ],
@@ -623,12 +711,15 @@ class _LocalPageState extends State<LocalPage>
     );
   }
 
-  Future<void> _scrapeTmdbForGroup(
+  Future<void> _openLocalTmdbDialog(
     BuildContext context,
-    LocalVideoGroup group,
-  ) async {
+    LocalVideoGroup group, {
+    required bool rematch,
+  }) async {
+    final paths =
+        group.episodes.map((item) => item.path).toList(growable: false);
     final seriesName = localController.indexedSeriesNameForPaths(
-      group.episodes.map((item) => item.path),
+      paths,
     );
     if (seriesName == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -636,64 +727,42 @@ class _LocalPageState extends State<LocalPage>
       );
       return;
     }
-
-    final options = await showModalBottomSheet<TmdbScrapeOptions>(
+    final draft = localController.localTmdbDraftForPaths(
+      originalName: group.title,
+      paths: paths,
+    );
+    final result = await showDialog<TmdbScrapeResult>(
       context: context,
-      isScrollControlled: true,
-      builder: (_) => TmdbScrapeOptionsSheet(
+      builder: (_) => TmdbMatchDialog<TmdbScrapeResult>(
+        title: rematch ? '重新匹配 TMDB' : 'TMDB 刮削',
+        safetyText: '仅更新看影音中的资料，不会修改本地文件',
+        draft: draft,
         initialOptions: localController.tmdbScrapeOptions,
+        onSearch: (request) => localController.searchLocalTmdb(
+          seriesName,
+          request,
+        ),
+        onApply: (candidate, options) async {
+          final selected = await localController.selectTmdbCandidate(
+            seriesName,
+            candidate.metadata,
+            options: options,
+          );
+          if (selected.status != TmdbScrapeStatus.matched) {
+            throw StateError('保存匹配结果失败');
+          }
+          return selected;
+        },
       ),
     );
-    if (options == null || !context.mounted) return;
-
-    final result = await localController.scrapeSeriesWithTmdb(
-      seriesName,
-      force: true,
-      options: options,
-    );
-    if (!context.mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    if (result.status == TmdbScrapeStatus.matched) {
-      messenger.showSnackBar(SnackBar(
+    if (!context.mounted || result == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
         content: Text(result.posterDownloadFailures > 0
             ? 'TMDB 信息已更新，部分封面下载失败'
             : 'TMDB 信息已更新'),
-      ));
-      return;
-    }
-    if (result.status == TmdbScrapeStatus.none) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('请先在设置中填写 TMDB API Key')),
-      );
-      return;
-    }
-    if (result.status == TmdbScrapeStatus.failed) {
-      messenger.showSnackBar(const SnackBar(content: Text('TMDB 刮削失败')));
-      return;
-    }
-
-    final selected = await showModalBottomSheet<TmdbMetadata>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => TmdbMatchSheet(
-        seriesName: seriesName,
-        candidates: result.candidates,
       ),
     );
-    if (selected == null || !context.mounted) return;
-    final selectedResult = await localController.selectTmdbCandidate(
-      seriesName,
-      selected,
-      options: options,
-    );
-    if (!context.mounted) return;
-    messenger.showSnackBar(SnackBar(
-      content: Text(selectedResult.status != TmdbScrapeStatus.matched
-          ? '保存匹配结果失败'
-          : selectedResult.posterDownloadFailures > 0
-              ? '已使用所选 TMDB 信息，部分封面下载失败'
-              : '已使用所选 TMDB 信息'),
-    ));
   }
 
   @override
@@ -909,6 +978,12 @@ class _LocalPageState extends State<LocalPage>
       onPickDirectory: _pickDirectory,
       onRetry: localController.refresh,
       onClearSearch: _clearSearch,
+      trailingBuilder: (context, item) {
+        final group = groupById[item.id];
+        return group == null
+            ? const SizedBox.shrink()
+            : _localMediaMenu(context, group);
+      },
       onPlay: (item) {
         final group = groupById[item.id];
         if (group != null) _playGroup(group);

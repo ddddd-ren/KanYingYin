@@ -7,6 +7,7 @@ import 'package:kanyingyin/services/tmdb/local_tmdb_subject_builder.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_metadata_merge_policy.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_poster_policy.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_engine.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
@@ -38,6 +39,45 @@ class LocalTmdbScrapeService {
   final LocalTmdbSubjectBuilder subjectBuilder;
   final TmdbMetadataMergePolicy mergePolicy;
   final TmdbPosterPolicy posterPolicy;
+
+  Future<TmdbPreparedSearchOutcome> searchPrepared({
+    required String apiKey,
+    required String seriesName,
+    required TmdbPreparedSearchRequest request,
+  }) async {
+    final key = apiKey.trim();
+    if (key.isEmpty) {
+      throw StateError('请先在设置中填写 TMDB API Key');
+    }
+    final normalizedSeries = seriesName.trim().toLowerCase();
+    final items = indexRepository
+        .getAll()
+        .where(
+          (item) => item.seriesName.trim().toLowerCase() == normalizedSeries,
+        )
+        .toList(growable: false);
+    if (items.isEmpty) {
+      throw StateError('本地媒体索引中没有该作品');
+    }
+    final base = subjectBuilder.build(seriesName: seriesName, items: items);
+    final subject = TmdbScrapeSubject(
+      stableKey: base.stableKey,
+      titleCandidates: <String>[request.queryTitle],
+      year: request.queryYear,
+      seasonNumbers: base.seasonNumbers,
+      episodeNumbers: base.episodeNumbers,
+      mediaEvidence: base.mediaEvidence,
+      existingMetadata: base.existingMetadata,
+      fieldLocks: base.fieldLocks,
+      matchOrigin: base.matchOrigin,
+      ruleVersion: base.ruleVersion,
+    );
+    final outcome = await TmdbScrapeEngine(client: clientFactory(key)).search(
+      subject,
+      request.options.copyWith(mediaTypeMode: request.mediaTypeMode),
+    );
+    return TmdbPreparedSearchOutcome(ranked: outcome.ranked);
+  }
 
   Future<TmdbScrapeResult> scrapeSeries({
     required String apiKey,

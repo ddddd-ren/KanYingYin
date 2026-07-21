@@ -15,6 +15,7 @@ import 'package:kanyingyin/services/cloud/cloud_series_match_service.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
 typedef CloudResourceTmdbServiceFactory = FutureOr<CloudResourceTmdbService>
     Function(String apiKey);
@@ -401,7 +402,13 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
       )];
       final target = _targetForEntry(context, entry, cached);
       if (cached != null && cached.displayName == target.displayName) {
-        if (cached.status == CloudResourceTmdbStatus.matched) continue;
+        if (cached.status == CloudResourceTmdbStatus.conflict) continue;
+        if (cached.status == CloudResourceTmdbStatus.matched &&
+            (cached.tmdbRuleVersion >= currentTmdbRuleVersion ||
+                cached.tmdbMatchOrigin == TmdbMatchOrigin.manual ||
+                cached.customTitle != null)) {
+          continue;
+        }
         if (cached.status == CloudResourceTmdbStatus.unmatched &&
             cached.checkedAt.add(unmatchedRetryInterval).isAfter(now)) {
           continue;

@@ -24,7 +24,9 @@ class LocalTmdbSubjectBuilder {
     addCandidate(seriesName);
     for (final item in items) {
       addCandidate(item.seriesName);
-      addCandidate(p.basename(item.parentPath));
+      if (p.normalize(item.parentPath) != p.normalize(item.sourcePath)) {
+        addCandidate(p.basename(item.parentPath));
+      }
       addCandidate(p.basenameWithoutExtension(item.name));
     }
 

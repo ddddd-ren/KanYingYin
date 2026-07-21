@@ -13,6 +13,7 @@ import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_tmdb_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
 typedef CloudWorkTmdbServiceFactory = FutureOr<CloudWorkTmdbService> Function(
   String apiKey,
@@ -103,9 +104,13 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
       if (cached == null || cached.status == CloudWorkTmdbStatus.unchecked) {
         return true;
       }
-      if (cached.status == CloudWorkTmdbStatus.matched ||
-          cached.status == CloudWorkTmdbStatus.conflict) {
+      if (cached.status == CloudWorkTmdbStatus.conflict) {
         return false;
+      }
+      if (cached.status == CloudWorkTmdbStatus.matched) {
+        return cached.tmdbRuleVersion < currentTmdbRuleVersion &&
+            cached.tmdbMatchOrigin != TmdbMatchOrigin.manual &&
+            cached.scrapeTitleOverride == null;
       }
       return cached.status != CloudWorkTmdbStatus.unmatched ||
           !cached.checkedAt.add(unmatchedRetryInterval).isAfter(now);

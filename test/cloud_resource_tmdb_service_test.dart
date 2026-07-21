@@ -13,6 +13,7 @@ import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
 void main() {
   test('文件夹查询名移除编码和完结标记但保留年份', () {
@@ -51,7 +52,7 @@ void main() {
     await harness.service.searchCandidates(target);
 
     expect(client.queries, isNotEmpty);
-    expect(client.queries, everyElement('三体'));
+    expect(client.queries, <String>['三体', '01']);
     expect(target.displayName, '01.mkv');
   });
 
@@ -104,17 +105,19 @@ void main() {
 
     expect(outcome.selected?.tmdbId, 42);
     expect(outcome.selected?.title, '中文片名');
+    expect(outcome.selected?.tmdbMatchOrigin, TmdbMatchOrigin.automatic);
+    expect(outcome.selected?.tmdbRuleVersion, currentTmdbRuleVersion);
     expect(await File(outcome.selected!.posterCachePath!).exists(), isTrue);
     final indexed = await indexRepository.getBySource('source-a');
     expect(indexed[0].tmdbId, 42);
     expect(indexed[1].tmdbId, isNull);
     expect(client.searchedTypes, <TmdbMediaType>[
-      TmdbMediaType.tv,
       TmdbMediaType.movie,
+      TmdbMediaType.tv,
     ]);
   });
 
-  test('自动模式首选类型无候选时尝试另一类型', () async {
+  test('无季集证据的独立视频只按电影搜索', () async {
     final service = _service(
       _FakeTmdbClient(
         searches: <TmdbMediaType, List<TmdbMetadata>>{
@@ -133,10 +136,7 @@ void main() {
       ),
     );
 
-    expect(service.client.searchedTypes, <TmdbMediaType>[
-      TmdbMediaType.movie,
-      TmdbMediaType.tv,
-    ]);
+    expect(service.client.searchedTypes, <TmdbMediaType>[TmdbMediaType.movie]);
   });
 
   test('无候选保存未匹配且手动选择保存用户候选', () async {
@@ -164,6 +164,49 @@ void main() {
     );
     expect(record.tmdbId, 42);
     expect(record.title, '手动选择标题');
+    expect(record.tmdbMatchOrigin, TmdbMatchOrigin.manual);
+    expect(record.tmdbRuleVersion, currentTmdbRuleVersion);
+  });
+
+  test('自动迁移匹配到不同 TMDB 条目时保留旧记录并标记冲突', () async {
+    final client = _FakeTmdbClient(
+      searches: <TmdbMediaType, List<TmdbMetadata>>{
+        TmdbMediaType.movie: <TmdbMetadata>[_candidate(TmdbMediaType.movie)],
+      },
+      detail: _candidate(TmdbMediaType.movie),
+    );
+    final harness = _service(client);
+    final target = _target(
+      path: '/影视/独立视频.mkv',
+      name: '独立视频.mkv',
+      kind: CloudResourceKind.standaloneVideo,
+    );
+    await harness.repository.upsert(
+      CloudResourceTmdbRecord.matched(
+        sourceId: target.sourceId,
+        remoteId: target.remote.id,
+        remotePath: target.remote.path,
+        displayName: target.displayName,
+        resourceKind: target.resourceKind,
+        metadata: TmdbMetadata(
+          id: 7,
+          mediaType: TmdbMediaType.movie,
+          title: '旧手动结果',
+          language: 'zh-CN',
+          matchedAt: DateTime.utc(2026, 7, 18),
+          matchConfidence: 1,
+        ),
+        checkedAt: DateTime.utc(2026, 7, 18),
+      ),
+    );
+
+    final outcome = await harness.service.match(target);
+    final stored = await harness.repository.get(target.stableKey);
+
+    expect(outcome.selected, isNull);
+    expect(stored?.status, CloudResourceTmdbStatus.conflict);
+    expect(stored?.tmdbId, 7);
+    expect(stored?.title, '旧手动结果');
   });
 
   test('自定义剧名成为 TMDB 查询词且不改变远程路径', () async {
@@ -252,8 +295,8 @@ void main() {
     );
 
     expect(client.searchedTypes, <TmdbMediaType>[
-      TmdbMediaType.tv,
       TmdbMediaType.movie,
+      TmdbMediaType.tv,
     ]);
     expect(outcome.ranked.candidates, hasLength(2));
   });

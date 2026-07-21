@@ -230,6 +230,23 @@ class CloudWorkTmdbRecord {
     );
   }
 
+  CloudWorkTmdbRecord asConflict(DateTime value) {
+    return CloudWorkTmdbRecord(
+      sourceId: sourceId,
+      workKey: workKey,
+      workRootId: workRootId,
+      workRootPath: workRootPath,
+      remoteName: remoteName,
+      status: CloudWorkTmdbStatus.conflict,
+      checkedAt: value,
+      scrapeTitleOverride: scrapeTitleOverride,
+      metadata: metadata,
+      posterCachePath: posterCachePath,
+      tmdbMatchOrigin: tmdbMatchOrigin,
+      tmdbRuleVersion: tmdbRuleVersion,
+    );
+  }
+
   Map<String, Object?> toJson() => <String, Object?>{
         'sourceId': sourceId,
         'workKey': workKey,

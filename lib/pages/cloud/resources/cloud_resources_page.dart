@@ -193,6 +193,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
         context: context,
         builder: (context) => CloudTmdbMatchDialog(
           title: rematch ? '重新匹配 TMDB' : 'TMDB 刮削',
+          safetyText: '仅更新看影音中的资料，不会修改网盘文件',
           draft: workGroup
               ? _controller.tmdbDraftForGroup(group)
               : _controller.tmdbDraftFor(entry),

@@ -1,26 +1,8 @@
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
-import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
-import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 
-class CloudResourceTmdbSearchRequest {
-  const CloudResourceTmdbSearchRequest({
-    required this.queryTitle,
-    required this.mediaTypeMode,
-    required this.options,
-    this.queryYear,
-  });
-
-  final String queryTitle;
-  final TmdbMediaTypeMode mediaTypeMode;
-  final TmdbScrapeOptions options;
-  final int? queryYear;
-}
-
-class CloudResourceTmdbSearchOutcome {
-  const CloudResourceTmdbSearchOutcome({required this.ranked});
-
-  final TmdbRankedResult ranked;
-}
+typedef CloudResourceTmdbSearchRequest = TmdbPreparedSearchRequest;
+typedef CloudResourceTmdbSearchOutcome = TmdbPreparedSearchOutcome;
 
 class CloudSeriesPropagationSummary {
   const CloudSeriesPropagationSummary({

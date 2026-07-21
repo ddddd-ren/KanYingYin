@@ -90,8 +90,8 @@ abstract class _LocalController with Store {
           scanCloudSource: scanCloudSource,
           cloudTmdbMetadataService: cloudTmdbMetadataService,
           tmdbScrapeService: tmdbScrapeService,
-          tmdbApiKeyProvider: tmdbApiKeyProvider ??
-              TmdbApiKeyProvider(userKeyReader: _readStoredTmdbUserKey),
+          tmdbApiKeyProvider:
+              tmdbApiKeyProvider ?? TmdbApiKeyProvider(userKeyReader: () => ''),
         );
 
   _LocalController._({
@@ -1088,17 +1088,6 @@ abstract class _LocalController with Store {
   }
 
   String get _tmdbApiKey => _tmdbApiKeyProvider.read();
-
-  static String _readStoredTmdbUserKey() {
-    try {
-      return GStorage.setting
-          .get('tmdbApiKey', defaultValue: '')
-          .toString()
-          .trim();
-    } catch (_) {
-      return '';
-    }
-  }
 
   TmdbScrapeOptions get tmdbScrapeOptions {
     try {

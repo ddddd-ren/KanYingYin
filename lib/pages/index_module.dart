@@ -41,19 +41,25 @@ import 'package:kanyingyin/services/cloud/cloud_work_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_tmdb_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 
 class IndexModule extends Module {
+  IndexModule({required this.tmdbCredentialManager});
+
+  final TmdbCredentialManager tmdbCredentialManager;
+
   @override
   List<Module> get imports => menu.moduleList;
 
   @override
   void binds(Injector i) {
     i.addSingleton<MediaRecognitionSettings>(MediaRecognitionSettings.new);
+    i.addSingleton<TmdbCredentialManager>(() => tmdbCredentialManager);
     i.addSingleton<TmdbApiKeyProvider>(
-      () => TmdbApiKeyProvider(userKeyReader: _readTmdbUserApiKey),
+      () => TmdbApiKeyProvider(userKeyReader: tmdbCredentialManager.read),
     );
     i.addSingleton<ILocalMediaIndexRepository>(LocalMediaIndexRepository.new);
     i.addSingleton<ILocalMediaSourceRepository>(LocalMediaSourceRepository.new);
@@ -234,17 +240,6 @@ class IndexModule extends Module {
     );
 
     r.module("/settings", module: SettingsModule());
-  }
-}
-
-String _readTmdbUserApiKey() {
-  try {
-    return GStorage.setting
-        .get('tmdbApiKey', defaultValue: '')
-        .toString()
-        .trim();
-  } on Object {
-    return '';
   }
 }
 

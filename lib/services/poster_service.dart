@@ -5,7 +5,6 @@ import 'package:kanyingyin/services/local_cover_finder.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/modules/local/local_episode_info.dart';
-import 'package:kanyingyin/utils/storage.dart';
 import 'package:path/path.dart' as p;
 
 class PosterService {
@@ -23,8 +22,8 @@ class PosterService {
   String? _workingProxy;
 
   PosterService({TmdbApiKeyProvider? apiKeyProvider, Dio? downloadDio})
-      : _apiKeyProvider = apiKeyProvider ??
-            TmdbApiKeyProvider(userKeyReader: _readUserApiKey),
+      : _apiKeyProvider =
+            apiKeyProvider ?? TmdbApiKeyProvider(userKeyReader: () => ''),
         _downloadDio = downloadDio ??
             Dio(
               BaseOptions(
@@ -38,17 +37,6 @@ class PosterService {
             receiveTimeout: const Duration(seconds: 10),
           ),
         );
-
-  static String _readUserApiKey() {
-    try {
-      return GStorage.setting
-          .get('tmdbApiKey', defaultValue: '')
-          .toString()
-          .trim();
-    } catch (_) {
-      return '';
-    }
-  }
 
   final Map<String, String?> _searchCache = {};
 

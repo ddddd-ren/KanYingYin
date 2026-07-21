@@ -21,6 +21,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 import 'package:kanyingyin/utils/logger.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
 
 void main() {
   runZonedGuarded(() async {
@@ -77,11 +78,19 @@ Future<void> _startApplication() async {
 
   if (Platform.isAndroid) {}
 
+  late final TmdbCredentialManager tmdbCredentialManager;
   try {
     final hivePath =
         '${(await getApplicationSupportDirectory()).path}/${AppIdentity.storageNamespace}/hive';
     await Hive.initFlutter(hivePath);
     await GStorage.init();
+    tmdbCredentialManager = TmdbCredentialManager(
+      store: SecureTmdbCredentialStore(),
+      legacyReader: () =>
+          GStorage.setting.get('tmdbApiKey', defaultValue: '').toString(),
+      legacyDelete: () => GStorage.setting.delete('tmdbApiKey'),
+    );
+    await tmdbCredentialManager.initialize();
   } catch (e) {
     // Log the error for debugging (if logger is available)
     debugPrint('Storage initialization failed: $e');
@@ -139,7 +148,7 @@ Future<void> _startApplication() async {
     ChangeNotifierProvider(
       create: (_) => ThemeProvider(),
       child: ModularApp(
-        module: AppModule(),
+        module: AppModule(tmdbCredentialManager: tmdbCredentialManager),
         child: const AppWidget(),
       ),
     ),

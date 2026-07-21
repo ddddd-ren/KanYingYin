@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:kanyingyin/modules/local/local_episode_info.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 import 'package:path/path.dart' as p;
 
 class LocalMediaIndexItem {
@@ -40,6 +41,8 @@ class LocalMediaIndexItem {
   final bool posterLocked;
   final bool overviewLocked;
   final TmdbScrapeStatus scrapeStatus;
+  final TmdbMatchOrigin tmdbMatchOrigin;
+  final int tmdbRuleVersion;
   final bool manualOverride;
   final String pathFingerprint;
   final int derivedMetadataVersion;
@@ -78,6 +81,8 @@ class LocalMediaIndexItem {
     this.posterLocked = false,
     this.overviewLocked = false,
     this.scrapeStatus = TmdbScrapeStatus.none,
+    this.tmdbMatchOrigin = TmdbMatchOrigin.legacyUnknown,
+    this.tmdbRuleVersion = 0,
     this.manualOverride = false,
     String? pathFingerprint,
     this.derivedMetadataVersion = currentDerivedMetadataVersion,
@@ -156,6 +161,8 @@ class LocalMediaIndexItem {
       posterLocked: json['posterLocked'] == true,
       overviewLocked: json['overviewLocked'] == true,
       scrapeStatus: _parseScrapeStatus(json['scrapeStatus']),
+      tmdbMatchOrigin: _parseTmdbMatchOrigin(json['tmdbMatchOrigin']),
+      tmdbRuleVersion: _asInt(json['tmdbRuleVersion']),
       manualOverride: json['manualOverride'] == true,
       pathFingerprint: _asNullableString(json['pathFingerprint']) ??
           _fallbackFingerprint(
@@ -212,6 +219,9 @@ class LocalMediaIndexItem {
       if (overviewLocked) 'overviewLocked': true,
       if (scrapeStatus != TmdbScrapeStatus.none)
         'scrapeStatus': scrapeStatus.name,
+      if (tmdbMatchOrigin != TmdbMatchOrigin.legacyUnknown)
+        'tmdbMatchOrigin': tmdbMatchOrigin.name,
+      if (tmdbRuleVersion > 0) 'tmdbRuleVersion': tmdbRuleVersion,
       if (manualOverride) 'manualOverride': manualOverride,
       'pathFingerprint': pathFingerprint,
       'derivedMetadataVersion': derivedMetadataVersion,
@@ -317,6 +327,8 @@ class LocalMediaIndexItem {
     bool? posterLocked,
     bool? overviewLocked,
     TmdbScrapeStatus? scrapeStatus,
+    TmdbMatchOrigin? tmdbMatchOrigin,
+    int? tmdbRuleVersion,
     bool? manualOverride,
     String? pathFingerprint,
     int? derivedMetadataVersion,
@@ -354,6 +366,8 @@ class LocalMediaIndexItem {
       posterLocked: posterLocked ?? this.posterLocked,
       overviewLocked: overviewLocked ?? this.overviewLocked,
       scrapeStatus: scrapeStatus ?? this.scrapeStatus,
+      tmdbMatchOrigin: tmdbMatchOrigin ?? this.tmdbMatchOrigin,
+      tmdbRuleVersion: tmdbRuleVersion ?? this.tmdbRuleVersion,
       manualOverride: manualOverride ?? this.manualOverride,
       pathFingerprint: pathFingerprint ?? this.pathFingerprint,
       derivedMetadataVersion:
@@ -434,6 +448,13 @@ class LocalMediaIndexItem {
     return TmdbScrapeStatus.values.firstWhere(
       (status) => status.name == value,
       orElse: () => TmdbScrapeStatus.none,
+    );
+  }
+
+  static TmdbMatchOrigin _parseTmdbMatchOrigin(Object? value) {
+    return TmdbMatchOrigin.values.firstWhere(
+      (origin) => origin.name == value,
+      orElse: () => TmdbMatchOrigin.legacyUnknown,
     );
   }
 }

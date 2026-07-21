@@ -5,9 +5,71 @@ import 'package:kanyingyin/repositories/local_media_index_repository.dart';
 import 'package:kanyingyin/repositories/tmdb_metadata_repository.dart';
 import 'package:kanyingyin/services/tmdb/local_tmdb_scrape_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
 void main() {
+  test('本地准备搜索返回候选但不修改索引', () async {
+    final original = _item('Season 2/a.mkv', seasonNumber: 2);
+    final index = _MemoryIndexRepository(<LocalMediaIndexItem>[original]);
+    final service = LocalTmdbScrapeService(
+      indexRepository: index,
+      metadataRepository: _MemoryMetadataRepository(),
+      clientFactory: (_) => _FakeClient(),
+      posterDownloader: _successfulDownload,
+    );
+
+    final outcome = await service.searchPrepared(
+      apiKey: 'configured-key',
+      seriesName: '流浪地球',
+      request: const TmdbPreparedSearchRequest(
+        queryTitle: '流浪地球',
+        queryYear: 2019,
+        mediaTypeMode: TmdbMediaTypeMode.tv,
+        options: TmdbScrapeOptions.defaults(),
+      ),
+    );
+
+    expect(outcome.ranked.candidates, isNotEmpty);
+    expect(index.getByPath(original.path), same(original));
+  });
+
+  test('本地准备搜索没有 API Key 时明确提示且不创建客户端', () async {
+    var clientCreated = false;
+    final service = LocalTmdbScrapeService(
+      indexRepository: _MemoryIndexRepository(<LocalMediaIndexItem>[
+        _item('a.mkv'),
+      ]),
+      metadataRepository: _MemoryMetadataRepository(),
+      clientFactory: (_) {
+        clientCreated = true;
+        return _FakeClient();
+      },
+      posterDownloader: _successfulDownload,
+    );
+
+    expect(
+      () => service.searchPrepared(
+        apiKey: '',
+        seriesName: '流浪地球',
+        request: const TmdbPreparedSearchRequest(
+          queryTitle: '流浪地球',
+          mediaTypeMode: TmdbMediaTypeMode.auto,
+          options: TmdbScrapeOptions.defaults(),
+        ),
+      ),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          '请先在设置中填写 TMDB API Key',
+        ),
+      ),
+    );
+    expect(clientCreated, isFalse);
+  });
+
   test('没有 API Key 时跳过刮削且不修改索引', () async {
     final index = _MemoryIndexRepository([_item('a.mkv')]);
     var clientCreated = false;

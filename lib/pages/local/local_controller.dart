@@ -28,6 +28,7 @@ import 'package:kanyingyin/services/local_media_scanner.dart';
 import 'package:kanyingyin/services/tmdb/local_tmdb_scrape_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scraper.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/local_cover_finder.dart';
@@ -1111,6 +1112,61 @@ abstract class _LocalController with Store {
       if (name.isNotEmpty) return name;
     }
     return null;
+  }
+
+  TmdbMatchDraft localTmdbDraftForPaths({
+    required String originalName,
+    required Iterable<String> paths,
+  }) {
+    final ids = paths.map(LocalMediaIndexItem.normalizePath).toSet();
+    final indexedById = <String, LocalMediaIndexItem>{
+      for (final item in _mediaIndexRepository.getAll()) item.id: item,
+      for (final item in localLibraryItems) item.id: item,
+    };
+    final items = indexedById.values
+        .where((item) => ids.contains(item.id))
+        .toList(growable: false);
+    if (items.isEmpty) {
+      throw StateError('请先扫描媒体库，再进行 TMDB 刮削');
+    }
+    final seasons = items
+        .map((item) => item.seasonNumber)
+        .whereType<int>()
+        .where((value) => value > 0)
+        .toSet();
+    final episodes = items
+        .map((item) => item.episodeNumber)
+        .whereType<int>()
+        .where((value) => value > 0)
+        .toSet();
+    final releaseDate = items
+        .map((item) => item.tmdb?.releaseDate)
+        .whereType<String>()
+        .firstOrNull;
+    final year = releaseDate != null && releaseDate.length >= 4
+        ? int.tryParse(releaseDate.substring(0, 4))
+        : null;
+    return TmdbMatchDraft(
+      originalName: originalName,
+      searchTitle: items.first.seriesName,
+      mediaTypeMode: seasons.isNotEmpty || episodes.isNotEmpty
+          ? TmdbMediaTypeMode.tv
+          : TmdbMediaTypeMode.auto,
+      year: year,
+      seasonNumber: seasons.length == 1 ? seasons.single : null,
+      episodeNumber: episodes.length == 1 ? episodes.single : null,
+    );
+  }
+
+  Future<TmdbPreparedSearchOutcome> searchLocalTmdb(
+    String seriesName,
+    TmdbPreparedSearchRequest request,
+  ) {
+    return _tmdbScrapeService.searchPrepared(
+      apiKey: _tmdbApiKey,
+      seriesName: seriesName,
+      request: request,
+    );
   }
 
   String? _tmdbImageUrl(String? path) {

@@ -255,6 +255,19 @@ void main() {
     expect(entries.single.isPrerelease, isTrue);
   });
 
+  test('二点一三十三说明季度海报、悬停标签和本地刮削对话框', () {
+    final entries = versionHistoryForCurrent('2.1.33');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('季度海报'));
+    expect(changes, contains('鼠标'));
+    expect(changes, contains('TMDB 刮削'));
+    expect(changes, contains('重新匹配'));
+    expect(changes, contains('不会修改'));
+    expect(entries.single.isPrerelease, isTrue);
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

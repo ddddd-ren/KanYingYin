@@ -43,7 +43,7 @@
 
 ## 共享 TMDB 对话框
 
-新增来源无关的 `TmdbMatchDialog<TResult>`。该组件只依赖共享 TMDB 类型，不导入本地或网盘记录模型。
+在页面共享边界新增来源无关的 `TmdbMatchDialog<TResult>`。该组件只依赖共享 TMDB 类型，不导入本地或网盘记录模型；不放入 `features/library/presentation`，避免媒体库纯展示组件越层依赖 TMDB 服务类型。
 
 对话框接收以下输入：
 

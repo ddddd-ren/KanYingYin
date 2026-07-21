@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
 import 'package:kanyingyin/features/library/presentation/library_path_bar.dart';
 import 'package:kanyingyin/features/library/presentation/library_source_menu.dart';
-import 'package:kanyingyin/features/library/presentation/tmdb_match_dialog.dart';
+import 'package:kanyingyin/pages/tmdb_match_dialog.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/local_media_source.dart';

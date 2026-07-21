@@ -13,7 +13,7 @@
 ## 文件职责
 
 - `lib/services/tmdb/tmdb_prepared_search.dart`：定义来源无关的准备搜索请求、结果和对话框初始识别信息
-- `lib/features/library/presentation/tmdb_match_dialog.dart`：呈现共享 TMDB 搜索和候选确认界面
+- `lib/pages/tmdb_match_dialog.dart`：在页面共享边界呈现 TMDB 搜索和候选确认界面
 - `lib/pages/cloud/resources/cloud_tmdb_match_dialog.dart`：保留网盘旧导入路径的兼容别名
 - `lib/services/tmdb/local_tmdb_scrape_service.dart`：执行本地只读候选搜索和确认后的持久化
 - `lib/pages/local/local_controller.dart`：为本地页面提供识别草稿、准备搜索和季度海报 URL
@@ -25,7 +25,7 @@
 
 **Files:**
 - Create: `lib/services/tmdb/tmdb_prepared_search.dart`
-- Create: `lib/features/library/presentation/tmdb_match_dialog.dart`
+- Create: `lib/pages/tmdb_match_dialog.dart`
 - Modify: `lib/services/cloud/cloud_resource_tmdb_search.dart`
 - Modify: `lib/services/cloud/cloud_media_name_parser.dart`
 - Modify: `lib/pages/cloud/resources/cloud_tmdb_match_dialog.dart`
@@ -231,10 +231,10 @@ class TmdbMatchDialog<TResult> extends StatefulWidget {
 将 `cloud_tmdb_match_dialog.dart` 收缩为兼容别名：
 
 ```dart
-import 'package:kanyingyin/features/library/presentation/tmdb_match_dialog.dart';
+import 'package:kanyingyin/pages/tmdb_match_dialog.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 
-export 'package:kanyingyin/features/library/presentation/tmdb_match_dialog.dart';
+export 'package:kanyingyin/pages/tmdb_match_dialog.dart';
 
 typedef CloudTmdbSearchCallback = TmdbMatchSearchCallback;
 typedef CloudTmdbApplyCallback =
@@ -262,7 +262,7 @@ D:\flutter\bin\flutter.bat test --no-pub test\tmdb_match_dialog_test.dart test\c
 - [ ] **Step 7: 提交**
 
 ```powershell
-git add lib/services/tmdb/tmdb_prepared_search.dart lib/features/library/presentation/tmdb_match_dialog.dart lib/services/cloud/cloud_resource_tmdb_search.dart lib/services/cloud/cloud_media_name_parser.dart lib/pages/cloud/resources/cloud_tmdb_match_dialog.dart lib/pages/cloud/resources/cloud_resources_page.dart test/tmdb_match_dialog_test.dart test/cloud_tmdb_match_dialog_test.dart test/cloud_resources_page_test.dart
+git add lib/services/tmdb/tmdb_prepared_search.dart lib/pages/tmdb_match_dialog.dart lib/services/cloud/cloud_resource_tmdb_search.dart lib/services/cloud/cloud_media_name_parser.dart lib/pages/cloud/resources/cloud_tmdb_match_dialog.dart lib/pages/cloud/resources/cloud_resources_page.dart test/tmdb_match_dialog_test.dart test/cloud_tmdb_match_dialog_test.dart test/cloud_resources_page_test.dart
 git commit -m "共享TMDB候选确认对话框"
 ```
 

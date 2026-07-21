@@ -19,7 +19,7 @@ import 'package:kanyingyin/bean/widget/embedded_native_control_area.dart';
 import 'package:kanyingyin/services/timed_shutdown_service.dart';
 import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
-import 'package:kanyingyin/pages/video/quark_relay_status_presenter.dart';
+import 'package:kanyingyin/pages/video/cloud_relay_status_presenter.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 
 class VideoPage extends StatefulWidget {
@@ -196,22 +196,24 @@ class _VideoPageState extends State<VideoPage>
     if (mounted) setState(() {});
   }
 
-  QuarkRelayStatusPresentation? _relayPresentation({
+  CloudRelayStatusPresentation? _relayPresentation({
     bool forLoading = false,
   }) {
     final status = localVideoController.relayStatus;
     if (status == null) return null;
-    final displayedStatus = forLoading && status.phase == QuarkRelayPhase.ready
-        ? QuarkRelayStatus(
-            phase: QuarkRelayPhase.prefetching,
-            bytesPerSecond: status.bytesPerSecond,
-            receivedBytes: status.receivedBytes,
-            cachedBytes: status.cachedBytes,
-            bufferedDuration: status.bufferedDuration,
-            message: status.message,
-          )
-        : status;
-    return QuarkRelayStatusPresenter.present(
+    final displayedStatus =
+        forLoading && status.phase == CloudRangeRelayPhase.ready
+            ? CloudRangeRelayStatus(
+                providerName: status.providerName,
+                phase: CloudRangeRelayPhase.prefetching,
+                bytesPerSecond: status.bytesPerSecond,
+                receivedBytes: status.receivedBytes,
+                cachedBytes: status.cachedBytes,
+                bufferedDuration: status.bufferedDuration,
+                message: status.message,
+              )
+            : status;
+    return CloudRelayStatusPresenter.present(
       displayedStatus,
       totalBytes: localVideoController.relayTotalBytes,
       mediaDuration: playerController.duration > Duration.zero
@@ -220,7 +222,7 @@ class _VideoPageState extends State<VideoPage>
     );
   }
 
-  void _syncRelayVisibility(QuarkRelayStatusPresentation? presentation) {
+  void _syncRelayVisibility(CloudRelayStatusPresentation? presentation) {
     final stable = presentation?.stable == true && !playerController.loading;
     if (!stable) {
       _relayStableTimer?.cancel();

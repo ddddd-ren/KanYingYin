@@ -26,8 +26,9 @@ class CloudResourceCardViewData {
     required bool scraping,
     required bool hasSubtitle,
   }) {
-    final matched = record?.status == CloudResourceTmdbStatus.matched;
-    final kind = !entry.isDirectory || matched
+    final hasMetadata = record?.status == CloudResourceTmdbStatus.matched ||
+        record?.status == CloudResourceTmdbStatus.conflict;
+    final kind = !entry.isDirectory || hasMetadata
         ? CloudResourceCardKind.media
         : CloudResourceCardKind.directory;
     final effectiveTitle = record?.effectiveTitle.trim();
@@ -35,7 +36,7 @@ class CloudResourceCardViewData {
         ? effectiveTitle
         : entry.name;
     final details = <String>[];
-    if (matched) {
+    if (hasMetadata) {
       final rating = record?.rating;
       if (rating != null) details.add('${rating.toStringAsFixed(1)} ★');
       final mediaType = record?.mediaType;
@@ -69,8 +70,8 @@ class CloudResourceCardViewData {
       details: details.join('  ·  '),
       badges: badges,
       isScraping: scraping,
-      posterCachePath: matched ? record?.posterCachePath : null,
-      posterUrl: matched ? record?.posterUrl : null,
+      posterCachePath: hasMetadata ? record?.posterCachePath : null,
+      posterUrl: hasMetadata ? record?.posterUrl : null,
     );
   }
 
@@ -135,6 +136,7 @@ class CloudResourceCardViewData {
       CloudResourceTmdbStatus.matched => '已刮削',
       CloudResourceTmdbStatus.unmatched => '未匹配',
       CloudResourceTmdbStatus.failed => '刮削失败',
+      CloudResourceTmdbStatus.conflict => '需要确认',
       CloudResourceTmdbStatus.unchecked || null => '未刮削',
     };
     return ImmersiveMediaCardBadge(

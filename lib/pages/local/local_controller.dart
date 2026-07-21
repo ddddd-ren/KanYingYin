@@ -26,7 +26,10 @@ import 'package:kanyingyin/services/local_media_index_metadata_refresher.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/services/local_media_scanner.dart';
 import 'package:kanyingyin/services/tmdb/local_tmdb_scrape_service.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_poster_policy.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scraper.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/local_cover_finder.dart';
@@ -72,6 +75,7 @@ abstract class _LocalController with Store {
     Future<void> Function(String sourceId)? scanCloudSource,
     CloudTmdbMetadataService? cloudTmdbMetadataService,
     LocalTmdbScrapeService? tmdbScrapeService,
+    TmdbApiKeyProvider? tmdbApiKeyProvider,
   }) : this._(
           scanner: scanner,
           mediaIndexer: mediaIndexer,
@@ -88,6 +92,8 @@ abstract class _LocalController with Store {
           scanCloudSource: scanCloudSource,
           cloudTmdbMetadataService: cloudTmdbMetadataService,
           tmdbScrapeService: tmdbScrapeService,
+          tmdbApiKeyProvider:
+              tmdbApiKeyProvider ?? TmdbApiKeyProvider(userKeyReader: () => ''),
         );
 
   _LocalController._({
@@ -105,6 +111,7 @@ abstract class _LocalController with Store {
     Future<void> Function(String sourceId)? scanCloudSource,
     CloudTmdbMetadataService? cloudTmdbMetadataService,
     LocalTmdbScrapeService? tmdbScrapeService,
+    required TmdbApiKeyProvider tmdbApiKeyProvider,
   })  : _scanner = scanner ?? LocalMediaScanner(),
         _mediaIndexRepository = mediaIndexRepository,
         _mediaIndexer =
@@ -123,7 +130,8 @@ abstract class _LocalController with Store {
               metadataRepository: TmdbMetadataRepository(),
               clientFactory: (apiKey) => TmdbClient(apiKey: apiKey),
             ),
-        _posterService = PosterService(),
+        _tmdbApiKeyProvider = tmdbApiKeyProvider,
+        _posterService = PosterService(apiKeyProvider: tmdbApiKeyProvider),
         _mediaSourceRepository =
             mediaSourceRepository ?? LocalMediaSourceRepository(),
         _seriesTitleOverrideRepository = seriesTitleOverrideRepository ??
@@ -145,6 +153,7 @@ abstract class _LocalController with Store {
   final LocalLibraryMetadataCoordinator _metadataCoordinator;
   final LocalSeriesGrouper _seriesGrouper;
   final LocalTmdbScrapeService _tmdbScrapeService;
+  final TmdbApiKeyProvider _tmdbApiKeyProvider;
   final PosterService _posterService;
   final ILocalMediaSourceRepository _mediaSourceRepository;
   final ILocalSeriesTitleOverrideRepository _seriesTitleOverrideRepository;
@@ -1080,16 +1089,7 @@ abstract class _LocalController with Store {
     );
   }
 
-  String get _tmdbApiKey {
-    try {
-      return GStorage.setting
-          .get('tmdbApiKey', defaultValue: '')
-          .toString()
-          .trim();
-    } catch (_) {
-      return '';
-    }
-  }
+  String get _tmdbApiKey => _tmdbApiKeyProvider.read();
 
   TmdbScrapeOptions get tmdbScrapeOptions {
     try {
@@ -1115,6 +1115,61 @@ abstract class _LocalController with Store {
     return null;
   }
 
+  TmdbMatchDraft localTmdbDraftForPaths({
+    required String originalName,
+    required Iterable<String> paths,
+  }) {
+    final ids = paths.map(LocalMediaIndexItem.normalizePath).toSet();
+    final indexedById = <String, LocalMediaIndexItem>{
+      for (final item in _mediaIndexRepository.getAll()) item.id: item,
+      for (final item in localLibraryItems) item.id: item,
+    };
+    final items = indexedById.values
+        .where((item) => ids.contains(item.id))
+        .toList(growable: false);
+    if (items.isEmpty) {
+      throw StateError('请先扫描媒体库，再进行 TMDB 刮削');
+    }
+    final seasons = items
+        .map((item) => item.seasonNumber)
+        .whereType<int>()
+        .where((value) => value > 0)
+        .toSet();
+    final episodes = items
+        .map((item) => item.episodeNumber)
+        .whereType<int>()
+        .where((value) => value > 0)
+        .toSet();
+    final releaseDate = items
+        .map((item) => item.tmdb?.releaseDate)
+        .whereType<String>()
+        .firstOrNull;
+    final year = releaseDate != null && releaseDate.length >= 4
+        ? int.tryParse(releaseDate.substring(0, 4))
+        : null;
+    return TmdbMatchDraft(
+      originalName: originalName,
+      searchTitle: items.first.seriesName,
+      mediaTypeMode: seasons.isNotEmpty || episodes.isNotEmpty
+          ? TmdbMediaTypeMode.tv
+          : TmdbMediaTypeMode.auto,
+      year: year,
+      seasonNumber: seasons.length == 1 ? seasons.single : null,
+      episodeNumber: episodes.length == 1 ? episodes.single : null,
+    );
+  }
+
+  Future<TmdbPreparedSearchOutcome> searchLocalTmdb(
+    String seriesName,
+    TmdbPreparedSearchRequest request,
+  ) {
+    return _tmdbScrapeService.searchPrepared(
+      apiKey: _tmdbApiKey,
+      seriesName: seriesName,
+      request: request,
+    );
+  }
+
   String? _tmdbImageUrl(String? path) {
     if (path == null || path.trim().isEmpty) return null;
     if (path.startsWith('http://') || path.startsWith('https://')) return path;
@@ -1123,12 +1178,22 @@ abstract class _LocalController with Store {
 
   String? tmdbPosterUrlForPaths(Iterable<String> paths) {
     final ids = paths.map(LocalMediaIndexItem.normalizePath).toSet();
-    for (final item in localLibraryItems) {
-      if (!ids.contains(item.id)) continue;
-      final url = _tmdbImageUrl(item.tmdb?.posterUrl);
-      if (url != null && url.isNotEmpty) return url;
-    }
-    return null;
+    final matches = localLibraryItems
+        .where((item) => ids.contains(item.id))
+        .toList(growable: false);
+    final metadata = matches.map((item) => item.tmdb).nonNulls.firstOrNull;
+    if (metadata == null) return null;
+    final seasons = matches
+        .map((item) => item.seasonNumber)
+        .whereType<int>()
+        .where((value) => value > 0)
+        .toSet();
+    final poster = const TmdbPosterPolicy().select(
+      metadata,
+      seasonNumber: seasons.length == 1 ? seasons.single : null,
+      options: const TmdbScrapeOptions.defaults(),
+    );
+    return _tmdbImageUrl(poster);
   }
 
   @action

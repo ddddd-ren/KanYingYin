@@ -1,23 +1,23 @@
 import 'dart:io';
 
-import 'package:kanyingyin/services/cloud/quark/quark_range_relay_protocol.dart';
+import 'package:kanyingyin/services/cloud/range/cloud_range_relay_protocol.dart';
 
-typedef QuarkRangeChunkLoader = Future<void> Function(
+typedef CloudRangeChunkLoader = Future<void> Function(
   ByteRange range,
   File destination,
 );
 
-class QuarkChunkLoadException implements Exception {
-  const QuarkChunkLoadException(this.message);
+class CloudChunkLoadException implements Exception {
+  const CloudChunkLoadException(this.message);
 
   final String message;
 
   @override
-  String toString() => 'QuarkChunkLoadException($message)';
+  String toString() => 'CloudChunkLoadException($message)';
 }
 
-class QuarkRangeChunkCache {
-  QuarkRangeChunkCache({
+class CloudRangeChunkCache {
+  CloudRangeChunkCache({
     required this.directory,
     required this.totalLength,
     this.chunkSize = 16 * 1024 * 1024,
@@ -47,9 +47,9 @@ class QuarkRangeChunkCache {
     return List<int>.unmodifiable(indices);
   }
 
-  Future<QuarkRangeChunkHandle> acquire(
+  Future<CloudRangeChunkHandle> acquire(
     int byteOffset,
-    QuarkRangeChunkLoader loader,
+    CloudRangeChunkLoader loader,
   ) async {
     if (_closed) throw StateError('分段缓存已关闭');
     if (byteOffset < 0 || byteOffset >= totalLength) {
@@ -74,23 +74,23 @@ class QuarkRangeChunkCache {
 
   Future<_ChunkEntry> _makeRoomAndLoad(
     int chunkIndex,
-    QuarkRangeChunkLoader loader,
+    CloudRangeChunkLoader loader,
   ) async {
     await _makeRoomForChunk(chunkIndex);
     if (_closed) throw StateError('分段缓存已关闭');
     return _loadChunk(chunkIndex, loader);
   }
 
-  QuarkRangeChunkHandle _pin(_ChunkEntry entry) {
+  CloudRangeChunkHandle _pin(_ChunkEntry entry) {
     if (_closed) throw StateError('分段缓存已关闭');
     entry.references++;
     entry.lastAccess = ++_accessTick;
-    return QuarkRangeChunkHandle._(this, entry);
+    return CloudRangeChunkHandle._(this, entry);
   }
 
   Future<_ChunkEntry> _loadChunk(
     int chunkIndex,
-    QuarkRangeChunkLoader loader,
+    CloudRangeChunkLoader loader,
   ) async {
     await directory.create(recursive: true);
     final start = chunkIndex * chunkSize;
@@ -113,7 +113,7 @@ class QuarkRangeChunkCache {
       if (_closed) throw StateError('分段缓存已关闭');
       final actualLength = await part.length();
       if (actualLength != range.length) {
-        throw QuarkChunkLoadException(
+        throw CloudChunkLoadException(
           '分段长度不符：期望 ${range.length}，实际 $actualLength',
         );
       }
@@ -126,7 +126,7 @@ class QuarkRangeChunkCache {
       );
       _entries[chunkIndex] = entry;
       return entry;
-    } on QuarkChunkLoadException {
+    } on CloudChunkLoadException {
       if (await part.exists()) await part.delete();
       rethrow;
     } on Object {
@@ -148,7 +148,7 @@ class QuarkRangeChunkCache {
         ..sort(
             (first, second) => first.lastAccess.compareTo(second.lastAccess));
       if (candidates.isEmpty) {
-        throw const QuarkChunkLoadException('分段缓存容量已被正在使用的内容占满');
+        throw const CloudChunkLoadException('分段缓存容量已被正在使用的内容占满');
       }
       final victim = candidates.first;
       _entries.remove(victim.chunkIndex);
@@ -177,10 +177,10 @@ class QuarkRangeChunkCache {
   }
 }
 
-class QuarkRangeChunkHandle {
-  QuarkRangeChunkHandle._(this._cache, this._entry);
+class CloudRangeChunkHandle {
+  CloudRangeChunkHandle._(this._cache, this._entry);
 
-  final QuarkRangeChunkCache _cache;
+  final CloudRangeChunkCache _cache;
   final _ChunkEntry _entry;
   var _released = false;
 

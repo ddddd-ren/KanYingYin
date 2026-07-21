@@ -2,27 +2,26 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:kanyingyin/services/local_cover_finder.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/modules/local/local_episode_info.dart';
-import 'package:kanyingyin/utils/storage.dart';
 import 'package:path/path.dart' as p;
 
 class PosterService {
   static const _baseUrl = 'https://api.themoviedb.org/3';
   static const _imageBaseUrl = 'https://image.tmdb.org/t/p/w780';
 
-  static const _proxies = [
-    'https://tmdb.lsmcloud.cc/3',
-    'https://api.tmdb.org/3',
-  ];
-
   final Dio _dio;
   final Dio _downloadDio;
-  final String Function() _apiKeyProvider;
-  String? _workingProxy;
+  final TmdbApiKeyProvider _apiKeyProvider;
+  String? _workingBaseUrl;
 
-  PosterService({String Function()? apiKeyProvider, Dio? downloadDio})
-      : _apiKeyProvider = apiKeyProvider ?? _readApiKey,
+  PosterService({
+    TmdbApiKeyProvider? apiKeyProvider,
+    Dio? apiDio,
+    Dio? downloadDio,
+  })  : _apiKeyProvider =
+            apiKeyProvider ?? TmdbApiKeyProvider(userKeyReader: () => ''),
         _downloadDio = downloadDio ??
             Dio(
               BaseOptions(
@@ -30,23 +29,13 @@ class PosterService {
                 receiveTimeout: const Duration(seconds: 30),
               ),
             ),
-        _dio = Dio(
-          BaseOptions(
-            connectTimeout: const Duration(seconds: 8),
-            receiveTimeout: const Duration(seconds: 10),
-          ),
-        );
-
-  static String _readApiKey() {
-    try {
-      return GStorage.setting
-          .get('tmdbApiKey', defaultValue: '')
-          .toString()
-          .trim();
-    } catch (_) {
-      return '';
-    }
-  }
+        _dio = apiDio ??
+            Dio(
+              BaseOptions(
+                connectTimeout: const Duration(seconds: 8),
+                receiveTimeout: const Duration(seconds: 10),
+              ),
+            );
 
   final Map<String, String?> _searchCache = {};
 
@@ -188,7 +177,7 @@ class PosterService {
 
   Future<String?> _searchTmdb(String query) async {
     if (query.isEmpty) return null;
-    final apiKey = _apiKeyProvider().trim();
+    final apiKey = _apiKeyProvider.read();
     if (apiKey.isEmpty) return null;
 
     final baseUrl = await _ensureBaseUrl(apiKey);
@@ -228,7 +217,7 @@ class PosterService {
       }
     } catch (e) {
       AppLogger().w('PosterService: TMDB search failed for "$query": $e');
-      _workingProxy = null;
+      _workingBaseUrl = null;
     }
     return null;
   }
@@ -314,27 +303,16 @@ class PosterService {
   }
 
   Future<String?> _ensureBaseUrl(String apiKey) async {
-    if (_workingProxy != null) return _workingProxy;
+    if (_workingBaseUrl != null) return _workingBaseUrl;
 
     try {
       await _dio.get<Object?>(
         '$_baseUrl/configuration',
         queryParameters: {'api_key': apiKey},
       );
-      _workingProxy = _baseUrl;
+      _workingBaseUrl = _baseUrl;
       return _baseUrl;
     } catch (_) {}
-
-    for (final proxy in _proxies) {
-      try {
-        await _dio.get<Object?>(
-          '$proxy/configuration',
-          queryParameters: {'api_key': apiKey},
-        );
-        _workingProxy = proxy;
-        return proxy;
-      } catch (_) {}
-    }
 
     return null;
   }

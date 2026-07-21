@@ -1,12 +1,18 @@
-import 'package:path/path.dart' as p;
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/repositories/local_media_index_repository.dart';
 import 'package:kanyingyin/repositories/tmdb_metadata_repository.dart';
-import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
-import 'package:kanyingyin/services/tmdb/tmdb_scraper.dart';
-import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/poster_service.dart';
+import 'package:kanyingyin/services/tmdb/local_tmdb_subject_builder.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_metadata_merge_policy.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_poster_policy.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_engine.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scraper.dart';
+import 'package:path/path.dart' as p;
 
 typedef TmdbPosterDownloader = Future<String?> Function(
   String posterUrl,
@@ -14,19 +20,64 @@ typedef TmdbPosterDownloader = Future<String?> Function(
 );
 
 class LocalTmdbScrapeService {
-  final ILocalMediaIndexRepository indexRepository;
-  final ITmdbMetadataRepository metadataRepository;
-  final ITmdbClient Function(String apiKey) clientFactory;
-  final TmdbPosterDownloader posterDownloader;
-
   LocalTmdbScrapeService({
     required this.indexRepository,
     required this.metadataRepository,
     required this.clientFactory,
     TmdbPosterDownloader? posterDownloader,
+    this.subjectBuilder = const LocalTmdbSubjectBuilder(),
+    this.mergePolicy = const TmdbMetadataMergePolicy(),
+    this.posterPolicy = const TmdbPosterPolicy(),
   }) : posterDownloader = posterDownloader ??
             ((url, path) =>
                 PosterService().downloadPosterTo(url, path, overwrite: true));
+
+  final ILocalMediaIndexRepository indexRepository;
+  final ITmdbMetadataRepository metadataRepository;
+  final ITmdbClient Function(String apiKey) clientFactory;
+  final TmdbPosterDownloader posterDownloader;
+  final LocalTmdbSubjectBuilder subjectBuilder;
+  final TmdbMetadataMergePolicy mergePolicy;
+  final TmdbPosterPolicy posterPolicy;
+
+  Future<TmdbPreparedSearchOutcome> searchPrepared({
+    required String apiKey,
+    required String seriesName,
+    required TmdbPreparedSearchRequest request,
+  }) async {
+    final key = apiKey.trim();
+    if (key.isEmpty) {
+      throw StateError('请先在设置中填写 TMDB API Key');
+    }
+    final normalizedSeries = seriesName.trim().toLowerCase();
+    final items = indexRepository
+        .getAll()
+        .where(
+          (item) => item.seriesName.trim().toLowerCase() == normalizedSeries,
+        )
+        .toList(growable: false);
+    if (items.isEmpty) {
+      throw StateError('本地媒体索引中没有该作品');
+    }
+    final base = subjectBuilder.build(seriesName: seriesName, items: items);
+    final subject = TmdbScrapeSubject(
+      stableKey: base.stableKey,
+      titleCandidates: <String>[request.queryTitle],
+      year: request.queryYear,
+      seasonNumbers: base.seasonNumbers,
+      episodeNumbers: base.episodeNumbers,
+      mediaEvidence: base.mediaEvidence,
+      existingMetadata: base.existingMetadata,
+      fieldLocks: base.fieldLocks,
+      matchOrigin: base.matchOrigin,
+      ruleVersion: base.ruleVersion,
+    );
+    final outcome = await TmdbScrapeEngine(client: clientFactory(key)).search(
+      subject,
+      request.options.copyWith(mediaTypeMode: request.mediaTypeMode),
+    );
+    return TmdbPreparedSearchOutcome(ranked: outcome.ranked);
+  }
 
   Future<TmdbScrapeResult> scrapeSeries({
     required String apiKey,
@@ -43,52 +94,115 @@ class LocalTmdbScrapeService {
     if (apiKey.trim().isEmpty || seriesItems.isEmpty) {
       return const TmdbScrapeResult(status: TmdbScrapeStatus.none);
     }
+
+    final resolvedOptions = mediaType == null
+        ? options
+        : options.copyWith(
+            mediaTypeMode: mediaType == TmdbMediaType.movie
+                ? TmdbMediaTypeMode.movie
+                : TmdbMediaTypeMode.tv,
+          );
+    final subject = subjectBuilder.build(
+      seriesName: seriesName,
+      items: seriesItems,
+    );
+    final allMatched = seriesItems.every(
+      (item) =>
+          item.scrapeStatus == TmdbScrapeStatus.matched && item.tmdb != null,
+    );
+    final protected = subject.matchOrigin == TmdbMatchOrigin.manual ||
+        subject.fieldLocks.title ||
+        subject.fieldLocks.overview ||
+        subject.fieldLocks.poster;
     if (!force &&
-        seriesItems.every((item) =>
-            item.scrapeStatus == TmdbScrapeStatus.matched &&
-            item.tmdb != null)) {
-      final failures = await _downloadPosters(seriesItems);
+        allMatched &&
+        (subject.ruleVersion >= currentTmdbRuleVersion || protected)) {
+      if (subject.ruleVersion < currentTmdbRuleVersion) {
+        for (final item in seriesItems) {
+          await indexRepository.updateItem(
+            item.copyWith(tmdbRuleVersion: currentTmdbRuleVersion),
+          );
+        }
+      }
+      final failures = await _downloadPosters(seriesItems, resolvedOptions);
       return TmdbScrapeResult(
         status: TmdbScrapeStatus.matched,
-        metadata: seriesItems.first.tmdb,
+        metadata: subject.existingMetadata,
         posterDownloadFailures: failures,
       );
     }
 
-    final effectiveType = mediaType ?? _resolveType(options, seriesItems);
-    final scraper = TmdbScraper(
-      client: clientFactory(apiKey.trim()),
-      repository: metadataRepository,
-    );
-    final result = await scraper.scrape(
-      mediaKey: normalizedKey,
-      title: seriesName,
-      year: _extractYear(seriesName),
-      mediaType: effectiveType,
-      language: options.language,
-      minimumScore: options.minimumScore,
-      minimumLead: options.minimumLead,
-    );
+    try {
+      final client = clientFactory(apiKey.trim());
+      final search = await TmdbScrapeEngine(client: client).search(
+        subject,
+        resolvedOptions,
+      );
+      final candidates = search.ranked.candidates
+          .map((candidate) => candidate.metadata)
+          .toList(growable: false);
+      final best = search.ranked.best;
+      if (!search.ranked.shouldAutoMatch || best == null) {
+        await _markPending(seriesItems);
+        return TmdbScrapeResult(
+          status: TmdbScrapeStatus.pending,
+          metadata: subject.existingMetadata,
+          candidates: candidates,
+        );
+      }
+      if (_isProtectedConflict(subject, best.metadata)) {
+        await _markPending(seriesItems);
+        return TmdbScrapeResult(
+          status: TmdbScrapeStatus.pending,
+          metadata: subject.existingMetadata,
+          candidates: candidates,
+        );
+      }
 
-    for (final item in seriesItems) {
-      final metadata = result.metadata == null
-          ? item.tmdb
-          : _mergeMetadata(item, result.metadata!, options);
-      await indexRepository.updateItem(item.copyWith(
-        tmdb: metadata,
-        scrapeStatus: result.status,
-      ));
+      final details = await client.details(
+        best.metadata.id,
+        best.metadata.mediaType,
+        language: resolvedOptions.language,
+      );
+      final merged = <TmdbMetadata>[];
+      for (final item in seriesItems) {
+        final metadata = mergePolicy.merge(
+          existing: item.tmdb,
+          fetched: details,
+          options: resolvedOptions,
+          locks: TmdbFieldLocks(
+            title: item.titleLocked,
+            overview: item.overviewLocked,
+            poster: item.posterLocked,
+          ),
+          matchConfidence: best.score,
+          existingSeasons: subject.seasonNumbers,
+        );
+        merged.add(metadata);
+        await indexRepository.updateItem(
+          item.copyWith(
+            tmdb: metadata,
+            scrapeStatus: TmdbScrapeStatus.matched,
+            tmdbMatchOrigin: TmdbMatchOrigin.automatic,
+            tmdbRuleVersion: currentTmdbRuleVersion,
+          ),
+        );
+      }
+      await metadataRepository.save(normalizedKey, merged.first);
+      final failures = await _downloadPosters(seriesItems, resolvedOptions);
+      return TmdbScrapeResult(
+        status: TmdbScrapeStatus.matched,
+        metadata: merged.first,
+        candidates: candidates,
+        posterDownloadFailures: failures,
+      );
+    } catch (error) {
+      return TmdbScrapeResult(
+        status: TmdbScrapeStatus.failed,
+        metadata: subject.existingMetadata,
+        error: error,
+      );
     }
-    final failures = result.status == TmdbScrapeStatus.matched
-        ? await _downloadPosters(seriesItems)
-        : 0;
-    return TmdbScrapeResult(
-      status: result.status,
-      metadata: result.metadata,
-      candidates: result.candidates,
-      error: result.error,
-      posterDownloadFailures: failures,
-    );
   }
 
   Future<TmdbScrapeResult> selectCandidate({
@@ -109,37 +223,115 @@ class LocalTmdbScrapeService {
       return const TmdbScrapeResult(status: TmdbScrapeStatus.none);
     }
 
-    final details = await clientFactory(apiKey.trim()).details(
-      candidate.id,
-      candidate.mediaType,
-      language: options.language,
-    );
-    await metadataRepository.save(normalizedKey, details);
-    for (final item in seriesItems) {
-      await indexRepository.updateItem(item.copyWith(
-        tmdb: _mergeMetadata(item, details, options),
-        scrapeStatus: TmdbScrapeStatus.matched,
-      ));
+    try {
+      final details = await clientFactory(apiKey.trim()).details(
+        candidate.id,
+        candidate.mediaType,
+        language: options.language,
+      );
+      final subject = subjectBuilder.build(
+        seriesName: seriesName,
+        items: seriesItems,
+      );
+      final merged = <TmdbMetadata>[];
+      for (final item in seriesItems) {
+        final metadata = mergePolicy.merge(
+          existing: item.tmdb,
+          fetched: details,
+          options: options,
+          locks: TmdbFieldLocks(
+            title: item.titleLocked,
+            overview: item.overviewLocked,
+            poster: item.posterLocked,
+          ),
+          matchConfidence: 1,
+          existingSeasons: subject.seasonNumbers,
+        );
+        merged.add(metadata);
+        await indexRepository.updateItem(
+          item.copyWith(
+            tmdb: metadata,
+            scrapeStatus: TmdbScrapeStatus.matched,
+            tmdbMatchOrigin: TmdbMatchOrigin.manual,
+            tmdbRuleVersion: currentTmdbRuleVersion,
+          ),
+        );
+      }
+      await metadataRepository.save(normalizedKey, merged.first);
+      final failures = await _downloadPosters(seriesItems, options);
+      return TmdbScrapeResult(
+        status: TmdbScrapeStatus.matched,
+        metadata: merged.first,
+        posterDownloadFailures: failures,
+      );
+    } catch (error) {
+      return TmdbScrapeResult(
+        status: TmdbScrapeStatus.failed,
+        error: error,
+      );
     }
-    final failures = await _downloadPosters(seriesItems);
-    return TmdbScrapeResult(
-      status: TmdbScrapeStatus.matched,
-      metadata: details,
-      posterDownloadFailures: failures,
-    );
   }
 
-  Future<int> _downloadPosters(List<LocalMediaIndexItem> seriesItems) async {
+  bool _isProtectedConflict(
+    TmdbScrapeSubject subject,
+    TmdbMetadata selected,
+  ) {
+    final existing = subject.existingMetadata;
+    if (existing == null ||
+        (existing.id == selected.id &&
+            existing.mediaType == selected.mediaType)) {
+      return false;
+    }
+    return subject.ruleVersion < currentTmdbRuleVersion ||
+        subject.matchOrigin == TmdbMatchOrigin.manual ||
+        subject.fieldLocks.title ||
+        subject.fieldLocks.overview ||
+        subject.fieldLocks.poster;
+  }
+
+  Future<void> _markPending(List<LocalMediaIndexItem> items) async {
+    for (final item in items) {
+      await indexRepository.updateItem(
+        item.copyWith(
+          scrapeStatus: TmdbScrapeStatus.pending,
+          tmdbRuleVersion: currentTmdbRuleVersion,
+        ),
+      );
+    }
+  }
+
+  Future<int> _downloadPosters(
+    List<LocalMediaIndexItem> seriesItems,
+    TmdbScrapeOptions options,
+  ) async {
     final itemsByDirectory = <String, List<LocalMediaIndexItem>>{};
     for (final original in seriesItems) {
       final item = indexRepository.getByPath(original.path) ?? original;
-      final posterPath = item.tmdb?.posterUrl?.trim() ?? '';
-      if (posterPath.isEmpty) continue;
-      (itemsByDirectory[p.dirname(item.path)] ??= []).add(item);
+      if (item.posterLocked || !options.fetchPoster) continue;
+      final metadata = item.tmdb;
+      if (metadata == null) continue;
+      final posterPath = posterPolicy.select(
+        metadata,
+        seasonNumber: item.seasonNumber,
+        options: options,
+        locks: TmdbFieldLocks(poster: item.posterLocked),
+        existingPoster: item.cover,
+      );
+      if (posterPath == null) continue;
+      (itemsByDirectory[p.dirname(item.path)] ??= <LocalMediaIndexItem>[])
+          .add(item);
     }
+
     var failures = 0;
     for (final entry in itemsByDirectory.entries) {
-      final posterPath = entry.value.first.tmdb!.posterUrl!.trim();
+      final first = entry.value.first;
+      final posterPath = posterPolicy.select(
+        first.tmdb!,
+        seasonNumber: first.seasonNumber,
+        options: options,
+        existingPoster: first.cover,
+      );
+      if (posterPath == null) continue;
       final url = posterPath.startsWith('http')
           ? posterPath
           : 'https://image.tmdb.org/t/p/w780$posterPath';
@@ -155,59 +347,5 @@ class LocalTmdbScrapeService {
       }
     }
     return failures;
-  }
-
-  TmdbMediaType _inferType(List<LocalMediaIndexItem> items) {
-    return items.any((item) => item.episodeNumber != null)
-        ? TmdbMediaType.tv
-        : TmdbMediaType.movie;
-  }
-
-  TmdbMediaType _resolveType(
-    TmdbScrapeOptions options,
-    List<LocalMediaIndexItem> items,
-  ) {
-    return switch (options.mediaTypeMode) {
-      TmdbMediaTypeMode.movie => TmdbMediaType.movie,
-      TmdbMediaTypeMode.tv => TmdbMediaType.tv,
-      TmdbMediaTypeMode.auto => _inferType(items),
-    };
-  }
-
-  int? _extractYear(String value) {
-    final match = RegExp(r'(?<!\d)(19|20)\d{2}(?!\d)').firstMatch(value);
-    return match == null ? null : int.tryParse(match.group(0)!);
-  }
-
-  TmdbMetadata _mergeMetadata(
-    LocalMediaIndexItem item,
-    TmdbMetadata fetched,
-    TmdbScrapeOptions options,
-  ) {
-    final existing = item.tmdb;
-    final preserveTitle =
-        existing != null && (item.titleLocked || !options.overwriteTitle);
-    final preserveOverview =
-        existing != null && (item.overviewLocked || !options.overwriteOverview);
-    final preservePoster =
-        existing != null && (item.posterLocked || !options.overwritePoster);
-    return TmdbMetadata(
-      id: fetched.id,
-      mediaType: fetched.mediaType,
-      title: preserveTitle ? existing.title : fetched.title,
-      originalTitle:
-          preserveTitle ? existing.originalTitle : fetched.originalTitle,
-      overview: preserveOverview ? existing.overview : fetched.overview,
-      releaseDate: fetched.releaseDate,
-      rating: fetched.rating,
-      posterUrl: options.fetchPoster
-          ? (preservePoster ? existing.posterUrl : fetched.posterUrl)
-          : existing?.posterUrl,
-      backdropUrl:
-          options.fetchBackdrop ? fetched.backdropUrl : existing?.backdropUrl,
-      language: fetched.language,
-      matchedAt: fetched.matchedAt,
-      matchConfidence: fetched.matchConfidence,
-    );
   }
 }

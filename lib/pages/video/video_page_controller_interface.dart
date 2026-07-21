@@ -19,7 +19,7 @@ abstract class IVideoPageController {
   bool get showTabBody;
   int get actualEpisodeNumber;
   bool get isCloudPlayback;
-  QuarkRelayStatus? get relayStatus;
+  CloudRangeRelayStatus? get relayStatus;
   int? get relayTotalBytes;
 
   set isFullscreen(bool value);

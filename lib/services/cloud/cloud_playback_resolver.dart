@@ -8,8 +8,8 @@ import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:kanyingyin/services/cloud/cloud_subtitle_cache.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
-import 'package:kanyingyin/services/cloud/quark/quark_range_relay_service.dart';
-import 'package:kanyingyin/services/cloud/quark/quark_range_remote_reader.dart';
+import 'package:kanyingyin/services/cloud/range/cloud_range_relay_service.dart';
+import 'package:kanyingyin/services/cloud/range/cloud_range_remote_reader.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_request_policy.dart';
 import 'package:path/path.dart' as p;
 
@@ -270,7 +270,7 @@ class CloudPlaybackResolver {
     CloudPlaybackClientFactory? clientFactory,
     CloudProviderRegistry? providerRegistry,
     CloudSubtitleCache? subtitleCache,
-    QuarkRangeRelayStarter? relayStarter,
+    CloudRangeRelayStarter? relayStarter,
   })  : _sourceRepository = sourceRepository ?? CloudSourceRepository(),
         _credentialStore = credentialStore ?? SecureCloudCredentialStore(),
         _providerRegistry = providerRegistry ??
@@ -284,13 +284,13 @@ class CloudPlaybackResolver {
             ),
         _subtitleCache =
             subtitleCache ?? CloudSubtitleCache(downloader: _downloadResource),
-        _relayStarter = relayStarter ?? QuarkRangeRelayService().start;
+        _relayStarter = relayStarter ?? CloudRangeRelayService().start;
 
   final CloudSourceRepository _sourceRepository;
   final CloudCredentialStore _credentialStore;
   final CloudProviderRegistry _providerRegistry;
   final CloudSubtitleCache? _subtitleCache;
-  final QuarkRangeRelayStarter _relayStarter;
+  final CloudRangeRelayStarter _relayStarter;
 
   Future<CloudResolvedPlayback> resolve(CloudPlaybackTarget target) async {
     final source = await _sourceRepository.getById(target.sourceId);
@@ -324,16 +324,22 @@ class CloudPlaybackResolver {
       var videoUri = resource.uri;
       var httpHeaders = Map<String, String>.unmodifiable(resource.headers);
       var networkRoute = resource.networkRoute;
-      var transport = source.type == CloudSourceType.quark
-          ? resource.transport
-          : CloudPlaybackTransport.direct;
+      var transport = resource.transport;
       CloudPlaybackLease? lease;
       int? totalBytes;
-      if (transport == CloudPlaybackTransport.quarkRangeRelay) {
+      if (transport == CloudPlaybackTransport.rangeRelay) {
+        CloudRangeRemoteReader? reader;
         try {
+          reader = _providerRegistry.createRangeReader(
+            source: source,
+            resource: resource,
+            refreshResource: () => _refreshRangeResource(source.id, target),
+            credentialStore: _credentialStore,
+          );
           final relay = await _relayStarter(
-            resource: _toQuarkRemoteResource(resource),
-            refreshResource: () => _refreshQuarkResource(source.id, target),
+            reader: reader,
+            providerKey: source.id,
+            providerName: _providerRegistry.providerName(source.type),
           );
           videoUri = relay.uri;
           httpHeaders = const <String, String>{};
@@ -341,8 +347,10 @@ class CloudPlaybackResolver {
           lease = relay.lease;
           totalBytes = relay.totalLength;
         } on Object {
-          if (!const QuarkRequestPolicy()
-              .isTrustedOriginalDownloadUri(resource.uri)) {
+          await reader?.close();
+          if (source.type != CloudSourceType.quark ||
+              !const QuarkRequestPolicy()
+                  .isTrustedOriginalDownloadUri(resource.uri)) {
             rethrow;
           }
           transport = CloudPlaybackTransport.direct;
@@ -357,33 +365,28 @@ class CloudPlaybackResolver {
         transport: transport,
         lease: lease,
         totalBytes: totalBytes,
-        cloudProviderName: switch (source.type) {
-          CloudSourceType.quark => '夸克',
-          CloudSourceType.openList => 'OpenList',
-        },
+        cloudProviderName: _providerRegistry.providerName(source.type),
       );
     } finally {
       await client?.close();
     }
   }
 
-  Future<QuarkRemoteResource> _refreshQuarkResource(
+  Future<CloudPlaybackResource> _refreshRangeResource(
     String sourceId,
     CloudPlaybackTarget target,
   ) async {
     final source = await _sourceRepository.getById(sourceId);
-    if (source == null ||
-        !source.enabled ||
-        source.type != CloudSourceType.quark) {
-      throw StateError('夸克网盘来源不存在或已停用');
+    if (source == null || !source.enabled) {
+      throw StateError('网盘来源不存在或已停用');
     }
     final client = _providerRegistry.createClient(source, _credentialStore);
     try {
       final resource = await client.resolvePlayback(_remoteRef(target));
-      if (resource.transport != CloudPlaybackTransport.quarkRangeRelay) {
-        throw const QuarkRemoteProtocolException('刷新后未返回夸克原文件地址');
+      if (resource.transport != CloudPlaybackTransport.rangeRelay) {
+        throw const CloudRangeRemoteProtocolException('刷新后未返回云盘原文件地址');
       }
-      return _toQuarkRemoteResource(resource);
+      return resource;
     } finally {
       await client.close();
     }
@@ -392,12 +395,6 @@ class CloudPlaybackResolver {
   CloudRemoteRef _remoteRef(CloudPlaybackTarget target) => CloudRemoteRef(
         id: target.remoteId.isEmpty ? target.remotePath : target.remoteId,
         path: target.remotePath,
-      );
-
-  QuarkRemoteResource _toQuarkRemoteResource(CloudPlaybackResource resource) =>
-      QuarkRemoteResource(
-        uri: resource.uri,
-        headers: resource.headers,
       );
 
   static Future<List<int>> _downloadResource(

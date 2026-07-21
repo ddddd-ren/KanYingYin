@@ -26,18 +26,13 @@ void main() {
     expect(options, contains('strict-raw-types: true'));
   });
 
-  test('仓库不保存本机证书路径且默认不签名 MSIX', () {
+  test('仓库不保存本机证书路径且公共签名使用受保护凭据脚本', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final readme = File('README.md').readAsStringSync();
 
     expect(pubspec, isNot(contains('certificate_path:')));
     expect(pubspec, contains('sign_msix: false'));
-    expect(
-      readme,
-      contains(
-        '--sign-msix true --certificate-path <证书路径> '
-        '--certificate-password <证书密码>',
-      ),
-    );
+    expect(readme, contains('tool\\windows\\build_signed_release.ps1'));
+    expect(readme, isNot(contains('--certificate-password')));
   });
 }

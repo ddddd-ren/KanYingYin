@@ -1,7 +1,7 @@
 import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 
-class QuarkRelayStatusPresentation {
-  const QuarkRelayStatusPresentation({
+class CloudRelayStatusPresentation {
+  const CloudRelayStatusPresentation({
     required this.text,
     required this.warning,
     required this.stable,
@@ -12,11 +12,11 @@ class QuarkRelayStatusPresentation {
   final bool stable;
 }
 
-class QuarkRelayStatusPresenter {
-  const QuarkRelayStatusPresenter._();
+class CloudRelayStatusPresenter {
+  const CloudRelayStatusPresenter._();
 
-  static QuarkRelayStatusPresentation present(
-    QuarkRelayStatus status, {
+  static CloudRelayStatusPresentation present(
+    CloudRangeRelayStatus status, {
     int? totalBytes,
     Duration? mediaDuration,
   }) {
@@ -24,8 +24,8 @@ class QuarkRelayStatusPresenter {
       totalBytes,
       mediaDuration,
     );
-    final degraded = status.phase == QuarkRelayPhase.degraded ||
-        (status.phase == QuarkRelayPhase.ready &&
+    final degraded = status.phase == CloudRangeRelayPhase.degraded ||
+        (status.phase == CloudRangeRelayPhase.ready &&
             requiredBytesPerSecond != null &&
             status.bytesPerSecond > 0 &&
             status.bytesPerSecond < requiredBytesPerSecond);
@@ -43,36 +43,38 @@ class QuarkRelayStatusPresenter {
         suffix.isEmpty ? label : '$label · ${suffix.join(' · ')}';
 
     if (degraded) {
-      return QuarkRelayStatusPresentation(
+      return CloudRelayStatusPresentation(
         text: withDetails('当前网盘读取速度不足'),
         warning: true,
         stable: false,
       );
     }
     return switch (status.phase) {
-      QuarkRelayPhase.connecting => const QuarkRelayStatusPresentation(
-          text: '夸克正在连接',
+      CloudRangeRelayPhase.connecting => CloudRelayStatusPresentation(
+          text: '${status.providerName}正在连接',
           warning: false,
           stable: false,
         ),
-      QuarkRelayPhase.prefetching => QuarkRelayStatusPresentation(
-          text: withDetails('夸克预缓冲中'),
+      CloudRangeRelayPhase.prefetching => CloudRelayStatusPresentation(
+          text: withDetails('${status.providerName}预缓冲中'),
           warning: false,
           stable: false,
         ),
-      QuarkRelayPhase.ready => QuarkRelayStatusPresentation(
-          text: speed == null ? '夸克读取已就绪' : '夸克读取 $speed',
+      CloudRangeRelayPhase.ready => CloudRelayStatusPresentation(
+          text: speed == null
+              ? '${status.providerName}读取已就绪'
+              : '${status.providerName}读取 $speed',
           warning: false,
           stable: true,
         ),
-      QuarkRelayPhase.reconnecting => const QuarkRelayStatusPresentation(
-          text: '夸克正在重新连接',
+      CloudRangeRelayPhase.reconnecting => CloudRelayStatusPresentation(
+          text: '${status.providerName}正在重新连接',
           warning: false,
           stable: false,
         ),
-      QuarkRelayPhase.degraded => throw StateError('已在前置分支处理'),
-      QuarkRelayPhase.failed => const QuarkRelayStatusPresentation(
-          text: '夸克分段读取失败',
+      CloudRangeRelayPhase.degraded => throw StateError('已在前置分支处理'),
+      CloudRangeRelayPhase.failed => CloudRelayStatusPresentation(
+          text: '${status.providerName}分段读取失败',
           warning: true,
           stable: false,
         ),

@@ -1,7 +1,9 @@
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/repositories/tmdb_metadata_repository.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
-import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_engine.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
 class TmdbScrapeResult {
   final TmdbScrapeStatus status;
@@ -22,12 +24,10 @@ class TmdbScrapeResult {
 class TmdbScraper {
   final ITmdbClient client;
   final ITmdbMetadataRepository repository;
-  final TmdbMatcher matcher;
 
   const TmdbScraper({
     required this.client,
     required this.repository,
-    this.matcher = const TmdbMatcher(),
   });
 
   Future<TmdbScrapeResult> scrape({
@@ -40,31 +40,47 @@ class TmdbScraper {
     double minimumLead = 0.1,
   }) async {
     try {
-      final candidates = await client.search(
-        title,
-        mediaType,
+      final options = TmdbScrapeOptions(
         language: language,
+        mediaTypeMode: mediaType == TmdbMediaType.movie
+            ? TmdbMediaTypeMode.movie
+            : TmdbMediaTypeMode.tv,
+        confidenceMode: TmdbConfidenceMode.standard,
+        overwriteTitle: false,
+        overwriteOverview: true,
+        overwritePoster: true,
+        fetchPoster: true,
+        fetchBackdrop: true,
       );
-      final match = matcher.choose(
-        queryTitle: title,
-        queryYear: year,
-        expectedType: mediaType,
-        candidates: candidates,
+      final outcome = await TmdbScrapeEngine(client: client).search(
+        TmdbScrapeSubject(
+          stableKey: mediaKey,
+          titleCandidates: <String>[title],
+          year: year,
+          mediaEvidence: mediaType == TmdbMediaType.movie
+              ? TmdbMediaEvidence.movie
+              : TmdbMediaEvidence.tv,
+        ),
+        options,
         minimumScore: minimumScore,
         minimumLead: minimumLead,
       );
-      if (!match.shouldAutoMatch || match.best == null) {
+      final candidates = outcome.ranked.candidates
+          .map((candidate) => candidate.metadata)
+          .toList(growable: false);
+      final best = outcome.ranked.best;
+      if (!outcome.ranked.shouldAutoMatch || best == null) {
         return TmdbScrapeResult(
           status: TmdbScrapeStatus.pending,
           candidates: candidates,
         );
       }
       final details = await client.details(
-        match.best!.id,
-        mediaType,
+        best.metadata.id,
+        best.metadata.mediaType,
         language: language,
       );
-      final metadata = details.copyWith(matchConfidence: match.confidence);
+      final metadata = details.copyWith(matchConfidence: best.score);
       await repository.save(mediaKey, metadata);
       return TmdbScrapeResult(
         status: TmdbScrapeStatus.matched,

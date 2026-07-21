@@ -1,8 +1,12 @@
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/baidu/baidu_drive_client.dart';
+import 'package:kanyingyin/services/cloud/baidu/baidu_range_remote_reader.dart';
+import 'package:kanyingyin/services/cloud/range/cloud_range_remote_reader.dart';
 import 'package:kanyingyin/services/cloud/openlist/openlist_client.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_drive_client.dart';
+import 'package:kanyingyin/services/cloud/quark/quark_range_remote_reader.dart';
 
 typedef CloudProviderClientFactory = CloudDriveClient Function(
   CloudSource source,
@@ -10,17 +14,35 @@ typedef CloudProviderClientFactory = CloudDriveClient Function(
   bool allowSelfSignedCertificate,
 );
 
+typedef CloudProviderRangeReaderFactory = CloudRangeRemoteReader Function({
+  required CloudSource source,
+  required CloudPlaybackResource resource,
+  required Future<CloudPlaybackResource> Function() refreshResource,
+  required CloudCredentialStore credentialStore,
+});
+
 class CloudProviderRegistry {
   CloudProviderRegistry({
     Map<CloudSourceType, CloudProviderClientFactory> clientFactories =
         const <CloudSourceType, CloudProviderClientFactory>{},
-  }) : _clientFactories = <CloudSourceType, CloudProviderClientFactory>{
+    Map<CloudSourceType, CloudProviderRangeReaderFactory> rangeReaderFactories =
+        const <CloudSourceType, CloudProviderRangeReaderFactory>{},
+  })  : _clientFactories = <CloudSourceType, CloudProviderClientFactory>{
           CloudSourceType.openList: _createOpenListClient,
           CloudSourceType.quark: _createQuarkClient,
+          CloudSourceType.baidu: _createBaiduClient,
           ...clientFactories,
+        },
+        _rangeReaderFactories =
+            <CloudSourceType, CloudProviderRangeReaderFactory>{
+          CloudSourceType.quark: _createQuarkRangeReader,
+          CloudSourceType.baidu: _createBaiduRangeReader,
+          ...rangeReaderFactories,
         };
 
   final Map<CloudSourceType, CloudProviderClientFactory> _clientFactories;
+  final Map<CloudSourceType, CloudProviderRangeReaderFactory>
+      _rangeReaderFactories;
 
   CloudDriveClient createClient(
     CloudSource source,
@@ -38,9 +60,28 @@ class CloudProviderRegistry {
     );
   }
 
+  CloudRangeRemoteReader createRangeReader({
+    required CloudSource source,
+    required CloudPlaybackResource resource,
+    required Future<CloudPlaybackResource> Function() refreshResource,
+    required CloudCredentialStore credentialStore,
+  }) {
+    final factory = _rangeReaderFactories[source.type];
+    if (factory == null) {
+      throw const CloudDriveException(CloudDriveErrorType.incompatible);
+    }
+    return factory(
+      source: source,
+      resource: resource,
+      refreshResource: refreshResource,
+      credentialStore: credentialStore,
+    );
+  }
+
   String providerName(CloudSourceType type) => switch (type) {
         CloudSourceType.openList => 'OpenList',
         CloudSourceType.quark => '夸克网盘',
+        CloudSourceType.baidu => '百度网盘',
       };
 
   bool supportsSelfSignedCertificate(CloudSourceType type) =>
@@ -55,6 +96,10 @@ class CloudProviderRegistry {
           ),
         CloudSourceType.quark => source.copyWith(
             baseUrl: 'https://pan.quark.cn',
+            allowSelfSignedCertificate: false,
+          ),
+        CloudSourceType.baidu => source.copyWith(
+            baseUrl: 'https://pan.baidu.com',
             allowSelfSignedCertificate: false,
           ),
       };
@@ -83,6 +128,10 @@ class CloudProviderRegistry {
             form: form,
             existing: existing,
           ),
+        CloudSourceType.baidu => _mergeBaiduCredential(
+            form: form,
+            existing: existing,
+          ),
       };
 
   String errorMessage(
@@ -94,11 +143,14 @@ class CloudProviderRegistry {
           '用户名或密码错误',
         (CloudSourceType.quark, CloudDriveErrorType.authentication) =>
           '夸克 Cookie 无效或已失效',
+        (CloudSourceType.baidu, CloudDriveErrorType.authentication) =>
+          '百度网盘授权无效或已失效',
         (_, CloudDriveErrorType.permission) => '当前账号没有访问权限',
         (_, CloudDriveErrorType.network) => '连接失败，请检查网络',
         (CloudSourceType.openList, CloudDriveErrorType.notFound) =>
           '未找到 OpenList 服务',
         (CloudSourceType.quark, CloudDriveErrorType.notFound) => '夸克目录或文件不存在',
+        (CloudSourceType.baidu, CloudDriveErrorType.notFound) => '百度目录或文件不存在',
         (_, CloudDriveErrorType.certificate) => '服务器证书不受信任',
         (_, CloudDriveErrorType.invalidAddress) => '服务器地址格式无效',
         (_, CloudDriveErrorType.timeout) => '网络请求超时',
@@ -111,6 +163,8 @@ class CloudProviderRegistry {
         (_, CloudDriveErrorType.cancelled) => '操作已取消',
         (CloudSourceType.quark, CloudDriveErrorType.incompatible) =>
           '当前版本暂不兼容夸克接口',
+        (CloudSourceType.baidu, CloudDriveErrorType.incompatible) =>
+          '当前版本暂不兼容百度网盘接口',
         _ => '服务响应不兼容',
       };
 
@@ -143,6 +197,41 @@ class CloudProviderRegistry {
             : existing?.cookie,
       );
 
+  static CloudCredential _mergeBaiduCredential({
+    required CloudCredential form,
+    required CloudCredential? existing,
+  }) {
+    final clientId = form.clientId?.trim().isNotEmpty == true
+        ? form.clientId!.trim()
+        : existing?.clientId;
+    final clientSecret = form.clientSecret?.trim().isNotEmpty == true
+        ? form.clientSecret!.trim()
+        : existing?.clientSecret;
+    final keysUnchanged = clientId == existing?.clientId &&
+        clientSecret == existing?.clientSecret;
+    final suppliedTokens = form.accessToken?.trim().isNotEmpty == true &&
+        form.refreshToken?.trim().isNotEmpty == true;
+    return CloudCredential(
+      clientId: clientId,
+      clientSecret: clientSecret,
+      accessToken: suppliedTokens
+          ? form.accessToken!.trim()
+          : keysUnchanged
+              ? existing?.accessToken
+              : null,
+      refreshToken: suppliedTokens
+          ? form.refreshToken!.trim()
+          : keysUnchanged
+              ? existing?.refreshToken
+              : null,
+      accessTokenExpiresAt: suppliedTokens
+          ? form.accessTokenExpiresAt
+          : keysUnchanged
+              ? existing?.accessTokenExpiresAt
+              : null,
+    );
+  }
+
   static CloudDriveClient _createOpenListClient(
     CloudSource source,
     CloudCredentialStore credentialStore,
@@ -163,4 +252,59 @@ class CloudProviderRegistry {
         source: source,
         credentialStore: credentialStore,
       );
+
+  static CloudDriveClient _createBaiduClient(
+    CloudSource source,
+    CloudCredentialStore credentialStore,
+    bool allowSelfSignedCertificate,
+  ) =>
+      BaiduDriveClient(
+        source: source,
+        credentialStore: credentialStore,
+      );
+
+  static CloudRangeRemoteReader _createQuarkRangeReader({
+    required CloudSource source,
+    required CloudPlaybackResource resource,
+    required Future<CloudPlaybackResource> Function() refreshResource,
+    required CloudCredentialStore credentialStore,
+  }) =>
+      QuarkRangeRemoteReader(
+        resource: _toQuarkRemoteResource(resource),
+        refreshResource: () async =>
+            _toQuarkRemoteResource(await refreshResource()),
+      );
+
+  static CloudRangeRemoteReader _createBaiduRangeReader({
+    required CloudSource source,
+    required CloudPlaybackResource resource,
+    required Future<CloudPlaybackResource> Function() refreshResource,
+    required CloudCredentialStore credentialStore,
+  }) =>
+      BaiduRangeRemoteReader(
+        resource: _toCloudRangeResource(resource),
+        accessTokenProvider: () async {
+          final credential = await credentialStore.read(source.id);
+          final token = credential?.accessToken?.trim() ?? '';
+          if (token.isEmpty) {
+            throw const CloudRangeRemoteAuthenticationException('百度授权无效');
+          }
+          return token;
+        },
+        refreshResource: () async =>
+            _toCloudRangeResource(await refreshResource()),
+      );
+
+  static QuarkRemoteResource _toQuarkRemoteResource(
+    CloudPlaybackResource resource,
+  ) =>
+      QuarkRemoteResource(
+        uri: resource.uri,
+        headers: resource.headers,
+      );
+
+  static CloudRangeRemoteResource _toCloudRangeResource(
+    CloudPlaybackResource resource,
+  ) =>
+      CloudRangeRemoteResource(uri: resource.uri);
 }

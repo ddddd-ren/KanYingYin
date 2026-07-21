@@ -186,6 +186,88 @@ void main() {
     expect(entries.single.isPrerelease, isTrue);
   });
 
+  test('二点一二十八说明百度官方授权分段播放和私人安装包', () {
+    final entries = versionHistoryForCurrent('2.1.28');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('百度网盘'));
+    expect(changes, contains('官方授权'));
+    expect(changes, contains('分段播放'));
+    expect(changes, contains('内置默认 TMDB Key'));
+    expect(changes, contains('私人安装包'));
+    expect(changes, contains('不会修改百度网盘文件'));
+    expect(entries.single.isPrerelease, isTrue);
+  });
+
+  test('二点一二十九说明百度播放修复和本地分季海报', () {
+    final entries = versionHistoryForCurrent('2.1.29');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('百度网盘视频'));
+    expect(changes, contains('解析或加载失败'));
+    expect(changes, contains('本地电视剧'));
+    expect(changes, contains('对应季海报'));
+    expect(changes, contains('不会修改百度网盘文件'));
+    expect(entries.single.isPrerelease, isTrue);
+  });
+
+  test('二点一三十说明百度文件详情兼容和当前版本展示', () {
+    final entries = versionHistoryForCurrent('2.1.30');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('百度网盘'));
+    expect(changes, contains('文件详情'));
+    expect(changes, contains('当前版本'));
+    expect(changes, contains('清除缓存'));
+    expect(changes, contains('不会修改百度网盘文件'));
+    expect(entries.single.isPrerelease, isTrue);
+  });
+
+  test('二点一三十一说明安全存储、日志缓存和Windows集成优化', () {
+    final entries = versionHistoryForCurrent('2.1.31');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('TMDB Key'));
+    expect(changes, contains('安全存储'));
+    expect(changes, contains('日志'));
+    expect(changes, contains('缓存'));
+    expect(changes, contains('外部播放器'));
+    expect(changes, contains('快捷方式'));
+    expect(changes, contains('不会删除本地视频'));
+    expect(entries.single.isPrerelease, isTrue);
+  });
+
+  test('二点一三十二说明本地网盘刮削统一和旧结果保护', () {
+    final entries = versionHistoryForCurrent('2.1.32');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('本地与网盘'));
+    expect(changes, contains('TMDB'));
+    expect(changes, contains('手动'));
+    expect(changes, contains('需要确认'));
+    expect(changes, contains('断网'));
+    expect(changes, contains('不会修改'));
+    expect(entries.single.isPrerelease, isTrue);
+  });
+
+  test('二点一三十三说明季度海报、悬停标签和本地刮削对话框', () {
+    final entries = versionHistoryForCurrent('2.1.33');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('季度海报'));
+    expect(changes, contains('鼠标'));
+    expect(changes, contains('TMDB 刮削'));
+    expect(changes, contains('重新匹配'));
+    expect(changes, contains('不会修改'));
+    expect(entries.single.isPrerelease, isTrue);
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

@@ -28,15 +28,37 @@ void FlutterWindow::RegisterIntentChannel() {
       if (arguments) {
         auto url_it = arguments->find(flutter::EncodableValue("url"));
         if (url_it != arguments->end()) {
-          const std::string& url = std::get<std::string>(url_it->second);
-          ExternalPlayerUtils::OpenWithPlayer(url.c_str());
-          result->Success();
+          const auto* url = std::get_if<std::string>(&url_it->second);
+          if (url == nullptr) {
+            result->Error("InvalidArguments", "The 'url' argument is invalid");
+            return;
+          }
+          switch (ExternalPlayerUtils::OpenWithPlayer(*url)) {
+            case ExternalPlayerOpenStatus::kOpened:
+              result->Success(flutter::EncodableValue(true));
+              break;
+            case ExternalPlayerOpenStatus::kInvalidUtf8:
+              result->Error("InvalidInput", "The playback target is invalid");
+              break;
+            case ExternalPlayerOpenStatus::kTemporaryFileFailed:
+              result->Error("LaunchFailed",
+                            "Failed to prepare external playback");
+              break;
+            case ExternalPlayerOpenStatus::kLaunchFailed:
+              result->Error("LaunchFailed",
+                            "Failed to launch an external player");
+              break;
+          }
         } else {
           result->Error("InvalidArguments", "Missing 'url' argument");
         }
       } else {
         result->Error("InvalidArguments", "Arguments are not a map");
       }
+    } else if (call.method_name().compare("openWithReferer") == 0) {
+      result->Error(
+          "UnsupportedHeaders",
+          "Windows external playback does not support request headers");
     } else {
       result->NotImplemented();
     }
@@ -91,6 +113,19 @@ void FlutterWindow::RegisterShortcutChannel() {
     constexpr wchar_t kShortcutName[] = L"\x770B\x5F71\x97F3";
     constexpr wchar_t kShortcutDescription[] =
         L"\x542F\x52A8\x770B\x5F71\x97F3";
+
+    if (call.method_name() == "inspectShortcutEntries") {
+      const auto state =
+          ShortcutUtils::InspectShortcutEntries(kShortcutName);
+      if (!state.has_value()) {
+        result->Error("ShortcutInspectionFailed",
+                      "Failed to inspect shortcut entries");
+        return;
+      }
+      result->Success(
+          flutter::EncodableValue(static_cast<int>(state.value())));
+      return;
+    }
 
     if (call.method_name() == "desktopShortcutExists") {
       result->Success(flutter::EncodableValue(

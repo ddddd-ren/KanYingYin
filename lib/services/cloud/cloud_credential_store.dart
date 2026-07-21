@@ -8,24 +8,45 @@ class CloudCredential {
     this.password,
     this.cookie,
     this.token,
+    this.clientId,
+    this.clientSecret,
+    this.accessToken,
+    this.refreshToken,
+    this.accessTokenExpiresAt,
   });
 
   final String? username;
   final String? password;
   final String? cookie;
   final String? token;
+  final String? clientId;
+  final String? clientSecret;
+  final String? accessToken;
+  final String? refreshToken;
+  final DateTime? accessTokenExpiresAt;
 
   bool get isEmpty =>
       (username?.isEmpty ?? true) &&
       (password?.isEmpty ?? true) &&
       (cookie?.isEmpty ?? true) &&
-      (token?.isEmpty ?? true);
+      (token?.isEmpty ?? true) &&
+      (clientId?.isEmpty ?? true) &&
+      (clientSecret?.isEmpty ?? true) &&
+      (accessToken?.isEmpty ?? true) &&
+      (refreshToken?.isEmpty ?? true) &&
+      accessTokenExpiresAt == null;
 
   Map<String, String> toJson() => <String, String>{
         if (username != null) 'username': username!,
         if (password != null) 'password': password!,
         if (cookie != null) 'cookie': cookie!,
         if (token != null) 'token': token!,
+        if (clientId != null) 'clientId': clientId!,
+        if (clientSecret != null) 'clientSecret': clientSecret!,
+        if (accessToken != null) 'accessToken': accessToken!,
+        if (refreshToken != null) 'refreshToken': refreshToken!,
+        if (accessTokenExpiresAt != null)
+          'accessTokenExpiresAt': accessTokenExpiresAt!.toIso8601String(),
       };
 
   factory CloudCredential.fromJson(Map<String, dynamic> json) =>
@@ -36,6 +57,20 @@ class CloudCredential {
             json['password'] is String ? json['password'] as String : null,
         cookie: json['cookie'] is String ? json['cookie'] as String : null,
         token: json['token'] is String ? json['token'] as String : null,
+        clientId:
+            json['clientId'] is String ? json['clientId'] as String : null,
+        clientSecret: json['clientSecret'] is String
+            ? json['clientSecret'] as String
+            : null,
+        accessToken: json['accessToken'] is String
+            ? json['accessToken'] as String
+            : null,
+        refreshToken: json['refreshToken'] is String
+            ? json['refreshToken'] as String
+            : null,
+        accessTokenExpiresAt: json['accessTokenExpiresAt'] is String
+            ? DateTime.tryParse(json['accessTokenExpiresAt'] as String)?.toUtc()
+            : null,
       );
 
   @override

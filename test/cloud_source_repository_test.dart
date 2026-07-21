@@ -61,6 +61,22 @@ void main() {
       expect((await credentials.read('source-2'))?.cookie, 'secret-cookie');
     });
 
+    test('百度来源类型与远程根目录可以安全往返', () async {
+      const source = CloudSource(
+        id: 'baidu-source',
+        type: CloudSourceType.baidu,
+        name: '我的百度网盘',
+        baseUrl: 'https://pan.baidu.com',
+        rootPaths: <String>['/影视'],
+      );
+
+      await repository.save(source);
+
+      final restored = await repository.getById(source.id);
+      expect(restored, source);
+      expect(restored?.type, CloudSourceType.baidu);
+    });
+
     test('导出 JSON 不包含秘密字段和值', () async {
       await repository.save(const CloudSource(
         id: 'source-1',
@@ -264,6 +280,29 @@ void main() {
   });
 
   group('SecureCloudCredentialStore', () {
+    test('百度 OAuth 凭据 JSON 往返保留强类型字段且不从 toString 泄漏', () async {
+      final storage = _FakeSecureValueStorage(null);
+      final store = SecureCloudCredentialStore(valueStorage: storage);
+      final expiresAt = DateTime.utc(2026, 8, 1, 12);
+      final credential = CloudCredential(
+        clientId: 'client-fixture',
+        clientSecret: 'secret-fixture',
+        accessToken: 'access-fixture',
+        refreshToken: 'refresh-fixture',
+        accessTokenExpiresAt: expiresAt,
+      );
+
+      await store.write('baidu-source', credential);
+      final restored = await store.read('baidu-source');
+
+      expect(restored?.clientId, 'client-fixture');
+      expect(restored?.clientSecret, 'secret-fixture');
+      expect(restored?.accessToken, 'access-fixture');
+      expect(restored?.refreshToken, 'refresh-fixture');
+      expect(restored?.accessTokenExpiresAt, expiresAt);
+      expect(restored.toString(), 'CloudCredential(<redacted>)');
+    });
+
     test('安全存储中的损坏 JSON 转换为不泄密的凭据损坏异常', () async {
       final store = SecureCloudCredentialStore(
         valueStorage: _FakeSecureValueStorage('{secret-token'),

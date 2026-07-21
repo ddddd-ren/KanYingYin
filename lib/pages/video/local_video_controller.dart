@@ -50,9 +50,9 @@ class LocalVideoController implements IVideoPageController {
   final Observable<bool> _isFullscreen = Observable(false);
   final Observable<bool> _isPip = Observable(false);
   final Observable<bool> _showTabBody = Observable(true);
-  final Observable<QuarkRelayStatus?> _relayStatus = Observable(null);
+  final Observable<CloudRangeRelayStatus?> _relayStatus = Observable(null);
   final Observable<int?> _relayTotalBytes = Observable(null);
-  StreamSubscription<QuarkRelayStatus>? _relayStatusSubscription;
+  StreamSubscription<CloudRangeRelayStatus>? _relayStatusSubscription;
   var _relayStatusGeneration = 0;
 
   @override
@@ -114,7 +114,7 @@ class LocalVideoController implements IVideoPageController {
   bool get isCloudPlayback => _cloudTargets != null;
 
   @override
-  QuarkRelayStatus? get relayStatus => _relayStatus.value;
+  CloudRangeRelayStatus? get relayStatus => _relayStatus.value;
 
   @override
   int? get relayTotalBytes => _relayTotalBytes.value;

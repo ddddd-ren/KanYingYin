@@ -1,0 +1,15 @@
+{
+  "errno": 0,
+  "list": [
+    {
+      "fs_id": 1002,
+      "path": "/影视/示例电影.mkv",
+      "filename": "示例电影.mkv",
+      "size": 4294967296,
+      "isdir": 0,
+      "server_mtime": 1700000100,
+      "dlink": "https://download.baidu-fixture.invalid/original?sign=fixture"
+    }
+  ],
+  "request_id": 900000004
+}

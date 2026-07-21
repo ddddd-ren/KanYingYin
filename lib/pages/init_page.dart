@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import 'package:kanyingyin/providers/theme_provider.dart';
 import 'package:kanyingyin/shaders/shaders_controller.dart';
 import 'package:kanyingyin/pages/navigation/navigation_config.dart';
+import 'package:kanyingyin/services/windows_shortcut_startup_policy.dart';
 import 'package:kanyingyin/utils/windows_shortcut.dart';
 
 class InitPage extends StatefulWidget {
@@ -113,41 +114,57 @@ class _InitPageState extends State<InitPage> {
 
   Future<void> _showShortcutDialog() async {
     if (!Platform.isWindows) return;
-    final shortcutExists = await WindowsShortcut.desktopShortcutExists();
-    if (shortcutExists) {
-      await WindowsShortcut.createDesktopShortcut();
-      return;
-    }
-    if (setting.getTyped<bool>(
+    final shortcutState = await WindowsShortcut.inspectShortcutEntries();
+    final dialogAlreadyShown = setting.getTyped<bool>(
       SettingBoxKey.shortcutDialogShown,
       defaultValue: false,
-    )) {
-      return;
-    }
-
-    final create = await AppDialog.show<bool>(
-      clickMaskDismiss: false,
-      builder: (context) => AlertDialog(
-        title: const Text('创建桌面快捷方式'),
-        content: const Text('是否在桌面创建看影音的快捷方式？'),
-        actions: [
-          TextButton(
-            onPressed: () => AppDialog.dismiss(popWith: false),
-            child: Text('暂不创建',
-                style: TextStyle(color: Theme.of(context).colorScheme.outline)),
-          ),
-          FilledButton(
-            onPressed: () => AppDialog.dismiss(popWith: true),
-            child: const Text('创建'),
-          ),
-        ],
+    );
+    final result = await const WindowsShortcutStartupCoordinator().run(
+      state: shortcutState,
+      dialogAlreadyShown: dialogAlreadyShown,
+      askToCreate: () => AppDialog.show<bool>(
+        clickMaskDismiss: false,
+        builder: (context) => AlertDialog(
+          title: const Text('创建桌面快捷方式'),
+          content: const Text('是否在桌面创建看影音的快捷方式？'),
+          actions: [
+            TextButton(
+              onPressed: () => AppDialog.dismiss(popWith: false),
+              child: Text(
+                '暂不创建',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+              ),
+            ),
+            FilledButton(
+              onPressed: () => AppDialog.dismiss(popWith: true),
+              child: const Text('创建'),
+            ),
+          ],
+        ),
       ),
+      repairOrCreate: WindowsShortcut.createDesktopShortcut,
     );
 
-    await setting.put(SettingBoxKey.shortcutDialogShown, true);
-    if (create ?? true) {
-      final success = await WindowsShortcut.createDesktopShortcut();
-      AppDialog.showToast(message: success ? '桌面快捷方式已创建' : '桌面快捷方式创建失败');
+    if (result.markDialogShown) {
+      await setting.put(SettingBoxKey.shortcutDialogShown, true);
+    }
+    switch (result.feedback) {
+      case ShortcutStartupFeedback.none:
+        break;
+      case ShortcutStartupFeedback.detectionFailed:
+        AppDialog.showToast(message: '无法检查快捷方式状态，将在下次启动时重试');
+        break;
+      case ShortcutStartupFeedback.repairFailed:
+        AppDialog.showToast(message: '桌面快捷方式修复失败');
+        break;
+      case ShortcutStartupFeedback.created:
+        AppDialog.showToast(message: '桌面快捷方式已创建');
+        break;
+      case ShortcutStartupFeedback.creationFailed:
+        AppDialog.showToast(message: '桌面快捷方式创建失败');
+        break;
     }
   }
 

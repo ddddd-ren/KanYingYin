@@ -6,9 +6,14 @@ import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_poster_cache.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
+import 'package:kanyingyin/services/cloud/cloud_tmdb_subject_builder.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_metadata_merge_policy.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_engine.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_policy.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
 class CloudWorkTmdbOutcome {
   const CloudWorkTmdbOutcome({required this.candidates, this.selected});
@@ -41,12 +46,14 @@ class CloudWorkTmdbService {
   })  : _repository = repository,
         _indexRepository = indexRepository,
         _client = client,
+        _engine = TmdbScrapeEngine(client: client),
         _posterCache = posterCache,
         _now = now ?? DateTime.now;
 
   final CloudWorkTmdbRepository _repository;
   final CloudMediaIndexRepository _indexRepository;
   final ITmdbClient _client;
+  final TmdbScrapeEngine _engine;
   final CloudPosterCache? _posterCache;
   final DateTime Function() _now;
 
@@ -55,18 +62,19 @@ class CloudWorkTmdbService {
     CloudWorkTmdbRecord? record, [
     TmdbScrapeOptions options = const TmdbScrapeOptions.defaults(),
   ]) {
-    final override = record?.scrapeTitleOverride?.trim();
-    final fallback = work.titleCandidates.firstOrNull?.trim();
-    final query = override != null && override.isNotEmpty
-        ? override
-        : fallback != null && fallback.isNotEmpty
-            ? fallback
-            : work.displayTitle.trim();
+    final subject = const CloudTmdbSubjectBuilder().forWork(
+      work,
+      record: record,
+    );
+    final plan = const TmdbScrapePolicy().build(subject, options);
     return CloudResourceTmdbSearchRequest(
-      queryTitle: query,
-      queryYear: null,
-      mediaTypeMode:
-          work.seasons.isEmpty ? options.mediaTypeMode : TmdbMediaTypeMode.tv,
+      queryTitle: plan.queries.firstOrNull ?? work.displayTitle.trim(),
+      queryYear: plan.year,
+      mediaTypeMode: plan.mediaTypes.length == 1
+          ? plan.mediaTypes.single == TmdbMediaType.tv
+              ? TmdbMediaTypeMode.tv
+              : TmdbMediaTypeMode.movie
+          : options.mediaTypeMode,
       options: options,
     );
   }
@@ -76,36 +84,38 @@ class CloudWorkTmdbService {
     CloudWorkTmdbRecord? record,
     TmdbScrapeOptions options = const TmdbScrapeOptions.defaults(),
   }) async {
-    final queries = _queryCandidates(work, record);
-    for (final query in queries) {
-      final request = requestFor(work, record, options);
-      final ranked = await searchPrepared(
-        work,
-        CloudResourceTmdbSearchRequest(
-          queryTitle: query,
-          queryYear: null,
-          mediaTypeMode: request.mediaTypeMode,
-          options: options,
-        ),
-      );
-      if (ranked.candidates.isNotEmpty) {
-        return ranked.candidates
-            .map((candidate) => candidate.metadata)
-            .toList(growable: false);
-      }
-    }
-    return const <TmdbMetadata>[];
+    final subject = const CloudTmdbSubjectBuilder().forWork(
+      work,
+      record: record,
+    );
+    final search = await _engine.search(subject, options);
+    return search.ranked.candidates
+        .map((candidate) => candidate.metadata)
+        .toList(growable: false);
   }
 
   Future<TmdbRankedResult> searchPrepared(
     CloudWorkIdentity work,
     CloudResourceTmdbSearchRequest request,
   ) async {
-    final query = request.queryTitle.trim();
-    if (query.isEmpty) {
+    final base = const CloudTmdbSubjectBuilder().forWork(work);
+    final subject = TmdbScrapeSubject(
+      stableKey: base.stableKey,
+      titleCandidates: <String>[request.queryTitle],
+      year: request.queryYear,
+      seasonNumbers: base.seasonNumbers,
+      episodeNumbers: base.episodeNumbers,
+      mediaEvidence: base.mediaEvidence,
+    );
+    final resolvedOptions = request.options.copyWith(
+      mediaTypeMode: request.mediaTypeMode,
+    );
+    final plan = const TmdbScrapePolicy().build(subject, resolvedOptions);
+    final query = plan.queries.firstOrNull;
+    if (query == null || query.isEmpty) {
       throw ArgumentError.value(request.queryTitle, 'queryTitle');
     }
-    final types = _typesFor(work, request.mediaTypeMode);
+    final types = plan.mediaTypes;
     final candidates = <TmdbMetadata>[];
     for (final type in types) {
       candidates.addAll(
@@ -118,7 +128,7 @@ class CloudWorkTmdbService {
     }
     return const TmdbMatcher().rank(
       queryTitle: query,
-      queryYear: request.queryYear,
+      queryYear: plan.year,
       expectedTypes: types.toSet(),
       candidates: candidates,
       minimumScore: request.options.minimumScore,
@@ -131,25 +141,18 @@ class CloudWorkTmdbService {
     CloudWorkTmdbRecord? record,
     TmdbScrapeOptions options = const TmdbScrapeOptions.defaults(),
   }) async {
-    final queries = _queryCandidates(work, record);
-    TmdbRankedResult ranked = const TmdbRankedResult(
-      candidates: <TmdbRankedCandidate>[],
-      shouldAutoMatch: false,
+    final existing = record ?? await _repository.get(work.workKey);
+    final subject = const CloudTmdbSubjectBuilder().forWork(
+      work,
+      record: existing,
     );
-    for (final query in queries) {
-      final base = requestFor(work, record, options);
-      ranked = await searchPrepared(
-        work,
-        CloudResourceTmdbSearchRequest(
-          queryTitle: query,
-          queryYear: null,
-          mediaTypeMode: base.mediaTypeMode,
-          options: options,
-        ),
-      );
-      if (ranked.candidates.isNotEmpty) break;
-    }
+    final search = await _engine.search(subject, options);
+    final ranked = search.ranked;
     if (ranked.candidates.isEmpty) {
+      if (existing?.status == CloudWorkTmdbStatus.matched ||
+          existing?.status == CloudWorkTmdbStatus.conflict) {
+        return const CloudWorkTmdbOutcome(candidates: <TmdbMetadata>[]);
+      }
       await _repository.upsert(
         CloudWorkTmdbRecord.unmatched(
           sourceId: work.sourceId,
@@ -169,12 +172,20 @@ class CloudWorkTmdbService {
     if (!ranked.shouldAutoMatch || ranked.best == null) {
       return CloudWorkTmdbOutcome(candidates: candidates);
     }
-    final selected = await select(
+    final best = ranked.best!;
+    if (existing?.metadata != null &&
+        existing!.metadata!.id != best.metadata.id) {
+      await _repository.upsert(existing.asConflict(_now()));
+      return CloudWorkTmdbOutcome(candidates: candidates);
+    }
+    final selected = await _select(
       work,
-      ranked.best!.metadata,
+      best.metadata,
       existingSeasons:
           work.seasons.map((season) => season.seasonNumber).toSet(),
       options: options,
+      origin: TmdbMatchOrigin.automatic,
+      existing: existing,
     );
     return CloudWorkTmdbOutcome(
       candidates: candidates,
@@ -188,10 +199,40 @@ class CloudWorkTmdbService {
     required Set<int> existingSeasons,
     TmdbScrapeOptions options = const TmdbScrapeOptions.defaults(),
   }) async {
-    var metadata = await _client.details(
+    return _select(
+      work,
+      candidate,
+      existingSeasons: existingSeasons,
+      options: options,
+      origin: TmdbMatchOrigin.manual,
+    );
+  }
+
+  Future<CloudWorkTmdbSelectionOutcome> _select(
+    CloudWorkIdentity work,
+    TmdbMetadata candidate, {
+    required Set<int> existingSeasons,
+    required TmdbScrapeOptions options,
+    required TmdbMatchOrigin origin,
+    CloudWorkTmdbRecord? existing,
+  }) async {
+    final previous = existing ?? await _repository.get(work.workKey);
+    final subject = const CloudTmdbSubjectBuilder().forWork(
+      work,
+      record: previous,
+    );
+    final fetched = await _client.details(
       candidate.id,
       candidate.mediaType,
       language: options.language,
+    );
+    var metadata = const TmdbMetadataMergePolicy().merge(
+      existing: subject.existingMetadata,
+      fetched: fetched,
+      options: options,
+      locks: subject.fieldLocks,
+      matchConfidence: candidate.matchConfidence,
+      existingSeasons: existingSeasons,
     );
     var posterCached = true;
     String? posterCachePath;
@@ -214,12 +255,7 @@ class CloudWorkTmdbService {
       }
     }
 
-    final actualSeasons = metadata.seasons
-        .where((season) => existingSeasons.contains(season.seasonNumber))
-        .toList(growable: false)
-      ..sort(
-        (first, second) => first.seasonNumber.compareTo(second.seasonNumber),
-      );
+    final actualSeasons = metadata.seasons;
     if (_posterCache != null && options.fetchPoster) {
       final cachedSeasons = <TmdbSeasonMetadata>[];
       for (final season in actualSeasons) {
@@ -251,7 +287,6 @@ class CloudWorkTmdbService {
       metadata = metadata.copyWith(seasons: actualSeasons);
     }
 
-    final previous = await _repository.get(work.workKey);
     final record = CloudWorkTmdbRecord.matched(
       sourceId: work.sourceId,
       workKey: work.workKey,
@@ -262,6 +297,8 @@ class CloudWorkTmdbService {
       checkedAt: _now(),
       scrapeTitleOverride: previous?.scrapeTitleOverride,
       posterCachePath: posterCachePath,
+      tmdbMatchOrigin: origin,
+      tmdbRuleVersion: currentTmdbRuleVersion,
     );
     await _repository.upsert(record);
 
@@ -309,45 +346,6 @@ class CloudWorkTmdbService {
         posterCachePath,
       ),
     );
-  }
-
-  List<String> _queryCandidates(
-    CloudWorkIdentity work,
-    CloudWorkTmdbRecord? record,
-  ) {
-    final result = <String>[];
-    void add(String? value) {
-      final normalized = value?.trim();
-      if (normalized == null || normalized.isEmpty) return;
-      if (!result.any(
-        (current) => current.toLowerCase() == normalized.toLowerCase(),
-      )) {
-        result.add(normalized);
-      }
-    }
-
-    add(record?.scrapeTitleOverride);
-    for (final candidate in work.titleCandidates) {
-      add(candidate);
-    }
-    add(work.displayTitle);
-    return result;
-  }
-
-  List<TmdbMediaType> _typesFor(
-    CloudWorkIdentity work,
-    TmdbMediaTypeMode mode,
-  ) {
-    if (work.seasons.isNotEmpty || mode == TmdbMediaTypeMode.tv) {
-      return const <TmdbMediaType>[TmdbMediaType.tv];
-    }
-    if (mode == TmdbMediaTypeMode.movie) {
-      return const <TmdbMediaType>[TmdbMediaType.movie];
-    }
-    return const <TmdbMediaType>[
-      TmdbMediaType.movie,
-      TmdbMediaType.tv,
-    ];
   }
 
   CloudMediaIndexItem _replaceMetadata(

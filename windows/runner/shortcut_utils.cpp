@@ -8,28 +8,106 @@
 #include <propvarutil.h>
 #include <appmodel.h>
 
+#include <optional>
+#include <vector>
+
 namespace {
 
 bool GetDesktopShortcutPath(const std::wstring& shortcutName,
                             std::wstring* shortcutPath) {
-  wchar_t desktopPath[MAX_PATH];
-  if (SHGetFolderPathW(nullptr, CSIDL_DESKTOP, nullptr, 0, desktopPath) !=
-      S_OK) {
+  PWSTR desktopPath = nullptr;
+  if (FAILED(SHGetKnownFolderPath(FOLDERID_Desktop, KF_FLAG_DEFAULT, nullptr,
+                                  &desktopPath))) {
     return false;
   }
-  *shortcutPath = std::wstring(desktopPath) + L"\\" + shortcutName + L".lnk";
+  *shortcutPath =
+      std::wstring(desktopPath) + L"\\" + shortcutName + L".lnk";
+  CoTaskMemFree(desktopPath);
   return true;
 }
 
+std::optional<bool> ShortcutFileExists(const std::wstring& shortcutPath) {
+  const DWORD attributes = GetFileAttributesW(shortcutPath.c_str());
+  if (attributes != INVALID_FILE_ATTRIBUTES) {
+    return (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
+  }
+  const DWORD error = GetLastError();
+  if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND) {
+    return false;
+  }
+  return std::nullopt;
+}
+
+std::optional<bool> KnownFolderShortcutExists(
+    REFKNOWNFOLDERID folderId,
+    const std::wstring& shortcutName) {
+  PWSTR folderPath = nullptr;
+  if (FAILED(SHGetKnownFolderPath(folderId, KF_FLAG_DEFAULT, nullptr,
+                                  &folderPath))) {
+    return std::nullopt;
+  }
+  const std::wstring shortcutPath =
+      std::wstring(folderPath) + L"\\" + shortcutName + L".lnk";
+  CoTaskMemFree(folderPath);
+  return ShortcutFileExists(shortcutPath);
+}
+
+std::optional<bool> PackagedStartMenuEntryExists() {
+  UINT32 length = 0;
+  const LONG firstResult = GetCurrentPackageFamilyName(&length, nullptr);
+  if (firstResult == APPMODEL_ERROR_NO_PACKAGE) return false;
+  if (firstResult != ERROR_INSUFFICIENT_BUFFER || length == 0) {
+    return std::nullopt;
+  }
+
+  std::vector<wchar_t> familyName(length);
+  if (GetCurrentPackageFamilyName(&length, familyName.data()) !=
+      ERROR_SUCCESS) {
+    return std::nullopt;
+  }
+  return true;
+}
+
+std::optional<bool> StartMenuEntryExists(
+    const std::wstring& shortcutName) {
+  const auto packaged = PackagedStartMenuEntryExists();
+  if (!packaged.has_value()) return std::nullopt;
+  if (packaged.value()) return true;
+
+  const auto currentUser =
+      KnownFolderShortcutExists(FOLDERID_Programs, shortcutName);
+  if (currentUser.has_value() && currentUser.value()) return true;
+  const auto allUsers =
+      KnownFolderShortcutExists(FOLDERID_CommonPrograms, shortcutName);
+  if (allUsers.has_value() && allUsers.value()) return true;
+  if (!currentUser.has_value() || !allUsers.has_value()) return std::nullopt;
+  return false;
+}
+
 }  // namespace
+
+std::optional<ShortcutEntryState> ShortcutUtils::InspectShortcutEntries(
+    const std::wstring& shortcutName) {
+  std::wstring desktopShortcutPath;
+  if (!GetDesktopShortcutPath(shortcutName, &desktopShortcutPath)) {
+    return std::nullopt;
+  }
+  const auto desktopExists = ShortcutFileExists(desktopShortcutPath);
+  const auto startMenuExists = StartMenuEntryExists(shortcutName);
+  if (!desktopExists.has_value() || !startMenuExists.has_value()) {
+    return std::nullopt;
+  }
+
+  const int state = (desktopExists.value() ? 1 : 0) |
+                    (startMenuExists.value() ? 2 : 0);
+  return static_cast<ShortcutEntryState>(state);
+}
 
 bool ShortcutUtils::DesktopShortcutExists(
     const std::wstring& shortcutName) {
   std::wstring shortcutPath;
   if (!GetDesktopShortcutPath(shortcutName, &shortcutPath)) return false;
-  const DWORD attributes = GetFileAttributesW(shortcutPath.c_str());
-  return attributes != INVALID_FILE_ATTRIBUTES &&
-         (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
+  return ShortcutFileExists(shortcutPath).value_or(false);
 }
 
 bool ShortcutUtils::CreateDesktopShortcut(const std::wstring& shortcutName, const std::wstring& description) {

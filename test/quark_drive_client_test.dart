@@ -167,7 +167,7 @@ void main() {
     expect(resource.headers, isNot(contains('Accept')));
     expect(resource.headers, isNot(contains('Content-Type')));
     expect(resource.networkRoute, PlaybackNetworkRoute.direct);
-    expect(resource.transport, CloudPlaybackTransport.quarkRangeRelay);
+    expect(resource.transport, CloudPlaybackTransport.rangeRelay);
     expect(
       (await store.read(source.id))?.cookie,
       'session=cookie-fixture; __puus=refreshed-cookie',

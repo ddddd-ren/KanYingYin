@@ -226,6 +226,21 @@ void main() {
     expect(entries.single.isPrerelease, isTrue);
   });
 
+  test('二点一三十一说明安全存储、日志缓存和Windows集成优化', () {
+    final entries = versionHistoryForCurrent('2.1.31');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('TMDB Key'));
+    expect(changes, contains('安全存储'));
+    expect(changes, contains('日志'));
+    expect(changes, contains('缓存'));
+    expect(changes, contains('外部播放器'));
+    expect(changes, contains('快捷方式'));
+    expect(changes, contains('不会删除本地视频'));
+    expect(entries.single.isPrerelease, isTrue);
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

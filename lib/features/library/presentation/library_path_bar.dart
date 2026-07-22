@@ -231,7 +231,7 @@ class LibraryPathBar extends StatelessWidget {
               const SizedBox(width: 4),
               _button(
                 context,
-                Icons.arrow_upward,
+                Icons.keyboard_arrow_up_rounded,
                 '上级目录',
                 data.canNavigateUp ? onNavigateUp : null,
               ),
@@ -429,57 +429,70 @@ class LibraryPathBar extends StatelessWidget {
     }
   }
 
-  Widget _breadcrumbs(BuildContext context, ColorScheme colors) => Container(
+  Widget _breadcrumbs(BuildContext context, ColorScheme colors) =>
+      LayoutBuilder(
         key: const ValueKey('library-path-breadcrumb-surface'),
-        height: 32,
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: colors.outlineVariant, width: 0.75),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          reverse: true,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
-            children: [
-              for (var i = 0; i < data.breadcrumbs.length; i++) ...[
-                if (i > 0)
-                  Icon(Icons.chevron_right, size: 16, color: colors.outline),
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(5),
-                    onTap: data.breadcrumbs[i].isCurrent
-                        ? null
-                        : () async => await onBreadcrumbSelected(
-                            data.breadcrumbs[i].path),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 5,
-                      ),
-                      child: Text(
-                        data.breadcrumbs[i].label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: data.breadcrumbs[i].isCurrent
-                                  ? colors.onSurface
-                                  : colors.primary,
-                              fontWeight: data.breadcrumbs[i].isCurrent
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                            ),
-                      ),
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            reverse: true,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, right: 6),
+                    child: Icon(
+                      Icons.folder_outlined,
+                      size: 18,
+                      color: colors.onSurfaceVariant,
                     ),
                   ),
-                ),
-              ],
-            ],
-          ),
-        ),
+                  for (var i = 0; i < data.breadcrumbs.length; i++) ...[
+                    if (i > 0)
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 16,
+                        color: colors.outline,
+                      ),
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(5),
+                        onTap: data.breadcrumbs[i].isCurrent
+                            ? null
+                            : () async => await onBreadcrumbSelected(
+                                  data.breadcrumbs[i].path,
+                                ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 6,
+                          ),
+                          child: Text(
+                            data.breadcrumbs[i].label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: data.breadcrumbs[i].isCurrent
+                                          ? colors.onSurface
+                                          : colors.primary,
+                                      fontWeight: data.breadcrumbs[i].isCurrent
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
+                                    ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
       );
 
   Widget _sortChip(BuildContext context, String label, String field) {

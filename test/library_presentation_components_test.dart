@@ -76,6 +76,101 @@ void main() {
   });
 
   group('LibraryPathBar', () {
+    final recordedActions = <String>[];
+    late TextEditingController pathBarSearchController;
+
+    setUp(() {
+      recordedActions.clear();
+      pathBarSearchController = TextEditingController();
+    });
+
+    tearDown(() => pathBarSearchController.dispose());
+
+    Future<void> pumpPathBar(
+      WidgetTester tester, {
+      required double width,
+    }) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = Size(width, 900);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: LibraryPathBar(
+              data: LibraryPathBarViewData(
+                breadcrumbs: const [
+                  LibraryBreadcrumbViewData(label: 'D:', path: 'D:\\'),
+                  LibraryBreadcrumbViewData(
+                    label: 'a TV',
+                    path: 'D:\\a TV',
+                  ),
+                  LibraryBreadcrumbViewData(
+                    label: '动画',
+                    path: 'D:\\a TV\\动画',
+                    isCurrent: true,
+                  ),
+                ],
+                recentPaths: const [],
+                sortBy: 'name',
+                sortAscending: true,
+                status: const LibraryDirectoryStatusViewData(
+                  kind: LibraryDirectoryStatusKind.idle,
+                  label: '26 部剧 · 412 个视频',
+                ),
+              ),
+              sourceMenu: const SizedBox(width: 32, height: 32),
+              searchController: pathBarSearchController,
+              onPickDirectory: () async => recordedActions.add('pick'),
+              onRefresh: () async => recordedActions.add('refresh'),
+              onSort: (field) async => recordedActions.add('sort:$field'),
+              onSearchChanged: (value) => recordedActions.add('search:$value'),
+              onClearSearch: () => recordedActions.add('clear-search'),
+              onBreadcrumbSelected: (path) async =>
+                  recordedActions.add('path:$path'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('原工具栏轻量表面在三种宽度下无溢出', (tester) async {
+      for (final width in <double>[1280, 900, 640]) {
+        await pumpPathBar(tester, width: width);
+
+        expect(
+          find.byKey(const ValueKey('library-path-command-surface')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('library-path-breadcrumb-surface')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('library-path-search-surface')),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull, reason: '窗口宽度 $width');
+      }
+    });
+
+    testWidgets('轻量优化后全部工具动作仍按原参数转发', (tester) async {
+      await pumpPathBar(tester, width: 900);
+      await tester.tap(find.byTooltip('选择目录'));
+      await tester.tap(find.byTooltip('刷新'));
+      await tester.tap(find.text('日期'));
+      await tester.enterText(find.byType(TextField), '关键字');
+      await tester.tap(find.text('D:'));
+      expect(recordedActions, [
+        'pick',
+        'refresh',
+        'sort:modified',
+        'search:关键字',
+        'path:D:\\',
+      ]);
+    });
+
     testWidgets('显示路径工具、排序和搜索，并转发动作', (tester) async {
       var picked = false;
       var refreshed = false;

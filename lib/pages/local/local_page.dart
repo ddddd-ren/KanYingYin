@@ -1,4 +1,6 @@
 import 'package:file_picker/file_picker.dart';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
@@ -149,6 +151,22 @@ class _LocalPageState extends State<LocalPage>
     if (_scrollController.hasClients) {
       _scrollController.jumpTo(0);
     }
+  }
+
+  Future<String?> _submitDirectoryAddress(String rawPath) async {
+    final path = normalizeLibraryPathAddress(rawPath);
+    if (path.isEmpty) return '请输入文件夹地址';
+    try {
+      final type = await FileSystemEntity.type(path, followLinks: true);
+      if (type == FileSystemEntityType.file) return '请输入文件夹地址';
+      if (type != FileSystemEntityType.directory) {
+        return '目录不存在或无法访问';
+      }
+    } on FileSystemException {
+      return '目录不存在或无法访问';
+    }
+    await _enterDirectory(path);
+    return localController.currentPath == path ? null : '目录不存在或无法访问';
   }
 
   String _playbackTitle(LocalMediaIndexItem item) {
@@ -771,6 +789,7 @@ class _LocalPageState extends State<LocalPage>
                       onOpenLibrary: () => _showLocalLibrary(context),
                       onOpenRecentPath: _enterDirectory,
                       onNavigateUp: localController.navigateUp,
+                      onPathSubmitted: _submitDirectoryAddress,
                       onFetchMediaInfo: () => _fetchMediaInfo(context),
                       onGenerateThumbnails: () => _fetchThumbnails(context),
                       onMatchMetadata: () => _scrapeTmdb(context),
@@ -792,6 +811,7 @@ class _LocalPageState extends State<LocalPage>
   LibraryPathBarViewData _pathBarData() {
     final parts = p.split(localController.currentPath);
     return LibraryPathBarViewData(
+      currentPath: localController.currentPath,
       breadcrumbs: [
         for (var i = 0; i < parts.length; i++)
           LibraryBreadcrumbViewData(

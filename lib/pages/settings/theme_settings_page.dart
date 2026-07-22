@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/bean/card/palette_card.dart';
-import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
@@ -13,6 +12,7 @@ import 'package:kanyingyin/utils/utils.dart';
 import 'package:card_settings_ui/card_settings_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:kanyingyin/theme/app_theme.dart';
 
 class ThemeSettingsPage extends StatefulWidget {
   const ThemeSettingsPage({super.key});
@@ -70,24 +70,16 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
   }
 
   void setTheme(Color? color) {
-    var defaultDarkTheme = ThemeData(
-        useMaterial3: true,
-        fontFamily: themeProvider.currentFontFamily,
-        brightness: Brightness.dark,
-        colorSchemeSeed: color,
-        progressIndicatorTheme: progressIndicatorTheme2024,
-        sliderTheme: sliderTheme2024,
-        pageTransitionsTheme: pageTransitionsTheme2024);
-    var oledDarkTheme = Utils.oledDarkTheme(defaultDarkTheme);
+    final defaultDarkTheme = AppTheme.dark(
+      fontFamily: themeProvider.currentFontFamily,
+      seedColor: color,
+    );
+    final oledDarkTheme = AppTheme.withOledBackground(defaultDarkTheme);
     themeProvider.setTheme(
-      ThemeData(
-          useMaterial3: true,
-          fontFamily: themeProvider.currentFontFamily,
-          brightness: Brightness.light,
-          colorSchemeSeed: color,
-          progressIndicatorTheme: progressIndicatorTheme2024,
-          sliderTheme: sliderTheme2024,
-          pageTransitionsTheme: pageTransitionsTheme2024),
+      AppTheme.light(
+        fontFamily: themeProvider.currentFontFamily,
+        seedColor: color,
+      ),
       oledEnhance ? oledDarkTheme : defaultDarkTheme,
     );
     defaultThemeColor = color?.toARGB32().toRadixString(16) ?? 'default';
@@ -95,28 +87,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
   }
 
   void resetTheme() {
-    var defaultDarkTheme = ThemeData(
-        useMaterial3: true,
-        fontFamily: themeProvider.currentFontFamily,
-        brightness: Brightness.dark,
-        colorSchemeSeed: const Color(0xFF00D4AA),
-        progressIndicatorTheme: progressIndicatorTheme2024,
-        sliderTheme: sliderTheme2024,
-        pageTransitionsTheme: pageTransitionsTheme2024);
-    var oledDarkTheme = Utils.oledDarkTheme(defaultDarkTheme);
-    themeProvider.setTheme(
-      ThemeData(
-          useMaterial3: true,
-          fontFamily: themeProvider.currentFontFamily,
-          brightness: Brightness.light,
-          colorSchemeSeed: const Color(0xFF00D4AA),
-          progressIndicatorTheme: progressIndicatorTheme2024,
-          sliderTheme: sliderTheme2024,
-          pageTransitionsTheme: pageTransitionsTheme2024),
-      oledEnhance ? oledDarkTheme : defaultDarkTheme,
-    );
-    defaultThemeColor = 'default';
-    setting.put(SettingBoxKey.themeColor, 'default');
+    setTheme(null);
   }
 
   void updateTheme(String theme) async {
@@ -142,17 +113,15 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
   }
 
   void updateOledEnhance() {
-    Color color;
     oledEnhance = setting.getTyped<bool>(
       SettingBoxKey.oledEnhance,
       defaultValue: false,
     );
-    if (defaultThemeColor == 'default') {
-      color = const Color(0xFF00D4AA);
-    } else {
-      color = Color(int.parse(defaultThemeColor, radix: 16));
-    }
-    setTheme(color);
+    setTheme(
+      defaultThemeColor == 'default'
+          ? null
+          : Color(int.parse(defaultThemeColor, radix: 16)),
+    );
   }
 
   @override
@@ -357,13 +326,11 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
                     await setting.put(
                         SettingBoxKey.useSystemFont, useSystemFont);
                     themeProvider.setFontFamily(useSystemFont);
-                    Color color;
-                    if (defaultThemeColor == 'default') {
-                      color = const Color(0xFF00D4AA);
-                    } else {
-                      color = Color(int.parse(defaultThemeColor, radix: 16));
-                    }
-                    setTheme(color);
+                    setTheme(
+                      defaultThemeColor == 'default'
+                          ? null
+                          : Color(int.parse(defaultThemeColor, radix: 16)),
+                    );
                     setState(() {});
                   },
                   title:

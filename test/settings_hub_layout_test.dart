@@ -25,15 +25,24 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('设置控制中心在三种宽度下完整构建且无溢出', (tester) async {
+  testWidgets('设置分组列表在三种宽度下完整构建且无溢出', (tester) async {
     for (final width in <double>[1280, 900, 640]) {
       await pumpHub(tester, width: width);
-      expect(find.byType(SettingsHubCard), findsNWidgets(8));
+      expect(find.byType(KSettingsSection), findsNWidgets(4));
+      expect(find.byType(KSettingsNavigationTile), findsNWidgets(8));
+      for (final section in <String>[
+        '本地媒体库',
+        '播放器设置',
+        '应用与外观',
+        '其他',
+      ]) {
+        expect(find.text(section), findsOneWidget);
+      }
       expect(tester.takeException(), isNull, reason: '窗口宽度 $width');
     }
   });
 
-  testWidgets('设置控制中心将入口路径原样转发', (tester) async {
+  testWidgets('设置分组列表将入口路径原样转发', (tester) async {
     String? openedPath;
     await pumpHub(
       tester,

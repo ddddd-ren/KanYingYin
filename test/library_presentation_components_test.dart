@@ -213,7 +213,7 @@ void main() {
           home: Scaffold(
             body: SizedBox(
               width: 260,
-              height: 380,
+              height: 470,
               child: ImmersiveMediaCard(
                 overlayMode: ImmersiveMediaCardOverlayMode.always,
                 cover: const ColoredBox(color: Colors.blue),
@@ -243,7 +243,7 @@ void main() {
       expect(opacity.duration, const Duration(milliseconds: 160));
       expect(opacity.curve, Curves.easeOut);
       expect(find.text('中文片名'), findsOneWidget);
-      expect(find.text('真实文件名.mkv'), findsOneWidget);
+      expect(find.textContaining('真实文件名.mkv'), findsOneWidget);
       expect(find.textContaining('2025'), findsOneWidget);
       expect(find.text('有字幕'), findsOneWidget);
       expect(find.text('已刮削'), findsOneWidget);
@@ -258,7 +258,7 @@ void main() {
           home: Scaffold(
             body: SizedBox(
               width: 260,
-              height: 380,
+              height: 470,
               child: ImmersiveMediaCard(
                 overlayMode: ImmersiveMediaCardOverlayMode.always,
                 cover: const ColoredBox(color: Colors.blue),
@@ -333,8 +333,8 @@ void main() {
         );
         final delegate =
             grid.gridDelegate as SliverGridDelegateWithMaxCrossAxisExtent;
-        expect(delegate.maxCrossAxisExtent, 300);
-        expect(delegate.childAspectRatio, 0.68);
+        expect(delegate.maxCrossAxisExtent, 220);
+        expect(delegate.childAspectRatio, 0.5);
         expect(delegate.crossAxisSpacing, 12);
         expect(delegate.mainAxisSpacing, 12);
         final cards = find.byType(ImmersiveMediaCard);
@@ -355,13 +355,13 @@ void main() {
 
       expect(narrow.columns, lessThan(regular.columns));
       expect(maximized.columns, greaterThan(regular.columns));
-      expect(narrow.cardWidth, lessThanOrEqualTo(300));
-      expect(regular.cardWidth, lessThanOrEqualTo(300));
-      expect(maximized.cardWidth, lessThanOrEqualTo(300));
+      expect(narrow.cardWidth, lessThanOrEqualTo(220));
+      expect(regular.cardWidth, lessThanOrEqualTo(220));
+      expect(maximized.cardWidth, lessThanOrEqualTo(220));
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('桌面卡片保持悬浮信息且点击卡片', (tester) async {
+    testWidgets('桌面卡片常驻标题和关键元数据并支持点击', (tester) async {
       String? played;
 
       Future<void> pumpAt(Size size) async {
@@ -391,12 +391,19 @@ void main() {
         ImmersiveMediaCardOverlayMode.hover,
       );
       expect(find.text('测试动画'), findsOneWidget);
+      expect(find.textContaining('第 1 季'), findsOneWidget);
+      expect(find.textContaining('MKV  1.0 GB'), findsOneWidget);
       expect(find.text('有字幕'), findsOneWidget);
       expect(find.text('已刮削'), findsOneWidget);
       expect(tester.widget<Hero>(find.byType(Hero)).tag, item.heroTag);
       expect(
-          tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,
-          0);
+        tester
+            .widget<AnimatedOpacity>(find.byKey(
+              const ValueKey<String>('media-card-hover-actions'),
+            ))
+            .opacity,
+        0,
+      );
       expect(find.byIcon(Icons.video_collection_outlined), findsOneWidget);
 
       await tester.tap(find.byType(InkWell));
@@ -436,7 +443,7 @@ void main() {
       expect(actionItem, item.id);
     });
 
-    testWidgets('悬浮 160ms 后显示信息 overlay 并保持原动画曲线', (tester) async {
+    testWidgets('悬浮 160ms 后显示播放入口并保持原动画曲线', (tester) async {
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
           body: LibraryMediaGrid(
@@ -444,7 +451,8 @@ void main() {
           ),
         ),
       ));
-      final opacityFinder = find.byType(AnimatedOpacity);
+      final opacityFinder =
+          find.byKey(const ValueKey<String>('media-card-hover-actions'));
       var opacity = tester.widget<AnimatedOpacity>(opacityFinder);
       expect(opacity.opacity, 0);
       expect(opacity.duration, const Duration(milliseconds: 160));
@@ -461,7 +469,7 @@ void main() {
       expect(tester.widget<AnimatedOpacity>(opacityFinder).opacity, 1);
     });
 
-    testWidgets('本地三点菜单常驻且底部信息只在悬停后显示', (tester) async {
+    testWidgets('本地三点菜单和底部信息均常驻', (tester) async {
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
           body: LibraryMediaGrid(
@@ -477,9 +485,12 @@ void main() {
         ),
       ));
 
-      final opacityFinder = find.byType(AnimatedOpacity);
+      final opacityFinder =
+          find.byKey(const ValueKey<String>('media-card-hover-actions'));
       expect(tester.widget<AnimatedOpacity>(opacityFinder).opacity, 0);
       expect(find.byTooltip('本地媒体操作'), findsOneWidget);
+      expect(find.text('测试动画'), findsOneWidget);
+      expect(find.textContaining('第 1 季'), findsOneWidget);
 
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
       addTearDown(mouse.removePointer);
@@ -526,14 +537,21 @@ void main() {
           .firstWhere((region) => region.onEnter != null);
       cardRegion.onEnter!(const PointerEnterEvent());
       await tester.pump();
-      double opacityFor(String title) => tester
-          .widget<AnimatedOpacity>(find
-              .ancestor(
-                of: find.text(title),
-                matching: find.byType(AnimatedOpacity),
-              )
-              .first)
-          .opacity;
+      double opacityFor(String title) {
+        final card = find.ancestor(
+          of: find.text(title),
+          matching: find.byType(ImmersiveMediaCard),
+        );
+        return tester
+            .widget<AnimatedOpacity>(find.descendant(
+              of: card,
+              matching: find.byKey(
+                const ValueKey<String>('media-card-hover-actions'),
+              ),
+            ))
+            .opacity;
+      }
+
       expect(opacityFor('第一项'), 1);
       expect(opacityFor('第二项'), 0);
 

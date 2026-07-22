@@ -1110,8 +1110,8 @@ void main() {
       final grid = tester.widget<GridView>(find.byType(GridView));
       final delegate =
           grid.gridDelegate as SliverGridDelegateWithMaxCrossAxisExtent;
-      expect(delegate.maxCrossAxisExtent, 300);
-      expect(delegate.childAspectRatio, 0.68);
+      expect(delegate.maxCrossAxisExtent, 220);
+      expect(delegate.childAspectRatio, 0.5);
       expect(delegate.crossAxisSpacing, 12);
       expect(delegate.mainAxisSpacing, 12);
       final cards = find.byType(ImmersiveMediaCard);
@@ -1134,8 +1134,8 @@ void main() {
 
     expect(narrow.columns, lessThan(regular.columns));
     expect(maximized.columns, greaterThan(regular.columns));
-    expect(regular.cardWidth, lessThanOrEqualTo(300));
-    expect(maximized.cardWidth, lessThanOrEqualTo(300));
+    expect(regular.cardWidth, lessThanOrEqualTo(220));
+    expect(maximized.cardWidth, lessThanOrEqualTo(220));
   });
 
   testWidgets('刮削遮罩只覆盖目标媒体卡且另一张仍可播放', (tester) async {

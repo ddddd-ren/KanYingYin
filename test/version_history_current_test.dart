@@ -280,6 +280,18 @@ void main() {
     expect(entries.single.isPrerelease, isTrue);
   });
 
+  test('二点一三十五说明安装版本检查和安装包验证', () {
+    final entries = versionHistoryForCurrent('2.1.35');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('已安装版本'));
+    expect(changes, contains('签名 MSIX'));
+    expect(changes, contains('清单版本'));
+    expect(changes, contains('不会修改'));
+    expect(entries.single.isPrerelease, isTrue);
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

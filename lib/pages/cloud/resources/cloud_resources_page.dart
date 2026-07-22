@@ -652,7 +652,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       child: Row(
         children: [
           const Text(
-            '网盘资源',
+            '网盘媒体库',
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
           ),
           const SizedBox(width: 16),
@@ -675,42 +675,9 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
             ),
           const Spacer(),
           IconButton(
-            tooltip: '自动整理当前来源',
-            onPressed: selected == null ||
-                    _controller.loading ||
-                    _controller.scanning ||
-                    _batchScraping ||
-                    _autoOrganizing ||
-                    _controller.tmdbScrapingKeys.isNotEmpty
-                ? null
-                : _confirmAutoOrganize,
-            icon: const Icon(Icons.auto_awesome_motion),
-          ),
-          IconButton(
-            tooltip: '刮削当前来源',
-            onPressed: selected == null ||
-                    _controller.loading ||
-                    _controller.scanning ||
-                    _batchScraping ||
-                    _autoOrganizing
-                ? null
-                : _scrapeSelectedSource,
-            icon: const Icon(Icons.auto_awesome_outlined),
-          ),
-          IconButton(
             tooltip: '管理网盘来源',
             onPressed: _manageSources,
             icon: const Icon(Icons.settings_outlined),
-          ),
-          IconButton(
-            tooltip: '移除当前来源',
-            onPressed: selected == null ||
-                    _controller.loading ||
-                    _controller.scanning ||
-                    _autoOrganizing
-                ? null
-                : _confirmRemoveSource,
-            icon: const Icon(Icons.delete_outline),
           ),
           IconButton(
             tooltip: '刷新当前来源',
@@ -722,9 +689,94 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
                 : _controller.refresh,
             icon: const Icon(Icons.refresh),
           ),
+          PopupMenuButton<_CloudToolbarAction>(
+            tooltip: '更多网盘操作',
+            icon: const Icon(Icons.more_horiz_rounded),
+            onSelected: _handleToolbarAction,
+            itemBuilder: (context) => [
+              _cloudToolbarMenuItem(
+                context: context,
+                action: _CloudToolbarAction.autoOrganize,
+                icon: Icons.auto_awesome_motion,
+                label: '自动整理当前来源',
+                busy: _autoOrganizing,
+                enabled: selected != null &&
+                    !_controller.loading &&
+                    !_controller.scanning &&
+                    !_batchScraping &&
+                    !_autoOrganizing &&
+                    _controller.tmdbScrapingKeys.isEmpty,
+              ),
+              _cloudToolbarMenuItem(
+                context: context,
+                action: _CloudToolbarAction.scrape,
+                icon: Icons.auto_awesome_outlined,
+                label: '刮削当前来源',
+                busy: _batchScraping,
+                enabled: selected != null &&
+                    !_controller.loading &&
+                    !_controller.scanning &&
+                    !_batchScraping &&
+                    !_autoOrganizing,
+              ),
+              const PopupMenuDivider(),
+              _cloudToolbarMenuItem(
+                context: context,
+                action: _CloudToolbarAction.removeSource,
+                icon: Icons.delete_outline,
+                label: '移除当前来源',
+                enabled: selected != null &&
+                    !_controller.loading &&
+                    !_controller.scanning &&
+                    !_autoOrganizing,
+                destructive: true,
+              ),
+            ],
+          ),
         ],
       ),
     );
+  }
+
+  PopupMenuItem<_CloudToolbarAction> _cloudToolbarMenuItem({
+    required BuildContext context,
+    required _CloudToolbarAction action,
+    required IconData icon,
+    required String label,
+    required bool enabled,
+    bool busy = false,
+    bool destructive = false,
+  }) {
+    final color = destructive ? Theme.of(context).colorScheme.error : null;
+    return PopupMenuItem<_CloudToolbarAction>(
+      value: action,
+      enabled: enabled,
+      child: Row(
+        children: [
+          if (busy)
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            Icon(icon, size: 18, color: color),
+          const SizedBox(width: 10),
+          Text(label, style: TextStyle(color: color)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleToolbarAction(_CloudToolbarAction action) async {
+    switch (action) {
+      case _CloudToolbarAction.autoOrganize:
+        await _confirmAutoOrganize();
+      case _CloudToolbarAction.scrape:
+        await _scrapeSelectedSource();
+      case _CloudToolbarAction.removeSource:
+        await _confirmRemoveSource();
+    }
   }
 
   Widget _emptyState() => Center(
@@ -879,3 +931,5 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     );
   }
 }
+
+enum _CloudToolbarAction { autoOrganize, scrape, removeSource }

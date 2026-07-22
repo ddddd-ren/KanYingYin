@@ -203,23 +203,44 @@ class LibraryPathBar extends StatelessWidget {
           const SizedBox(width: 4),
           _button(Icons.refresh, '刷新', data.isLoading ? null : onRefresh),
           const SizedBox(width: 4),
-          _busyButton(Icons.image_search, '获取海报', data.isFetchingPosters,
-              data.isLoading || data.isFetchingPosters ? null : onFetchPosters),
-          const SizedBox(width: 4),
-          _busyButton(Icons.info_outline, '读取媒体信息', data.isFetchingMediaInfo,
-              data.canReadMediaInfo ? onFetchMediaInfo : null),
-          const SizedBox(width: 4),
-          _busyButton(
-              Icons.photo_camera_outlined,
-              '生成缩略图',
-              data.isFetchingThumbnails,
-              data.canGenerateThumbnails ? onGenerateThumbnails : null),
-          const SizedBox(width: 4),
-          _busyButton(
-              Icons.cloud_sync_outlined,
-              '批量刮削 TMDB 信息',
-              data.isMatchingMetadata,
-              data.canMatchMetadata ? onMatchMetadata : null),
+          PopupMenuButton<_LibrarySecondaryAction>(
+            tooltip: '更多媒体操作',
+            icon: const Icon(Icons.more_horiz_rounded, size: 20),
+            onSelected: _handleSecondaryAction,
+            itemBuilder: (context) => [
+              _secondaryMenuItem(
+                action: _LibrarySecondaryAction.fetchPosters,
+                icon: Icons.image_search_outlined,
+                label: '获取海报',
+                busy: data.isFetchingPosters,
+                enabled: !data.isLoading &&
+                    !data.isFetchingPosters &&
+                    onFetchPosters != null,
+              ),
+              _secondaryMenuItem(
+                action: _LibrarySecondaryAction.fetchMediaInfo,
+                icon: Icons.info_outline,
+                label: '读取媒体信息',
+                busy: data.isFetchingMediaInfo,
+                enabled: data.canReadMediaInfo && onFetchMediaInfo != null,
+              ),
+              _secondaryMenuItem(
+                action: _LibrarySecondaryAction.generateThumbnails,
+                icon: Icons.photo_camera_outlined,
+                label: '生成缩略图',
+                busy: data.isFetchingThumbnails,
+                enabled:
+                    data.canGenerateThumbnails && onGenerateThumbnails != null,
+              ),
+              _secondaryMenuItem(
+                action: _LibrarySecondaryAction.matchMetadata,
+                icon: Icons.cloud_sync_outlined,
+                label: '批量刮削 TMDB 信息',
+                busy: data.isMatchingMetadata,
+                enabled: data.canMatchMetadata && onMatchMetadata != null,
+              ),
+            ],
+          ),
           const SizedBox(width: 8),
           Expanded(child: _breadcrumbs(context, colors)),
         ]),
@@ -286,6 +307,48 @@ class LibraryPathBar extends StatelessWidget {
           style: IconButton.styleFrom(
               padding: const EdgeInsets.all(4),
               minimumSize: const Size(32, 32)));
+
+  PopupMenuItem<_LibrarySecondaryAction> _secondaryMenuItem({
+    required _LibrarySecondaryAction action,
+    required IconData icon,
+    required String label,
+    required bool busy,
+    required bool enabled,
+  }) {
+    return PopupMenuItem<_LibrarySecondaryAction>(
+      value: action,
+      enabled: enabled,
+      child: Row(
+        children: [
+          if (busy)
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            Icon(icon, size: 18),
+          const SizedBox(width: 10),
+          Text(label),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleSecondaryAction(
+    _LibrarySecondaryAction action,
+  ) async {
+    switch (action) {
+      case _LibrarySecondaryAction.fetchPosters:
+        await onFetchPosters?.call();
+      case _LibrarySecondaryAction.fetchMediaInfo:
+        await onFetchMediaInfo?.call();
+      case _LibrarySecondaryAction.generateThumbnails:
+        await onGenerateThumbnails?.call();
+      case _LibrarySecondaryAction.matchMetadata:
+        await onMatchMetadata?.call();
+    }
+  }
 
   Widget _breadcrumbs(BuildContext context, ColorScheme colors) =>
       SingleChildScrollView(
@@ -425,4 +488,11 @@ class LibraryPathBar extends StatelessWidget {
               ],
             ]));
   }
+}
+
+enum _LibrarySecondaryAction {
+  fetchPosters,
+  fetchMediaInfo,
+  generateThumbnails,
+  matchMetadata,
 }

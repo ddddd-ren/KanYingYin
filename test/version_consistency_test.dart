@@ -6,8 +6,8 @@ import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
   test('应用版本、MSIX 版本和更新日志保持一致', () {
-    const expectedVersion = '2.1.41';
-    const expectedBuildNumber = '20141';
+    const expectedVersion = '2.1.42';
+    const expectedBuildNumber = '20142';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();

@@ -101,7 +101,6 @@ try {
 
   Push-Location $projectRoot
   try {
-    $buildStartedAt = Get-Date
     Invoke-Checked -Executable $FlutterPath -Arguments @('build', 'windows', '--release', '--no-pub')
 
     $releaseExecutable = Join-Path $releaseDirectory 'kanyingyin.exe'
@@ -110,8 +109,9 @@ try {
       if (-not (Test-Path -LiteralPath $releaseArtifact -PathType Leaf)) {
         throw "Windows Release 缺少本轮产物：$releaseArtifact"
       }
-      if ((Get-Item -LiteralPath $releaseArtifact).LastWriteTime -lt $buildStartedAt.AddMinutes(-1)) {
-        throw "Windows Release 产物时间早于本轮构建：$releaseArtifact"
+      $releaseInfo = Get-Item -LiteralPath $releaseArtifact
+      if ($releaseInfo.Length -le 0) {
+        throw "Windows Release 产物为空：$releaseArtifact"
       }
     }
 

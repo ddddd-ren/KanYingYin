@@ -25,6 +25,15 @@ void main() {
     expect(script, contains('看影音-\$versionWithBuild-异机安装包.zip'));
   });
 
+  test('公共签名脚本允许增量构建复用有效产物时间戳', () async {
+    final script =
+        await File('tool/windows/build_signed_release.ps1').readAsString();
+
+    expect(script, contains(r'$releaseInfo.Length -le 0'));
+    expect(script, isNot(contains('LastWriteTime')));
+    expect(script, isNot(contains(r'$buildStartedAt')));
+  });
+
   test('公共签名脚本不依赖私人 TMDB Key 且安全清理密码', () async {
     final script =
         await File('tool/windows/build_signed_release.ps1').readAsString();

@@ -906,7 +906,7 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   Future<String?> _pickSubtitlePath({String title = '选择字幕文件'}) async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       dialogTitle: title,
       type: FileType.custom,
       allowedExtensions: const ['ass', 'ssa', 'srt', 'vtt'],

@@ -310,7 +310,7 @@ class _LocalPageState extends State<LocalPage>
     BuildContext context,
     LocalVideoGroup group,
   ) async {
-    final selected = await FilePicker.platform.pickFiles(
+    final selected = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
       dialogTitle: '选择自定义封面',

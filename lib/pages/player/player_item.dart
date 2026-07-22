@@ -28,6 +28,7 @@ import 'package:kanyingyin/services/audio_controller.dart';
 import 'package:kanyingyin/services/local_subtitle_importer.dart';
 import 'package:kanyingyin/pages/player/widgets/player_gestures.dart';
 import 'package:kanyingyin/pages/player/widgets/subtitle_settings_overlay.dart';
+import 'package:kanyingyin/pages/player/widgets/track_language_confirmation_dialog.dart';
 import 'package:kanyingyin/features/player/presentation/player_overlay_coordinator.dart';
 import 'package:kanyingyin/features/player/presentation/player_shortcut_handler.dart';
 import 'package:kanyingyin/features/player/presentation/player_exit_coordinator.dart';
@@ -99,9 +100,57 @@ class _PlayerItemState extends State<PlayerItem>
   late mobx.ReactionDisposer _playerSizeListener;
 
   late mobx.ReactionDisposer _fullscreenListener;
+  late mobx.ReactionDisposer _trackLanguageConfirmationListener;
+  int _shownTrackLanguageRevision = 0;
+  bool _trackLanguageDialogOpen = false;
 
   bool get _canUsePlayer =>
       mounted && _acceptingInput && playerController.hasActivePlayer;
+
+  void _scheduleTrackLanguageConfirmation(int revision) {
+    if (revision <= 0 ||
+        _trackLanguageDialogOpen ||
+        revision == _shownTrackLanguageRevision ||
+        !_canUsePlayer) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_canUsePlayer ||
+          _trackLanguageDialogOpen ||
+          revision != playerController.trackLanguageConfirmationRevision ||
+          playerController.pendingTrackLanguages.isEmpty) {
+        return;
+      }
+      unawaited(_showTrackLanguageConfirmation(revision));
+    });
+  }
+
+  Future<void> _showTrackLanguageConfirmation(int revision) async {
+    if (!_canUsePlayer || _trackLanguageDialogOpen) return;
+    _trackLanguageDialogOpen = true;
+    _shownTrackLanguageRevision = revision;
+    try {
+      final warning = await showDialog<String?>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => TrackLanguageConfirmationDialog(
+          tracks: playerController.pendingTrackLanguages.toList(
+            growable: false,
+          ),
+          onConfirm: (choices) =>
+              playerController.confirmTrackLanguages(revision, choices),
+        ),
+      );
+      if (!mounted || !_canUsePlayer) return;
+      if (warning != null && warning.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(warning)),
+        );
+      }
+    } finally {
+      _trackLanguageDialogOpen = false;
+    }
+  }
 
   void _stopInteractiveWorkForExit() {
     if (!_acceptingInput) return;
@@ -1177,6 +1226,10 @@ class _PlayerItemState extends State<PlayerItem>
         unawaited(_syncPIPAspectWhenVideoSizeReady());
       },
     );
+    _trackLanguageConfirmationListener = mobx.reaction<int>(
+      (_) => playerController.trackLanguageConfirmationRevision,
+      _scheduleTrackLanguageConfirmation,
+    );
     if (Platform.isAndroid) {
       PipUtils.initPipHandler(
         onAction: (action) async {
@@ -1234,6 +1287,7 @@ class _PlayerItemState extends State<PlayerItem>
     _stopInteractiveWorkForExit();
     _fullscreenListener();
     _playerSizeListener();
+    _trackLanguageConfirmationListener();
     WidgetsBinding.instance.removeObserver(this);
     windowManager.removeListener(this);
     playerTimer?.cancel();

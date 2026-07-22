@@ -30,11 +30,7 @@ void main() {
     expect(myPage, contains("title: '媒体识别'"));
     expect(
       myPage,
-      matches(
-        RegExp(
-          r"Modular\.to\.pushNamed\(\s*'/settings/media-recognition'",
-        ),
-      ),
+      contains("onOpenPath('/settings/media-recognition')"),
     );
     expect(settingsModule, contains('_child(r, "/media-recognition"'));
     expect(settingsModule, contains('MediaRecognitionSettingsPage('));

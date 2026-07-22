@@ -27,10 +27,16 @@ void main() {
         File('lib/pages/settings/settings_module.dart').readAsStringSync();
     final indexModule = File('lib/pages/index_module.dart').readAsStringSync();
 
-    expect(myPage, contains("title: Text('媒体识别'"));
-    expect(myPage,
-        contains("Modular.to.pushNamed('/settings/media-recognition')"));
-    expect(settingsModule, contains('r.child("/media-recognition"'));
+    expect(myPage, contains("title: '媒体识别'"));
+    expect(
+      myPage,
+      matches(
+        RegExp(
+          r"Modular\.to\.pushNamed\(\s*'/settings/media-recognition'",
+        ),
+      ),
+    );
+    expect(settingsModule, contains('_child(r, "/media-recognition"'));
     expect(settingsModule, contains('MediaRecognitionSettingsPage('));
     expect(settingsModule, contains('verifyCloudRescanResult('));
     expect(

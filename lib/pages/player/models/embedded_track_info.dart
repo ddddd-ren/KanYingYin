@@ -1,17 +1,7 @@
 import 'package:media_kit/media_kit.dart';
 
-enum EmbeddedTrackType { audio, subtitle }
-
-enum TrackLanguageKind {
-  mandarin,
-  cantonese,
-  taiwaneseMandarin,
-  simplifiedChinese,
-  bilingualChinese,
-  traditionalChinese,
-  english,
-  unknown,
-}
+export 'embedded_track_language.dart';
+import 'embedded_track_language.dart';
 
 class EmbeddedTrackSelectionState {
   bool _automaticSelectionCompleted = false;
@@ -58,17 +48,39 @@ class EmbeddedTrackInfo {
     required this.id,
     required this.type,
     required this.kind,
+    required this.language,
     required this.primaryLabel,
     required this.detailLabel,
     required this.originalTitle,
+    required this.originalCodec,
   });
 
   final String id;
   final EmbeddedTrackType type;
   final TrackLanguageKind kind;
+  final TrackLanguageChoice language;
   final String primaryLabel;
   final String detailLabel;
   final String originalTitle;
+  final String originalCodec;
+
+  bool get isLanguageResolved => language.isResolved;
+
+  EmbeddedTrackInfo withLanguage(TrackLanguageChoice value) {
+    final label = value.isResolved
+        ? value.label
+        : '${type == EmbeddedTrackType.subtitle ? '字幕' : '音轨'}轨道 $id';
+    return EmbeddedTrackInfo(
+      id: id,
+      type: type,
+      kind: value.kind,
+      language: value,
+      primaryLabel: label,
+      detailLabel: detailLabel,
+      originalTitle: originalTitle,
+      originalCodec: originalCodec,
+    );
+  }
 
   factory EmbeddedTrackInfo.fromAudio(AudioTrack track) => _fromTrack(
         id: track.id,
@@ -97,13 +109,15 @@ class EmbeddedTrackInfo {
     String? channels,
     int? channelsCount,
   }) {
-    final source = '${language ?? ''} ${title ?? ''}'.toLowerCase();
-    final kind = _detectKind(source, type);
-    final languageLabel = _languageLabel(kind, type);
+    final languageChoice = trackLanguageFromMetadata(
+      language,
+      title,
+      type: type,
+    );
     final safeTitle = title?.trim() ?? '';
-    final primary = languageLabel == '未知语种'
-        ? '未知语种 · 轨道 $id${safeTitle.isEmpty ? '' : ' · $safeTitle'}'
-        : languageLabel;
+    final primary = languageChoice.isResolved
+        ? languageChoice.label
+        : '${type == EmbeddedTrackType.subtitle ? '字幕' : '音轨'}轨道 $id';
     final details = <String>[
       if (safeTitle.isNotEmpty && !primary.contains(safeTitle)) safeTitle,
       if (codec != null && codec.trim().isNotEmpty) _codecLabel(codec),
@@ -113,61 +127,14 @@ class EmbeddedTrackInfo {
     return EmbeddedTrackInfo(
       id: id,
       type: type,
-      kind: kind,
+      kind: languageChoice.kind,
+      language: languageChoice,
       primaryLabel: primary,
       detailLabel: details.join(' · '),
       originalTitle: safeTitle,
+      originalCodec: codec?.trim() ?? '',
     );
   }
-
-  static TrackLanguageKind _detectKind(
-    String source,
-    EmbeddedTrackType type,
-  ) {
-    bool hasAny(Iterable<String> values) => values.any(source.contains);
-    if (hasAny(['粤语', '广东话', 'cantonese', 'yue'])) {
-      return TrackLanguageKind.cantonese;
-    }
-    if (hasAny(['台配', '台湾国语'])) {
-      return TrackLanguageKind.taiwaneseMandarin;
-    }
-    if (type == EmbeddedTrackType.subtitle) {
-      if (hasAny(['简繁', '双语'])) return TrackLanguageKind.bilingualChinese;
-      if (hasAny(['繁体', '繁中', 'traditional', 'zh-hant'])) {
-        return TrackLanguageKind.traditionalChinese;
-      }
-      if (hasAny(['简体', '简中', 'simplified', 'zh-hans', 'chs'])) {
-        return TrackLanguageKind.simplifiedChinese;
-      }
-    }
-    final languageCode = RegExp(r'(^|\s)(zh|zho|chi|zh-cn)(\s|$)');
-    if (languageCode.hasMatch(source) ||
-        hasAny(['中文', '国语', '普通话', 'mandarin'])) {
-      return type == EmbeddedTrackType.audio
-          ? TrackLanguageKind.mandarin
-          : TrackLanguageKind.simplifiedChinese;
-    }
-    if (RegExp(r'(^|\s)(en|eng)(\s|$)').hasMatch(source) ||
-        source.contains('english')) {
-      return TrackLanguageKind.english;
-    }
-    return TrackLanguageKind.unknown;
-  }
-
-  static String _languageLabel(
-    TrackLanguageKind kind,
-    EmbeddedTrackType type,
-  ) =>
-      switch (kind) {
-        TrackLanguageKind.mandarin => '国语 / Mandarin',
-        TrackLanguageKind.cantonese => '粤语 / Cantonese',
-        TrackLanguageKind.taiwaneseMandarin => '台配',
-        TrackLanguageKind.simplifiedChinese => '简体中文',
-        TrackLanguageKind.bilingualChinese => '简繁双语',
-        TrackLanguageKind.traditionalChinese => '繁体中文',
-        TrackLanguageKind.english => '英语 / English',
-        TrackLanguageKind.unknown => '未知语种',
-      };
 
   static String _codecLabel(String codec) {
     final lower = codec.toLowerCase();

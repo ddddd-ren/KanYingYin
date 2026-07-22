@@ -16,6 +16,17 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.35',
+    date: '2026-07-22',
+    isPrerelease: true,
+    changes: [
+      '本测试版在版本交付前核对 Windows 当前已安装版本，避免仅依据项目配置判断升级起点',
+      '重新生成并验证 Windows Release、签名 MSIX、清单版本和桌面交付文件，方便确认安装包确实来自本轮构建',
+      '延续上一测试版的代理证书校验、发布流水线固定版本和依赖维护改进',
+      '没有 TMDB Key 或断网时，应用启动、本地与网盘媒体库和播放器仍可使用；本次不会修改或删除本地原始媒体，也不会修改网盘文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.34',
     date: '2026-07-22',
     isPrerelease: true,

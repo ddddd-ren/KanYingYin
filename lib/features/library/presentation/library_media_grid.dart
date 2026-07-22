@@ -95,7 +95,7 @@ class LibraryMediaCoverFallback {
     if (provider != null) {
       return Image(
         image: provider,
-        fit: BoxFit.contain,
+        fit: BoxFit.cover,
         width: double.infinity,
         height: double.infinity,
         errorBuilder: (context, _, __) => placeholderBuilder(context),
@@ -107,7 +107,7 @@ class LibraryMediaCoverFallback {
     }
     return Image.file(
       File(path),
-      fit: BoxFit.contain,
+      fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,
       errorBuilder: (context, _, __) => placeholderBuilder(context),
@@ -122,7 +122,7 @@ class LibraryMediaCoverFallback {
     if (provider != null) {
       return Image(
         image: provider,
-        fit: BoxFit.contain,
+        fit: BoxFit.cover,
         width: double.infinity,
         height: double.infinity,
         errorBuilder: (context, _, __) => localBuilder(context),
@@ -134,7 +134,7 @@ class LibraryMediaCoverFallback {
     }
     return Image.network(
       url,
-      fit: BoxFit.contain,
+      fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,
       errorBuilder: (context, _, __) => localBuilder(context),
@@ -255,10 +255,10 @@ class LibraryMediaGrid extends StatelessWidget {
       controller: scrollController,
       padding: const EdgeInsets.all(12),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 300,
+        maxCrossAxisExtent: 220,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 0.68,
+        childAspectRatio: 0.5,
       ),
       itemCount: data.items.length,
       findChildIndexCallback: (key) {

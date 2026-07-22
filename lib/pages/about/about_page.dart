@@ -1,8 +1,7 @@
-import 'package:card_settings_ui/card_settings_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:hive_ce/hive.dart';
-import 'package:kanyingyin/bean/appbar/sys_app_bar.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/core/app_version.dart';
 import 'package:kanyingyin/services/local_image_cache_service.dart';
@@ -104,25 +103,25 @@ class _AboutPageState extends State<AboutPage> {
       onPopInvokedWithResult: (bool didPop, Object? result) async {
         onBackPressed(context);
       },
-      child: Scaffold(
-        appBar: const SysAppBar(title: Text('关于')),
-        // backgroundColor: Colors.transparent,
-        body: SettingsList(
+      child: KSettingsScaffold(
+        title: '关于',
+        description: '查看版本、开源许可、日志和缓存信息。',
+        body: KSettingsList(
           maxWidth: 1000,
           sections: [
-            SettingsSection(
+            KSettingsSection(
               title: Text(
                 '开源许可与致谢',
                 style: TextStyle(fontFamily: fontFamily),
               ),
               tiles: [
-                SettingsTile<void>(
+                KSettingsTile<void>(
                   title: Text(
                     '界面与操作参考 Kazumi',
                     style: TextStyle(fontFamily: fontFamily),
                   ),
                 ),
-                SettingsTile<void>.navigation(
+                KSettingsTile<void>.navigation(
                   onPressed: (_) {
                     Modular.to.pushNamed('/settings/about/license');
                   },
@@ -134,10 +133,10 @@ class _AboutPageState extends State<AboutPage> {
               ],
             ),
             if (Utils.isDesktop()) // 之后如果有非桌面平台的新选项可以移除
-              SettingsSection(
+              KSettingsSection(
                 title: Text('默认行为', style: TextStyle(fontFamily: fontFamily)),
                 tiles: [
-                  SettingsTile<void>.navigation(
+                  KSettingsTile<void>.navigation(
                     onPressed: (_) {
                       if (menuController.isOpen) {
                         menuController.close();
@@ -183,9 +182,9 @@ class _AboutPageState extends State<AboutPage> {
                   ),
                 ],
               ),
-            SettingsSection(
+            KSettingsSection(
               tiles: [
-                SettingsTile<void>.navigation(
+                KSettingsTile<void>.navigation(
                   onPressed: (_) {
                     Modular.to.pushNamed('/settings/about/logs');
                   },
@@ -193,9 +192,9 @@ class _AboutPageState extends State<AboutPage> {
                 ),
               ],
             ),
-            SettingsSection(
+            KSettingsSection(
               tiles: [
-                SettingsTile<void>.navigation(
+                KSettingsTile<void>.navigation(
                   onPressed: (_) {
                     _showCacheDialog();
                   },
@@ -205,7 +204,7 @@ class _AboutPageState extends State<AboutPage> {
                       : Text('${_cacheSizeMB.toStringAsFixed(2)}MB',
                           style: TextStyle(fontFamily: fontFamily)),
                 ),
-                SettingsTile<void>(
+                KSettingsTile<void>(
                   title: Text(
                     '当前版本',
                     style: TextStyle(fontFamily: fontFamily),

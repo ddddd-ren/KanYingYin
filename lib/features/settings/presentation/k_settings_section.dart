@@ -6,11 +6,13 @@ class KSettingsSection extends StatelessWidget {
     super.key,
     this.title,
     this.description,
+    this.bottomInfo,
     required this.tiles,
   });
 
   final Widget? title;
   final Widget? description;
+  final Widget? bottomInfo;
   final List<Widget> tiles;
 
   @override
@@ -79,6 +81,16 @@ class KSettingsSection extends StatelessWidget {
             ),
           ),
         ),
+        if (bottomInfo != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+            child: DefaultTextStyle.merge(
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+              child: bottomInfo!,
+            ),
+          ),
       ],
     );
   }

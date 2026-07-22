@@ -1,10 +1,7 @@
-import 'package:card_settings_ui/list/settings_list.dart';
-import 'package:card_settings_ui/section/settings_section.dart';
-import 'package:card_settings_ui/tile/settings_tile.dart';
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/pages/local/local_directory_picker.dart';
 import 'package:hive_ce/hive.dart';
-import 'package:kanyingyin/bean/appbar/sys_app_bar.dart';
 import 'package:kanyingyin/pages/navigation/navigation_config.dart';
 import 'package:kanyingyin/utils/storage.dart';
 
@@ -48,14 +45,13 @@ class _InterfaceSettingsPageState extends State<InterfaceSettingsPage> {
   Widget build(BuildContext context) {
     final fontFamily = Theme.of(context).textTheme.bodyMedium?.fontFamily;
 
-    return Scaffold(
-      appBar: SysAppBar(
-        title: Text('界面设置'),
-      ),
-      body: SettingsList(
+    return KSettingsScaffold(
+      title: '界面设置',
+      description: '选择启动页面和本地文件默认目录。',
+      body: KSettingsList(
         sections: [
-          SettingsSection(tiles: [
-            SettingsTile<void>.navigation(
+          KSettingsSection(tiles: [
+            KSettingsTile<void>.navigation(
               onPressed: (_) async {
                 if (defaultPageMenuController.isOpen) {
                   defaultPageMenuController.close();
@@ -101,8 +97,8 @@ class _InterfaceSettingsPageState extends State<InterfaceSettingsPage> {
               ),
             ),
           ]),
-          SettingsSection(tiles: [
-            SettingsTile<void>.navigation(
+          KSettingsSection(tiles: [
+            KSettingsTile<void>.navigation(
               onPressed: (_) async {
                 final result = await LocalDirectoryPickerPage.pick(
                   context,

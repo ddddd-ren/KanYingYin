@@ -4,14 +4,13 @@ import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:hive_ce/hive.dart';
-import 'package:kanyingyin/bean/appbar/sys_app_bar.dart';
 import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/utils/diagnostic_log_exporter.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:kanyingyin/utils/pip_utils.dart';
 // ignore_for_file: avoid_print
 
-import 'package:card_settings_ui/card_settings_ui.dart';
+import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/utils/utils.dart';
 
 class PlayerSettingsPage extends StatefulWidget {
@@ -208,14 +207,15 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
       onPopInvokedWithResult: (bool didPop, Object? result) {
         onBackPressed(context);
       },
-      child: Scaffold(
-        appBar: const SysAppBar(title: Text('播放设置')),
-        body: SettingsList(
+      child: KSettingsScaffold(
+        title: '播放设置',
+        description: '调整解码、渲染、字幕、音频和播放器行为。',
+        body: KSettingsList(
           maxWidth: 1000,
           sections: [
-            SettingsSection(
+            KSettingsSection(
               tiles: [
-                SettingsTile<bool>.switchTile(
+                KSettingsTile<bool>.switchTile(
                   onToggle: (value) async {
                     hAenable = value ?? !hAenable;
                     await setting.put(SettingBoxKey.hAenable, hAenable);
@@ -237,7 +237,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                   title: Text('硬件解码', style: TextStyle(fontFamily: fontFamily)),
                   initialValue: hAenable,
                 ),
-                SettingsTile<void>.navigation(
+                KSettingsTile<void>.navigation(
                   onPressed: (_) async {
                     await Modular.to.pushNamed('/settings/player/decoder');
                     if (mounted) {
@@ -257,7 +257,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                       style: TextStyle(fontFamily: fontFamily)),
                 ),
                 if (Platform.isAndroid) ...[
-                  SettingsTile<void>.navigation(
+                  KSettingsTile<void>.navigation(
                     onPressed: (_) async {
                       await Modular.to.pushNamed('/settings/player/renderer');
                     },
@@ -267,7 +267,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                         style: TextStyle(fontFamily: fontFamily)),
                   ),
                 ],
-                SettingsTile<bool>.switchTile(
+                KSettingsTile<bool>.switchTile(
                   onToggle: (value) async {
                     lowMemoryMode = value ?? !lowMemoryMode;
                     await setting.put(
@@ -281,7 +281,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                   initialValue: lowMemoryMode,
                 ),
                 if (Platform.isAndroid) ...[
-                  SettingsTile<bool>.switchTile(
+                  KSettingsTile<bool>.switchTile(
                     onToggle: (value) async {
                       androidEnableOpenSLES = value ?? !androidEnableOpenSLES;
                       await setting.put(SettingBoxKey.androidEnableOpenSLES,
@@ -295,7 +295,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                     initialValue: androidEnableOpenSLES,
                   ),
                 ],
-                SettingsTile<void>.navigation(
+                KSettingsTile<void>.navigation(
                   onPressed: (_) async {
                     Modular.to.pushNamed('/settings/player/super');
                   },
@@ -303,9 +303,9 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                 ),
               ],
             ),
-            SettingsSection(
+            KSettingsSection(
               tiles: [
-                SettingsTile<bool>.switchTile(
+                KSettingsTile<bool>.switchTile(
                   onToggle: (value) async {
                     backgroundPlayback = value ?? !backgroundPlayback;
                     await setting.put(
@@ -317,7 +317,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                       style: TextStyle(fontFamily: fontFamily)),
                   initialValue: backgroundPlayback,
                 ),
-                SettingsTile<bool>.switchTile(
+                KSettingsTile<bool>.switchTile(
                   onToggle: (value) async {
                     playResume = value ?? !playResume;
                     await setting.put(SettingBoxKey.playResume, playResume);
@@ -328,7 +328,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                       style: TextStyle(fontFamily: fontFamily)),
                   initialValue: playResume,
                 ),
-                SettingsTile<bool>.switchTile(
+                KSettingsTile<bool>.switchTile(
                   onToggle: (value) async {
                     autoPlayNext = value ?? !autoPlayNext;
                     await setting.put(SettingBoxKey.autoPlayNext, autoPlayNext);
@@ -339,7 +339,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                       style: TextStyle(fontFamily: fontFamily)),
                   initialValue: autoPlayNext,
                 ),
-                SettingsTile<bool>.switchTile(
+                KSettingsTile<bool>.switchTile(
                   onToggle: (value) async {
                     localAutoLoadSubtitle = value ?? !localAutoLoadSubtitle;
                     await setting.put(SettingBoxKey.localAutoLoadSubtitle,
@@ -352,7 +352,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                   initialValue: localAutoLoadSubtitle,
                 ),
                 if (Platform.isAndroid)
-                  SettingsTile<bool>.switchTile(
+                  KSettingsTile<bool>.switchTile(
                     onToggle: (value) async {
                       androidAutoEnterPIP = value ?? !androidAutoEnterPIP;
                       await setting.put(SettingBoxKey.androidAutoEnterPIP,
@@ -367,7 +367,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                         style: TextStyle(fontFamily: fontFamily)),
                     initialValue: androidAutoEnterPIP,
                   ),
-                SettingsTile<bool>.switchTile(
+                KSettingsTile<bool>.switchTile(
                   onToggle: (value) async {
                     playerDisableAnimations = value ?? !playerDisableAnimations;
                     await setting.put(SettingBoxKey.playerDisableAnimations,
@@ -380,7 +380,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                   initialValue: playerDisableAnimations,
                 ),
                 if (!Utils.isDesktop())
-                  SettingsTile<bool>.switchTile(
+                  KSettingsTile<bool>.switchTile(
                     onToggle: (value) async {
                       brightnessVolumeGesture =
                           value ?? !brightnessVolumeGesture;
@@ -396,9 +396,9 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                   ),
               ],
             ),
-            SettingsSection(
+            KSettingsSection(
               tiles: [
-                SettingsTile<bool>.switchTile(
+                KSettingsTile<bool>.switchTile(
                   onToggle: (value) async {
                     showPlayerError = value ?? !showPlayerError;
                     await setting.put(
@@ -410,7 +410,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                       style: TextStyle(fontFamily: fontFamily)),
                   initialValue: showPlayerError,
                 ),
-                SettingsTile<void>.navigation(
+                KSettingsTile<void>.navigation(
                   onPressed: (_) async {
                     try {
                       await DiagnosticLogExporter().openLogDirectory();
@@ -424,7 +424,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                   description: Text('自动记录运行信息，最多保留 10 个日志文件',
                       style: TextStyle(fontFamily: fontFamily)),
                 ),
-                SettingsTile<void>.navigation(
+                KSettingsTile<void>.navigation(
                   onPressed: (_) async {
                     try {
                       final file =
@@ -442,9 +442,9 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                 ),
               ],
             ),
-            SettingsSection(
+            KSettingsSection(
               tiles: [
-                SettingsTile<void>(
+                KSettingsTile<void>(
                   title: Text('默认倍速', style: TextStyle(fontFamily: fontFamily)),
                   description: Slider(
                     value: defaultPlaySpeed,
@@ -458,7 +458,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                     },
                   ),
                 ),
-                SettingsTile<void>(
+                KSettingsTile<void>(
                   title:
                       Text('默认方向键倍速', style: TextStyle(fontFamily: fontFamily)),
                   description: Slider(
@@ -473,7 +473,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                     },
                   ),
                 ),
-                SettingsTile<void>.navigation(
+                KSettingsTile<void>.navigation(
                   description: Slider(
                     value: playerArrowKeySkipTime.toDouble(),
                     min: 0,
@@ -496,7 +496,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                   title: Text('左右方向键的快进/快退秒数',
                       style: TextStyle(fontFamily: fontFamily)),
                 ),
-                SettingsTile<void>.navigation(
+                KSettingsTile<void>.navigation(
                   onPressed: (_) async {
                     await updateButtonSkipTime();
                   },
@@ -506,7 +506,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                   value: Text('$playerButtonSkipTime 秒',
                       style: TextStyle(fontFamily: fontFamily)),
                 ),
-                SettingsTile<void>.navigation(
+                KSettingsTile<void>.navigation(
                   onPressed: (_) async {
                     if (playerAspectRatioMenuController.isOpen) {
                       playerAspectRatioMenuController.close();

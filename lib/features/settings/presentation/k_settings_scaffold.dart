@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:kanyingyin/bean/appbar/sys_app_bar.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_motion.dart';
 
 /// 设置子页统一框架，负责标题栏、内容宽度与入场衔接。
@@ -22,7 +21,7 @@ class KSettingsScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: SysAppBar(
+      appBar: AppBar(
         title: Text(title),
         actions: actions,
       ),
@@ -44,7 +43,25 @@ class KSettingsScaffold extends StatelessWidget {
                           ),
                     ),
                   ),
-                Expanded(child: body),
+                Expanded(
+                  child: DecoratedBox(
+                    key: const ValueKey<String>('settings-page-surface'),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .outlineVariant
+                            .withValues(alpha: 0.62),
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(13),
+                      child: body,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

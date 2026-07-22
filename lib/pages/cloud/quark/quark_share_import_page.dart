@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/cloud/quark/quark_share_entry.dart';
@@ -166,8 +167,8 @@ class _QuarkShareImportPageState extends State<QuarkShareImportPage> {
   Widget build(BuildContext context) {
     final inspection = _inspection;
     final busy = _importController?.busy == true;
-    return Scaffold(
-      appBar: AppBar(title: const Text('导入夸克分享')),
+    return KSettingsScaffold(
+      title: '导入夸克分享',
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [

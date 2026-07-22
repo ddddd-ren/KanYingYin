@@ -52,8 +52,6 @@ dependencies:
   cached_network_image: ^3.4.1
   flutter_cache_manager: ^3.4.1
   # cached_network_image_ce: ^4.6.4
-  card_settings_ui: ^2.0.1
-
   # fvp: ^0.28.0
   # video_player: ^2.9.1
 

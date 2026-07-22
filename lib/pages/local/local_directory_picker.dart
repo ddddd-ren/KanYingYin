@@ -6,6 +6,16 @@ import 'package:path/path.dart' as p;
 typedef LocalDriveRootsProvider = Future<List<String>> Function();
 typedef LocalDirectoryLoader = Future<List<String>> Function(String path);
 
+String normalizeLocalDirectoryAddress(String value) {
+  var normalized = value.trim();
+  if (normalized.length >= 2 &&
+      normalized.startsWith('"') &&
+      normalized.endsWith('"')) {
+    normalized = normalized.substring(1, normalized.length - 1).trim();
+  }
+  return normalized;
+}
+
 class LocalDirectoryPickerPage extends StatefulWidget {
   const LocalDirectoryPickerPage({
     super.key,
@@ -35,16 +45,21 @@ class LocalDirectoryPickerPage extends StatefulWidget {
 }
 
 class _LocalDirectoryPickerPageState extends State<LocalDirectoryPickerPage> {
+  late final TextEditingController _addressController;
   List<String> _entries = <String>[];
   String? _currentPath;
   String? _errorMessage;
+  String? _addressError;
   bool _loading = true;
+  int _navigationGeneration = 0;
 
   @override
   void initState() {
     super.initState();
+    final initialPath = widget.initialPath?.trim() ?? '';
+    _addressController = TextEditingController(text: initialPath);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final initialPath = widget.initialPath?.trim() ?? '';
+      if (!mounted) return;
       if (initialPath.isEmpty) {
         _loadDrives();
       } else {
@@ -53,42 +68,81 @@ class _LocalDirectoryPickerPageState extends State<LocalDirectoryPickerPage> {
     });
   }
 
+  @override
+  void dispose() {
+    _navigationGeneration++;
+    _addressController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadDrives() async {
+    final generation = ++_navigationGeneration;
     setState(() {
       _loading = true;
-      _currentPath = null;
+      _addressError = null;
       _errorMessage = null;
     });
     try {
       final drives = await widget.driveRootsProvider();
-      if (!mounted) return;
-      setState(() => _entries = drives);
+      if (!mounted || generation != _navigationGeneration) return;
+      setState(() {
+        _entries = drives;
+        _currentPath = null;
+        _addressController.clear();
+      });
     } on Object {
-      if (!mounted) return;
+      if (!mounted || generation != _navigationGeneration) return;
       setState(() => _errorMessage = '无法读取磁盘列表');
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && generation == _navigationGeneration) {
+        setState(() => _loading = false);
+      }
     }
   }
 
-  Future<void> _loadDirectory(String path) async {
+  Future<void> _loadDirectory(
+    String path, {
+    bool preserveContentOnFailure = false,
+  }) async {
+    final generation = ++_navigationGeneration;
     setState(() {
       _loading = true;
-      _currentPath = path;
+      _addressError = null;
       _errorMessage = null;
     });
     try {
       final directories = await widget.directoryLoader(path);
-      if (!mounted) return;
-      setState(() => _entries = directories);
-    } on Object {
-      if (!mounted) return;
+      if (!mounted || generation != _navigationGeneration) return;
       setState(() {
-        _entries = <String>[];
-        _errorMessage = '无法读取该目录，移动硬盘可能已断开';
+        _entries = directories;
+        _currentPath = path;
+        _addressController.text = path;
+      });
+    } on Object {
+      if (!mounted || generation != _navigationGeneration) return;
+      setState(() {
+        if (preserveContentOnFailure) {
+          _addressError = '目录不存在或无法访问';
+        } else {
+          _entries = <String>[];
+          _currentPath = path;
+          _addressController.text = path;
+          _errorMessage = '无法读取该目录，移动硬盘可能已断开';
+        }
       });
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && generation == _navigationGeneration) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  Future<void> _submitAddress() async {
+    final path = normalizeLocalDirectoryAddress(_addressController.text);
+    if (path.isEmpty) {
+      await _loadDrives();
+    } else {
+      await _loadDirectory(path, preserveContentOnFailure: true);
     }
   }
 
@@ -122,16 +176,74 @@ class _LocalDirectoryPickerPageState extends State<LocalDirectoryPickerPage> {
       ),
       body: Column(
         children: [
-          ListTile(
-            leading: IconButton(
-              tooltip: '上级目录',
-              onPressed: _currentPath == null || _loading ? null : _navigateUp,
-              icon: const Icon(Icons.arrow_upward),
-            ),
-            title: Text(
-              _currentPath ?? '此电脑',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    IconButton(
+                      tooltip: '上级目录',
+                      onPressed:
+                          _currentPath == null || _loading ? null : _navigateUp,
+                      icon: const Icon(Icons.keyboard_arrow_up_rounded),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: TextField(
+                        key: const ValueKey('local-directory-address'),
+                        controller: _addressController,
+                        enabled: !_loading,
+                        textInputAction: TextInputAction.go,
+                        onSubmitted: (_) => _submitAddress(),
+                        decoration: InputDecoration(
+                          hintText: '输入文件夹地址',
+                          prefixIcon:
+                              const Icon(Icons.folder_outlined, size: 20),
+                          suffixIcon: _loading
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: SizedBox.square(
+                                    dimension: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                )
+                              : null,
+                          isDense: true,
+                          filled: true,
+                          fillColor:
+                              Theme.of(context).colorScheme.surfaceContainerLow,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton.icon(
+                      key: const ValueKey('local-directory-go'),
+                      onPressed: _loading ? null : _submitAddress,
+                      icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                      label: const Text('跳转'),
+                    ),
+                  ],
+                ),
+                if (_addressError != null) ...[
+                  const SizedBox(height: 6),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 54),
+                    child: Text(
+                      _addressError!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           const Divider(height: 1),

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:kanyingyin/core/network/proxy_probe_http_client_factory.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/utils/proxy_utils.dart';
 import 'package:kanyingyin/utils/storage.dart';
@@ -24,6 +25,8 @@ class ProxyManager {
   ];
   static const Duration _portTimeout = Duration(milliseconds: 350);
   static const Duration _probeTimeout = Duration(seconds: 5);
+  static const ProxyProbeHttpClientFactory _probeClientFactory =
+      ProxyProbeHttpClientFactory(connectionTimeout: _probeTimeout);
   static final List<_ProxyProbeGroup> _probeGroups = [
     _ProxyProbeGroup(
       name: 'TMDB API',
@@ -189,10 +192,7 @@ class ProxyManager {
   }
 
   static Future<bool> _canReachProbeUrl(Uri uri, String host, int port) async {
-    final client = HttpClient();
-    client.connectionTimeout = _probeTimeout;
-    client.badCertificateCallback = (_, __, ___) => true;
-    client.findProxy = (_) => 'PROXY $host:$port';
+    final client = _probeClientFactory.createProxied(host: host, port: port);
 
     try {
       final request = await client.getUrl(uri).timeout(_probeTimeout);
@@ -227,10 +227,7 @@ class ProxyManager {
   }
 
   static Future<bool> _canReachProbeUrlDirectly(Uri uri) async {
-    final client = HttpClient();
-    client.connectionTimeout = _probeTimeout;
-    client.badCertificateCallback = (_, __, ___) => true;
-    client.findProxy = (_) => 'DIRECT';
+    final client = _probeClientFactory.createDirect();
 
     try {
       final request = await client.getUrl(uri).timeout(_probeTimeout);

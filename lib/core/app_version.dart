@@ -2,5 +2,5 @@ class AppVersion {
   AppVersion._();
 
   /// 当前版本
-  static const String current = '2.1.35';
+  static const String current = '2.1.36';
 }

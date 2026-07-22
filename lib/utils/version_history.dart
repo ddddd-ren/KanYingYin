@@ -16,6 +16,19 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.36',
+    date: '2026-07-22',
+    isPrerelease: true,
+    changes: [
+      '本测试版启用独立的 Windows 桌面媒体库界面：宽窗口显示完整侧栏，窗口变窄时自动切换紧凑导航或底部导航',
+      '默认主题改用统一的雾蓝与中性表面配色，内容区不再使用大面积主题主色背景，“我的”入口同步改为更准确的“设置”',
+      '本地与网盘海报墙现在常驻显示片名和关键资料；鼠标悬停用于显示播放入口，浏览大量媒体时不必逐张悬停辨认',
+      '本地与网盘工具栏将 TMDB 刮削、缩略图和移除来源等次要操作归入更多菜单，扫描、来源管理与刷新保持直接可用',
+      '播放器控件、动画、字幕、选集、硬件解码与 Anime4K 行为保持不变',
+      '没有 TMDB Key 或断网时，应用启动、本地与网盘媒体库和播放器仍可使用；本次不会修改或删除本地原始媒体，也不会修改网盘文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.35',
     date: '2026-07-22',
     isPrerelease: true,

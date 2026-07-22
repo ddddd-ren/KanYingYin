@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:card_settings_ui/card_settings_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/pages/settings/media_recognition_settings.dart';
 import 'package:kanyingyin/pages/settings/settings_module.dart';
@@ -67,8 +67,8 @@ void main() {
     final storage = _MemoryStorage();
     await _pumpPage(tester, storage: storage);
 
-    final tileFinder = find.widgetWithText(SettingsTile<void>, '本地媒体库');
-    final tile = tester.widget<SettingsTile<void>>(tileFinder);
+    final tileFinder = find.widgetWithText(KSettingsTile<void>, '本地媒体库');
+    final tile = tester.widget<KSettingsTile<void>>(tileFinder);
     final context = tester.element(tileFinder);
     tile.onPressed!(context);
     tile.onPressed!(context);

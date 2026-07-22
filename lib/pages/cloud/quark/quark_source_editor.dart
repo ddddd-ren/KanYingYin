@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/pages/cloud/quark/quark_directory_picker.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
@@ -196,8 +197,8 @@ class _QuarkSourceEditorPageState extends State<QuarkSourceEditorPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('夸克网盘数据源')),
+    return KSettingsScaffold(
+      title: '夸克网盘数据源',
       body: Form(
         key: _formKey,
         child: ListView(

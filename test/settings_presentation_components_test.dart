@@ -84,6 +84,50 @@ void main() {
     expect(selected, 'auto');
   });
 
+  testWidgets('迁移适配器保持旧页面回调签名但使用新视觉', (tester) async {
+    var navigated = false;
+    bool? toggled;
+    String? selected;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: KSettingsList(
+            sections: [
+              KSettingsSection(
+                tiles: [
+                  KSettingsTile<void>.navigation(
+                    title: const Text('导航适配'),
+                    onPressed: (_) => navigated = true,
+                  ),
+                  KSettingsTile<bool>.switchTile(
+                    title: const Text('开关适配'),
+                    initialValue: false,
+                    onToggle: (value) => toggled = value,
+                  ),
+                  KSettingsTile<String>.radioTile(
+                    title: const Text('单选适配'),
+                    radioValue: 'gpu',
+                    groupValue: 'auto',
+                    onChanged: (value) => selected = value,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('导航适配'));
+    await tester.tap(find.text('开关适配'));
+    await tester.tap(find.text('单选适配'));
+
+    expect(navigated, isTrue);
+    expect(toggled, isTrue);
+    expect(selected, 'gpu');
+  });
+
   testWidgets('减少动画时使用不超过八十毫秒的动效', (tester) async {
     late Duration resolved;
 
@@ -155,5 +199,23 @@ void main() {
         hasFocusAction: true,
       ),
     );
+  });
+
+  testWidgets('统一设置框架为表单提供档案馆内容表面', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: KSettingsScaffold(
+          title: '表单设置',
+          body: SizedBox.expand(),
+        ),
+      ),
+    );
+
+    final surface = tester.widget<DecoratedBox>(
+      find.byKey(const ValueKey<String>('settings-page-surface')),
+    );
+    final decoration = surface.decoration as BoxDecoration;
+    expect(decoration.borderRadius, BorderRadius.circular(14));
+    expect(decoration.border, isNotNull);
   });
 }

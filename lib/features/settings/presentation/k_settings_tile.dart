@@ -1,30 +1,132 @@
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_motion.dart';
 
-/// 无交互的设置说明行。
-class KSettingsTile extends StatelessWidget {
+enum _KSettingsTileKind { plain, navigation, toggle, radio }
+
+/// 设置项迁移适配器，让现有页面只替换表现层而不改动业务回调。
+class KSettingsTile<T> extends StatelessWidget {
   const KSettingsTile({
     super.key,
     required this.title,
     this.description,
     this.leading,
     this.trailing,
-  });
+  })  : _kind = _KSettingsTileKind.plain,
+        value = null,
+        enabled = true,
+        onPressed = null,
+        initialValue = null,
+        onToggle = null,
+        radioValue = null,
+        groupValue = null,
+        onChanged = null;
 
+  const KSettingsTile.navigation({
+    super.key,
+    required this.title,
+    this.description,
+    this.leading,
+    this.value,
+    this.enabled = true,
+    this.onPressed,
+  })  : _kind = _KSettingsTileKind.navigation,
+        trailing = null,
+        initialValue = null,
+        onToggle = null,
+        radioValue = null,
+        groupValue = null,
+        onChanged = null;
+
+  const KSettingsTile.switchTile({
+    super.key,
+    required this.title,
+    this.description,
+    this.leading,
+    required this.initialValue,
+    this.enabled = true,
+    required this.onToggle,
+  })  : _kind = _KSettingsTileKind.toggle,
+        value = null,
+        trailing = null,
+        onPressed = null,
+        radioValue = null,
+        groupValue = null,
+        onChanged = null;
+
+  const KSettingsTile.radioTile({
+    super.key,
+    required this.title,
+    this.description,
+    this.leading,
+    required this.radioValue,
+    required this.groupValue,
+    this.enabled = true,
+    required this.onChanged,
+  })  : _kind = _KSettingsTileKind.radio,
+        value = null,
+        trailing = null,
+        onPressed = null,
+        initialValue = null,
+        onToggle = null;
+
+  final _KSettingsTileKind _kind;
   final Widget title;
   final Widget? description;
   final Widget? leading;
   final Widget? trailing;
+  final Widget? value;
+  final bool enabled;
+  final ValueChanged<BuildContext>? onPressed;
+  final bool? initialValue;
+  final ValueChanged<bool?>? onToggle;
+  final T? radioValue;
+  final T? groupValue;
+  final ValueChanged<T?>? onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return _SettingsTileContent(
-      title: title,
-      description: description,
-      leading: leading,
-      trailing: trailing,
-      enabled: true,
-    );
+    return switch (_kind) {
+      _KSettingsTileKind.plain => _SettingsTileContent(
+          title: title,
+          description: description,
+          leading: leading,
+          trailing: trailing,
+          enabled: true,
+        ),
+      _KSettingsTileKind.navigation when onPressed == null =>
+        _SettingsTileContent(
+          title: title,
+          description: description,
+          leading: leading,
+          trailing: value,
+          enabled: enabled,
+        ),
+      _KSettingsTileKind.navigation => KSettingsNavigationTile(
+          title: title,
+          description: description,
+          leading: leading,
+          value: value,
+          enabled: enabled,
+          onPressed: () => onPressed!(context),
+        ),
+      _KSettingsTileKind.toggle => KSettingsSwitchTile(
+          title: title,
+          description: description,
+          leading: leading,
+          value: initialValue!,
+          enabled: enabled,
+          onChanged: (nextValue) => onToggle!(nextValue),
+        ),
+      _KSettingsTileKind.radio => KSettingsRadioTile<T>(
+          title: title,
+          description: description,
+          leading: leading,
+          value: radioValue as T,
+          groupValue: groupValue,
+          enabled: enabled,
+          onChanged: onChanged!,
+        ),
+    };
   }
 }
 

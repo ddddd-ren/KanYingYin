@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:kanyingyin/utils/constants.dart';
-import 'package:kanyingyin/bean/appbar/sys_app_bar.dart';
+import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 
 class KeyboardSettingsPage extends StatefulWidget {
@@ -92,24 +92,23 @@ class _KeyboardSettingsPageState extends State<KeyboardSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: SysAppBar(
-        title: Text('快捷键'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: '恢复默认',
-            onPressed: () {
-              setState(() {
-                for (final func in shortcuts.keys) {
-                  shortcuts[func] = defaultShortcuts[func]?.toList() ?? [];
-                  setting.put('shortcut_$func', shortcuts[func]);
-                }
-              });
-            },
-          ),
-        ],
-      ),
+    return KSettingsScaffold(
+      title: '快捷键',
+      description: '点击按键标签后，直接按下新的快捷键即可替换。',
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          tooltip: '恢复默认',
+          onPressed: () {
+            setState(() {
+              for (final func in shortcuts.keys) {
+                shortcuts[func] = defaultShortcuts[func]?.toList() ?? [];
+                setting.put('shortcut_$func', shortcuts[func]);
+              }
+            });
+          },
+        ),
+      ],
       body: FocusScope(
         autofocus: true,
         child: Focus(

@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/utils/storage.dart';
-import 'package:card_settings_ui/card_settings_ui.dart';
+import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 
 class SetDisplayMode extends StatefulWidget {
   const SetDisplayMode({super.key});
@@ -63,18 +63,18 @@ class _SetDisplayModeState extends State<SetDisplayMode> {
   @override
   Widget build(BuildContext context) {
     final fontFamily = Theme.of(context).textTheme.bodyMedium?.fontFamily;
-    return Scaffold(
-      appBar: AppBar(title: const Text('屏幕帧率设置')),
+    return KSettingsScaffold(
+      title: '屏幕帧率设置',
       body: (modes.isEmpty)
           ? const CircularProgressIndicator()
-          : SettingsList(
+          : KSettingsList(
               maxWidth: 1000,
               sections: [
-                SettingsSection(
+                KSettingsSection(
                   title: Text('没有生效? 重启app试试',
                       style: TextStyle(fontFamily: fontFamily)),
                   tiles: modes
-                      .map((e) => SettingsTile<DisplayMode>.radioTile(
+                      .map((e) => KSettingsTile<DisplayMode>.radioTile(
                             radioValue: e,
                             groupValue: preferred,
                             onChanged: (DisplayMode? newMode) async {

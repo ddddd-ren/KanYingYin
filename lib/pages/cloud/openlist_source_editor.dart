@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/pages/cloud/openlist_directory_picker.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
@@ -181,8 +182,8 @@ class _OpenListSourceEditorPageState extends State<OpenListSourceEditorPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('OpenList 数据源')),
+    return KSettingsScaffold(
+      title: 'OpenList 数据源',
       body: Form(
         key: _formKey,
         child: ListView(

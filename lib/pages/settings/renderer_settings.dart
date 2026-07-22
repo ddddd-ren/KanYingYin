@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:hive_ce/hive.dart';
-import 'package:kanyingyin/bean/appbar/sys_app_bar.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:kanyingyin/utils/constants.dart';
-import 'package:card_settings_ui/card_settings_ui.dart';
+import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 
 class RendererSettings extends StatefulWidget {
   const RendererSettings({super.key});
@@ -24,18 +23,16 @@ class _RendererSettingsState extends State<RendererSettings> {
   @override
   Widget build(BuildContext context) {
     final fontFamily = Theme.of(context).textTheme.bodyMedium?.fontFamily;
-    return Scaffold(
-      appBar: const SysAppBar(
-        title: Text('视频渲染器'),
-      ),
-      body: SettingsList(
+    return KSettingsScaffold(
+      title: '视频渲染器',
+      body: KSettingsList(
         maxWidth: 1000,
         sections: [
-          SettingsSection(
+          KSettingsSection(
             title: Text('选择合适的渲染器以获得最佳播放体验',
                 style: TextStyle(fontFamily: fontFamily)),
             tiles: androidVideoRenderersList.entries
-                .map((e) => SettingsTile<String>.radioTile(
+                .map((e) => KSettingsTile<String>.radioTile(
                       title:
                           Text(e.key, style: TextStyle(fontFamily: fontFamily)),
                       description: Text(e.value,

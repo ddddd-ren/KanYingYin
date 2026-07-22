@@ -39,6 +39,22 @@ void main() {
       );
       expect(
         trackLanguageFromMetadata(
+          'fr-CA',
+          '',
+          type: EmbeddedTrackType.audio,
+        ).label,
+        '法语',
+      );
+      expect(
+        trackLanguageFromMetadata(
+          '',
+          'German Commentary',
+          type: EmbeddedTrackType.audio,
+        ).label,
+        '德语',
+      );
+      expect(
+        trackLanguageFromMetadata(
           '',
           'Japanese Commentary',
           type: EmbeddedTrackType.audio,

@@ -205,6 +205,15 @@ void main() {
     expect(item, contains('if (!_canUsePlayer) return;'));
     expect(item, contains('_trackLanguageConfirmationListener()'));
     expect(item, contains('barrierDismissible: false'));
+    expect(item, contains('fireImmediately: true'));
+    expect(
+      item,
+      contains(
+        '_scheduleTrackLanguageConfirmation(\n'
+        '        playerController.trackLanguageConfirmationRevision,\n'
+        '      );',
+      ),
+    );
   });
 
   test('TMDB 海报部分下载失败时显示明确提示', () {

@@ -45,7 +45,7 @@ class _MyPageState extends State<MyPage> {
       },
       child: Scaffold(
         appBar: const SysAppBar(
-          title: Text('我的'),
+          title: Text('设置'),
           needTopOffset: false,
           showDesktopWindowControls: false,
         ),

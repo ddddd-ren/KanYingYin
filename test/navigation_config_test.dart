@@ -7,17 +7,17 @@ import 'package:kanyingyin/pages/settings/settings_module.dart';
 void main() {
   test('navigation config drives startup page validation', () {
     expect(appNavigationDestinations.map((item) => item.label), [
-      '网盘资源',
-      '本地',
-      '我的',
+      '本地媒体库',
+      '网盘媒体库',
+      '设置',
     ]);
-    expect(appNavigationDestinations.first.path, '/cloud');
+    expect(appNavigationDestinations.first.path, '/local');
     expect(isValidStartupPage('/tab/popular/'), isFalse);
     expect(isValidStartupPage('/tab/cloud/'), isTrue);
     expect(isValidStartupPage('/tab/local/'), isTrue);
     final removedLegacyPath = '/tab/${'tv'}${'box'}/movie/';
     expect(isValidStartupPage(removedLegacyPath), isFalse);
-    expect(navigationIndexForStartupPage('/tab/local/'), 1);
+    expect(navigationIndexForStartupPage('/tab/local/'), 0);
     expect(defaultStartupPage, '/tab/local/');
   });
 

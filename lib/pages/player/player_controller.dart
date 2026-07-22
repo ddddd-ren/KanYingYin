@@ -23,6 +23,7 @@ import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:kanyingyin/features/player/application/cloud_playback_cache_policy.dart';
+import 'package:kanyingyin/features/player/application/embedded_track_language_preferences.dart';
 import 'package:kanyingyin/features/player/application/subtitle_preferences.dart';
 import 'package:kanyingyin/features/player/application/truehd_fallback_policy.dart';
 import 'package:kanyingyin/pages/player/models/embedded_track_info.dart';
@@ -204,9 +205,12 @@ class PlayerController = _PlayerController with _$PlayerController;
 abstract class _PlayerController with Store {
   _PlayerController({
     SubtitlePreferences? subtitlePreferences,
+    EmbeddedTrackLanguagePreferences? trackLanguagePreferences,
     TrueHdFallbackPolicy? trueHdFallbackPolicy,
     ShadersController? shadersController,
   })  : _subtitlePreferences = subtitlePreferences ?? SubtitlePreferences(),
+        _trackLanguagePreferences =
+            trackLanguagePreferences ?? EmbeddedTrackLanguagePreferences(),
         _trueHdFallbackPolicy =
             trueHdFallbackPolicy ?? const TrueHdFallbackPolicy(),
         shadersController =
@@ -215,6 +219,7 @@ abstract class _PlayerController with Store {
   static const Duration _playerOpenTimeout = Duration(seconds: 25);
 
   final SubtitlePreferences _subtitlePreferences;
+  final EmbeddedTrackLanguagePreferences _trackLanguagePreferences;
   final TrueHdFallbackPolicy _trueHdFallbackPolicy;
   final CloudPlaybackLeaseCoordinator _playbackLeaseCoordinator =
       CloudPlaybackLeaseCoordinator();
@@ -288,6 +293,8 @@ abstract class _PlayerController with Store {
       EmbeddedTrackSelectionState();
   final SubtitleTrackSelectionState _subtitleTrackSelection =
       SubtitleTrackSelectionState();
+  final TrackLanguageConfirmationState _trackLanguageConfirmationState =
+      TrackLanguageConfirmationState();
 
   // 播放器面板状态
   @observable
@@ -418,6 +425,11 @@ abstract class _PlayerController with Store {
   @observable
   ObservableList<EmbeddedTrackInfo> availableEmbeddedSubtitleTracks =
       ObservableList.of([]);
+  @observable
+  ObservableList<PendingTrackLanguage> pendingTrackLanguages =
+      ObservableList.of([]);
+  @observable
+  int trackLanguageConfirmationRevision = 0;
   @observable
   String selectedAudioTrackId = '';
   @observable
@@ -1126,36 +1138,149 @@ abstract class _PlayerController with Store {
   void _resetEmbeddedTrackState() {
     _embeddedTrackSelection.reset();
     _subtitleTrackSelection.reset();
+    _trackLanguageConfirmationState.reset();
+    trackLanguageConfirmationRevision++;
     availableAudioTracks.clear();
     availableEmbeddedSubtitleTracks.clear();
+    pendingTrackLanguages.clear();
     selectedAudioTrackId = '';
     selectedEmbeddedSubtitleTrackId = '';
   }
 
+  String _currentTrackLanguageMediaKey() {
+    final stable = _lastInitParams?.stableMediaKey?.trim();
+    if (stable != null && stable.isNotEmpty) return stable;
+    final subtitleKey = _subtitleStorageKey?.trim();
+    if (subtitleKey != null && subtitleKey.isNotEmpty) return subtitleKey;
+    return videoUrl.trim();
+  }
+
+  String _fingerprintForTrack(String mediaKey, EmbeddedTrackInfo track) =>
+      embeddedTrackLanguageFingerprint(
+        mediaKey: mediaKey,
+        type: track.type,
+        trackId: track.id,
+        codec: track.originalCodec,
+        title: track.originalTitle,
+      );
+
+  EmbeddedTrackInfo _applyStoredTrackLanguage(
+    String mediaKey,
+    EmbeddedTrackInfo track,
+  ) {
+    final choice = _trackLanguagePreferences.load(
+      _fingerprintForTrack(mediaKey, track),
+    );
+    return choice == null ? track : track.withLanguage(choice);
+  }
+
+  PendingTrackLanguage _pendingTrackLanguage(
+    String mediaKey,
+    EmbeddedTrackInfo track,
+  ) =>
+      PendingTrackLanguage(
+        fingerprint: _fingerprintForTrack(mediaKey, track),
+        type: track.type,
+        trackId: track.id,
+        codecLabel: track.originalCodec,
+        title: track.originalTitle,
+      );
+
   @action
   void _updateEmbeddedTracks(Tracks tracks) {
+    final mediaKey = _currentTrackLanguageMediaKey();
+    final audio = tracks.audio
+        .where((track) => track.id != 'auto' && track.id != 'no' && !track.uri)
+        .map(EmbeddedTrackInfo.fromAudio)
+        .map((track) => _applyStoredTrackLanguage(mediaKey, track))
+        .toList(growable: false);
+    final subtitles = tracks.subtitle
+        .where((track) =>
+            track.id != 'auto' && track.id != 'no' && !track.uri && !track.data)
+        .map(EmbeddedTrackInfo.fromSubtitle)
+        .map((track) => _applyStoredTrackLanguage(mediaKey, track))
+        .toList(growable: false);
+    final pending = <PendingTrackLanguage>[
+      for (final track in [...audio, ...subtitles])
+        if (!track.isLanguageResolved) _pendingTrackLanguage(mediaKey, track),
+    ];
     availableAudioTracks
       ..clear()
-      ..addAll(tracks.audio
-          .where(
-              (track) => track.id != 'auto' && track.id != 'no' && !track.uri)
-          .map(EmbeddedTrackInfo.fromAudio));
+      ..addAll(audio);
     availableEmbeddedSubtitleTracks
       ..clear()
-      ..addAll(tracks.subtitle
-          .where((track) =>
-              track.id != 'auto' &&
-              track.id != 'no' &&
-              !track.uri &&
-              !track.data)
-          .map(EmbeddedTrackInfo.fromSubtitle));
+      ..addAll(subtitles);
+    pendingTrackLanguages
+      ..clear()
+      ..addAll(pending);
+    if (pending.isNotEmpty) {
+      trackLanguageConfirmationRevision =
+          _trackLanguageConfirmationState.begin(mediaKey, pending);
+    }
     AppLogger().i(
       'PlayerController: detected ${availableAudioTracks.length} audio tracks and '
       '${availableEmbeddedSubtitleTracks.length} embedded subtitle tracks',
     );
   }
 
+  void _applyConfirmedTrackLanguages(
+    String mediaKey,
+    Map<String, TrackLanguageChoice> choices,
+  ) {
+    EmbeddedTrackInfo resolve(EmbeddedTrackInfo track) {
+      final choice = choices[_fingerprintForTrack(mediaKey, track)];
+      return choice == null ? track : track.withLanguage(choice);
+    }
+
+    final audio = availableAudioTracks.map(resolve).toList(growable: false);
+    final subtitles =
+        availableEmbeddedSubtitleTracks.map(resolve).toList(growable: false);
+    availableAudioTracks
+      ..clear()
+      ..addAll(audio);
+    availableEmbeddedSubtitleTracks
+      ..clear()
+      ..addAll(subtitles);
+  }
+
+  @action
+  Future<String?> confirmTrackLanguages(
+    int revision,
+    Map<String, TrackLanguageChoice> choices,
+  ) async {
+    final mediaKey = _currentTrackLanguageMediaKey();
+    if (!_trackLanguageConfirmationState.canApply(revision, mediaKey)) {
+      return null;
+    }
+    try {
+      for (final pending in pendingTrackLanguages) {
+        final choice = choices[pending.fingerprint];
+        if (choice == null) return '请为每条轨道选择语言';
+        await _trackLanguagePreferences.save(
+          pending.fingerprint,
+          choice.confirmedByUser(),
+        );
+        if (!_trackLanguageConfirmationState.canApply(revision, mediaKey)) {
+          return null;
+        }
+      }
+      _applyConfirmedTrackLanguages(mediaKey, choices);
+      pendingTrackLanguages.clear();
+      await _selectDefaultEmbeddedTracks();
+      return null;
+    } on Object {
+      if (!_trackLanguageConfirmationState.canApply(revision, mediaKey)) {
+        return null;
+      }
+      _applyConfirmedTrackLanguages(mediaKey, choices);
+      pendingTrackLanguages.clear();
+      await _selectDefaultEmbeddedTracks();
+      return '语言设置未能保存，下次可能需要重新确认';
+    }
+  }
+
   Future<void> _selectDefaultEmbeddedTracks() async {
+    if (pendingTrackLanguages.isNotEmpty) return;
     if (!_embeddedTrackSelection.beginAutomaticSelection(
       hasAudioTracks: availableAudioTracks.isNotEmpty,
     )) {

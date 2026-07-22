@@ -194,6 +194,19 @@ void main() {
     );
   });
 
+  test('播放器集成轨道语言确认并保护退出后的旧结果', () {
+    final source =
+        File('lib/pages/player/player_controller.dart').readAsStringSync();
+    final item = File('lib/pages/player/player_item.dart').readAsStringSync();
+
+    expect(source, contains('pendingTrackLanguages'));
+    expect(source, contains('trackLanguageConfirmationRevision'));
+    expect(source, contains('_trackLanguageConfirmationState.canApply'));
+    expect(item, contains('if (!_canUsePlayer) return;'));
+    expect(item, contains('_trackLanguageConfirmationListener()'));
+    expect(item, contains('barrierDismissible: false'));
+  });
+
   test('TMDB 海报部分下载失败时显示明确提示', () {
     final page = File('lib/pages/local/local_page.dart').readAsStringSync();
     final library =

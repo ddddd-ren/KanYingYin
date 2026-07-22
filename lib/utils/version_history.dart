@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.41',
+    date: '2026-07-23',
+    isPrerelease: true,
+    changes: [
+      '本测试版为本地文件夹选择页新增常驻地址栏，可直接输入或粘贴盘符与网络路径，按 Enter 或点击“跳转”即可进入',
+      '无效地址会保留当前目录和文件列表并给出清晰提示，不会把尚未验证的路径作为选择结果',
+      '媒体库顶部路径改为左对齐的轻量导航，移除空白大胶囊，并统一上级目录图标；原三行结构、搜索、排序和扫描逻辑不变',
+      '播放器退出卡死修复、本地与网盘经典海报墙及其操作动画继续保留；播放器字幕、选集、硬件解码与 Anime4K 行为不变',
+      '没有 TMDB Key 或断网时，应用启动、本地与网盘媒体库和播放器仍可使用；本次不会修改或删除本地原始媒体，也不会修改网盘文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.40',
     date: '2026-07-23',
     isPrerelease: true,

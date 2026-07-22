@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.43',
+    date: '2026-07-23',
+    isPrerelease: true,
+    changes: [
+      '本测试版让未标注语言的内嵌字幕先正常挂载并播放，不再在启动时弹出无法关闭的确认窗口',
+      '看到字幕内容后，可从字幕或音轨菜单按需确认、修改语言，也可以选择稍后确认；播放器左上角退出键不再被语言窗口阻断',
+      '语言确认结果只保存在本机，菜单不显示“未知语种”，本地与网盘视频文件不会被修改',
+      '媒体库工具栏、经典海报墙、播放器切轨和原有动画行为保持不变',
+      '没有 TMDB Key 或断网时，应用启动、本地与网盘媒体库和播放器仍可使用；本次不会修改或删除本地原始媒体，也不会修改网盘文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.42',
     date: '2026-07-23',
     isPrerelease: true,

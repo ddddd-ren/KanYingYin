@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.40',
+    date: '2026-07-23',
+    isPrerelease: true,
+    changes: [
+      '本测试版将日志页面升级为清晰的“运行记录”：默认显示等级、时间和摘要，点击后可展开完整脱敏原文',
+      '日志支持关键词搜索和“全部、提醒、错误”筛选，复制全部、清空日志和增量加载行为保持不变',
+      '媒体库顶部工具栏保留原有三行结构与全部操作，只统一按钮、路径、排序和搜索框的视觉层级，并改善窄窗口显示',
+      '播放器退出卡死修复、本地与网盘经典海报墙及其操作动画继续保留；播放器字幕、选集、硬件解码与 Anime4K 行为不变',
+      '没有 TMDB Key 或断网时，应用启动、本地与网盘媒体库和播放器仍可使用；本次不会修改或删除本地原始媒体，也不会修改网盘文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.39',
     date: '2026-07-22',
     isPrerelease: true,

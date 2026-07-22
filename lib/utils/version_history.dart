@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.42',
+    date: '2026-07-23',
+    isPrerelease: true,
+    changes: [
+      '本测试版将媒体库顶部重复的“获取海报”入口移除，读取媒体信息、生成缩略图和匹配影片信息现在可以直接点击',
+      '当前文件夹改为紧凑地址框，可直接输入或粘贴盘符与网络文件夹路径，按 Enter 即可跳转；无效地址不会清空当前列表',
+      '内嵌音轨与字幕补充常见语言识别；文件没有语言标记时会请你确认一次并保存在本机，菜单不再显示“未知语种”',
+      '单部影片获取或更换封面、经典海报墙和原有悬停动画继续保留',
+      '没有 TMDB Key 或断网时，应用启动、本地与网盘媒体库和播放器仍可使用；本次不会修改或删除本地原始媒体，也不会修改网盘文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.41',
     date: '2026-07-23',
     isPrerelease: true,

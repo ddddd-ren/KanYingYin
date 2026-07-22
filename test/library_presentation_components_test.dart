@@ -155,6 +155,35 @@ void main() {
       }
     });
 
+    testWidgets('路径导航左对齐且使用轻量上级图标', (tester) async {
+      await pumpPathBar(tester, width: 900);
+
+      final surface = find.byKey(
+        const ValueKey('library-path-breadcrumb-surface'),
+      );
+      expect(surface, findsOneWidget);
+      expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
+      final upButton = find.byTooltip('上级目录');
+      expect(
+        find.descendant(
+          of: upButton,
+          matching: find.byIcon(Icons.keyboard_arrow_up_rounded),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: upButton,
+          matching: find.byIcon(Icons.arrow_upward),
+        ),
+        findsNothing,
+      );
+      expect(
+        tester.getCenter(find.text('D:')).dx,
+        lessThan(tester.getCenter(surface).dx),
+      );
+    });
+
     testWidgets('轻量优化后全部工具动作仍按原参数转发', (tester) async {
       await pumpPathBar(tester, width: 900);
       await tester.tap(find.byTooltip('选择目录'));

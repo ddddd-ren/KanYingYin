@@ -1174,6 +1174,17 @@ abstract class _PlayerController with Store {
     return choice == null ? track : track.withLanguage(choice);
   }
 
+  PendingTrackLanguage? pendingTrackLanguageFor(EmbeddedTrackInfo track) {
+    final fingerprint = _fingerprintForTrack(
+      _currentTrackLanguageMediaKey(),
+      track,
+    );
+    for (final pending in pendingTrackLanguages) {
+      if (pending.fingerprint == fingerprint) return pending;
+    }
+    return null;
+  }
+
   PendingTrackLanguage _pendingTrackLanguage(
     String mediaKey,
     EmbeddedTrackInfo track,
@@ -1279,8 +1290,46 @@ abstract class _PlayerController with Store {
     }
   }
 
+  @action
+  Future<String?> confirmTrackLanguage(
+    int revision,
+    String fingerprint,
+    TrackLanguageChoice choice,
+  ) async {
+    final mediaKey = _currentTrackLanguageMediaKey();
+    if (!_trackLanguageConfirmationState.canApply(revision, mediaKey)) {
+      return null;
+    }
+    final pending = pendingTrackLanguages
+        .where((item) => item.fingerprint == fingerprint)
+        .firstOrNull;
+    if (pending == null) return null;
+    try {
+      await _trackLanguagePreferences.save(
+        fingerprint,
+        choice.confirmedByUser(),
+      );
+      if (!_trackLanguageConfirmationState.canApply(revision, mediaKey)) {
+        return null;
+      }
+      _applyConfirmedTrackLanguages(mediaKey, {
+        fingerprint: choice,
+      });
+      pendingTrackLanguages.remove(pending);
+      return null;
+    } on Object {
+      if (!_trackLanguageConfirmationState.canApply(revision, mediaKey)) {
+        return null;
+      }
+      _applyConfirmedTrackLanguages(mediaKey, {
+        fingerprint: choice,
+      });
+      pendingTrackLanguages.remove(pending);
+      return '语言设置未能保存，下次可能需要重新确认';
+    }
+  }
+
   Future<void> _selectDefaultEmbeddedTracks() async {
-    if (pendingTrackLanguages.isNotEmpty) return;
     if (!_embeddedTrackSelection.beginAutomaticSelection(
       hasAudioTracks: availableAudioTracks.isNotEmpty,
     )) {
@@ -1294,9 +1343,10 @@ abstract class _PlayerController with Store {
       defaultTrackId: current?.audio.id,
     );
     final subtitle = selectPreferredSubtitleTrack(
-      availableEmbeddedSubtitleTracks,
-      defaultTrackId: current?.subtitle.id,
-    );
+          availableEmbeddedSubtitleTracks,
+          defaultTrackId: current?.subtitle.id,
+        ) ??
+        availableEmbeddedSubtitleTracks.firstOrNull;
     if (audio != null && _embeddedTrackSelection.canAutomaticallySelectAudio) {
       await selectAudioTrack(audio.id, manual: false);
     }

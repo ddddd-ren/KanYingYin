@@ -99,6 +99,10 @@ class _TrackLanguageConfirmationDialogState
         ),
       ),
       actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(),
+          child: const Text('稍后确认'),
+        ),
         FilledButton(
           onPressed: _complete && !_saving ? _confirm : null,
           child: _saving

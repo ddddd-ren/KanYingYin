@@ -266,24 +266,6 @@ class _LocalPageState extends State<LocalPage>
     );
   }
 
-  Future<void> _fetchPosters(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final result = await localController.fetchPosters();
-    if (!mounted) return;
-    final success = result['success'] ?? 0;
-    final failed = result['failed'] ?? 0;
-    final skipped = result['skipped'] ?? 0;
-    final total = result['total'] ?? 0;
-    final msg = total == 0
-        ? '当前目录没有需要刮削的视频'
-        : success == 0 && failed == 0
-            ? '当前目录的视频都已有海报'
-            : '刮削完成：成功 $success，失败 $failed，跳过 $skipped';
-    messenger.showSnackBar(
-      SnackBar(content: Text(msg), duration: const Duration(seconds: 3)),
-    );
-  }
-
   Future<void> _fetchPosterForGroup(
     BuildContext context,
     LocalVideoGroup group,
@@ -789,7 +771,6 @@ class _LocalPageState extends State<LocalPage>
                       onOpenLibrary: () => _showLocalLibrary(context),
                       onOpenRecentPath: _enterDirectory,
                       onNavigateUp: localController.navigateUp,
-                      onFetchPosters: () => _fetchPosters(context),
                       onFetchMediaInfo: () => _fetchMediaInfo(context),
                       onGenerateThumbnails: () => _fetchThumbnails(context),
                       onMatchMetadata: () => _scrapeTmdb(context),

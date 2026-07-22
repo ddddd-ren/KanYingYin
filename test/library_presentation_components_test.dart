@@ -206,7 +206,6 @@ void main() {
       var sortedBy = '';
       var searched = '';
       var breadcrumbPath = '';
-      var fetchedPosters = false;
       var fetchedMediaInfo = false;
       var generatedThumbnails = false;
       var matchedMetadata = false;
@@ -235,6 +234,7 @@ void main() {
                 ),
                 canReadMediaInfo: true,
                 canGenerateThumbnails: true,
+                canMatchMetadata: true,
               ),
               sourceMenu: const SizedBox.shrink(),
               searchController: searchController,
@@ -244,7 +244,6 @@ void main() {
               onSearchChanged: (value) => searched = value,
               onClearSearch: () {},
               onBreadcrumbSelected: (path) async => breadcrumbPath = path,
-              onFetchPosters: () async => fetchedPosters = true,
               onFetchMediaInfo: () async => fetchedMediaInfo = true,
               onGenerateThumbnails: () async => generatedThumbnails = true,
               onMatchMetadata: () async => matchedMetadata = true,
@@ -259,21 +258,18 @@ void main() {
       expect(find.text('名称'), findsOneWidget);
       expect(find.text('2 部剧/12 个视频'), findsOneWidget);
       expect(find.widgetWithText(TextField, '搜索当前目录'), findsOneWidget);
-      expect(find.byTooltip('更多媒体操作'), findsOneWidget);
       expect(find.text('获取海报'), findsNothing);
-      expect(find.text('读取媒体信息'), findsNothing);
-      expect(find.text('生成缩略图'), findsNothing);
-      expect(find.text('批量刮削 TMDB 信息'), findsNothing);
+      expect(find.byTooltip('读取媒体信息'), findsOneWidget);
+      expect(find.byTooltip('生成缩略图'), findsOneWidget);
+      expect(find.byTooltip('匹配影片信息'), findsOneWidget);
 
-      await tester.tap(find.byTooltip('更多媒体操作'));
+      await tester.tap(find.byTooltip('读取媒体信息'));
+      await tester.tap(find.byTooltip('生成缩略图'));
+      await tester.tap(find.byTooltip('匹配影片信息'));
       await tester.pumpAndSettle();
-      expect(find.text('获取海报'), findsOneWidget);
-      expect(find.text('读取媒体信息'), findsOneWidget);
-      expect(find.text('生成缩略图'), findsOneWidget);
-      expect(find.text('批量刮削 TMDB 信息'), findsOneWidget);
-      await tester.tap(find.text('获取海报'));
-      await tester.pumpAndSettle();
-      expect(fetchedPosters, isTrue);
+      expect(fetchedMediaInfo, isTrue);
+      expect(generatedThumbnails, isTrue);
+      expect(matchedMetadata, isTrue);
 
       await tester.tap(find.byTooltip('选择目录'));
       await tester.tap(find.byTooltip('刷新'));
@@ -287,9 +283,69 @@ void main() {
       expect(sortedBy, 'size');
       expect(searched, '关键字');
       expect(breadcrumbPath, r'D:\');
-      expect(fetchedMediaInfo, isFalse);
-      expect(generatedThumbnails, isFalse);
-      expect(matchedMetadata, isFalse);
+    });
+
+    testWidgets('展开的媒体操作只在自身忙碌时显示进度', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: LibraryPathBar(
+              data: LibraryPathBarViewData(
+                breadcrumbs: const [
+                  LibraryBreadcrumbViewData(
+                    label: 'D:',
+                    path: r'D:\',
+                    isCurrent: true,
+                  ),
+                ],
+                recentPaths: const [],
+                sortBy: 'name',
+                sortAscending: true,
+                status: const LibraryDirectoryStatusViewData(
+                  kind: LibraryDirectoryStatusKind.idle,
+                  label: '',
+                ),
+                isFetchingMediaInfo: true,
+                canGenerateThumbnails: true,
+                canMatchMetadata: true,
+              ),
+              sourceMenu: const SizedBox.shrink(),
+              searchController: pathBarSearchController,
+              onPickDirectory: () {},
+              onRefresh: () {},
+              onSort: (_) {},
+              onSearchChanged: (_) {},
+              onClearSearch: () {},
+              onBreadcrumbSelected: (_) {},
+              onFetchMediaInfo: () {},
+              onGenerateThumbnails: () {},
+              onMatchMetadata: () {},
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.descendant(
+          of: find.byTooltip('读取媒体信息'),
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byTooltip('生成缩略图'),
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: find.byTooltip('匹配影片信息'),
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsNothing,
+      );
     });
   });
 

@@ -33,13 +33,10 @@ void main() {
     ]) {
       expect(
         source,
-        matches(
-          RegExp(
-            "Modular\\.to\\.pushNamed\\(\\s*'$path'",
-          ),
-        ),
+        contains("onOpenPath('$path')"),
       );
     }
+    expect(source, contains('Modular.to.pushNamed(path)'));
   });
 
   test('所有设置路由使用影院氛围转场', () {

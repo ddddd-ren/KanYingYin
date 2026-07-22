@@ -54,10 +54,10 @@ class CloudResourcePosterWall extends StatelessWidget {
     return GridView.builder(
       padding: const EdgeInsets.all(12),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 220,
+        maxCrossAxisExtent: 300,
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
-        childAspectRatio: 0.5,
+        childAspectRatio: 0.68,
       ),
       itemCount: collection.groups.length,
       findChildIndexCallback: (key) {

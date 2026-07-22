@@ -34,6 +34,15 @@ void main() {
     expect(script, isNot(contains(r'$buildStartedAt')));
   });
 
+  test('公共签名脚本忽略已退出的残留进程条目', () async {
+    final script =
+        await File('tool/windows/build_signed_release.ps1').readAsString();
+
+    expect(script, contains(r'$runningProcesses'));
+    expect(script, contains(r'Where-Object { -not $_.HasExited }'));
+    expect(script, contains(r'$runningProcesses.Count -gt 0'));
+  });
+
   test('公共签名脚本不依赖私人 TMDB Key 且安全清理密码', () async {
     final script =
         await File('tool/windows/build_signed_release.ps1').readAsString();

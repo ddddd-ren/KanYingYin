@@ -60,7 +60,9 @@ function Get-SignToolPath {
   return $candidates[0].FullName
 }
 
-if (Get-Process -Name 'kanyingyin' -ErrorAction SilentlyContinue) {
+$runningProcesses = @(Get-Process -Name 'kanyingyin' -ErrorAction SilentlyContinue |
+    Where-Object { -not $_.HasExited })
+if ($runningProcesses.Count -gt 0) {
   throw '请先退出正在运行的看影音，再生成签名安装包'
 }
 foreach ($requiredPath in @($FlutterPath, $DartPath, $pfxPath, $passwordPath)) {

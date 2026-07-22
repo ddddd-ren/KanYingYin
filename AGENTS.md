@@ -33,6 +33,7 @@
 
 ## 版本与交付
 
+- 每次版本更新开始前，必须使用 `Get-AppxPackage -Name com.kanyingyin.player` 查询并记录当前 Windows 已安装版本；未安装也要明确记录，不能只根据 `pubspec.yaml` 推断。生成安装包后再次核对安装包版本，若执行安装则再次检查已安装版本。
 - 每次完成可交付的版本迭代并通过测试、静态分析和 Windows Release 构建后，必须继续生成 MSIX、验证清单版本，并将安装包复制到当前用户桌面；不能只完成 Release 构建。
 - 进入安装包的修改必须同步更新 `pubspec.yaml` 的 `version` 和 `msix_config.msix_version`。
 - 每次交付更新 `RELEASE_NOTES.md` 和 `lib/utils/version_history.dart`，文案面向普通用户。

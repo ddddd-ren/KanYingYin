@@ -24,6 +24,20 @@ import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/media_recognition_settings.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
+import 'package:kanyingyin/features/settings/presentation/settings_motion.dart';
+
+void _child(
+  RouteManager r,
+  String path, {
+  required ModularChild child,
+}) {
+  r.child(
+    path,
+    child: child,
+    transition: TransitionType.rightToLeftWithFade,
+    duration: SettingsMotion.pageDuration,
+  );
+}
 
 final class CloudLibraryRescanException implements Exception {
   const CloudLibraryRescanException({
@@ -60,26 +74,37 @@ void verifyCloudRescanResult({
 class SettingsModule extends Module {
   @override
   void routes(r) {
-    r.child("/theme", child: (_) => const ThemeSettingsPage());
-    r.child(
+    _child(r, "/theme", child: (_) => const ThemeSettingsPage());
+    _child(
+      r,
       "/theme/display",
       child: (_) => const SetDisplayMode(),
     );
-    r.child("/keyboard", child: (_) => const KeyboardSettingsPage());
-    r.child("/player", child: (_) => const PlayerSettingsPage());
-    r.child("/player/decoder", child: (_) => const DecoderSettings());
-    r.child("/player/renderer", child: (_) => const RendererSettings());
-    r.child("/interface", child: (_) => const InterfaceSettingsPage());
-    r.child("/player/super", child: (_) => const SuperResolutionSettings());
-    r.module("/about", module: AboutModule());
-    r.child(
+    _child(r, "/keyboard", child: (_) => const KeyboardSettingsPage());
+    _child(r, "/player", child: (_) => const PlayerSettingsPage());
+    _child(r, "/player/decoder", child: (_) => const DecoderSettings());
+    _child(r, "/player/renderer", child: (_) => const RendererSettings());
+    _child(r, "/interface", child: (_) => const InterfaceSettingsPage());
+    _child(
+      r,
+      "/player/super",
+      child: (_) => const SuperResolutionSettings(),
+    );
+    r.module(
+      "/about",
+      module: AboutModule(),
+      transition: TransitionType.rightToLeftWithFade,
+      duration: SettingsMotion.pageDuration,
+    );
+    _child(
+      r,
       "/tmdb",
       child: (_) => TmdbSettingsPage(
         credentialManager: Modular.get<TmdbCredentialManager>(),
         apiKeyProvider: Modular.get<TmdbApiKeyProvider>(),
       ),
     );
-    r.child("/media-recognition", child: (_) {
+    _child(r, "/media-recognition", child: (_) {
       final localController = Modular.get<LocalController>();
       return MediaRecognitionSettingsPage(
         settings: Modular.get<MediaRecognitionSettings>(),
@@ -102,7 +127,8 @@ class SettingsModule extends Module {
         },
       );
     });
-    r.child(
+    _child(
+      r,
       "/cloud-sources",
       child: (_) => CloudSourcesSettingsPage(
         controller: Modular.get<CloudLibraryController>(),
@@ -111,11 +137,13 @@ class SettingsModule extends Module {
             Modular.get<LocalController>().revealCloudLibrarySource,
       ),
     );
-    r.child(
+    _child(
+      r,
       "/cloud-sources/add",
       child: (_) => const CloudSourceTypePickerPage(),
     );
-    r.child(
+    _child(
+      r,
       "/cloud-sources/openlist/edit",
       child: (_) => OpenListSourceEditorPage(
         controller: Modular.get<CloudLibraryController>(),
@@ -124,7 +152,8 @@ class SettingsModule extends Module {
         source: r.args.data is CloudSource ? r.args.data as CloudSource : null,
       ),
     );
-    r.child(
+    _child(
+      r,
       "/cloud-sources/quark/edit",
       child: (_) => QuarkSourceEditorPage(
         controller: Modular.get<CloudLibraryController>(),
@@ -133,7 +162,8 @@ class SettingsModule extends Module {
         source: r.args.data is CloudSource ? r.args.data as CloudSource : null,
       ),
     );
-    r.child(
+    _child(
+      r,
       "/cloud-sources/baidu/edit",
       child: (_) => BaiduSourceEditorPage(
         controller: Modular.get<CloudLibraryController>(),
@@ -143,13 +173,15 @@ class SettingsModule extends Module {
         source: r.args.data is CloudSource ? r.args.data as CloudSource : null,
       ),
     );
-    r.child(
+    _child(
+      r,
       "/cloud-sources/quark/import",
       child: (_) => r.args.data is CloudSource
           ? QuarkShareImportPage(source: r.args.data as CloudSource)
           : const Scaffold(body: Center(child: Text('夸克来源不存在'))),
     );
-    r.child(
+    _child(
+      r,
       "/cloud-sources/edit",
       child: (_) => OpenListSourceEditorPage(
         controller: Modular.get<CloudLibraryController>(),

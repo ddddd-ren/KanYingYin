@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.39',
+    date: '2026-07-22',
+    isPrerelease: true,
+    changes: [
+      '本测试版将设置主页恢复为紧凑的单列分组列表，媒体库、播放器、外观和其他入口更集中，原有路由与操作逻辑不变',
+      '关于页面不再展示界面参考项，开源许可证入口和 README 来源说明继续保留',
+      '设置项悬停、按下与页面前进返回动画保持不变，并继续遵循 Windows“减少动画”设置',
+      '播放器退出卡死修复和本地与网盘经典海报墙继续保留；播放器字幕、选集、硬件解码与 Anime4K 行为不变',
+      '没有 TMDB Key 或断网时，应用启动、本地与网盘媒体库和播放器仍可使用；本次不会修改或删除本地原始媒体，也不会修改网盘文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.38',
     date: '2026-07-22',
     isPrerelease: true,

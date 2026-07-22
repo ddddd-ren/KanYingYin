@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.38',
+    date: '2026-07-22',
+    isPrerelease: true,
+    changes: [
+      '本测试版将设置主页重构为看影音自己的“银幕档案馆”控制中心，媒体资料、网盘、播放器、外观和其他入口会按窗口宽度自动排列',
+      '全部设置子页、网盘来源编辑和关于页面统一为新的分区面板、图标底板与状态样式，旧设置 UI 依赖已经移除',
+      '卡片悬停、按下及页面前进返回使用更连贯的影院氛围动效，并遵循 Windows“减少动画”设置；原有配置、保存、扫描和路由操作逻辑不变',
+      '上一测试版的播放器退出卡死修复和本地与网盘经典海报墙继续保留；播放器字幕、选集、硬件解码与 Anime4K 行为不变',
+      '没有 TMDB Key 或断网时，应用启动、本地与网盘媒体库和播放器仍可使用；本次不会修改或删除本地原始媒体，也不会修改网盘文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.37',
     date: '2026-07-22',
     isPrerelease: true,

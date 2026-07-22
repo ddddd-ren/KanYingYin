@@ -111,6 +111,10 @@ class _AboutPageState extends State<AboutPage> {
           maxWidth: 1000,
           sections: [
             SettingsSection(
+              title: Text(
+                '开源许可与致谢',
+                style: TextStyle(fontFamily: fontFamily),
+              ),
               tiles: [
                 SettingsTile<void>(
                   title: Text(

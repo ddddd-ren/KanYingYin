@@ -38,6 +38,7 @@ void main() {
       ),
     );
     expect(about, contains('界面与操作参考 Kazumi'));
+    expect(about, contains('开源许可与致谢'));
   });
 
   test('清除缓存下方显示统一的当前版本', () {

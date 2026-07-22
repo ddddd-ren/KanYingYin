@@ -63,15 +63,15 @@ class _InterfaceSettingsPageState extends State<InterfaceSettingsPage> {
                   defaultPageMenuController.open();
                 }
               },
-              title: Text('启动界面设置', style: TextStyle(fontFamily: fontFamily)),
-              description: Text('设置应用开启时的默认页面',
+              title: Text('启动时打开', style: TextStyle(fontFamily: fontFamily)),
+              description: Text('选择看影音启动后显示的媒体库',
                   style: TextStyle(fontFamily: fontFamily)),
               value: MenuAnchor(
                 consumeOutsideTap: true,
                 controller: defaultPageMenuController,
                 builder: (_, __, ___) {
                   return Text(
-                    defaultStartupPageLabels[defaultPage] ?? '推荐',
+                    defaultStartupPageLabels[defaultPage] ?? '本地媒体库',
                     style: TextStyle(fontFamily: fontFamily),
                   );
                 },

@@ -287,6 +287,12 @@ CloudResourceMediaGroup _conflictMediaGroup() {
   );
 }
 
+Future<void> _openCloudMoreActions(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('更多网盘操作'));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 250));
+}
+
 void main() {
   test('网盘播放失败诊断不包含异常中的远程地址', () {
     const source = CloudSource(
@@ -611,7 +617,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('网盘资源'), findsOneWidget);
+    expect(find.text('网盘媒体库'), findsOneWidget);
     expect(find.text('夸克媒体库'), findsOneWidget);
     expect(find.text('动漫'), findsNothing);
     expect(find.text('第01集.mkv'), findsOneWidget);
@@ -626,6 +632,18 @@ void main() {
     );
     expect(find.text('已汇总全部媒体根目录'), findsOneWidget);
     expect(find.byTooltip('返回上级'), findsNothing);
+    expect(find.byTooltip('管理网盘来源'), findsOneWidget);
+    expect(find.byTooltip('刷新当前来源'), findsOneWidget);
+    expect(find.byTooltip('更多网盘操作'), findsOneWidget);
+    expect(find.text('自动整理当前来源'), findsNothing);
+    expect(find.text('刮削当前来源'), findsNothing);
+    expect(find.text('移除当前来源'), findsNothing);
+    await _openCloudMoreActions(tester);
+    expect(find.text('自动整理当前来源'), findsOneWidget);
+    expect(find.text('刮削当前来源'), findsOneWidget);
+    expect(find.text('移除当前来源'), findsOneWidget);
+    await tester.tapAt(const Offset(2, 2));
+    await tester.pumpAndSettle();
     fixture.controller.dispose();
   });
 
@@ -842,7 +860,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('移除当前来源'));
+    await _openCloudMoreActions(tester);
+    await tester.tap(find.text('移除当前来源'));
     await tester.pumpAndSettle();
 
     expect(
@@ -866,7 +885,8 @@ void main() {
       MaterialApp(home: CloudResourcesPage(controller: fixture.controller)),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('自动整理当前来源'));
+    await _openCloudMoreActions(tester);
+    await tester.tap(find.text('自动整理当前来源'));
     await tester.pumpAndSettle();
 
     expect(find.text('自动批量整理'), findsOneWidget);
@@ -907,7 +927,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('自动整理当前来源'));
+    await _openCloudMoreActions(tester);
+    await tester.tap(find.text('自动整理当前来源'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, '开始整理'));
     await tester.pump();
@@ -921,20 +942,32 @@ void main() {
           .onChanged,
       isNull,
     );
-    for (final tooltip in <String>[
+    final refreshButton = find
+        .ancestor(
+          of: find.byTooltip('刷新当前来源'),
+          matching: find.byType(IconButton),
+        )
+        .first;
+    expect(tester.widget<IconButton>(refreshButton).onPressed, isNull);
+    await _openCloudMoreActions(tester);
+    for (final label in <String>[
       '自动整理当前来源',
       '刮削当前来源',
       '移除当前来源',
-      '刷新当前来源',
     ]) {
-      final button = find
+      final item = find
           .ancestor(
-            of: find.byTooltip(tooltip),
-            matching: find.byType(IconButton),
+            of: find.text(label),
+            matching: find.byWidgetPredicate(
+              (widget) => widget is PopupMenuItem,
+            ),
           )
           .first;
-      expect(tester.widget<IconButton>(button).onPressed, isNull);
+      expect((tester.widget(item) as PopupMenuItem).enabled, isFalse);
     }
+    await tester.tapAt(const Offset(2, 2));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
 
     await tester.tap(find.byType(ImmersiveMediaCard));
     await tester.pump();
@@ -1323,7 +1356,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('刮削当前来源'));
+    await _openCloudMoreActions(tester);
+    await tester.tap(find.text('刮削当前来源'));
     await tester.pumpAndSettle();
 
     expect(
@@ -1381,7 +1415,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Alice in Borderland'), findsOneWidget);
-    await tester.tap(find.byTooltip('刮削当前来源'));
+    await _openCloudMoreActions(tester);
+    await tester.tap(find.text('刮削当前来源'));
     await tester.pumpAndSettle();
 
     expect(coordinator.scrapedTarget?.remote.id, 'episode-fid');
@@ -1424,7 +1459,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('刮削当前来源'));
+    await _openCloudMoreActions(tester);
+    await tester.tap(find.text('刮削当前来源'));
     await tester.pump();
 
     expect(find.text('当前来源没有需要刮削的资源'), findsOneWidget);

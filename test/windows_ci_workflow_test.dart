@@ -31,7 +31,7 @@ void main() {
       prWorkflow,
       contains('flutter build windows --release --no-pub'),
     );
-    expect(prWorkflow, contains('actions/upload-artifact@v4'));
+    expect(prWorkflow, contains('uses: actions/upload-artifact@'));
     expect(_topLevelJobNames(prWorkflow), hasLength(1));
   });
 
@@ -65,7 +65,7 @@ void main() {
     expect(releaseWorkflow, contains('AppxManifest.xml'));
     expect(releaseWorkflow, contains('看影音-'));
     expect(releaseWorkflow, contains('.msix'));
-    expect(releaseWorkflow, contains('softprops/action-gh-release@v2'));
+    expect(releaseWorkflow, contains('uses: softprops/action-gh-release@'));
     expect(_topLevelJobNames(releaseWorkflow), hasLength(1));
 
     for (final obsolete in <String>[
@@ -167,6 +167,22 @@ void main() {
     );
   });
 
+  test('第三方 GitHub Actions 全部固定到完整提交 SHA', () {
+    final references = <({String action, String version})>[
+      ..._actionReferences(prWorkflow),
+      ..._actionReferences(releaseWorkflow),
+    ];
+
+    expect(references, isNotEmpty);
+    for (final reference in references) {
+      expect(
+        reference.version,
+        matches(RegExp(r'^[0-9a-f]{40}$')),
+        reason: '${reference.action} 必须固定到完整提交 SHA',
+      );
+    }
+  });
+
   test('签名输出唯一且发布前验证签名、签名者和结构化清单', () {
     final verification = _stepBlock(releaseWorkflow, '验证签名后的 MSIX');
     expect(verification, contains(r'$signedFiles.Count -ne 1'));
@@ -183,10 +199,24 @@ void main() {
     expect(verification, isNot(contains('SIGNPATH_API_TOKEN')));
     expect(
       releaseWorkflow.indexOf('验证签名后的 MSIX'),
-      lessThan(releaseWorkflow.indexOf('softprops/action-gh-release@v2')),
+      lessThan(releaseWorkflow.indexOf('softprops/action-gh-release@')),
     );
   });
 }
+
+List<({String action, String version})> _actionReferences(String workflow) =>
+    RegExp(
+      r'^\s*uses:\s+([^@\s]+)@([^\s#]+)',
+      multiLine: true,
+    )
+        .allMatches(workflow)
+        .map(
+          (match) => (
+            action: match.group(1)!,
+            version: match.group(2)!,
+          ),
+        )
+        .toList(growable: false);
 
 List<String> _topLevelJobNames(String workflow) {
   final lines = const LineSplitter().convert(workflow);

@@ -13,10 +13,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: 配置 Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
           flutter-version-file: pubspec.yaml
@@ -37,7 +37,7 @@ jobs:
         run: flutter build windows --release --no-pub
 
       - name: 上传 Windows 构建产物
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: windows-release-${{ github.run_number }}
           path: build/windows/x64/runner/Release/

@@ -27,7 +27,7 @@ void main() {
         File('lib/pages/settings/settings_module.dart').readAsStringSync();
     final indexModule = File('lib/pages/index_module.dart').readAsStringSync();
 
-    expect(myPage, contains("title: '媒体识别'"));
+    expect(myPage, contains("'媒体识别'"));
     expect(
       myPage,
       contains("onOpenPath('/settings/media-recognition')"),

@@ -424,7 +424,7 @@ void main() {
   });
 
   group('parseStoredThemeColor', () {
-    const fallback = Color(0xFF00D4AA);
+    const fallback = Color(0xFF78A9D4);
 
     test('兼容默认值、十六进制字符串和整数', () {
       expect(parseStoredThemeColor(null), fallback);
@@ -469,6 +469,16 @@ void main() {
 
     expect(appWidgetSource, contains('Color parseStoredThemeColor('));
     expect(windowsServiceSource, isNot(contains('parseStoredThemeColor')));
+  });
+
+  test('AppWidget 通过统一主题工厂构建明暗与 OLED 主题', () {
+    final source = File('lib/app_widget.dart').readAsStringSync();
+
+    expect(source, contains('AppTheme.light('));
+    expect(source, contains('AppTheme.dark('));
+    expect(source, contains('AppTheme.fromColorScheme('));
+    expect(source, contains('AppTheme.withOledBackground('));
+    expect(source, isNot(contains('Utils.oledDarkTheme(')));
   });
 }
 

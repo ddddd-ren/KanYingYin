@@ -27,7 +27,7 @@ void main() {
     expect(source, isNot(contains("applicationName: '$oldName'")));
   });
 
-  test('README 和关于页面简单注明 Kazumi 来源', () {
+  test('README 保留来源说明但关于页面不展示 Kazumi', () {
     final readme = File('README.md').readAsStringSync();
     final about = File('lib/pages/about/about_page.dart').readAsStringSync();
 
@@ -37,8 +37,9 @@ void main() {
         '界面与操作参考 [Kazumi](https://github.com/Predidit/Kazumi)',
       ),
     );
-    expect(about, contains('界面与操作参考 Kazumi'));
+    expect(about, isNot(contains('Kazumi')));
     expect(about, contains('开源许可与致谢'));
+    expect(about, contains('开源许可证'));
   });
 
   test('清除缓存下方显示统一的当前版本', () {

@@ -115,12 +115,6 @@ class _AboutPageState extends State<AboutPage> {
                 style: TextStyle(fontFamily: fontFamily),
               ),
               tiles: [
-                KSettingsTile<void>(
-                  title: Text(
-                    '界面与操作参考 Kazumi',
-                    style: TextStyle(fontFamily: fontFamily),
-                  ),
-                ),
                 KSettingsTile<void>.navigation(
                   onPressed: (_) {
                     Modular.to.pushNamed('/settings/about/license');

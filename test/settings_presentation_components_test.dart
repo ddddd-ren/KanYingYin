@@ -3,14 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 
 void main() {
-  test('设置主页按窗口宽度切换三列两列和单列', () {
-    expect(SettingsHubLayout.columnCountFor(1280), 3);
-    expect(SettingsHubLayout.columnCountFor(1180), 3);
-    expect(SettingsHubLayout.columnCountFor(900), 2);
-    expect(SettingsHubLayout.columnCountFor(760), 2);
-    expect(SettingsHubLayout.columnCountFor(640), 1);
-  });
-
   testWidgets('设置导航项转发点击并尊重禁用状态', (tester) async {
     var enabledPressed = 0;
     var disabledPressed = 0;

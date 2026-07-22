@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hive_ce/hive.dart';
-import 'package:kanyingyin/bean/appbar/sys_app_bar.dart';
+import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/utils/storage.dart';
 
@@ -32,10 +32,9 @@ class _DecoderSettingsState extends State<DecoderSettings> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    return Scaffold(
-      appBar: const SysAppBar(
-        title: Text('解码方式'),
-      ),
+    return KSettingsScaffold(
+      title: '解码方式',
+      description: '卡顿或只有声音没画面时，可切换 CPU 或硬件解码器。',
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(12),

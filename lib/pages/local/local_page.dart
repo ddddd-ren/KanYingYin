@@ -1,4 +1,6 @@
 import 'package:file_picker/file_picker.dart';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
@@ -151,6 +153,22 @@ class _LocalPageState extends State<LocalPage>
     }
   }
 
+  Future<String?> _submitDirectoryAddress(String rawPath) async {
+    final path = normalizeLibraryPathAddress(rawPath);
+    if (path.isEmpty) return '请输入文件夹地址';
+    try {
+      final type = await FileSystemEntity.type(path, followLinks: true);
+      if (type == FileSystemEntityType.file) return '请输入文件夹地址';
+      if (type != FileSystemEntityType.directory) {
+        return '目录不存在或无法访问';
+      }
+    } on FileSystemException {
+      return '目录不存在或无法访问';
+    }
+    await _enterDirectory(path);
+    return localController.currentPath == path ? null : '目录不存在或无法访问';
+  }
+
   String _playbackTitle(LocalMediaIndexItem item) {
     return p.basenameWithoutExtension(item.name);
   }
@@ -263,24 +281,6 @@ class _LocalPageState extends State<LocalPage>
         content: Text(localController.bangumiMatchProgress),
         duration: const Duration(seconds: 3),
       ),
-    );
-  }
-
-  Future<void> _fetchPosters(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final result = await localController.fetchPosters();
-    if (!mounted) return;
-    final success = result['success'] ?? 0;
-    final failed = result['failed'] ?? 0;
-    final skipped = result['skipped'] ?? 0;
-    final total = result['total'] ?? 0;
-    final msg = total == 0
-        ? '当前目录没有需要刮削的视频'
-        : success == 0 && failed == 0
-            ? '当前目录的视频都已有海报'
-            : '刮削完成：成功 $success，失败 $failed，跳过 $skipped';
-    messenger.showSnackBar(
-      SnackBar(content: Text(msg), duration: const Duration(seconds: 3)),
     );
   }
 
@@ -789,7 +789,7 @@ class _LocalPageState extends State<LocalPage>
                       onOpenLibrary: () => _showLocalLibrary(context),
                       onOpenRecentPath: _enterDirectory,
                       onNavigateUp: localController.navigateUp,
-                      onFetchPosters: () => _fetchPosters(context),
+                      onPathSubmitted: _submitDirectoryAddress,
                       onFetchMediaInfo: () => _fetchMediaInfo(context),
                       onGenerateThumbnails: () => _fetchThumbnails(context),
                       onMatchMetadata: () => _scrapeTmdb(context),
@@ -811,6 +811,7 @@ class _LocalPageState extends State<LocalPage>
   LibraryPathBarViewData _pathBarData() {
     final parts = p.split(localController.currentPath);
     return LibraryPathBarViewData(
+      currentPath: localController.currentPath,
       breadcrumbs: [
         for (var i = 0; i < parts.length; i++)
           LibraryBreadcrumbViewData(

@@ -25,6 +25,16 @@ void main() {
     expect(status.progressLabel, isNot(contains(r'${')));
   });
 
+  test('媒体库地址去除空白和成对双引号', () {
+    expect(normalizeLibraryPathAddress(r'  D:\媒体  '), r'D:\媒体');
+    expect(normalizeLibraryPathAddress(r'"D:\媒体"'), r'D:\媒体');
+    expect(
+      normalizeLibraryPathAddress(r'  "\\NAS\动画"  '),
+      r'\\NAS\动画',
+    );
+    expect(normalizeLibraryPathAddress(r'"D:\媒体'), r'"D:\媒体');
+  });
+
   test('展示 view data 会复制并冻结所有列表', () {
     const breadcrumb = LibraryBreadcrumbViewData(label: 'D:', path: r'D:\');
     const source = LibrarySourceViewData(
@@ -76,12 +86,167 @@ void main() {
   });
 
   group('LibraryPathBar', () {
+    final recordedActions = <String>[];
+    late TextEditingController pathBarSearchController;
+
+    setUp(() {
+      recordedActions.clear();
+      pathBarSearchController = TextEditingController();
+    });
+
+    tearDown(() => pathBarSearchController.dispose());
+
+    Future<void> pumpPathBar(
+      WidgetTester tester, {
+      required double width,
+      String currentPath = r'D:\a TV\动画',
+      Future<String?> Function(String path)? onPathSubmitted,
+    }) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = Size(width, 900);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: LibraryPathBar(
+              data: LibraryPathBarViewData(
+                currentPath: currentPath,
+                breadcrumbs: const [
+                  LibraryBreadcrumbViewData(label: 'D:', path: 'D:\\'),
+                  LibraryBreadcrumbViewData(
+                    label: 'a TV',
+                    path: 'D:\\a TV',
+                  ),
+                  LibraryBreadcrumbViewData(
+                    label: '动画',
+                    path: 'D:\\a TV\\动画',
+                    isCurrent: true,
+                  ),
+                ],
+                recentPaths: const [],
+                sortBy: 'name',
+                sortAscending: true,
+                status: const LibraryDirectoryStatusViewData(
+                  kind: LibraryDirectoryStatusKind.idle,
+                  label: '26 部剧 · 412 个视频',
+                ),
+              ),
+              sourceMenu: const SizedBox(width: 32, height: 32),
+              searchController: pathBarSearchController,
+              onPickDirectory: () async => recordedActions.add('pick'),
+              onRefresh: () async => recordedActions.add('refresh'),
+              onSort: (field) async => recordedActions.add('sort:$field'),
+              onSearchChanged: (value) => recordedActions.add('search:$value'),
+              onClearSearch: () => recordedActions.add('clear-search'),
+              onBreadcrumbSelected: (path) async =>
+                  recordedActions.add('path:$path'),
+              onPathSubmitted: onPathSubmitted ??
+                  (path) async {
+                    recordedActions.add('address:$path');
+                    return null;
+                  },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('原工具栏轻量表面在三种宽度下无溢出', (tester) async {
+      for (final width in <double>[1280, 900, 640]) {
+        await pumpPathBar(tester, width: width);
+
+        expect(
+          find.byKey(const ValueKey('library-path-command-surface')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('library-path-breadcrumb-surface')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('library-path-search-surface')),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull, reason: '窗口宽度 $width');
+      }
+    });
+
+    testWidgets('路径导航左对齐且使用轻量上级图标', (tester) async {
+      await pumpPathBar(tester, width: 900);
+
+      final surface = find.byKey(
+        const ValueKey('library-path-breadcrumb-surface'),
+      );
+      expect(surface, findsOneWidget);
+      expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
+      final upButton = find.byTooltip('上级目录');
+      expect(
+        find.descendant(
+          of: upButton,
+          matching: find.byIcon(Icons.keyboard_arrow_up_rounded),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: upButton,
+          matching: find.byIcon(Icons.arrow_upward),
+        ),
+        findsNothing,
+      );
+      expect(
+          find.byKey(const ValueKey('library-path-address')), findsOneWidget);
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(const ValueKey('library-path-address')),
+            )
+            .controller!
+            .text,
+        r'D:\a TV\动画',
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('library-path-address')))
+            .width,
+        lessThanOrEqualTo(250),
+      );
+    });
+
+    testWidgets('轻量优化后全部工具动作仍按原参数转发', (tester) async {
+      await pumpPathBar(tester, width: 900);
+      await tester.tap(find.byTooltip('选择目录'));
+      await tester.tap(find.byTooltip('刷新'));
+      await tester.tap(find.text('日期'));
+      await tester.enterText(
+        find.widgetWithText(TextField, '搜索当前目录'),
+        '关键字',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('library-path-address')),
+        r'D:\',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.go);
+      expect(recordedActions, [
+        'pick',
+        'refresh',
+        'sort:modified',
+        'search:关键字',
+        r'address:D:\',
+      ]);
+    });
+
     testWidgets('显示路径工具、排序和搜索，并转发动作', (tester) async {
       var picked = false;
       var refreshed = false;
       var sortedBy = '';
       var searched = '';
       var breadcrumbPath = '';
+      var fetchedMediaInfo = false;
+      var generatedThumbnails = false;
+      var matchedMetadata = false;
       final searchController = TextEditingController();
       addTearDown(searchController.dispose);
 
@@ -98,6 +263,7 @@ void main() {
                     isCurrent: true,
                   ),
                 ],
+                currentPath: r'D:\动画',
                 recentPaths: [],
                 sortBy: 'name',
                 sortAscending: true,
@@ -107,6 +273,7 @@ void main() {
                 ),
                 canReadMediaInfo: true,
                 canGenerateThumbnails: true,
+                canMatchMetadata: true,
               ),
               sourceMenu: const SizedBox.shrink(),
               searchController: searchController,
@@ -116,6 +283,13 @@ void main() {
               onSearchChanged: (value) => searched = value,
               onClearSearch: () {},
               onBreadcrumbSelected: (path) async => breadcrumbPath = path,
+              onPathSubmitted: (path) async {
+                breadcrumbPath = path;
+                return null;
+              },
+              onFetchMediaInfo: () async => fetchedMediaInfo = true,
+              onGenerateThumbnails: () async => generatedThumbnails = true,
+              onMatchMetadata: () async => matchedMetadata = true,
             ),
           ),
         ),
@@ -123,16 +297,36 @@ void main() {
 
       expect(find.byTooltip('选择目录'), findsOneWidget);
       expect(find.byTooltip('刷新'), findsOneWidget);
-      expect(find.text('动画'), findsOneWidget);
+      expect(
+          find.byKey(const ValueKey('library-path-address')), findsOneWidget);
       expect(find.text('名称'), findsOneWidget);
       expect(find.text('2 部剧/12 个视频'), findsOneWidget);
       expect(find.widgetWithText(TextField, '搜索当前目录'), findsOneWidget);
+      expect(find.text('获取海报'), findsNothing);
+      expect(find.byTooltip('读取媒体信息'), findsOneWidget);
+      expect(find.byTooltip('生成缩略图'), findsOneWidget);
+      expect(find.byTooltip('匹配影片信息'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('读取媒体信息'));
+      await tester.tap(find.byTooltip('生成缩略图'));
+      await tester.tap(find.byTooltip('匹配影片信息'));
+      await tester.pumpAndSettle();
+      expect(fetchedMediaInfo, isTrue);
+      expect(generatedThumbnails, isTrue);
+      expect(matchedMetadata, isTrue);
 
       await tester.tap(find.byTooltip('选择目录'));
       await tester.tap(find.byTooltip('刷新'));
       await tester.tap(find.text('大小'));
-      await tester.enterText(find.byType(TextField), '关键字');
-      await tester.tap(find.text('D:'));
+      await tester.enterText(
+        find.widgetWithText(TextField, '搜索当前目录'),
+        '关键字',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('library-path-address')),
+        r'D:\',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.go);
       await tester.pump();
 
       expect(picked, isTrue);
@@ -140,6 +334,101 @@ void main() {
       expect(sortedBy, 'size');
       expect(searched, '关键字');
       expect(breadcrumbPath, r'D:\');
+    });
+
+    testWidgets('展开的媒体操作只在自身忙碌时显示进度', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: LibraryPathBar(
+              data: LibraryPathBarViewData(
+                currentPath: r'D:\',
+                breadcrumbs: const [
+                  LibraryBreadcrumbViewData(
+                    label: 'D:',
+                    path: r'D:\',
+                    isCurrent: true,
+                  ),
+                ],
+                recentPaths: const [],
+                sortBy: 'name',
+                sortAscending: true,
+                status: const LibraryDirectoryStatusViewData(
+                  kind: LibraryDirectoryStatusKind.idle,
+                  label: '',
+                ),
+                isFetchingMediaInfo: true,
+                canGenerateThumbnails: true,
+                canMatchMetadata: true,
+              ),
+              sourceMenu: const SizedBox.shrink(),
+              searchController: pathBarSearchController,
+              onPickDirectory: () {},
+              onRefresh: () {},
+              onSort: (_) {},
+              onSearchChanged: (_) {},
+              onClearSearch: () {},
+              onBreadcrumbSelected: (_) {},
+              onPathSubmitted: (_) async => null,
+              onFetchMediaInfo: () {},
+              onGenerateThumbnails: () {},
+              onMatchMetadata: () {},
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.descendant(
+          of: find.byTooltip('读取媒体信息'),
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byTooltip('生成缩略图'),
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: find.byTooltip('匹配影片信息'),
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('紧凑地址框按 Enter 跳转并显示失败错误', (tester) async {
+      var submitted = '';
+      var shouldFail = false;
+      await pumpPathBar(
+        tester,
+        width: 900,
+        onPathSubmitted: (path) async {
+          submitted = path;
+          return shouldFail ? '目录不存在或无法访问' : null;
+        },
+      );
+
+      final field = find.byKey(const ValueKey('library-path-address'));
+      expect(field, findsOneWidget);
+      expect(tester.getSize(field).width, lessThanOrEqualTo(250));
+
+      await tester.enterText(field, r' "E:\新目录" ');
+      await tester.testTextInput.receiveAction(TextInputAction.go);
+      await tester.pumpAndSettle();
+      expect(submitted, r'E:\新目录');
+
+      shouldFail = true;
+      await tester.enterText(field, r'Z:\不存在');
+      await tester.testTextInput.receiveAction(TextInputAction.go);
+      await tester.pumpAndSettle();
+      expect(submitted, r'Z:\不存在');
+      expect(find.text('目录不存在或无法访问'), findsOneWidget);
+      expect(find.text(r'Z:\不存在'), findsOneWidget);
     });
   });
 
@@ -534,6 +823,7 @@ void main() {
               )
               .first)
           .opacity;
+
       expect(opacityFor('第一项'), 1);
       expect(opacityFor('第二项'), 0);
 
@@ -614,12 +904,14 @@ void main() {
         ),
       ) as Image;
       expect(networkImage.image, same(networkProvider));
+      expect(networkImage.fit, BoxFit.contain);
       final localFallback = networkImage.errorBuilder!(
         imageContext,
         StateError('模拟网络封面失败'),
         StackTrace.empty,
       ) as Image;
       expect(localFallback.image, isA<FileImage>());
+      expect(localFallback.fit, BoxFit.contain);
 
       final placeholder = localFallback.errorBuilder!(
         imageContext,

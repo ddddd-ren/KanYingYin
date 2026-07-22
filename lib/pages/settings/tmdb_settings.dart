@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
-import 'package:kanyingyin/bean/appbar/sys_app_bar.dart';
+import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
@@ -119,8 +119,9 @@ class _TmdbSettingsPageState extends State<TmdbSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const SysAppBar(title: Text('TMDB 刮削设置')),
+    return KSettingsScaffold(
+      title: 'TMDB 刮削设置',
+      description: '管理海报与影片资料的凭据、语言和覆盖规则。',
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [

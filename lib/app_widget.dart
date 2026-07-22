@@ -6,7 +6,6 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:hive_ce/hive.dart';
-import 'package:kanyingyin/utils/utils.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:kanyingyin/utils/logger.dart';
@@ -14,11 +13,11 @@ import 'package:window_manager/window_manager.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/providers/theme_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 import 'package:kanyingyin/services/windows_app_shell_service.dart';
+import 'package:kanyingyin/theme/app_theme.dart';
 
-const Color _fallbackThemeColor = Color(0xFF00D4AA);
+const Color _fallbackThemeColor = AppTheme.brandBlue;
 
 /// 将持久化主题色转换为应用主题颜色，不访问平台或存储。
 Color parseStoredThemeColor(Object? storedValue) {
@@ -355,22 +354,14 @@ class _AppWidgetState extends State<AppWidget>
       SettingBoxKey.oledEnhance,
       defaultValue: false,
     );
-    final defaultDarkTheme = ThemeData(
-        useMaterial3: true,
-        fontFamily: themeProvider.currentFontFamily,
-        brightness: Brightness.dark,
-        colorSchemeSeed: color,
-        progressIndicatorTheme: progressIndicatorTheme2024,
-        sliderTheme: sliderTheme2024,
-        pageTransitionsTheme: pageTransitionsTheme2024);
-    final defaultLightTheme = ThemeData(
-        useMaterial3: true,
-        fontFamily: themeProvider.currentFontFamily,
-        brightness: Brightness.light,
-        colorSchemeSeed: color,
-        progressIndicatorTheme: progressIndicatorTheme2024,
-        sliderTheme: sliderTheme2024,
-        pageTransitionsTheme: pageTransitionsTheme2024);
+    final defaultDarkTheme = AppTheme.dark(
+      fontFamily: themeProvider.currentFontFamily,
+      seedColor: color,
+    );
+    final defaultLightTheme = AppTheme.light(
+      fontFamily: themeProvider.currentFontFamily,
+      seedColor: color,
+    );
     final app = AppShellLifecycle(
       service: appShellService,
       trayListener: this,
@@ -382,27 +373,19 @@ class _AppWidgetState extends State<AppWidget>
               theme != null &&
               darkTheme != null;
           final lightTheme = useDynamicTheme
-              ? ThemeData(
-                  useMaterial3: true,
+              ? AppTheme.fromColorScheme(
+                  theme,
                   fontFamily: themeProvider.currentFontFamily,
-                  colorScheme: theme,
-                  brightness: Brightness.light,
-                  progressIndicatorTheme: progressIndicatorTheme2024,
-                  sliderTheme: sliderTheme2024,
-                  pageTransitionsTheme: pageTransitionsTheme2024)
+                )
               : defaultLightTheme;
           final dynamicDarkTheme = useDynamicTheme
-              ? ThemeData(
-                  useMaterial3: true,
+              ? AppTheme.fromColorScheme(
+                  darkTheme,
                   fontFamily: themeProvider.currentFontFamily,
-                  colorScheme: darkTheme,
-                  brightness: Brightness.dark,
-                  progressIndicatorTheme: progressIndicatorTheme2024,
-                  sliderTheme: sliderTheme2024,
-                  pageTransitionsTheme: pageTransitionsTheme2024)
+                )
               : defaultDarkTheme;
           final effectiveDarkTheme = oledEnhance
-              ? Utils.oledDarkTheme(dynamicDarkTheme)
+              ? AppTheme.withOledBackground(dynamicDarkTheme)
               : dynamicDarkTheme;
           return MaterialApp.router(
             title: AppIdentity.displayName,

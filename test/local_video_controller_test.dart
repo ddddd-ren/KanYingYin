@@ -194,6 +194,27 @@ void main() {
     );
   });
 
+  test('播放器集成轨道语言确认并保护退出后的旧结果', () {
+    final source =
+        File('lib/pages/player/player_controller.dart').readAsStringSync();
+    final item = File('lib/pages/player/player_item.dart').readAsStringSync();
+    final dialog = File(
+      'lib/pages/player/widgets/track_language_confirmation_dialog.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('pendingTrackLanguages'));
+    expect(source, contains('trackLanguageConfirmationRevision'));
+    expect(source, contains('_trackLanguageConfirmationState.canApply'));
+    expect(item, contains('if (!_canUsePlayer) return;'));
+    expect(source, contains('Future<String?> confirmTrackLanguage('));
+    expect(source,
+        isNot(contains('if (pendingTrackLanguages.isNotEmpty) return;')));
+    expect(source, contains('availableEmbeddedSubtitleTracks.firstOrNull'));
+    expect(item, isNot(contains('_scheduleTrackLanguageConfirmation')));
+    expect(item, contains('barrierDismissible: true'));
+    expect(dialog, contains('稍后确认'));
+  });
+
   test('TMDB 海报部分下载失败时显示明确提示', () {
     final page = File('lib/pages/local/local_page.dart').readAsStringSync();
     final library =

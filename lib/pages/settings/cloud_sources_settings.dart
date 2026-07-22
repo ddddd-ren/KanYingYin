@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 
@@ -91,8 +92,9 @@ class _CloudSourcesSettingsPageState extends State<CloudSourcesSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('网盘数据源')),
+    return KSettingsScaffold(
+      title: '网盘数据源',
+      description: '管理个人 OpenList、夸克与百度网盘媒体来源。',
       body: _controller.loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
@@ -215,8 +217,9 @@ class CloudSourceTypePickerPage extends StatelessWidget {
   const CloudSourceTypePickerPage({super.key});
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('添加网盘来源')),
+  Widget build(BuildContext context) => KSettingsScaffold(
+        title: '添加网盘来源',
+        description: '选择要连接的个人网盘类型。',
         body: ListView(
           padding: const EdgeInsets.all(24),
           children: [

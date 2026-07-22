@@ -1,10 +1,10 @@
-import 'package:card_settings_ui/card_settings_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/bean/appbar/sys_app_bar.dart';
+import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
+import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/pages/menu/menu.dart';
 import 'package:provider/provider.dart';
-import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 
 class MyPage extends StatefulWidget {
   const MyPage({super.key});
@@ -34,119 +34,112 @@ class _MyPageState extends State<MyPage> {
 
   @override
   Widget build(BuildContext context) {
-    final fontFamily = Theme.of(context).textTheme.bodyMedium?.fontFamily;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (didPop) {
-          return;
-        }
+        if (didPop) return;
         onBackPressed(context);
       },
       child: Scaffold(
         appBar: const SysAppBar(
-          title: Text('我的'),
+          title: Text('设置'),
           needTopOffset: false,
           showDesktopWindowControls: false,
         ),
-        body: SettingsList(
-          maxWidth: 1000,
-          sections: [
-            SettingsSection(
-              title: Text('本地媒体库', style: TextStyle(fontFamily: fontFamily)),
-              tiles: [
-                SettingsTile<void>.navigation(
-                  onPressed: (_) {
-                    Modular.to.pushNamed('/settings/tmdb');
-                  },
-                  leading: const Icon(Icons.movie_filter_outlined),
-                  title:
-                      Text('TMDB 刮削', style: TextStyle(fontFamily: fontFamily)),
-                  description: Text('配置本地媒体海报与信息刮削',
-                      style: TextStyle(fontFamily: fontFamily)),
-                ),
-                SettingsTile<void>.navigation(
-                  onPressed: (_) {
-                    Modular.to.pushNamed('/settings/cloud-sources');
-                  },
-                  leading: const Icon(Icons.cloud_outlined),
-                  title:
-                      Text('网盘数据源', style: TextStyle(fontFamily: fontFamily)),
-                  description: Text('添加和管理 OpenList、夸克网盘媒体来源',
-                      style: TextStyle(fontFamily: fontFamily)),
-                ),
-                SettingsTile<void>.navigation(
-                  onPressed: (_) {
-                    Modular.to.pushNamed('/settings/media-recognition');
-                  },
-                  leading: const Icon(Icons.video_file_outlined),
-                  title: Text('媒体识别', style: TextStyle(fontFamily: fontFamily)),
-                  description: Text('设置本地与网盘视频的识别大小限制',
-                      style: TextStyle(fontFamily: fontFamily)),
-                ),
-              ],
+        body: SettingsHubContent(
+          onOpenPath: (path) => Modular.to.pushNamed(path),
+        ),
+      ),
+    );
+  }
+}
+
+/// 可独立验证的设置控制中心内容，不读取路由、存储或控制器。
+class SettingsHubContent extends StatelessWidget {
+  const SettingsHubContent({super.key, required this.onOpenPath});
+
+  final ValueChanged<String> onOpenPath;
+
+  @override
+  Widget build(BuildContext context) {
+    final fontFamily = Theme.of(context).textTheme.bodyMedium?.fontFamily;
+    Text text(String value) => Text(
+          value,
+          style: TextStyle(fontFamily: fontFamily),
+        );
+
+    return KSettingsList(
+      maxWidth: 1000,
+      sections: [
+        KSettingsSection(
+          title: text('本地媒体库'),
+          tiles: [
+            KSettingsTile<void>.navigation(
+              onPressed: (_) => onOpenPath('/settings/tmdb'),
+              leading: const Icon(Icons.movie_filter_outlined),
+              title: text('TMDB 刮削'),
+              description: text('配置中文标题、海报、简介与影片信息刮削'),
             ),
-            SettingsSection(
-              title: Text('播放器设置', style: TextStyle(fontFamily: fontFamily)),
-              tiles: [
-                SettingsTile<void>.navigation(
-                  onPressed: (_) {
-                    Modular.to.pushNamed('/settings/player');
-                  },
-                  leading: const Icon(Icons.display_settings_rounded),
-                  title: Text('播放设置', style: TextStyle(fontFamily: fontFamily)),
-                  description: Text('设置播放器相关参数',
-                      style: TextStyle(fontFamily: fontFamily)),
-                ),
-                SettingsTile<void>.navigation(
-                  onPressed: (_) {
-                    Modular.to.pushNamed('/settings/keyboard');
-                  },
-                  leading: const Icon(Icons.keyboard_rounded),
-                  title: Text('操作设置', style: TextStyle(fontFamily: fontFamily)),
-                  description: Text('设置播放器按键映射',
-                      style: TextStyle(fontFamily: fontFamily)),
-                ),
-              ],
+            KSettingsTile<void>.navigation(
+              onPressed: (_) => onOpenPath('/settings/cloud-sources'),
+              leading: const Icon(Icons.cloud_outlined),
+              title: text('网盘数据源'),
+              description: text('添加和管理 OpenList、夸克与百度网盘媒体来源'),
             ),
-            SettingsSection(
-              title: Text('应用与外观', style: TextStyle(fontFamily: fontFamily)),
-              tiles: [
-                SettingsTile<void>.navigation(
-                  onPressed: (_) {
-                    Modular.to.pushNamed('/settings/theme');
-                  },
-                  leading: const Icon(Icons.palette_rounded),
-                  title: Text('外观设置', style: TextStyle(fontFamily: fontFamily)),
-                  description: Text('设置应用主题和刷新率',
-                      style: TextStyle(fontFamily: fontFamily)),
-                ),
-                SettingsTile<void>.navigation(
-                  onPressed: (_) {
-                    Modular.to.pushNamed('/settings/interface');
-                  },
-                  leading: const Icon(Icons.pages_rounded),
-                  title: Text('界面设置', style: TextStyle(fontFamily: fontFamily)),
-                  description: Text('设置应用界面样式',
-                      style: TextStyle(fontFamily: fontFamily)),
-                ),
-              ],
-            ),
-            SettingsSection(
-              title: Text('其他', style: TextStyle(fontFamily: fontFamily)),
-              tiles: [
-                SettingsTile<void>.navigation(
-                  onPressed: (_) {
-                    Modular.to.pushNamed('/settings/about/');
-                  },
-                  leading: const Icon(Icons.info_outline_rounded),
-                  title: Text('关于', style: TextStyle(fontFamily: fontFamily)),
-                ),
-              ],
+            KSettingsTile<void>.navigation(
+              onPressed: (_) => onOpenPath('/settings/media-recognition'),
+              leading: const Icon(Icons.video_file_outlined),
+              title: text('媒体识别'),
+              description: text('设置本地与网盘视频的识别大小限制'),
             ),
           ],
         ),
-      ),
+        KSettingsSection(
+          title: text('播放器设置'),
+          tiles: [
+            KSettingsTile<void>.navigation(
+              onPressed: (_) => onOpenPath('/settings/player'),
+              leading: const Icon(Icons.display_settings_rounded),
+              title: text('播放设置'),
+              description: text('调整解码、渲染、字幕与播放行为'),
+            ),
+            KSettingsTile<void>.navigation(
+              onPressed: (_) => onOpenPath('/settings/keyboard'),
+              leading: const Icon(Icons.keyboard_rounded),
+              title: text('操作设置'),
+              description: text('管理播放器键盘快捷键与操作映射'),
+            ),
+          ],
+        ),
+        KSettingsSection(
+          title: text('应用与外观'),
+          tiles: [
+            KSettingsTile<void>.navigation(
+              onPressed: (_) => onOpenPath('/settings/theme'),
+              leading: const Icon(Icons.palette_outlined),
+              title: text('外观设置'),
+              description: text('管理主题、字体、OLED 与屏幕刷新率'),
+            ),
+            KSettingsTile<void>.navigation(
+              onPressed: (_) => onOpenPath('/settings/interface'),
+              leading: const Icon(Icons.dashboard_customize_outlined),
+              title: text('界面设置'),
+              description: text('设置启动页面与桌面界面行为'),
+            ),
+          ],
+        ),
+        KSettingsSection(
+          title: text('其他'),
+          tiles: [
+            KSettingsTile<void>.navigation(
+              onPressed: (_) => onOpenPath('/settings/about/'),
+              leading: const Icon(Icons.info_outline_rounded),
+              title: text('关于'),
+              description: text('查看版本、许可、日志与缓存管理'),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

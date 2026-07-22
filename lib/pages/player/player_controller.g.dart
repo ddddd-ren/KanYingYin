@@ -720,6 +720,41 @@ mixin _$PlayerController on _PlayerController, Store {
     });
   }
 
+  late final _$pendingTrackLanguagesAtom =
+      Atom(name: '_PlayerController.pendingTrackLanguages', context: context);
+
+  @override
+  ObservableList<PendingTrackLanguage> get pendingTrackLanguages {
+    _$pendingTrackLanguagesAtom.reportRead();
+    return super.pendingTrackLanguages;
+  }
+
+  @override
+  set pendingTrackLanguages(ObservableList<PendingTrackLanguage> value) {
+    _$pendingTrackLanguagesAtom.reportWrite(value, super.pendingTrackLanguages,
+        () {
+      super.pendingTrackLanguages = value;
+    });
+  }
+
+  late final _$trackLanguageConfirmationRevisionAtom = Atom(
+      name: '_PlayerController.trackLanguageConfirmationRevision',
+      context: context);
+
+  @override
+  int get trackLanguageConfirmationRevision {
+    _$trackLanguageConfirmationRevisionAtom.reportRead();
+    return super.trackLanguageConfirmationRevision;
+  }
+
+  @override
+  set trackLanguageConfirmationRevision(int value) {
+    _$trackLanguageConfirmationRevisionAtom
+        .reportWrite(value, super.trackLanguageConfirmationRevision, () {
+      super.trackLanguageConfirmationRevision = value;
+    });
+  }
+
   late final _$selectedAudioTrackIdAtom =
       Atom(name: '_PlayerController.selectedAudioTrackId', context: context);
 
@@ -773,6 +808,26 @@ mixin _$PlayerController on _PlayerController, Store {
       {bool manual = true}) {
     return _$selectEmbeddedSubtitleTrackAsyncAction
         .run(() => super.selectEmbeddedSubtitleTrack(trackId, manual: manual));
+  }
+
+  late final _$confirmTrackLanguagesAsyncAction =
+      AsyncAction('_PlayerController.confirmTrackLanguages', context: context);
+
+  @override
+  Future<String?> confirmTrackLanguages(
+      int revision, Map<String, TrackLanguageChoice> choices) {
+    return _$confirmTrackLanguagesAsyncAction
+        .run(() => super.confirmTrackLanguages(revision, choices));
+  }
+
+  late final _$confirmTrackLanguageAsyncAction =
+      AsyncAction('_PlayerController.confirmTrackLanguage', context: context);
+
+  @override
+  Future<String?> confirmTrackLanguage(
+      int revision, String fingerprint, TrackLanguageChoice choice) {
+    return _$confirmTrackLanguageAsyncAction
+        .run(() => super.confirmTrackLanguage(revision, fingerprint, choice));
   }
 
   late final _$selectSubtitleAsyncAction =
@@ -941,6 +996,8 @@ subtitleForceStyle: ${subtitleForceStyle},
 subtitleDelaySeconds: ${subtitleDelaySeconds},
 availableAudioTracks: ${availableAudioTracks},
 availableEmbeddedSubtitleTracks: ${availableEmbeddedSubtitleTracks},
+pendingTrackLanguages: ${pendingTrackLanguages},
+trackLanguageConfirmationRevision: ${trackLanguageConfirmationRevision},
 selectedAudioTrackId: ${selectedAudioTrackId},
 selectedEmbeddedSubtitleTrackId: ${selectedEmbeddedSubtitleTrackId}
     ''';

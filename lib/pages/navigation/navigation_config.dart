@@ -24,24 +24,24 @@ class NavigationDestinationConfig {
 
 final appNavigationDestinations = <NavigationDestinationConfig>[
   NavigationDestinationConfig(
-    path: '/cloud',
-    label: '网盘资源',
-    icon: Icons.cloud_outlined,
-    selectedIcon: Icons.cloud,
-    moduleBuilder: CloudResourcesModule.new,
-  ),
-  NavigationDestinationConfig(
     path: '/local',
-    label: '本地',
-    icon: Icons.folder_outlined,
-    selectedIcon: Icons.folder,
+    label: '本地媒体库',
+    icon: Icons.video_library_outlined,
+    selectedIcon: Icons.video_library_rounded,
     moduleBuilder: LocalModule.new,
   ),
   NavigationDestinationConfig(
+    path: '/cloud',
+    label: '网盘媒体库',
+    icon: Icons.cloud_outlined,
+    selectedIcon: Icons.cloud_rounded,
+    moduleBuilder: CloudResourcesModule.new,
+  ),
+  NavigationDestinationConfig(
     path: '/my',
-    label: '我的',
+    label: '设置',
     icon: Icons.settings_outlined,
-    selectedIcon: Icons.settings,
+    selectedIcon: Icons.settings_rounded,
     moduleBuilder: MyModule.new,
   ),
 ];

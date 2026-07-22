@@ -23,6 +23,7 @@ import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:kanyingyin/features/player/application/cloud_playback_cache_policy.dart';
+import 'package:kanyingyin/features/player/application/embedded_track_language_preferences.dart';
 import 'package:kanyingyin/features/player/application/subtitle_preferences.dart';
 import 'package:kanyingyin/features/player/application/truehd_fallback_policy.dart';
 import 'package:kanyingyin/pages/player/models/embedded_track_info.dart';
@@ -36,6 +37,26 @@ part 'player_controller.g.dart';
 
 class _PlayerInitializationCancelled implements Exception {
   const _PlayerInitializationCancelled();
+}
+
+class PlayerRuntimeSnapshot {
+  const PlayerRuntimeSnapshot({
+    required this.playing,
+    required this.buffering,
+    required this.completed,
+    required this.volume,
+    required this.position,
+    required this.buffer,
+    required this.duration,
+  });
+
+  final bool playing;
+  final bool buffering;
+  final bool completed;
+  final double volume;
+  final Duration position;
+  final Duration buffer;
+  final Duration duration;
 }
 
 bool shouldApplyPlayerProxy({
@@ -184,19 +205,26 @@ class PlayerController = _PlayerController with _$PlayerController;
 abstract class _PlayerController with Store {
   _PlayerController({
     SubtitlePreferences? subtitlePreferences,
+    EmbeddedTrackLanguagePreferences? trackLanguagePreferences,
     TrueHdFallbackPolicy? trueHdFallbackPolicy,
+    ShadersController? shadersController,
   })  : _subtitlePreferences = subtitlePreferences ?? SubtitlePreferences(),
+        _trackLanguagePreferences =
+            trackLanguagePreferences ?? EmbeddedTrackLanguagePreferences(),
         _trueHdFallbackPolicy =
-            trueHdFallbackPolicy ?? const TrueHdFallbackPolicy();
+            trueHdFallbackPolicy ?? const TrueHdFallbackPolicy(),
+        shadersController =
+            shadersController ?? Modular.get<ShadersController>();
 
   static const Duration _playerOpenTimeout = Duration(seconds: 25);
 
   final SubtitlePreferences _subtitlePreferences;
+  final EmbeddedTrackLanguagePreferences _trackLanguagePreferences;
   final TrueHdFallbackPolicy _trueHdFallbackPolicy;
   final CloudPlaybackLeaseCoordinator _playbackLeaseCoordinator =
       CloudPlaybackLeaseCoordinator();
 
-  final ShadersController shadersController = Modular.get<ShadersController>();
+  final ShadersController shadersController;
 
   late int bangumiId;
   late int currentEpisode;
@@ -258,12 +286,15 @@ abstract class _PlayerController with Store {
       PlayerLifecycleCoordinator();
   final Lock _playerInitLock = Lock();
   bool _disposeRequested = false;
+  Future<void>? _disposeFuture;
   String? _subtitleStorageKey;
   bool _truehdAudioTrackFallbackAttempted = false;
   final EmbeddedTrackSelectionState _embeddedTrackSelection =
       EmbeddedTrackSelectionState();
   final SubtitleTrackSelectionState _subtitleTrackSelection =
       SubtitleTrackSelectionState();
+  final TrackLanguageConfirmationState _trackLanguageConfirmationState =
+      TrackLanguageConfirmationState();
 
   // 播放器面板状态
   @observable
@@ -294,13 +325,31 @@ abstract class _PlayerController with Store {
   int arrowKeySkipTime = 10;
 
   // 播放器实时状态
-  bool get playerPlaying => mediaPlayer!.state.playing;
-  bool get playerBuffering => mediaPlayer!.state.buffering;
-  bool get playerCompleted => mediaPlayer!.state.completed;
-  double get playerVolume => mediaPlayer!.state.volume;
-  Duration get playerPosition => mediaPlayer!.state.position;
-  Duration get playerBuffer => mediaPlayer!.state.buffer;
-  Duration get playerDuration => mediaPlayer!.state.duration;
+  bool get hasActivePlayer => !_disposeRequested && mediaPlayer != null;
+
+  PlayerRuntimeSnapshot? readRuntimeSnapshot() {
+    final player = mediaPlayer;
+    if (_disposeRequested || player == null) return null;
+    final state = player.state;
+    return PlayerRuntimeSnapshot(
+      playing: state.playing,
+      buffering: state.buffering,
+      completed: state.completed,
+      volume: state.volume,
+      position: state.position,
+      buffer: state.buffer,
+      duration: state.duration,
+    );
+  }
+
+  bool get playerPlaying => readRuntimeSnapshot()?.playing ?? false;
+  bool get playerBuffering => readRuntimeSnapshot()?.buffering ?? false;
+  bool get playerCompleted => readRuntimeSnapshot()?.completed ?? false;
+  double get playerVolume => readRuntimeSnapshot()?.volume ?? volume;
+  Duration get playerPosition =>
+      readRuntimeSnapshot()?.position ?? currentPosition;
+  Duration get playerBuffer => readRuntimeSnapshot()?.buffer ?? buffer;
+  Duration get playerDuration => readRuntimeSnapshot()?.duration ?? duration;
 
   // 播放器调试信息
   @observable
@@ -377,6 +426,11 @@ abstract class _PlayerController with Store {
   ObservableList<EmbeddedTrackInfo> availableEmbeddedSubtitleTracks =
       ObservableList.of([]);
   @observable
+  ObservableList<PendingTrackLanguage> pendingTrackLanguages =
+      ObservableList.of([]);
+  @observable
+  int trackLanguageConfirmationRevision = 0;
+  @observable
   String selectedAudioTrackId = '';
   @observable
   String selectedEmbeddedSubtitleTrackId = '';
@@ -394,6 +448,7 @@ abstract class _PlayerController with Store {
 
   PlayerLifecycleToken activatePlaybackLifecycle() {
     _disposeRequested = false;
+    _disposeFuture = null;
     return _lifecycleOperations.activate();
   }
 
@@ -1083,33 +1138,195 @@ abstract class _PlayerController with Store {
   void _resetEmbeddedTrackState() {
     _embeddedTrackSelection.reset();
     _subtitleTrackSelection.reset();
+    _trackLanguageConfirmationState.reset();
+    trackLanguageConfirmationRevision++;
     availableAudioTracks.clear();
     availableEmbeddedSubtitleTracks.clear();
+    pendingTrackLanguages.clear();
     selectedAudioTrackId = '';
     selectedEmbeddedSubtitleTrackId = '';
   }
 
+  String _currentTrackLanguageMediaKey() {
+    final stable = _lastInitParams?.stableMediaKey?.trim();
+    if (stable != null && stable.isNotEmpty) return stable;
+    final subtitleKey = _subtitleStorageKey?.trim();
+    if (subtitleKey != null && subtitleKey.isNotEmpty) return subtitleKey;
+    return videoUrl.trim();
+  }
+
+  String _fingerprintForTrack(String mediaKey, EmbeddedTrackInfo track) =>
+      embeddedTrackLanguageFingerprint(
+        mediaKey: mediaKey,
+        type: track.type,
+        trackId: track.id,
+        codec: track.originalCodec,
+        title: track.originalTitle,
+      );
+
+  EmbeddedTrackInfo _applyStoredTrackLanguage(
+    String mediaKey,
+    EmbeddedTrackInfo track,
+  ) {
+    final choice = _trackLanguagePreferences.load(
+      _fingerprintForTrack(mediaKey, track),
+    );
+    return choice == null ? track : track.withLanguage(choice);
+  }
+
+  PendingTrackLanguage? pendingTrackLanguageFor(EmbeddedTrackInfo track) {
+    final fingerprint = _fingerprintForTrack(
+      _currentTrackLanguageMediaKey(),
+      track,
+    );
+    for (final pending in pendingTrackLanguages) {
+      if (pending.fingerprint == fingerprint) return pending;
+    }
+    return null;
+  }
+
+  PendingTrackLanguage _pendingTrackLanguage(
+    String mediaKey,
+    EmbeddedTrackInfo track,
+  ) =>
+      PendingTrackLanguage(
+        fingerprint: _fingerprintForTrack(mediaKey, track),
+        type: track.type,
+        trackId: track.id,
+        codecLabel: track.originalCodec,
+        title: track.originalTitle,
+      );
+
   @action
   void _updateEmbeddedTracks(Tracks tracks) {
+    final mediaKey = _currentTrackLanguageMediaKey();
+    final audio = tracks.audio
+        .where((track) => track.id != 'auto' && track.id != 'no' && !track.uri)
+        .map(EmbeddedTrackInfo.fromAudio)
+        .map((track) => _applyStoredTrackLanguage(mediaKey, track))
+        .toList(growable: false);
+    final subtitles = tracks.subtitle
+        .where((track) =>
+            track.id != 'auto' && track.id != 'no' && !track.uri && !track.data)
+        .map(EmbeddedTrackInfo.fromSubtitle)
+        .map((track) => _applyStoredTrackLanguage(mediaKey, track))
+        .toList(growable: false);
+    final pending = <PendingTrackLanguage>[
+      for (final track in [...audio, ...subtitles])
+        if (!track.isLanguageResolved) _pendingTrackLanguage(mediaKey, track),
+    ];
     availableAudioTracks
       ..clear()
-      ..addAll(tracks.audio
-          .where(
-              (track) => track.id != 'auto' && track.id != 'no' && !track.uri)
-          .map(EmbeddedTrackInfo.fromAudio));
+      ..addAll(audio);
     availableEmbeddedSubtitleTracks
       ..clear()
-      ..addAll(tracks.subtitle
-          .where((track) =>
-              track.id != 'auto' &&
-              track.id != 'no' &&
-              !track.uri &&
-              !track.data)
-          .map(EmbeddedTrackInfo.fromSubtitle));
+      ..addAll(subtitles);
+    pendingTrackLanguages
+      ..clear()
+      ..addAll(pending);
+    if (pending.isNotEmpty) {
+      trackLanguageConfirmationRevision =
+          _trackLanguageConfirmationState.begin(mediaKey, pending);
+    }
     AppLogger().i(
       'PlayerController: detected ${availableAudioTracks.length} audio tracks and '
       '${availableEmbeddedSubtitleTracks.length} embedded subtitle tracks',
     );
+  }
+
+  void _applyConfirmedTrackLanguages(
+    String mediaKey,
+    Map<String, TrackLanguageChoice> choices,
+  ) {
+    EmbeddedTrackInfo resolve(EmbeddedTrackInfo track) {
+      final choice = choices[_fingerprintForTrack(mediaKey, track)];
+      return choice == null ? track : track.withLanguage(choice);
+    }
+
+    final audio = availableAudioTracks.map(resolve).toList(growable: false);
+    final subtitles =
+        availableEmbeddedSubtitleTracks.map(resolve).toList(growable: false);
+    availableAudioTracks
+      ..clear()
+      ..addAll(audio);
+    availableEmbeddedSubtitleTracks
+      ..clear()
+      ..addAll(subtitles);
+  }
+
+  @action
+  Future<String?> confirmTrackLanguages(
+    int revision,
+    Map<String, TrackLanguageChoice> choices,
+  ) async {
+    final mediaKey = _currentTrackLanguageMediaKey();
+    if (!_trackLanguageConfirmationState.canApply(revision, mediaKey)) {
+      return null;
+    }
+    try {
+      for (final pending in pendingTrackLanguages) {
+        final choice = choices[pending.fingerprint];
+        if (choice == null) return '请为每条轨道选择语言';
+        await _trackLanguagePreferences.save(
+          pending.fingerprint,
+          choice.confirmedByUser(),
+        );
+        if (!_trackLanguageConfirmationState.canApply(revision, mediaKey)) {
+          return null;
+        }
+      }
+      _applyConfirmedTrackLanguages(mediaKey, choices);
+      pendingTrackLanguages.clear();
+      await _selectDefaultEmbeddedTracks();
+      return null;
+    } on Object {
+      if (!_trackLanguageConfirmationState.canApply(revision, mediaKey)) {
+        return null;
+      }
+      _applyConfirmedTrackLanguages(mediaKey, choices);
+      pendingTrackLanguages.clear();
+      await _selectDefaultEmbeddedTracks();
+      return '语言设置未能保存，下次可能需要重新确认';
+    }
+  }
+
+  @action
+  Future<String?> confirmTrackLanguage(
+    int revision,
+    String fingerprint,
+    TrackLanguageChoice choice,
+  ) async {
+    final mediaKey = _currentTrackLanguageMediaKey();
+    if (!_trackLanguageConfirmationState.canApply(revision, mediaKey)) {
+      return null;
+    }
+    final pending = pendingTrackLanguages
+        .where((item) => item.fingerprint == fingerprint)
+        .firstOrNull;
+    if (pending == null) return null;
+    try {
+      await _trackLanguagePreferences.save(
+        fingerprint,
+        choice.confirmedByUser(),
+      );
+      if (!_trackLanguageConfirmationState.canApply(revision, mediaKey)) {
+        return null;
+      }
+      _applyConfirmedTrackLanguages(mediaKey, {
+        fingerprint: choice,
+      });
+      pendingTrackLanguages.remove(pending);
+      return null;
+    } on Object {
+      if (!_trackLanguageConfirmationState.canApply(revision, mediaKey)) {
+        return null;
+      }
+      _applyConfirmedTrackLanguages(mediaKey, {
+        fingerprint: choice,
+      });
+      pendingTrackLanguages.remove(pending);
+      return '语言设置未能保存，下次可能需要重新确认';
+    }
   }
 
   Future<void> _selectDefaultEmbeddedTracks() async {
@@ -1126,9 +1343,10 @@ abstract class _PlayerController with Store {
       defaultTrackId: current?.audio.id,
     );
     final subtitle = selectPreferredSubtitleTrack(
-      availableEmbeddedSubtitleTracks,
-      defaultTrackId: current?.subtitle.id,
-    );
+          availableEmbeddedSubtitleTracks,
+          defaultTrackId: current?.subtitle.id,
+        ) ??
+        availableEmbeddedSubtitleTracks.firstOrNull;
     if (audio != null && _embeddedTrackSelection.canAutomaticallySelectAudio) {
       await selectAudioTrack(audio.id, manual: false);
     }
@@ -1474,8 +1692,10 @@ abstract class _PlayerController with Store {
 
   Future<void> setPlaybackSpeed(double playerSpeed) async {
     this.playerSpeed = playerSpeed;
+    final player = mediaPlayer;
+    if (_disposeRequested || player == null) return;
     try {
-      mediaPlayer!.setRate(playerSpeed);
+      await player.setRate(playerSpeed);
     } catch (e) {
       AppLogger().e('PlayerController: failed to set playback speed', error: e);
     }
@@ -1486,7 +1706,9 @@ abstract class _PlayerController with Store {
     volume = value;
     try {
       if (Utils.isDesktop()) {
-        await mediaPlayer!.setVolume(value);
+        final player = mediaPlayer;
+        if (_disposeRequested || player == null) return;
+        await player.setVolume(value);
       } else {
         await FlutterVolumeController.updateShowSystemUI(false);
         await FlutterVolumeController.setVolume(value / 100);
@@ -1495,7 +1717,9 @@ abstract class _PlayerController with Store {
   }
 
   Future<void> playOrPause() async {
-    if (mediaPlayer!.state.playing) {
+    final player = mediaPlayer;
+    if (_disposeRequested || player == null) return;
+    if (player.state.playing) {
       await pause();
     } else {
       await play();
@@ -1503,17 +1727,23 @@ abstract class _PlayerController with Store {
   }
 
   Future<void> seek(Duration duration, {bool enableSync = true}) async {
+    final player = mediaPlayer;
+    if (_disposeRequested || player == null) return;
     currentPosition = duration;
-    await mediaPlayer!.seek(duration);
+    await player.seek(duration);
   }
 
   Future<void> pause({bool enableSync = true}) async {
-    await mediaPlayer!.pause();
+    final player = mediaPlayer;
+    if (_disposeRequested || player == null) return;
+    await player.pause();
     playing = false;
   }
 
   Future<void> play({bool enableSync = true}) async {
-    await mediaPlayer!.play();
+    final player = mediaPlayer;
+    if (_disposeRequested || player == null) return;
+    await player.play();
     playing = true;
   }
 
@@ -1526,14 +1756,20 @@ abstract class _PlayerController with Store {
       _lifecycleOperations.isCurrent(lifecycleToken);
 
   Future<void> dispose() {
+    final current = _disposeFuture;
+    if (current != null) return current;
     _disposeRequested = true;
     _lifecycleOperations.invalidate();
     _mediaOperations.invalidate();
-    return _playerInitLock.synchronized(() async {
+    AppLogger().i('PlayerController: resource disposal started');
+    final future = _playerInitLock.synchronized(() async {
       await _disposePlayerResources();
       await _playbackLeaseCoordinator.close();
       _lastInitParams = null;
+      AppLogger().i('PlayerController: resource disposal completed');
     });
+    _disposeFuture = future;
+    return future;
   }
 
   Future<void> _disposePlayerResources() async {
@@ -1555,7 +1791,9 @@ abstract class _PlayerController with Store {
   }
 
   Future<Uint8List?> screenshot({String format = 'image/jpeg'}) async {
-    return await mediaPlayer!.screenshot(format: format);
+    final player = mediaPlayer;
+    if (_disposeRequested || player == null) return null;
+    return await player.screenshot(format: format);
   }
 
   void setButtonForwardTime(int time) {

@@ -176,6 +176,7 @@ class SettingBoxKey {
       subtitlePosition = 'subtitlePosition',
       subtitleForceStyle = 'subtitleForceStyle',
       subtitleDelayByVideo = 'subtitleDelayByVideo',
+      embeddedTrackLanguageOverrides = 'embeddedTrackLanguageOverrides',
       lastLocalDirectory = 'lastLocalDirectory',
       localRecentDirectories = 'localRecentDirectories',
       localMediaSources = 'localMediaSources',

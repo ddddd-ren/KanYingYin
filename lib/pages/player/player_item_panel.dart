@@ -8,6 +8,7 @@ import 'package:kanyingyin/utils/pip_utils.dart';
 import 'package:kanyingyin/pages/video/video_page_controller_interface.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/pages/player/player_controller.dart';
+import 'package:kanyingyin/pages/player/models/embedded_track_info.dart';
 import 'package:flutter/services.dart';
 import 'package:kanyingyin/bean/appbar/drag_to_move_bar.dart' as dtb;
 import 'package:kanyingyin/utils/constants.dart';
@@ -37,6 +38,7 @@ class PlayerItemPanel extends StatefulWidget {
     required this.skipOP,
     required this.showVideoInfo,
     required this.showSubtitleSettings,
+    required this.onConfirmTrackLanguage,
     required this.pauseForTimedShutdown,
     this.disableAnimations = false,
   });
@@ -58,6 +60,7 @@ class PlayerItemPanel extends StatefulWidget {
   final void Function() skipOP;
   final void Function() showVideoInfo;
   final VoidCallback showSubtitleSettings;
+  final void Function(EmbeddedTrackInfo track) onConfirmTrackLanguage;
   final VoidCallback pauseForTimedShutdown;
   final bool disableAnimations;
 
@@ -708,6 +711,7 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
                     EmbeddedTrackMenus(
                       playerController: playerController,
                       showSubtitleSettings: widget.showSubtitleSettings,
+                      onConfirmTrackLanguage: widget.onConfirmTrackLanguage,
                       onMenuOpen: () {
                         widget.cancelHideTimer();
                         playerController.canHidePlayerPanel = false;

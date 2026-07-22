@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/pages/cloud/baidu/baidu_directory_picker.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
@@ -281,8 +282,8 @@ class _BaiduSourceEditorPageState extends State<BaiduSourceEditorPage> {
   @override
   Widget build(BuildContext context) {
     final account = _authorizationController.account;
-    return Scaffold(
-      appBar: AppBar(title: const Text('百度网盘数据源')),
+    return KSettingsScaffold(
+      title: '百度网盘数据源',
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(

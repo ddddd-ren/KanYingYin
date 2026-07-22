@@ -1,6 +1,5 @@
-import 'package:card_settings_ui/card_settings_ui.dart';
 import 'package:flutter/material.dart';
-import 'package:kanyingyin/bean/appbar/sys_app_bar.dart';
+import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/services/media_recognition_settings.dart';
 
 class MediaRecognitionSettingsPage extends StatefulWidget {
@@ -40,18 +39,16 @@ class _MediaRecognitionSettingsPageState
   @override
   Widget build(BuildContext context) {
     final fontFamily = Theme.of(context).textTheme.bodyMedium?.fontFamily;
-    return Scaffold(
-      appBar: const SysAppBar(
-        title: Text('媒体识别'),
-        showDesktopWindowControls: false,
-      ),
-      body: SettingsList(
+    return KSettingsScaffold(
+      title: '媒体识别',
+      description: '分别设置本地与网盘视频参与识别的最小大小。',
+      body: KSettingsList(
         maxWidth: 1000,
         sections: [
-          SettingsSection(
+          KSettingsSection(
             title: Text('本地识别限制', style: TextStyle(fontFamily: fontFamily)),
             tiles: [
-              SettingsTile<void>.navigation(
+              KSettingsTile<void>.navigation(
                 enabled: !_isBusy,
                 onPressed: (_) =>
                     _showSizeChoices(MediaRecognitionTarget.local),
@@ -64,16 +61,16 @@ class _MediaRecognitionSettingsPageState
                 )),
               ),
               if (_scanningTarget == MediaRecognitionTarget.local)
-                SettingsTile<void>(
+                KSettingsTile<void>(
                   title: const Text('正在重新扫描本地媒体库'),
                   description: const LinearProgressIndicator(),
                 ),
             ],
           ),
-          SettingsSection(
+          KSettingsSection(
             title: Text('网盘识别限制', style: TextStyle(fontFamily: fontFamily)),
             tiles: [
-              SettingsTile<void>.navigation(
+              KSettingsTile<void>.navigation(
                 enabled: !_isBusy,
                 onPressed: (_) =>
                     _showSizeChoices(MediaRecognitionTarget.cloud),
@@ -86,7 +83,7 @@ class _MediaRecognitionSettingsPageState
                 )),
               ),
               if (_scanningTarget == MediaRecognitionTarget.cloud)
-                SettingsTile<void>(
+                KSettingsTile<void>(
                   title: const Text('正在重新扫描网盘媒体库'),
                   description: const LinearProgressIndicator(),
                 ),

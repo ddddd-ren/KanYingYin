@@ -2,17 +2,16 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/bean/card/palette_card.dart';
-import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/providers/theme_provider.dart';
-import 'package:kanyingyin/bean/appbar/sys_app_bar.dart';
 import 'package:kanyingyin/bean/settings/color_type.dart';
 import 'package:kanyingyin/utils/utils.dart';
-import 'package:card_settings_ui/card_settings_ui.dart';
+import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:kanyingyin/theme/app_theme.dart';
 
 class ThemeSettingsPage extends StatefulWidget {
   const ThemeSettingsPage({super.key});
@@ -70,24 +69,16 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
   }
 
   void setTheme(Color? color) {
-    var defaultDarkTheme = ThemeData(
-        useMaterial3: true,
-        fontFamily: themeProvider.currentFontFamily,
-        brightness: Brightness.dark,
-        colorSchemeSeed: color,
-        progressIndicatorTheme: progressIndicatorTheme2024,
-        sliderTheme: sliderTheme2024,
-        pageTransitionsTheme: pageTransitionsTheme2024);
-    var oledDarkTheme = Utils.oledDarkTheme(defaultDarkTheme);
+    final defaultDarkTheme = AppTheme.dark(
+      fontFamily: themeProvider.currentFontFamily,
+      seedColor: color,
+    );
+    final oledDarkTheme = AppTheme.withOledBackground(defaultDarkTheme);
     themeProvider.setTheme(
-      ThemeData(
-          useMaterial3: true,
-          fontFamily: themeProvider.currentFontFamily,
-          brightness: Brightness.light,
-          colorSchemeSeed: color,
-          progressIndicatorTheme: progressIndicatorTheme2024,
-          sliderTheme: sliderTheme2024,
-          pageTransitionsTheme: pageTransitionsTheme2024),
+      AppTheme.light(
+        fontFamily: themeProvider.currentFontFamily,
+        seedColor: color,
+      ),
       oledEnhance ? oledDarkTheme : defaultDarkTheme,
     );
     defaultThemeColor = color?.toARGB32().toRadixString(16) ?? 'default';
@@ -95,28 +86,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
   }
 
   void resetTheme() {
-    var defaultDarkTheme = ThemeData(
-        useMaterial3: true,
-        fontFamily: themeProvider.currentFontFamily,
-        brightness: Brightness.dark,
-        colorSchemeSeed: const Color(0xFF00D4AA),
-        progressIndicatorTheme: progressIndicatorTheme2024,
-        sliderTheme: sliderTheme2024,
-        pageTransitionsTheme: pageTransitionsTheme2024);
-    var oledDarkTheme = Utils.oledDarkTheme(defaultDarkTheme);
-    themeProvider.setTheme(
-      ThemeData(
-          useMaterial3: true,
-          fontFamily: themeProvider.currentFontFamily,
-          brightness: Brightness.light,
-          colorSchemeSeed: const Color(0xFF00D4AA),
-          progressIndicatorTheme: progressIndicatorTheme2024,
-          sliderTheme: sliderTheme2024,
-          pageTransitionsTheme: pageTransitionsTheme2024),
-      oledEnhance ? oledDarkTheme : defaultDarkTheme,
-    );
-    defaultThemeColor = 'default';
-    setting.put(SettingBoxKey.themeColor, 'default');
+    setTheme(null);
   }
 
   void updateTheme(String theme) async {
@@ -142,17 +112,15 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
   }
 
   void updateOledEnhance() {
-    Color color;
     oledEnhance = setting.getTyped<bool>(
       SettingBoxKey.oledEnhance,
       defaultValue: false,
     );
-    if (defaultThemeColor == 'default') {
-      color = const Color(0xFF00D4AA);
-    } else {
-      color = Color(int.parse(defaultThemeColor, radix: 16));
-    }
-    setTheme(color);
+    setTheme(
+      defaultThemeColor == 'default'
+          ? null
+          : Color(int.parse(defaultThemeColor, radix: 16)),
+    );
   }
 
   @override
@@ -163,15 +131,16 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
       onPopInvokedWithResult: (bool didPop, Object? result) {
         onBackPressed(context);
       },
-      child: Scaffold(
-        appBar: const SysAppBar(title: Text('外观设置')),
-        body: SettingsList(
+      child: KSettingsScaffold(
+        title: '外观设置',
+        description: '管理主题、字体、动态配色与桌面显示。',
+        body: KSettingsList(
           maxWidth: 1000,
           sections: [
-            SettingsSection(
+            KSettingsSection(
               title: Text('外观', style: TextStyle(fontFamily: fontFamily)),
               tiles: [
-                SettingsTile<void>.navigation(
+                KSettingsTile<void>.navigation(
                   onPressed: (_) {
                     if (menuController.isOpen) {
                       menuController.close();
@@ -289,7 +258,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
                     ],
                   ),
                 ),
-                SettingsTile<void>.navigation(
+                KSettingsTile<void>.navigation(
                   enabled: !useDynamicColor,
                   onPressed: (_) async {
                     AppDialog.show<void>(builder: (context) {
@@ -339,7 +308,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
                   },
                   title: Text('配色方案', style: TextStyle(fontFamily: fontFamily)),
                 ),
-                SettingsTile<bool>.switchTile(
+                KSettingsTile<bool>.switchTile(
                   enabled: !Platform.isIOS,
                   onToggle: (value) async {
                     useDynamicColor = value ?? !useDynamicColor;
@@ -351,19 +320,17 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
                   title: Text('动态配色', style: TextStyle(fontFamily: fontFamily)),
                   initialValue: useDynamicColor,
                 ),
-                SettingsTile<bool>.switchTile(
+                KSettingsTile<bool>.switchTile(
                   onToggle: (value) async {
                     useSystemFont = value ?? !useSystemFont;
                     await setting.put(
                         SettingBoxKey.useSystemFont, useSystemFont);
                     themeProvider.setFontFamily(useSystemFont);
-                    Color color;
-                    if (defaultThemeColor == 'default') {
-                      color = const Color(0xFF00D4AA);
-                    } else {
-                      color = Color(int.parse(defaultThemeColor, radix: 16));
-                    }
-                    setTheme(color);
+                    setTheme(
+                      defaultThemeColor == 'default'
+                          ? null
+                          : Color(int.parse(defaultThemeColor, radix: 16)),
+                    );
                     setState(() {});
                   },
                   title:
@@ -376,9 +343,9 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
               bottomInfo: Text('动态配色仅支持安卓12及以上和桌面平台',
                   style: TextStyle(fontFamily: fontFamily)),
             ),
-            SettingsSection(
+            KSettingsSection(
               tiles: [
-                SettingsTile<bool>.switchTile(
+                KSettingsTile<bool>.switchTile(
                   onToggle: (value) async {
                     oledEnhance = value ?? !oledEnhance;
                     await setting.put(SettingBoxKey.oledEnhance, oledEnhance);
@@ -394,9 +361,9 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
               ],
             ),
             if (Utils.isDesktop())
-              SettingsSection(
+              KSettingsSection(
                 tiles: [
-                  SettingsTile<bool>.switchTile(
+                  KSettingsTile<bool>.switchTile(
                     onToggle: (value) async {
                       showWindowButton = value ?? !showWindowButton;
                       await setting.put(
@@ -412,9 +379,9 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
                 ],
               ),
             if (Platform.isAndroid)
-              SettingsSection(
+              KSettingsSection(
                 tiles: [
-                  SettingsTile<void>.navigation(
+                  KSettingsTile<void>.navigation(
                     onPressed: (_) async {
                       Modular.to.pushNamed('/settings/theme/display');
                     },

@@ -2,6 +2,18 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+typedef LibraryPathSubmit = Future<String?> Function(String path);
+
+String normalizeLibraryPathAddress(String value) {
+  var normalized = value.trim();
+  if (normalized.length >= 2 &&
+      normalized.startsWith('"') &&
+      normalized.endsWith('"')) {
+    normalized = normalized.substring(1, normalized.length - 1).trim();
+  }
+  return normalized;
+}
+
 class LibraryBreadcrumbViewData {
   const LibraryBreadcrumbViewData({
     required this.label,
@@ -59,6 +71,7 @@ class LibraryDirectoryStatusViewData {
 
 class LibraryPathBarViewData {
   LibraryPathBarViewData({
+    this.currentPath = '',
     required List<LibraryBreadcrumbViewData> breadcrumbs,
     required List<LibraryRecentPathViewData> recentPaths,
     required this.sortBy,
@@ -79,6 +92,7 @@ class LibraryPathBarViewData {
     this.canMatchMetadata = false,
   })  : breadcrumbs = List<LibraryBreadcrumbViewData>.unmodifiable(breadcrumbs),
         recentPaths = List<LibraryRecentPathViewData>.unmodifiable(recentPaths);
+  final String currentPath;
   final List<LibraryBreadcrumbViewData> breadcrumbs;
   final List<LibraryRecentPathViewData> recentPaths;
   final String sortBy;
@@ -115,7 +129,7 @@ class LibraryPathBar extends StatelessWidget {
     this.onOpenLibrary,
     this.onOpenRecentPath,
     this.onNavigateUp,
-    this.onFetchPosters,
+    required this.onPathSubmitted,
     this.onFetchMediaInfo,
     this.onGenerateThumbnails,
     this.onMatchMetadata,
@@ -136,7 +150,7 @@ class LibraryPathBar extends StatelessWidget {
   final FutureOr<void> Function()? onOpenLibrary;
   final FutureOr<void> Function(String path)? onOpenRecentPath;
   final FutureOr<void> Function()? onNavigateUp;
-  final FutureOr<void> Function()? onFetchPosters;
+  final LibraryPathSubmit onPathSubmitted;
   final FutureOr<void> Function()? onFetchMediaInfo;
   final FutureOr<void> Function()? onGenerateThumbnails;
   final FutureOr<void> Function()? onMatchMetadata;
@@ -146,200 +160,286 @@ class LibraryPathBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Column(children: [
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
+    return Column(
+      children: [
+        Container(
+          key: const ValueKey('library-path-command-surface'),
+          margin: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
             color: colors.surfaceContainerLow,
-            border: Border(
-                bottom: BorderSide(color: colors.outlineVariant, width: 0.5))),
-        child: Row(children: [
-          _button(Icons.folder_open, '选择目录',
-              data.isLoading ? null : onPickDirectory),
-          const SizedBox(width: 4),
-          sourceMenu,
-          const SizedBox(width: 4),
-          _busyButton(Icons.manage_search_outlined, '扫描媒体库', data.isIndexing,
-              data.canScanLibrary ? onScanLibrary : null),
-          const SizedBox(width: 4),
-          _button(Icons.video_collection_outlined, '媒体库',
-              data.canOpenLibrary ? onOpenLibrary : null),
-          const SizedBox(width: 4),
-          PopupMenuButton<String>(
-            tooltip: '最近目录',
-            icon: const Icon(Icons.history, size: 20),
-            enabled: !data.isLoading && data.recentPaths.isNotEmpty,
-            onSelected: (path) async => await onOpenRecentPath?.call(path),
-            itemBuilder: (context) => <PopupMenuEntry<String>>[
-              for (final path in data.recentPaths)
-                PopupMenuItem<String>(
-                  value: path.path,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 320),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(path.label,
-                            maxLines: 1, overflow: TextOverflow.ellipsis),
-                        Text(
-                          path.path,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelSmall
-                              ?.copyWith(color: colors.outline),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: colors.outlineVariant, width: 0.75),
+          ),
+          child: Row(
+            children: [
+              _button(
+                context,
+                Icons.folder_open,
+                '选择目录',
+                data.isLoading ? null : onPickDirectory,
+              ),
+              const SizedBox(width: 4),
+              sourceMenu,
+              const SizedBox(width: 4),
+              _busyButton(
+                context,
+                Icons.manage_search_outlined,
+                '扫描媒体库',
+                data.isIndexing,
+                data.canScanLibrary ? onScanLibrary : null,
+              ),
+              const SizedBox(width: 4),
+              _button(
+                context,
+                Icons.video_collection_outlined,
+                '媒体库',
+                data.canOpenLibrary ? onOpenLibrary : null,
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                height: 22,
+                child: VerticalDivider(
+                  width: 1,
+                  thickness: 1,
+                  color: colors.outlineVariant,
+                ),
+              ),
+              const SizedBox(width: 8),
+              PopupMenuButton<String>(
+                tooltip: '最近目录',
+                icon: const Icon(Icons.history, size: 20),
+                style: _iconButtonStyle(colors),
+                enabled: !data.isLoading && data.recentPaths.isNotEmpty,
+                onSelected: (path) async => await onOpenRecentPath?.call(path),
+                itemBuilder: (context) => <PopupMenuEntry<String>>[
+                  for (final path in data.recentPaths)
+                    PopupMenuItem<String>(
+                      value: path.path,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 320),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              path.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              path.path,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(color: colors.outline),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 4),
+              _button(
+                context,
+                Icons.keyboard_arrow_up_rounded,
+                '上级目录',
+                data.canNavigateUp ? onNavigateUp : null,
+              ),
+              const SizedBox(width: 4),
+              _button(
+                context,
+                Icons.refresh,
+                '刷新',
+                data.isLoading ? null : onRefresh,
+              ),
+              const SizedBox(width: 4),
+              _busyButton(
+                context,
+                Icons.info_outline,
+                '读取媒体信息',
+                data.isFetchingMediaInfo,
+                data.canReadMediaInfo ? onFetchMediaInfo : null,
+              ),
+              const SizedBox(width: 4),
+              _busyButton(
+                context,
+                Icons.photo_camera_outlined,
+                '生成缩略图',
+                data.isFetchingThumbnails,
+                data.canGenerateThumbnails ? onGenerateThumbnails : null,
+              ),
+              const SizedBox(width: 4),
+              _busyButton(
+                context,
+                Icons.cloud_sync_outlined,
+                '匹配影片信息',
+                data.isMatchingMetadata,
+                data.canMatchMetadata ? onMatchMetadata : null,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minWidth: 145,
+                      maxWidth: 250,
+                    ),
+                    child: _LibraryPathAddressField(
+                      key: const ValueKey('library-path-breadcrumb-surface'),
+                      currentPath: data.currentPath,
+                      enabled: !data.isLoading,
+                      onSubmitted: onPathSubmitted,
                     ),
                   ),
                 ),
+              ),
             ],
           ),
-          const SizedBox(width: 4),
-          _button(Icons.arrow_upward, '上级目录',
-              data.canNavigateUp ? onNavigateUp : null),
-          const SizedBox(width: 4),
-          _button(Icons.refresh, '刷新', data.isLoading ? null : onRefresh),
-          const SizedBox(width: 4),
-          _busyButton(Icons.image_search, '获取海报', data.isFetchingPosters,
-              data.isLoading || data.isFetchingPosters ? null : onFetchPosters),
-          const SizedBox(width: 4),
-          _busyButton(Icons.info_outline, '读取媒体信息', data.isFetchingMediaInfo,
-              data.canReadMediaInfo ? onFetchMediaInfo : null),
-          const SizedBox(width: 4),
-          _busyButton(
-              Icons.photo_camera_outlined,
-              '生成缩略图',
-              data.isFetchingThumbnails,
-              data.canGenerateThumbnails ? onGenerateThumbnails : null),
-          const SizedBox(width: 4),
-          _busyButton(
-              Icons.cloud_sync_outlined,
-              '批量刮削 TMDB 信息',
-              data.isMatchingMetadata,
-              data.canMatchMetadata ? onMatchMetadata : null),
-          const SizedBox(width: 8),
-          Expanded(child: _breadcrumbs(context, colors)),
-        ]),
-      ),
-      Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          child: Row(children: [
-            Expanded(child: _status(context, colors)),
-            _sortChip(context, '名称', 'name'),
-            const SizedBox(width: 4),
-            _sortChip(context, '大小', 'size'),
-            const SizedBox(width: 4),
-            _sortChip(context, '日期', 'modified'),
-          ])),
-      Padding(
-          padding: const EdgeInsets.fromLTRB(12, 2, 12, 6),
-          child: SizedBox(
-              height: 38,
-              child: TextField(
-                controller: searchController,
-                textInputAction: TextInputAction.search,
-                decoration: InputDecoration(
-                    hintText: '搜索当前目录',
-                    prefixIcon: const Icon(Icons.search, size: 18),
-                    suffixIcon: data.searchKeyword.isEmpty
-                        ? null
-                        : IconButton(
-                            tooltip: '清空搜索',
-                            icon: const Icon(Icons.close, size: 18),
-                            onPressed: onClearSearch),
-                    filled: true,
-                    fillColor:
-                        colors.surfaceContainerHighest.withValues(alpha: 0.45),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 8)),
-                onChanged: onSearchChanged,
-              ))),
-    ]);
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          child: Row(
+            children: [
+              Expanded(child: _status(context, colors)),
+              _sortChip(context, '名称', 'name'),
+              const SizedBox(width: 4),
+              _sortChip(context, '大小', 'size'),
+              const SizedBox(width: 4),
+              _sortChip(context, '日期', 'modified'),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 1, 12, 7),
+          child: Container(
+            key: const ValueKey('library-path-search-surface'),
+            height: 38,
+            decoration: BoxDecoration(
+              color: colors.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(9),
+              border: Border.all(color: colors.outlineVariant, width: 0.75),
+            ),
+            child: TextField(
+              controller: searchController,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: '搜索当前目录',
+                prefixIcon: const Icon(Icons.search, size: 18),
+                suffixIcon: data.searchKeyword.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: '清空搜索',
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: onClearSearch,
+                      ),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+              onChanged: onSearchChanged,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
+  ButtonStyle _iconButtonStyle(
+    ColorScheme colors, {
+    Color? backgroundColor,
+  }) =>
+      IconButton.styleFrom(
+        padding: const EdgeInsets.all(4),
+        minimumSize: const Size.square(32),
+        maximumSize: const Size.square(32),
+        backgroundColor: backgroundColor,
+        hoverColor: colors.primary.withValues(alpha: 0.08),
+        focusColor: colors.primary.withValues(alpha: 0.1),
+        highlightColor: colors.primary.withValues(alpha: 0.12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      );
+
   Widget _button(
-          IconData icon, String tooltip, FutureOr<void> Function()? callback) =>
+    BuildContext context,
+    IconData icon,
+    String tooltip,
+    FutureOr<void> Function()? callback,
+  ) =>
       IconButton(
-          icon: Icon(icon, size: 20),
-          tooltip: tooltip,
-          onPressed: callback == null ? null : () async => await callback(),
-          style: IconButton.styleFrom(
-              padding: const EdgeInsets.all(4),
-              minimumSize: const Size(32, 32)));
+        icon: Icon(icon, size: 20),
+        tooltip: tooltip,
+        onPressed: callback == null ? null : () async => await callback(),
+        style: _iconButtonStyle(Theme.of(context).colorScheme),
+      );
 
-  Widget _busyButton(IconData icon, String tooltip, bool busy,
-          FutureOr<void> Function()? callback) =>
+  Widget _busyButton(
+    BuildContext context,
+    IconData icon,
+    String tooltip,
+    bool busy,
+    FutureOr<void> Function()? callback,
+  ) =>
       IconButton(
-          icon: busy
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-              : Icon(icon, size: 20),
-          tooltip: tooltip,
-          onPressed: callback == null ? null : () async => await callback(),
-          style: IconButton.styleFrom(
-              padding: const EdgeInsets.all(4),
-              minimumSize: const Size(32, 32)));
-
-  Widget _breadcrumbs(BuildContext context, ColorScheme colors) =>
-      SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(children: [
-            for (var i = 0; i < data.breadcrumbs.length; i++) ...[
-              if (i > 0)
-                Icon(Icons.chevron_right, size: 16, color: colors.outline),
-              GestureDetector(
-                  onTap: data.breadcrumbs[i].isCurrent
-                      ? null
-                      : () async =>
-                          await onBreadcrumbSelected(data.breadcrumbs[i].path),
-                  child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: Text(data.breadcrumbs[i].label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(
-                                  color: data.breadcrumbs[i].isCurrent
-                                      ? colors.onSurface
-                                      : colors.primary,
-                                  fontWeight: data.breadcrumbs[i].isCurrent
-                                      ? FontWeight.w600
-                                      : FontWeight.normal)))),
-            ],
-          ]));
+        icon: busy
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Icon(icon, size: 20),
+        tooltip: tooltip,
+        onPressed: callback == null ? null : () async => await callback(),
+        style: _iconButtonStyle(Theme.of(context).colorScheme),
+      );
 
   Widget _sortChip(BuildContext context, String label, String field) {
     final active = data.sortBy == field;
     final colors = Theme.of(context).colorScheme;
-    return GestureDetector(
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
         onTap: () async => await onSort(field),
-        child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-                color: active ? colors.primaryContainer : Colors.transparent,
-                borderRadius: BorderRadius.circular(12)),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Text(label,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color:
-                          active ? colors.onPrimaryContainer : colors.outline)),
-              if (active)
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+          decoration: BoxDecoration(
+            color: active ? colors.primaryContainer : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: active
+                          ? colors.onPrimaryContainer
+                          : colors.onSurfaceVariant,
+                      fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+                    ),
+              ),
+              if (active) ...[
+                const SizedBox(width: 2),
                 Icon(
-                    data.sortAscending
-                        ? Icons.arrow_upward
-                        : Icons.arrow_downward,
-                    size: 12,
-                    color: colors.onPrimaryContainer),
-            ])));
+                  data.sortAscending
+                      ? Icons.arrow_upward
+                      : Icons.arrow_downward,
+                  size: 12,
+                  color: colors.onPrimaryContainer,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _status(BuildContext context, ColorScheme colors) {
@@ -347,8 +447,12 @@ class LibraryPathBar extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     if (status.kind == LibraryDirectoryStatusKind.idle ||
         status.kind == LibraryDirectoryStatusKind.loading) {
-      return Text(status.label,
-          style: textTheme.bodySmall?.copyWith(color: colors.outline));
+      return Text(
+        status.label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: textTheme.bodySmall?.copyWith(color: colors.outline),
+      );
     }
     if (status.kind == LibraryDirectoryStatusKind.indexFailures) {
       return Padding(
@@ -424,5 +528,149 @@ class LibraryPathBar extends StatelessWidget {
                         textTheme.labelSmall?.copyWith(color: colors.outline)),
               ],
             ]));
+  }
+}
+
+class _LibraryPathAddressField extends StatefulWidget {
+  const _LibraryPathAddressField({
+    super.key,
+    required this.currentPath,
+    required this.enabled,
+    required this.onSubmitted,
+  });
+
+  final String currentPath;
+  final bool enabled;
+  final LibraryPathSubmit onSubmitted;
+
+  @override
+  State<_LibraryPathAddressField> createState() =>
+      _LibraryPathAddressFieldState();
+}
+
+class _LibraryPathAddressFieldState extends State<_LibraryPathAddressField> {
+  late final TextEditingController _controller;
+  late final FocusNode _focusNode;
+  String? _error;
+  bool _submitting = false;
+  int _submissionGeneration = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.currentPath);
+    _focusNode = FocusNode();
+  }
+
+  @override
+  void didUpdateWidget(covariant _LibraryPathAddressField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentPath != widget.currentPath) {
+      _controller.value = TextEditingValue(
+        text: widget.currentPath,
+        selection: TextSelection.collapsed(offset: widget.currentPath.length),
+      );
+      _error = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _submissionGeneration++;
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final path = normalizeLibraryPathAddress(_controller.text);
+    if (path.isEmpty) {
+      setState(() => _error = '请输入文件夹地址');
+      return;
+    }
+
+    final generation = ++_submissionGeneration;
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+
+    String? error;
+    try {
+      error = await widget.onSubmitted(path);
+    } on Object {
+      error = '目录不存在或无法访问';
+    }
+    if (!mounted || generation != _submissionGeneration) return;
+    setState(() {
+      _submitting = false;
+      _error = error;
+      if (error == null) {
+        _controller.value = TextEditingValue(
+          text: path,
+          selection: TextSelection.collapsed(offset: path.length),
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final disabled = !widget.enabled || _submitting;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          key: const ValueKey('library-path-address'),
+          controller: _controller,
+          focusNode: _focusNode,
+          enabled: !disabled,
+          textInputAction: TextInputAction.go,
+          onSubmitted: (_) => _submit(),
+          decoration: InputDecoration(
+            hintText: '输入文件夹地址',
+            prefixIcon: const Icon(Icons.folder_outlined, size: 18),
+            suffixIcon: _submitting
+                ? const Padding(
+                    padding: EdgeInsets.all(10),
+                    child: SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : IconButton(
+                    tooltip: '跳转',
+                    onPressed: disabled ? null : _submit,
+                    icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                  ),
+            isDense: true,
+            filled: true,
+            fillColor: colors.surface,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: colors.outlineVariant),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: colors.outlineVariant),
+            ),
+          ),
+        ),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 3, left: 4),
+            child: Text(
+              _error!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: colors.error,
+                  ),
+            ),
+          ),
+      ],
+    );
   }
 }

@@ -7,17 +7,17 @@ import 'package:kanyingyin/pages/settings/settings_module.dart';
 void main() {
   test('navigation config drives startup page validation', () {
     expect(appNavigationDestinations.map((item) => item.label), [
-      '网盘资源',
-      '本地',
-      '我的',
+      '本地媒体库',
+      '网盘媒体库',
+      '设置',
     ]);
-    expect(appNavigationDestinations.first.path, '/cloud');
+    expect(appNavigationDestinations.first.path, '/local');
     expect(isValidStartupPage('/tab/popular/'), isFalse);
     expect(isValidStartupPage('/tab/cloud/'), isTrue);
     expect(isValidStartupPage('/tab/local/'), isTrue);
     final removedLegacyPath = '/tab/${'tv'}${'box'}/movie/';
     expect(isValidStartupPage(removedLegacyPath), isFalse);
-    expect(navigationIndexForStartupPage('/tab/local/'), 1);
+    expect(navigationIndexForStartupPage('/tab/local/'), 0);
     expect(defaultStartupPage, '/tab/local/');
   });
 
@@ -27,10 +27,12 @@ void main() {
         File('lib/pages/settings/settings_module.dart').readAsStringSync();
     final indexModule = File('lib/pages/index_module.dart').readAsStringSync();
 
-    expect(myPage, contains("title: Text('媒体识别'"));
-    expect(myPage,
-        contains("Modular.to.pushNamed('/settings/media-recognition')"));
-    expect(settingsModule, contains('r.child("/media-recognition"'));
+    expect(myPage, contains("'媒体识别'"));
+    expect(
+      myPage,
+      contains("onOpenPath('/settings/media-recognition')"),
+    );
+    expect(settingsModule, contains('_child(r, "/media-recognition"'));
     expect(settingsModule, contains('MediaRecognitionSettingsPage('));
     expect(settingsModule, contains('verifyCloudRescanResult('));
     expect(

@@ -4,6 +4,65 @@ import 'package:media_kit/media_kit.dart';
 
 void main() {
   group('内嵌轨道语言识别', () {
+    test('识别日语韩语与常见 ISO BCP47 代码', () {
+      expect(
+        trackLanguageFromMetadata(
+          'ja-JP',
+          '',
+          type: EmbeddedTrackType.subtitle,
+        ).label,
+        '日语',
+      );
+      expect(
+        trackLanguageFromMetadata(
+          'jpn',
+          '',
+          type: EmbeddedTrackType.subtitle,
+        ).label,
+        '日语',
+      );
+      expect(
+        trackLanguageFromMetadata(
+          'ko',
+          '',
+          type: EmbeddedTrackType.subtitle,
+        ).label,
+        '韩语',
+      );
+      expect(
+        trackLanguageFromMetadata(
+          'fra',
+          '',
+          type: EmbeddedTrackType.audio,
+        ).label,
+        '法语',
+      );
+      expect(
+        trackLanguageFromMetadata(
+          'fr-CA',
+          '',
+          type: EmbeddedTrackType.audio,
+        ).label,
+        '法语',
+      );
+      expect(
+        trackLanguageFromMetadata(
+          '',
+          'German Commentary',
+          type: EmbeddedTrackType.audio,
+        ).label,
+        '德语',
+      );
+      expect(
+        trackLanguageFromMetadata(
+          '',
+          'Japanese Commentary',
+          type: EmbeddedTrackType.audio,
+        ).label,
+        '日语',
+      );
+    });
+
     test('识别中文代码和常见配音名称', () {
       expect(
           EmbeddedTrackInfo.fromAudio(const AudioTrack('1', null, 'zh-CN'))
@@ -41,14 +100,17 @@ void main() {
           contains('PGS'));
     });
 
-    test('未知轨道保留编号且音轨显示声道', () {
+    test('未解析轨道只显示类型编号且音轨显示声道', () {
       final unknown =
           EmbeddedTrackInfo.fromSubtitle(const SubtitleTrack('7', null, null));
       final audio = EmbeddedTrackInfo.fromAudio(const AudioTrack(
           '4', null, 'eng',
           codec: 'truehd', channelscount: 6));
-      expect(unknown.primaryLabel, contains('未知语种'));
-      expect(unknown.primaryLabel, contains('7'));
+      expect(unknown.isLanguageResolved, isFalse);
+      expect(unknown.primaryLabel, '字幕轨道 7');
+      expect('${unknown.primaryLabel} ${unknown.detailLabel}',
+          isNot(contains('未知语种')));
+      expect(audio.primaryLabel, '英语 / English');
       expect(audio.detailLabel, contains('TrueHD'));
       expect(audio.detailLabel, contains('5.1'));
     });

@@ -11,6 +11,7 @@ import 'package:kanyingyin/utils/pip_utils.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/gestures.dart';
 import 'package:kanyingyin/pages/player/player_controller.dart';
+import 'package:kanyingyin/pages/player/models/embedded_track_info.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:flutter_modular/flutter_modular.dart';
@@ -28,8 +29,10 @@ import 'package:kanyingyin/services/audio_controller.dart';
 import 'package:kanyingyin/services/local_subtitle_importer.dart';
 import 'package:kanyingyin/pages/player/widgets/player_gestures.dart';
 import 'package:kanyingyin/pages/player/widgets/subtitle_settings_overlay.dart';
+import 'package:kanyingyin/pages/player/widgets/track_language_confirmation_dialog.dart';
 import 'package:kanyingyin/features/player/presentation/player_overlay_coordinator.dart';
 import 'package:kanyingyin/features/player/presentation/player_shortcut_handler.dart';
+import 'package:kanyingyin/features/player/presentation/player_exit_coordinator.dart';
 import 'package:path/path.dart' as p;
 
 class PlayerItem extends StatefulWidget {
@@ -41,6 +44,7 @@ class PlayerItem extends StatefulWidget {
     required this.onBackPressed,
     required this.keyboardFocus,
     required this.pauseForTimedShutdown,
+    required this.exitCoordinator,
     this.disableAnimations = false,
   });
 
@@ -52,6 +56,7 @@ class PlayerItem extends StatefulWidget {
   final FocusNode keyboardFocus;
   final bool disableAnimations;
   final VoidCallback pauseForTimedShutdown;
+  final PlayerExitCoordinator exitCoordinator;
 
   @override
   State<PlayerItem> createState() => _PlayerItemState();
@@ -71,7 +76,9 @@ class _PlayerItemState extends State<PlayerItem>
   late Map<PlayerShortcutAction, PlayerShortcutCallback> keyboardActions;
   final PlayerOverlayCoordinator _overlayCoordinator =
       PlayerOverlayCoordinator();
+  late final PlayerExitCoordinator _exitCoordinator;
   PlayerOverlay _lastOverlay = PlayerOverlay.none;
+  bool _acceptingInput = true;
 
   // 硬件解码
   late bool haEnable;
@@ -95,13 +102,61 @@ class _PlayerItemState extends State<PlayerItem>
 
   late mobx.ReactionDisposer _fullscreenListener;
 
+  bool get _canUsePlayer =>
+      mounted && _acceptingInput && playerController.hasActivePlayer;
+
+  Future<void> _showTrackLanguageConfirmationForTrack(
+    EmbeddedTrackInfo track,
+  ) async {
+    if (!_canUsePlayer) return;
+    final pending = playerController.pendingTrackLanguageFor(track);
+    if (pending == null) return;
+    final revision = playerController.trackLanguageConfirmationRevision;
+    final warning = await showDialog<String?>(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) => TrackLanguageConfirmationDialog(
+        tracks: [pending],
+        onConfirm: (choices) {
+          final choice = choices[pending.fingerprint];
+          if (choice == null) return Future.value('请选择语言');
+          return playerController.confirmTrackLanguage(
+            revision,
+            pending.fingerprint,
+            choice,
+          );
+        },
+      ),
+    );
+    if (!mounted || !_canUsePlayer) return;
+    if (warning != null && warning.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(warning)),
+      );
+    }
+  }
+
+  void _stopInteractiveWorkForExit() {
+    if (!_acceptingInput) return;
+    _acceptingInput = false;
+    playerTimer?.cancel();
+    playerTimer = null;
+    hideTimer?.cancel();
+    hideTimer = null;
+    mouseScrollerTimer?.cancel();
+    mouseScrollerTimer = null;
+    hideVolumeUITimer?.cancel();
+    hideVolumeUITimer = null;
+    AppLogger().i('PlayerItem: timers and input stopped for route exit');
+  }
+
   /// 处理 Android/iOS 应用后台或熄屏
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) async {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.paused &&
         !backgroundPlayback &&
-        playerController.mediaPlayer != null &&
+        _canUsePlayer &&
         playerController.playerPlaying) {
       try {
         await playerController.pause(enableSync: false);
@@ -143,7 +198,7 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   Future<void> _updateAndroidPIPActions({bool force = false}) async {
-    if (!Platform.isAndroid) {
+    if (!Platform.isAndroid || !_acceptingInput) {
       return;
     }
     final bool playing = playerController.playing;
@@ -229,7 +284,10 @@ class _PlayerItemState extends State<PlayerItem>
   void _initPlayerMenu() {
     Utils.initPlayerMenu({
       for (final entry in keyboardActions.entries)
-        entry.key.command: () => _shortcutHandler.dispatchAction(entry.key),
+        entry.key.command: () {
+          if (!_acceptingInput) return;
+          _shortcutHandler.dispatchAction(entry.key);
+        },
     });
   }
 
@@ -269,6 +327,7 @@ class _PlayerItemState extends State<PlayerItem>
 
   //快退快捷键动作
   Future<void> handleShortcutRewind() async {
+    if (!_canUsePlayer) return;
     int skipTime = playerController.arrowKeySkipTime;
     int current = playerController.currentPosition.inSeconds;
     int targetPosition;
@@ -279,6 +338,7 @@ class _PlayerItemState extends State<PlayerItem>
     try {
       playerTimer?.cancel();
       await playerController.seek(Duration(seconds: targetPosition));
+      if (!_canUsePlayer) return;
       playerTimer = getPlayerTimer();
     } catch (e) {
       AppLogger().e('PlayerController: seek failed', error: e);
@@ -302,6 +362,7 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   Future<void> handleShortcutForwardUp() async {
+    if (!_canUsePlayer) return;
     int skipTime = playerController.arrowKeySkipTime;
     int current = playerController.currentPosition.inSeconds;
     int total = playerController.duration.inSeconds;
@@ -315,7 +376,8 @@ class _PlayerItemState extends State<PlayerItem>
     } else {
       try {
         playerTimer?.cancel();
-        playerController.seek(Duration(seconds: targetPosition));
+        await playerController.seek(Duration(seconds: targetPosition));
+        if (!_canUsePlayer) return;
         playerTimer = getPlayerTimer();
       } catch (e) {
         AppLogger().e('PlayerController: seek failed', error: e);
@@ -325,11 +387,13 @@ class _PlayerItemState extends State<PlayerItem>
 
   //全屏快捷键动作
   void handleShortcutFullscreen() {
+    if (!_acceptingInput) return;
     if (!videoPageController.isPip) handleFullscreen();
   }
 
   //退出全屏快捷键动作
   void handleShortcutExitFullscreen() {
+    if (!_acceptingInput) return;
     if (videoPageController.isFullscreen && !Utils.isTablet()) {
       Utils.exitFullScreen();
       videoPageController.isFullscreen = !videoPageController.isFullscreen;
@@ -340,6 +404,7 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   void _handleTap() {
+    if (!_canUsePlayer) return;
     if (_overlayCoordinator.visible == PlayerOverlay.subtitleSettings) {
       closeSubtitleSettingsOverlay();
       return;
@@ -356,6 +421,7 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   void _handleDoubleTap() {
+    if (!_canUsePlayer) return;
     if (Utils.isDesktop() && !videoPageController.isPip) {
       handleFullscreen();
     } else {
@@ -364,6 +430,7 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   void _handleHove() {
+    if (!_acceptingInput) return;
     if (!playerController.showVideoController) {
       displayVideoController();
     }
@@ -372,10 +439,11 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   void _handleMouseScroller() {
+    if (!_canUsePlayer) return;
     playerController.showVolume = true;
     mouseScrollerTimer?.cancel();
     mouseScrollerTimer = Timer(const Duration(seconds: 2), () {
-      if (mounted) {
+      if (mounted && _acceptingInput) {
         playerController.showVolume = false;
       }
       mouseScrollerTimer = null;
@@ -384,6 +452,7 @@ class _PlayerItemState extends State<PlayerItem>
 
   //跳过指定秒数
   Future<void> skipOP() async {
+    if (!_canUsePlayer) return;
     await playerController.seek(playerController.currentPosition +
         Duration(seconds: playerController.buttonSkipTime));
   }
@@ -397,6 +466,7 @@ class _PlayerItemState extends State<PlayerItem>
         onSkipToPrevious: () => handlePreNextEpisode('prev'),
         onSeek: (position) => playerController.seek(position),
       );
+      if (!_acceptingInput || !mounted) return;
       _syncAudioServiceState();
     } catch (e) {
       AppLogger().w('AudioController: failed to bind callbacks', error: e);
@@ -404,6 +474,7 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   void _syncAudioServiceState() {
+    if (!_acceptingInput) return;
     try {
       final currentRoad = videoPageController.currentRoad;
       final currentEpisode = videoPageController.currentEpisode;
@@ -486,10 +557,12 @@ class _PlayerItemState extends State<PlayerItem>
 
   //截图
   Future<void> handleScreenshot() async {
+    if (!_canUsePlayer) return;
     AppDialog.showToast(message: '截图中...');
     try {
       Uint8List? screenshot =
           await playerController.screenshot(format: 'image/png');
+      if (!_canUsePlayer) return;
 
       if (screenshot == null) {
         AppDialog.showToast(message: '截图失败：未获取到图像');
@@ -505,6 +578,7 @@ class _PlayerItemState extends State<PlayerItem>
         fileName: DateTime.timestamp().millisecondsSinceEpoch.toString(),
         skipIfExists: false,
       );
+      if (!_acceptingInput || !mounted) return;
       if (result.isSuccess) {
         AppDialog.showToast(message: '截图保存到相簿成功');
       } else {
@@ -517,7 +591,7 @@ class _PlayerItemState extends State<PlayerItem>
 
   // 启用超分辨率（质量档）时弹出提示
   Future<void> handleSuperResolutionChange(int shaderIndex) async {
-    if (!mounted) return;
+    if (!_canUsePlayer) return;
 
     // mediacodec_embed 不支持超分辨率
     if (Platform.isAndroid && shaderIndex != 1) {
@@ -542,6 +616,7 @@ class _PlayerItemState extends State<PlayerItem>
             ],
           );
         });
+        if (!_canUsePlayer) return;
         return;
       }
     }
@@ -605,6 +680,8 @@ class _PlayerItemState extends State<PlayerItem>
         });
       });
 
+      if (!_canUsePlayer) return;
+
       if (confirmed) {
         playerController.setShader(shaderIndex);
       }
@@ -614,6 +691,7 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   void handleFullscreen() {
+    if (!_acceptingInput) return;
     _handleFullscreenChange(context);
     if (videoPageController.isFullscreen) {
       Utils.exitFullScreen();
@@ -629,6 +707,7 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   void displayVideoController() {
+    if (!_acceptingInput) return;
     animationController?.forward();
     hideTimer?.cancel();
     startHideTimer();
@@ -636,16 +715,19 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   void hideVideoController() {
+    if (!_acceptingInput) return;
     animationController?.reverse();
     hideTimer?.cancel();
     playerController.showVideoController = false;
   }
 
   Future<void> setPlaybackSpeed(double speed) async {
+    if (!_canUsePlayer) return;
     await playerController.setPlaybackSpeed(speed);
   }
 
   Future<void> handleSpeedChange(String type) async {
+    if (!_canUsePlayer) return;
     try {
       final currentSpeed = playerController.playerSpeed;
       int index = defaultPlaySpeedList.indexOf(currentSpeed);
@@ -670,6 +752,7 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   Future<void> handleShortcutVolumeChange(String type) async {
+    if (!_canUsePlayer) return;
     try {
       switch (type) {
         case 'up':
@@ -689,10 +772,11 @@ class _PlayerItemState extends State<PlayerItem>
         default:
           return;
       }
+      if (!_canUsePlayer) return;
       playerController.showVolume = true;
       hideVolumeUITimer?.cancel();
       hideVolumeUITimer = Timer(const Duration(seconds: 2), () {
-        if (mounted) {
+        if (mounted && _acceptingInput) {
           playerController.showVolume = false;
         }
         hideVolumeUITimer = null;
@@ -710,6 +794,7 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   void startHideTimer() {
+    if (!_acceptingInput) return;
     hideTimer = Timer(const Duration(seconds: 4), () {
       if (mounted && playerController.canHidePlayerPanel) {
         playerController.showVideoController = false;
@@ -726,18 +811,29 @@ class _PlayerItemState extends State<PlayerItem>
 
   Timer getPlayerTimer() {
     return Timer.periodic(const Duration(seconds: 1), (timer) {
-      playerController.playing = playerController.playerPlaying;
-      playerController.isBuffering = playerController.playerBuffering;
-      playerController.currentPosition = playerController.playerPosition;
-      playerController.buffer = playerController.playerBuffer;
-      playerController.duration = playerController.playerDuration;
-      playerController.completed = playerController.playerCompleted;
+      if (!_acceptingInput || !mounted) {
+        timer.cancel();
+        if (identical(playerTimer, timer)) playerTimer = null;
+        return;
+      }
+      final snapshot = playerController.readRuntimeSnapshot();
+      if (snapshot == null) {
+        timer.cancel();
+        if (identical(playerTimer, timer)) playerTimer = null;
+        return;
+      }
+      playerController.playing = snapshot.playing;
+      playerController.isBuffering = snapshot.buffering;
+      playerController.currentPosition = snapshot.position;
+      playerController.buffer = snapshot.buffer;
+      playerController.duration = snapshot.duration;
+      playerController.completed = snapshot.completed;
       unawaited(_updateAndroidPIPActions());
       _syncAudioServiceState();
       // 音量相关
       if (!playerController.volumeSeeking) {
         if (Utils.isDesktop()) {
-          playerController.volume = playerController.playerVolume;
+          playerController.volume = snapshot.volume;
         } else {
           FlutterVolumeController.getVolume().then((value) {
             final volume = value ?? 0.0;
@@ -906,12 +1002,14 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   Future<String?> _pickSubtitlePath({String title = '选择字幕文件'}) async {
+    if (!_acceptingInput) return null;
     final result = await FilePicker.pickFiles(
       dialogTitle: title,
       type: FileType.custom,
       allowedExtensions: const ['ass', 'ssa', 'srt', 'vtt'],
       allowMultiple: false,
     );
+    if (!_acceptingInput || !mounted) return null;
     final path = result?.files.single.path;
     if (path == null || path.isEmpty) return null;
     return path;
@@ -919,19 +1017,21 @@ class _PlayerItemState extends State<PlayerItem>
 
   Future<void> _pickAndLoadSubtitle() async {
     final path = await _pickSubtitlePath();
-    if (path == null) return;
+    if (path == null || !_canUsePlayer) return;
     final loaded = await playerController.selectSubtitle(path);
+    if (!_acceptingInput || !mounted) return;
     AppDialog.showToast(message: loaded ? '字幕已加载' : '字幕加载失败');
   }
 
   Future<void> _importSubtitle(LocalSubtitleImportTarget target) async {
     final path = await _pickSubtitlePath(title: '导入字幕文件');
-    if (path == null) return;
+    if (path == null || !_canUsePlayer) return;
     try {
       final result = await playerController.importSubtitle(
         path,
         target: target,
       );
+      if (!_acceptingInput || !mounted) return;
       if (result == null) {
         AppDialog.showToast(message: '当前不是本地播放');
         return;
@@ -947,6 +1047,7 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   void _handleOverlayChanged() {
+    if (!_acceptingInput) return;
     final current = _overlayCoordinator.visible;
     if (_lastOverlay == PlayerOverlay.subtitleSettings &&
         current != PlayerOverlay.subtitleSettings) {
@@ -958,6 +1059,7 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   void openSubtitleSettingsOverlay() {
+    if (!_acceptingInput) return;
     if (playerController.isLocalPlayback) {
       playerController.refreshSubtitleCandidates();
     }
@@ -1090,6 +1192,8 @@ class _PlayerItemState extends State<PlayerItem>
   @override
   void initState() {
     super.initState();
+    _exitCoordinator = widget.exitCoordinator;
+    _exitCoordinator.addListener(_stopInteractiveWorkForExit);
     _initKeyboardActions();
     _loadShortcuts();
     _overlayCoordinator.addListener(_handleOverlayChanged);
@@ -1109,7 +1213,7 @@ class _PlayerItemState extends State<PlayerItem>
     if (Platform.isAndroid) {
       PipUtils.initPipHandler(
         onAction: (action) async {
-          if (!mounted) return;
+          if (!_canUsePlayer) return;
 
           switch (action) {
             case 'play_pause':
@@ -1121,6 +1225,7 @@ class _PlayerItemState extends State<PlayerItem>
               break;
           }
 
+          if (!_canUsePlayer) return;
           await _updateAndroidPIPActions(force: true);
         },
       );
@@ -1158,6 +1263,8 @@ class _PlayerItemState extends State<PlayerItem>
     // Don't dispose player here
     // We need to reuse the player after episode is changed and player item is disposed
     // We dispose player after video page disposed
+    _exitCoordinator.removeListener(_stopInteractiveWorkForExit);
+    _stopInteractiveWorkForExit();
     _fullscreenListener();
     _playerSizeListener();
     WidgetsBinding.instance.removeObserver(this);
@@ -1204,6 +1311,7 @@ class _PlayerItemState extends State<PlayerItem>
                   ? SystemMouseCursors.none
                   : SystemMouseCursors.basic,
               onHover: (PointerEvent pointerEvent) {
+                if (!_acceptingInput) return;
                 // workaround for android.
                 // I don't know why, but android tap event will trigger onHover event.
                 if (Utils.isDesktop()) {
@@ -1221,6 +1329,7 @@ class _PlayerItemState extends State<PlayerItem>
               },
               child: Listener(
                 onPointerSignal: (pointerSignal) {
+                  if (!_canUsePlayer) return;
                   if (pointerSignal is PointerScrollEvent) {
                     if (_overlayCoordinator.blocksPlayerMouseWheelVolume) {
                       return;
@@ -1257,6 +1366,9 @@ class _PlayerItemState extends State<PlayerItem>
                             focusNode: widget.keyboardFocus,
                             autofocus: true,
                             onKeyEvent: (focusNode, KeyEvent event) {
+                              if (!_acceptingInput) {
+                                return KeyEventResult.ignored;
+                              }
                               bool handled = false;
                               final keyLabel =
                                   event.logicalKey.keyLabel.isNotEmpty
@@ -1301,7 +1413,7 @@ class _PlayerItemState extends State<PlayerItem>
                               _handleDoubleTap();
                             },
                       onLongPressStart: (_) {
-                        if (playerController.lockPanel) {
+                        if (!_canUsePlayer || playerController.lockPanel) {
                           return;
                         }
                         setState(() {
@@ -1311,7 +1423,7 @@ class _PlayerItemState extends State<PlayerItem>
                         setPlaybackSpeed(2.0);
                       },
                       onLongPressEnd: (_) {
-                        if (playerController.lockPanel) {
+                        if (!_canUsePlayer || playerController.lockPanel) {
                           return;
                         }
                         setState(() {
@@ -1345,6 +1457,8 @@ class _PlayerItemState extends State<PlayerItem>
                             cancelHideTimer: cancelHideTimer,
                             showVideoInfo: showVideoInfo,
                             showSubtitleSettings: showSubtitleSettings,
+                            onConfirmTrackLanguage:
+                                _showTrackLanguageConfirmationForTrack,
                             pauseForTimedShutdown: widget.pauseForTimedShutdown,
                             disableAnimations: widget.disableAnimations,
                             handleScreenShot: handleScreenshot,
@@ -1366,6 +1480,8 @@ class _PlayerItemState extends State<PlayerItem>
                             cancelHideTimer: cancelHideTimer,
                             showVideoInfo: showVideoInfo,
                             showSubtitleSettings: showSubtitleSettings,
+                            onConfirmTrackLanguage:
+                                _showTrackLanguageConfirmationForTrack,
                             pauseForTimedShutdown: widget.pauseForTimedShutdown,
                             disableAnimations: widget.disableAnimations,
                             skipOP: skipOP,
@@ -1375,10 +1491,18 @@ class _PlayerItemState extends State<PlayerItem>
                       playerController: playerController,
                       animationController: animationController!,
                       brightnessVolumeGesture: brightnessVolumeGesture,
-                      onDragStart: _handleGestureDragStart,
-                      onDragEnd: handleProgressBarDragEnd,
-                      onSeek: (pos) => playerController.seek(pos),
-                      onSetBrightness: setBrightness,
+                      onDragStart: () {
+                        if (_canUsePlayer) _handleGestureDragStart();
+                      },
+                      onDragEnd: () {
+                        if (_canUsePlayer) handleProgressBarDragEnd();
+                      },
+                      onSeek: (pos) {
+                        if (_canUsePlayer) playerController.seek(pos);
+                      },
+                      onSetBrightness: (value) async {
+                        if (_acceptingInput) await setBrightness(value);
+                      },
                       startHideTimer: startHideTimer,
                     ),
                     if (_overlayCoordinator.visible ==

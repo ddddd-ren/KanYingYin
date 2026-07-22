@@ -38,6 +38,26 @@ class _PlayerInitializationCancelled implements Exception {
   const _PlayerInitializationCancelled();
 }
 
+class PlayerRuntimeSnapshot {
+  const PlayerRuntimeSnapshot({
+    required this.playing,
+    required this.buffering,
+    required this.completed,
+    required this.volume,
+    required this.position,
+    required this.buffer,
+    required this.duration,
+  });
+
+  final bool playing;
+  final bool buffering;
+  final bool completed;
+  final double volume;
+  final Duration position;
+  final Duration buffer;
+  final Duration duration;
+}
+
 bool shouldApplyPlayerProxy({
   required bool proxyEnabled,
   required PlaybackNetworkRoute networkRoute,
@@ -185,9 +205,12 @@ abstract class _PlayerController with Store {
   _PlayerController({
     SubtitlePreferences? subtitlePreferences,
     TrueHdFallbackPolicy? trueHdFallbackPolicy,
+    ShadersController? shadersController,
   })  : _subtitlePreferences = subtitlePreferences ?? SubtitlePreferences(),
         _trueHdFallbackPolicy =
-            trueHdFallbackPolicy ?? const TrueHdFallbackPolicy();
+            trueHdFallbackPolicy ?? const TrueHdFallbackPolicy(),
+        shadersController =
+            shadersController ?? Modular.get<ShadersController>();
 
   static const Duration _playerOpenTimeout = Duration(seconds: 25);
 
@@ -196,7 +219,7 @@ abstract class _PlayerController with Store {
   final CloudPlaybackLeaseCoordinator _playbackLeaseCoordinator =
       CloudPlaybackLeaseCoordinator();
 
-  final ShadersController shadersController = Modular.get<ShadersController>();
+  final ShadersController shadersController;
 
   late int bangumiId;
   late int currentEpisode;
@@ -258,6 +281,7 @@ abstract class _PlayerController with Store {
       PlayerLifecycleCoordinator();
   final Lock _playerInitLock = Lock();
   bool _disposeRequested = false;
+  Future<void>? _disposeFuture;
   String? _subtitleStorageKey;
   bool _truehdAudioTrackFallbackAttempted = false;
   final EmbeddedTrackSelectionState _embeddedTrackSelection =
@@ -294,13 +318,31 @@ abstract class _PlayerController with Store {
   int arrowKeySkipTime = 10;
 
   // 播放器实时状态
-  bool get playerPlaying => mediaPlayer!.state.playing;
-  bool get playerBuffering => mediaPlayer!.state.buffering;
-  bool get playerCompleted => mediaPlayer!.state.completed;
-  double get playerVolume => mediaPlayer!.state.volume;
-  Duration get playerPosition => mediaPlayer!.state.position;
-  Duration get playerBuffer => mediaPlayer!.state.buffer;
-  Duration get playerDuration => mediaPlayer!.state.duration;
+  bool get hasActivePlayer => !_disposeRequested && mediaPlayer != null;
+
+  PlayerRuntimeSnapshot? readRuntimeSnapshot() {
+    final player = mediaPlayer;
+    if (_disposeRequested || player == null) return null;
+    final state = player.state;
+    return PlayerRuntimeSnapshot(
+      playing: state.playing,
+      buffering: state.buffering,
+      completed: state.completed,
+      volume: state.volume,
+      position: state.position,
+      buffer: state.buffer,
+      duration: state.duration,
+    );
+  }
+
+  bool get playerPlaying => readRuntimeSnapshot()?.playing ?? false;
+  bool get playerBuffering => readRuntimeSnapshot()?.buffering ?? false;
+  bool get playerCompleted => readRuntimeSnapshot()?.completed ?? false;
+  double get playerVolume => readRuntimeSnapshot()?.volume ?? volume;
+  Duration get playerPosition =>
+      readRuntimeSnapshot()?.position ?? currentPosition;
+  Duration get playerBuffer => readRuntimeSnapshot()?.buffer ?? buffer;
+  Duration get playerDuration => readRuntimeSnapshot()?.duration ?? duration;
 
   // 播放器调试信息
   @observable
@@ -394,6 +436,7 @@ abstract class _PlayerController with Store {
 
   PlayerLifecycleToken activatePlaybackLifecycle() {
     _disposeRequested = false;
+    _disposeFuture = null;
     return _lifecycleOperations.activate();
   }
 
@@ -1474,8 +1517,10 @@ abstract class _PlayerController with Store {
 
   Future<void> setPlaybackSpeed(double playerSpeed) async {
     this.playerSpeed = playerSpeed;
+    final player = mediaPlayer;
+    if (_disposeRequested || player == null) return;
     try {
-      mediaPlayer!.setRate(playerSpeed);
+      await player.setRate(playerSpeed);
     } catch (e) {
       AppLogger().e('PlayerController: failed to set playback speed', error: e);
     }
@@ -1486,7 +1531,9 @@ abstract class _PlayerController with Store {
     volume = value;
     try {
       if (Utils.isDesktop()) {
-        await mediaPlayer!.setVolume(value);
+        final player = mediaPlayer;
+        if (_disposeRequested || player == null) return;
+        await player.setVolume(value);
       } else {
         await FlutterVolumeController.updateShowSystemUI(false);
         await FlutterVolumeController.setVolume(value / 100);
@@ -1495,7 +1542,9 @@ abstract class _PlayerController with Store {
   }
 
   Future<void> playOrPause() async {
-    if (mediaPlayer!.state.playing) {
+    final player = mediaPlayer;
+    if (_disposeRequested || player == null) return;
+    if (player.state.playing) {
       await pause();
     } else {
       await play();
@@ -1503,17 +1552,23 @@ abstract class _PlayerController with Store {
   }
 
   Future<void> seek(Duration duration, {bool enableSync = true}) async {
+    final player = mediaPlayer;
+    if (_disposeRequested || player == null) return;
     currentPosition = duration;
-    await mediaPlayer!.seek(duration);
+    await player.seek(duration);
   }
 
   Future<void> pause({bool enableSync = true}) async {
-    await mediaPlayer!.pause();
+    final player = mediaPlayer;
+    if (_disposeRequested || player == null) return;
+    await player.pause();
     playing = false;
   }
 
   Future<void> play({bool enableSync = true}) async {
-    await mediaPlayer!.play();
+    final player = mediaPlayer;
+    if (_disposeRequested || player == null) return;
+    await player.play();
     playing = true;
   }
 
@@ -1526,14 +1581,20 @@ abstract class _PlayerController with Store {
       _lifecycleOperations.isCurrent(lifecycleToken);
 
   Future<void> dispose() {
+    final current = _disposeFuture;
+    if (current != null) return current;
     _disposeRequested = true;
     _lifecycleOperations.invalidate();
     _mediaOperations.invalidate();
-    return _playerInitLock.synchronized(() async {
+    AppLogger().i('PlayerController: resource disposal started');
+    final future = _playerInitLock.synchronized(() async {
       await _disposePlayerResources();
       await _playbackLeaseCoordinator.close();
       _lastInitParams = null;
+      AppLogger().i('PlayerController: resource disposal completed');
     });
+    _disposeFuture = future;
+    return future;
   }
 
   Future<void> _disposePlayerResources() async {
@@ -1555,7 +1616,9 @@ abstract class _PlayerController with Store {
   }
 
   Future<Uint8List?> screenshot({String format = 'image/jpeg'}) async {
-    return await mediaPlayer!.screenshot(format: format);
+    final player = mediaPlayer;
+    if (_disposeRequested || player == null) return null;
+    return await player.screenshot(format: format);
   }
 
   void setButtonForwardTime(int time) {

@@ -16,6 +16,17 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.34',
+    date: '2026-07-22',
+    isPrerelease: true,
+    changes: [
+      '本测试版让代理自动探测保留系统证书校验，不再把证书无效的连接误判为可用',
+      'Windows 发布流水线固定第三方构建组件版本，降低安装包构建过程受到上游意外变化影响的风险',
+      '更新多项网络、文件选择、显示模式、音量控制与缓存依赖，并适配新版文件选择接口',
+      '没有 TMDB Key 或断网时，应用启动、本地与网盘媒体库和播放器仍可使用；本次不会修改或删除本地原始媒体，也不会修改网盘文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.33',
     date: '2026-07-21',
     isPrerelease: true,

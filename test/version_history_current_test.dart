@@ -268,6 +268,18 @@ void main() {
     expect(entries.single.isPrerelease, isTrue);
   });
 
+  test('二点一三十四说明证书校验、发布流水线和依赖优化', () {
+    final entries = versionHistoryForCurrent('2.1.34');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('证书校验'));
+    expect(changes, contains('发布流水线'));
+    expect(changes, contains('依赖'));
+    expect(changes, contains('不会修改'));
+    expect(entries.single.isPrerelease, isTrue);
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

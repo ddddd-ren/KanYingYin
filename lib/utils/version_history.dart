@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.37',
+    date: '2026-07-22',
+    isPrerelease: true,
+    changes: [
+      '本测试版修复从播放器返回媒体库后停留黑屏的问题：退出时先停止计时器和操作输入，再释放播放器资源',
+      '播放器异步状态刷新现在会检查资源是否可用，连续返回或资源已释放时不再反复产生空值异常',
+      '本地与网盘媒体库恢复经典海报墙：整张海报显示作品，片名、字幕、详情和刮削状态在鼠标悬停时渐显',
+      '新版雾蓝主题、侧栏、工具栏和“设置”入口继续保留；播放器字幕、选集、硬件解码与 Anime4K 行为不变',
+      '没有 TMDB Key 或断网时，应用启动、本地与网盘媒体库和播放器仍可使用；本次不会修改或删除本地原始媒体，也不会修改网盘文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.36',
     date: '2026-07-22',
     isPrerelease: true,

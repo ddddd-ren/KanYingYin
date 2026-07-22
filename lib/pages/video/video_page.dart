@@ -21,6 +21,7 @@ import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/pages/video/cloud_relay_status_presenter.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
+import 'package:kanyingyin/features/player/presentation/player_exit_coordinator.dart';
 
 class VideoPage extends StatefulWidget {
   const VideoPage({super.key});
@@ -40,6 +41,7 @@ class _VideoPageState extends State<VideoPage>
   bool _relayVisibilityResetScheduled = false;
   Timer? _relayStableTimer;
   final FocusNode keyboardFocus = FocusNode();
+  final PlayerExitCoordinator _exitCoordinator = PlayerExitCoordinator();
 
   ScrollController scrollController = ScrollController();
   late ListObserverController observerController;
@@ -111,6 +113,7 @@ class _VideoPageState extends State<VideoPage>
   @override
   void dispose() {
     _relayStableTimer?.cancel();
+    _exitCoordinator.beginExit();
     try {
       windowManager.removeListener(this);
     } catch (_) {}
@@ -136,6 +139,7 @@ class _VideoPageState extends State<VideoPage>
     tabController.dispose();
     // Cancel timed shutdown when leaving anime page
     TimedShutdownService().cancel();
+    _exitCoordinator.dispose();
     super.dispose();
   }
 
@@ -304,6 +308,8 @@ class _VideoPageState extends State<VideoPage>
       Utils.exitFullScreen();
       localVideoController.isFullscreen = false;
     }
+    if (!_exitCoordinator.beginExit()) return;
+    AppLogger().i('VideoPage: route exit requested');
     Navigator.of(context).pop();
   }
 
@@ -589,6 +595,7 @@ class _VideoPageState extends State<VideoPage>
           child: playerController.loading
               ? Container()
               : PlayerItem(
+                  exitCoordinator: _exitCoordinator,
                   openMenu: openTabBodyAnimated,
                   locateEpisode: menuJumpToCurrentEpisode,
                   changeEpisode: changeEpisode,

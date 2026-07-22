@@ -265,36 +265,68 @@ TrackLanguageChoice trackLanguageFromMetadata(
     );
   }
 
-  const codeLabels = <String, String>{
-    'fr': '法语',
-    'fra': '法语',
-    'fre': '法语',
-    'de': '德语',
-    'deu': '德语',
-    'ger': '德语',
-    'es': '西班牙语',
-    'spa': '西班牙语',
-    'pt': '葡萄牙语',
-    'por': '葡萄牙语',
-    'ru': '俄语',
-    'rus': '俄语',
-    'it': '意大利语',
-    'ita': '意大利语',
-    'ar': '阿拉伯语',
-    'ara': '阿拉伯语',
-    'th': '泰语',
-    'tha': '泰语',
-    'vi': '越南语',
-    'vie': '越南语',
+  const titleLabels = <String, (String, String)>{
+    'french': ('fr', '法语'),
+    '法语': ('fr', '法语'),
+    'german': ('de', '德语'),
+    '德语': ('de', '德语'),
+    'spanish': ('es', '西班牙语'),
+    '西班牙语': ('es', '西班牙语'),
+    'portuguese': ('pt', '葡萄牙语'),
+    '葡萄牙语': ('pt', '葡萄牙语'),
+    'russian': ('ru', '俄语'),
+    '俄语': ('ru', '俄语'),
+    'italian': ('it', '意大利语'),
+    '意大利语': ('it', '意大利语'),
+    'arabic': ('ar', '阿拉伯语'),
+    '阿拉伯语': ('ar', '阿拉伯语'),
+    'thai': ('th', '泰语'),
+    '泰语': ('th', '泰语'),
+    'vietnamese': ('vi', '越南语'),
+    '越南语': ('vi', '越南语'),
   };
-  final label = codeLabels[languageText];
-  if (label != null) {
-    return choice(
-      languageText.length == 2 ? languageText : languageText.substring(0, 2),
-      label,
-      TrackLanguageKind.other,
-      TrackLanguageSource.metadata,
-    );
+  for (final entry in titleLabels.entries) {
+    if (titleText.contains(entry.key)) {
+      return choice(
+        entry.value.$1,
+        entry.value.$2,
+        TrackLanguageKind.other,
+        TrackLanguageSource.title,
+      );
+    }
+  }
+
+  const codeLabels = <String, (String, String)>{
+    'fr': ('fr', '法语'),
+    'fra': ('fr', '法语'),
+    'fre': ('fr', '法语'),
+    'de': ('de', '德语'),
+    'deu': ('de', '德语'),
+    'ger': ('de', '德语'),
+    'es': ('es', '西班牙语'),
+    'spa': ('es', '西班牙语'),
+    'pt': ('pt', '葡萄牙语'),
+    'por': ('pt', '葡萄牙语'),
+    'ru': ('ru', '俄语'),
+    'rus': ('ru', '俄语'),
+    'it': ('it', '意大利语'),
+    'ita': ('it', '意大利语'),
+    'ar': ('ar', '阿拉伯语'),
+    'ara': ('ar', '阿拉伯语'),
+    'th': ('th', '泰语'),
+    'tha': ('th', '泰语'),
+    'vi': ('vi', '越南语'),
+    'vie': ('vi', '越南语'),
+  };
+  for (final entry in codeLabels.entries) {
+    if (_matchesCode(languageText, [entry.key])) {
+      return choice(
+        entry.value.$1,
+        entry.value.$2,
+        TrackLanguageKind.other,
+        TrackLanguageSource.metadata,
+      );
+    }
   }
 
   return const TrackLanguageChoice(

@@ -149,6 +149,9 @@ class _PlayerItemState extends State<PlayerItem>
       }
     } finally {
       _trackLanguageDialogOpen = false;
+      _scheduleTrackLanguageConfirmation(
+        playerController.trackLanguageConfirmationRevision,
+      );
     }
   }
 
@@ -1229,6 +1232,7 @@ class _PlayerItemState extends State<PlayerItem>
     _trackLanguageConfirmationListener = mobx.reaction<int>(
       (_) => playerController.trackLanguageConfirmationRevision,
       _scheduleTrackLanguageConfirmation,
+      fireImmediately: true,
     );
     if (Platform.isAndroid) {
       PipUtils.initPipHandler(

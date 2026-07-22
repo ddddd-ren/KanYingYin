@@ -820,6 +820,16 @@ mixin _$PlayerController on _PlayerController, Store {
         .run(() => super.confirmTrackLanguages(revision, choices));
   }
 
+  late final _$confirmTrackLanguageAsyncAction =
+      AsyncAction('_PlayerController.confirmTrackLanguage', context: context);
+
+  @override
+  Future<String?> confirmTrackLanguage(
+      int revision, String fingerprint, TrackLanguageChoice choice) {
+    return _$confirmTrackLanguageAsyncAction
+        .run(() => super.confirmTrackLanguage(revision, fingerprint, choice));
+  }
+
   late final _$selectSubtitleAsyncAction =
       AsyncAction('_PlayerController.selectSubtitle', context: context);
 

@@ -8,12 +8,14 @@ class EmbeddedTrackMenus extends StatelessWidget {
     super.key,
     required this.playerController,
     required this.showSubtitleSettings,
+    required this.onConfirmTrackLanguage,
     required this.onMenuOpen,
     required this.onMenuClose,
   });
 
   final PlayerController playerController;
   final VoidCallback showSubtitleSettings;
+  final void Function(EmbeddedTrackInfo track) onConfirmTrackLanguage;
   final VoidCallback onMenuOpen;
   final VoidCallback onMenuClose;
 
@@ -55,7 +57,8 @@ class EmbeddedTrackMenus extends StatelessWidget {
                     playerController.currentSubtitlePath.isEmpty,
             onPressed: playerController.clearSubtitle,
           ),
-          for (final track in playerController.availableEmbeddedSubtitleTracks)
+          for (final track
+              in playerController.availableEmbeddedSubtitleTracks) ...[
             _trackItem(
               context,
               track,
@@ -64,6 +67,13 @@ class EmbeddedTrackMenus extends StatelessWidget {
               onPressed: () =>
                   playerController.selectEmbeddedSubtitleTrack(track.id),
             ),
+            if (!track.isLanguageResolved)
+              _menuItem(
+                context,
+                title: '确认语言',
+                onPressed: () => onConfirmTrackLanguage(track),
+              ),
+          ],
           const Divider(height: 1),
           _menuItem(
             context,
@@ -88,7 +98,7 @@ class EmbeddedTrackMenus extends StatelessWidget {
                 _menuItem(context, title: '未检测到音轨', onPressed: null),
               ]
             : [
-                for (final track in playerController.availableAudioTracks)
+                for (final track in playerController.availableAudioTracks) ...[
                   _trackItem(
                     context,
                     track,
@@ -96,6 +106,13 @@ class EmbeddedTrackMenus extends StatelessWidget {
                     onPressed: () =>
                         playerController.selectAudioTrack(track.id),
                   ),
+                  if (!track.isLanguageResolved)
+                    _menuItem(
+                      context,
+                      title: '确认语言',
+                      onPressed: () => onConfirmTrackLanguage(track),
+                    ),
+                ],
               ],
       );
 

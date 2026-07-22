@@ -80,4 +80,26 @@ void main() {
     expect(submitted?['audio-2']?.label, '精灵语');
     expect(submitted?['audio-2']?.code, startsWith('custom:'));
   });
+
+  testWidgets('可以稍后确认并关闭语言窗口', (tester) async {
+    var submitted = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TrackLanguageConfirmationDialog(
+            tracks: [tracks[0]],
+            onConfirm: (values) async {
+              submitted = true;
+              return null;
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('稍后确认'));
+    await tester.pumpAndSettle();
+
+    expect(submitted, isFalse);
+  });
 }

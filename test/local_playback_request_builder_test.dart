@@ -16,7 +16,8 @@ void main() {
 
     expect(request.title, '02.mkv');
     expect(request.videoPath, r'D:\Anime\Show\02.mkv');
-    expect(request.pluginName, '本地文件');
+    expect(request.sourceLabel, '本地文件');
+    expect(request.mediaItem.effectiveTitle, '02.mkv');
     expect(request.currentRoad, 0);
     expect(request.currentEpisode, 2);
     expect(request.road.name, '当前剧集');
@@ -31,10 +32,10 @@ void main() {
     final request = LocalPlaybackRequestBuilder().build(
       filePath: r'D:\Anime\Show\01.mkv',
       fileName: '01.mkv',
-      pluginName: '本地测试',
+      sourceLabel: '本地测试',
     );
 
-    expect(request.pluginName, '本地测试');
+    expect(request.sourceLabel, '本地测试');
     expect(request.currentEpisode, 1);
     expect(request.road.name, '播放列表1');
     expect(request.road.data, [r'D:\Anime\Show\01.mkv']);

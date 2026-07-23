@@ -18,13 +18,10 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/pages/video/video_page_controller_interface.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
-import 'package:screen_brightness_platform_interface/screen_brightness_platform_interface.dart';
-import 'package:flutter_volume_controller/flutter_volume_controller.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:kanyingyin/pages/player/player_item_surface.dart';
 import 'package:mobx/mobx.dart' as mobx;
-import 'package:saver_gallery/saver_gallery.dart';
 import 'package:kanyingyin/services/audio_controller.dart';
 import 'package:kanyingyin/services/local_subtitle_importer.dart';
 import 'package:kanyingyin/pages/player/widgets/player_gestures.dart';
@@ -97,7 +94,6 @@ class _PlayerItemState extends State<PlayerItem>
 
   double lastPlayerSpeed = 1.0;
   int episodeNum = 0;
-  bool? _lastPipPlaying;
   late mobx.ReactionDisposer _playerSizeListener;
 
   late mobx.ReactionDisposer _fullscreenListener;
@@ -150,7 +146,7 @@ class _PlayerItemState extends State<PlayerItem>
     AppLogger().i('PlayerItem: timers and input stopped for route exit');
   }
 
-  /// 处理 Android/iOS 应用后台或熄屏
+  /// 处理应用进入后台。
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) async {
     super.didChangeAppLifecycleState(state);
@@ -165,47 +161,12 @@ class _PlayerItemState extends State<PlayerItem>
     }
   }
 
-  Future<void> _syncAndroidPIPPlayerPageState(bool inPlayerPage) async {
-    if (!Platform.isAndroid) {
-      return;
-    }
-    try {
-      await PipUtils.setAndroidPIPInPlayerPage(inPlayerPage);
-    } catch (e) {
-      AppLogger().w(
-        'PlayerItem: failed to sync android pip player page state',
-        error: e,
-      );
-    }
-  }
-
-  Future<void> _updateAndroidPIPActions({bool force = false}) async {
-    if (!Platform.isAndroid || !_acceptingInput) {
-      return;
-    }
-    final bool playing = playerController.playing;
-    if (!force && _lastPipPlaying == playing) {
-      return;
-    }
-
-    _lastPipPlaying = playing;
-    await PipUtils.updateAndroidPIPActions(
-      playing: playing,
-      width: playerController.playerWidth,
-      height: playerController.playerHeight,
-    );
-  }
-
   Future<void> _syncPIPAspectWhenVideoSizeReady() async {
     if (playerController.playerWidth <= 0 ||
         playerController.playerHeight <= 0) {
       return;
     }
-    if (Platform.isAndroid) {
-      await _updateAndroidPIPActions(force: true);
-      return;
-    }
-    if (Utils.isDesktop() && videoPageController.isPip) {
+    if (videoPageController.isPip) {
       await PipUtils.enterDesktopPIPWindow(
         width: playerController.playerWidth,
         height: playerController.playerHeight,
@@ -260,22 +221,6 @@ class _PlayerItemState extends State<PlayerItem>
           handleShortcutForwardRepeat(),
       PlayerShortcutAction.forwardUp: () async => handleShortcutForwardUp(),
     };
-  }
-
-  //初始化播放器菜单
-  void _initPlayerMenu() {
-    Utils.initPlayerMenu({
-      for (final entry in keyboardActions.entries)
-        entry.key.command: () {
-          if (!_acceptingInput) return;
-          _shortcutHandler.dispatchAction(entry.key);
-        },
-    });
-  }
-
-  //销毁播放器菜单
-  void _disposePlayerMenu() {
-    Utils.disposePlayerMenu();
   }
 
   //上一集下一集动作
@@ -379,7 +324,7 @@ class _PlayerItemState extends State<PlayerItem>
     if (videoPageController.isFullscreen && !Utils.isTablet()) {
       Utils.exitFullScreen();
       videoPageController.isFullscreen = !videoPageController.isFullscreen;
-    } else if (!Platform.isMacOS) {
+    } else {
       playerController.pause();
       windowManager.hide();
     }
@@ -551,21 +496,16 @@ class _PlayerItemState extends State<PlayerItem>
         return;
       }
 
-      if (Utils.isDesktop()) {
-        AppDialog.showToast(message: '桌面端暂未支持保存截图');
-        return;
-      }
-      final result = await SaverGallery.saveImage(
-        screenshot,
-        fileName: DateTime.timestamp().millisecondsSinceEpoch.toString(),
-        skipIfExists: false,
+      final target = await FilePicker.saveFile(
+        dialogTitle: '保存截图',
+        fileName: '看影音-${DateTime.now().millisecondsSinceEpoch}.png',
+        type: FileType.custom,
+        allowedExtensions: const <String>['png'],
       );
+      if (target == null || !_acceptingInput || !mounted) return;
+      await File(target).writeAsBytes(screenshot, flush: true);
       if (!_acceptingInput || !mounted) return;
-      if (result.isSuccess) {
-        AppDialog.showToast(message: '截图保存到相簿成功');
-      } else {
-        AppDialog.showToast(message: '截图保存失败：${result.errorMessage}');
-      }
+      AppDialog.showToast(message: '截图已保存');
     } catch (e) {
       AppDialog.showToast(message: '截图失败：$e');
     }
@@ -740,13 +680,6 @@ class _PlayerItemState extends State<PlayerItem>
     }
   }
 
-  Future<void> setBrightness(double value) async {
-    try {
-      await ScreenBrightnessPlatform.instance
-          .setApplicationScreenBrightness(value);
-    } catch (_) {}
-  }
-
   void startHideTimer() {
     if (!_acceptingInput) return;
     hideTimer = Timer(const Duration(seconds: 4), () {
@@ -782,27 +715,10 @@ class _PlayerItemState extends State<PlayerItem>
       playerController.buffer = snapshot.buffer;
       playerController.duration = snapshot.duration;
       playerController.completed = snapshot.completed;
-      unawaited(_updateAndroidPIPActions());
       _syncAudioServiceState();
       // 音量相关
       if (!playerController.volumeSeeking) {
-        if (Utils.isDesktop()) {
-          playerController.volume = snapshot.volume;
-        } else {
-          FlutterVolumeController.getVolume().then((value) {
-            final volume = value ?? 0.0;
-            playerController.volume = volume * 100;
-          });
-        }
-      }
-      // 亮度相关
-      if (!Platform.isWindows &&
-          !Platform.isMacOS &&
-          !Platform.isLinux &&
-          !playerController.brightnessSeeking) {
-        ScreenBrightnessPlatform.instance.application.then((value) {
-          playerController.brightness = value;
-        });
+        playerController.volume = snapshot.volume;
       }
       // 自动播放下一集
       if (playerController.completed &&
@@ -1151,7 +1067,6 @@ class _PlayerItemState extends State<PlayerItem>
     _initKeyboardActions();
     _loadShortcuts();
     _overlayCoordinator.addListener(_handleOverlayChanged);
-    _initPlayerMenu();
     _fullscreenListener = mobx.reaction<bool>(
       (_) => videoPageController.isFullscreen,
       (_) {
@@ -1164,28 +1079,6 @@ class _PlayerItemState extends State<PlayerItem>
         unawaited(_syncPIPAspectWhenVideoSizeReady());
       },
     );
-    if (Platform.isAndroid) {
-      PipUtils.initPipHandler(
-        onAction: (action) async {
-          if (!_canUsePlayer) return;
-
-          switch (action) {
-            case 'play_pause':
-              playerController.playOrPause();
-              break;
-
-            case 'forward':
-              await skipOP();
-              break;
-          }
-
-          if (!_canUsePlayer) return;
-          await _updateAndroidPIPActions(force: true);
-        },
-      );
-      unawaited(_syncAndroidPIPPlayerPageState(true));
-      unawaited(_updateAndroidPIPActions(force: true));
-    }
     WidgetsBinding.instance.addObserver(this);
     animationController ??= AnimationController(
       duration: StyleString.animationDuration,
@@ -1228,14 +1121,9 @@ class _PlayerItemState extends State<PlayerItem>
     hideVolumeUITimer?.cancel();
     animationController?.dispose();
     animationController = null;
-    _disposePlayerMenu();
     _overlayCoordinator
       ..removeListener(_handleOverlayChanged)
       ..dispose();
-    if (Platform.isAndroid) {
-      unawaited(_syncAndroidPIPPlayerPageState(false));
-      PipUtils.disposePipHandler();
-    }
     // Reset player panel state
     playerController.lockPanel = false;
     playerController.showVideoController = true;
@@ -1453,9 +1341,7 @@ class _PlayerItemState extends State<PlayerItem>
                       onSeek: (pos) {
                         if (_canUsePlayer) playerController.seek(pos);
                       },
-                      onSetBrightness: (value) async {
-                        if (_acceptingInput) await setBrightness(value);
-                      },
+                      onSetBrightness: (_) async {},
                       startHideTimer: startHideTimer,
                     ),
                     if (_overlayCoordinator.visible ==

@@ -12,7 +12,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:kanyingyin/utils/proxy_manager.dart';
-import 'package:flutter/services.dart';
 import 'package:kanyingyin/utils/utils.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
@@ -67,17 +66,6 @@ void _installGlobalErrorLogging() {
 
 Future<void> _startApplication() async {
   MediaKit.ensureInitialized();
-  if (Platform.isAndroid || Platform.isIOS) {
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      systemNavigationBarColor: Colors.transparent,
-      systemNavigationBarDividerColor: Colors.transparent,
-      statusBarColor: Colors.transparent,
-    ));
-  }
-
-  if (Platform.isAndroid) {}
-
   late final TmdbCredentialManager tmdbCredentialManager;
   try {
     final hivePath =
@@ -95,15 +83,12 @@ Future<void> _startApplication() async {
     // Log the error for debugging (if logger is available)
     debugPrint('Storage initialization failed: $e');
 
-    if (Platform.isWindows) {
-      await windowManager.ensureInitialized();
-      windowManager.waitUntilReadyToShow(null, () async {
-        // Native window show has been blocked in `flutter_windows.cppL36` to avoid flickering.
-        // Without this. the window will never show on Windows.
-        await windowManager.show();
-        await windowManager.focus();
-      });
-    }
+    await windowManager.ensureInitialized();
+    windowManager.waitUntilReadyToShow(null, () async {
+      // Windows 原生窗口默认禁止自动显示，等待 Flutter 首帧准备后再显示可避免闪烁。
+      await windowManager.show();
+      await windowManager.focus();
+    });
     runApp(MaterialApp(
         title: '初始化失败',
         localizationsDelegates: GlobalMaterialLocalizations.delegates,
@@ -122,27 +107,22 @@ Future<void> _startApplication() async {
     SettingBoxKey.showWindowButton,
     defaultValue: false,
   );
-  if (Utils.isDesktop()) {
-    await windowManager.ensureInitialized();
-    bool isLowResolution = await Utils.isLowResolution();
-    WindowOptions windowOptions = WindowOptions(
-      size: isLowResolution ? const Size(840, 600) : const Size(1280, 860),
-      center: true,
-      skipTaskbar: false,
-      // macOS always hide title bar regardless of showWindowButton setting
-      titleBarStyle: (Platform.isMacOS || !showWindowButton)
-          ? TitleBarStyle.hidden
-          : TitleBarStyle.normal,
-      windowButtonVisibility: showWindowButton,
-      title: AppIdentity.displayName,
-    );
-    windowManager.waitUntilReadyToShow(windowOptions, () async {
-      // Native window show has been blocked in `flutter_windows.cppL36` to avoid flickering.
-      // Without this. the window will never show on Windows.
-      await windowManager.show();
-      await windowManager.focus();
-    });
-  }
+  await windowManager.ensureInitialized();
+  bool isLowResolution = await Utils.isLowResolution();
+  WindowOptions windowOptions = WindowOptions(
+    size: isLowResolution ? const Size(840, 600) : const Size(1280, 860),
+    center: true,
+    skipTaskbar: false,
+    titleBarStyle:
+        !showWindowButton ? TitleBarStyle.hidden : TitleBarStyle.normal,
+    windowButtonVisibility: showWindowButton,
+    title: AppIdentity.displayName,
+  );
+  windowManager.waitUntilReadyToShow(windowOptions, () async {
+    // Windows 原生窗口默认禁止自动显示，等待 Flutter 首帧准备后再显示可避免闪烁。
+    await windowManager.show();
+    await windowManager.focus();
+  });
   await ProxyManager.initializeProxy();
   runApp(
     ChangeNotifierProvider(

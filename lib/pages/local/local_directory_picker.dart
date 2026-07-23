@@ -297,7 +297,6 @@ class _LocalDirectoryPickerPageState extends State<LocalDirectoryPickerPage> {
 }
 
 Future<List<String>> discoverWindowsDriveRoots() async {
-  if (!Platform.isWindows) return <String>['/'];
   final drives = <String>[];
   for (var code = 'A'.codeUnitAt(0); code <= 'Z'.codeUnitAt(0); code++) {
     final root = '${String.fromCharCode(code)}:\\';

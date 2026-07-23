@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:audio_session/audio_session.dart';
 import 'package:audio_service/audio_service.dart';
-import 'package:audio_service_mpris/audio_service_mpris.dart';
 import 'package:kanyingyin/utils/logger.dart';
 
 typedef AudioCallback = Future<void> Function();
@@ -20,7 +18,6 @@ class AudioController {
   String? _lastMediaItemCacheKey;
   AudioSession? _audioSession;
   StreamSubscription<AudioInterruptionEvent>? _interruptionSubscription;
-  StreamSubscription<void>? _becomingNoisySubscription;
   AudioCallback? _onPlay;
   AudioCallback? _onPause;
   bool _playInterrupted = false;
@@ -34,17 +31,6 @@ class AudioController {
 
   Future<void> _initialize() async {
     late _AppAudioHandler rawHandler;
-    if (Platform.isLinux) {
-      AudioServiceMpris.init(
-        dBusName: 'com.kanyingyin.player.channel.audio',
-        identity: '看影音播放',
-        canControl: true,
-        canPlay: true,
-        canPause: true,
-        canGoNext: true,
-        canGoPrevious: true,
-      );
-    }
     await AudioService.init(
       builder: () {
         rawHandler = _AppAudioHandler();
@@ -69,16 +55,6 @@ class AudioController {
       _interruptionSubscription = _audioSession!.interruptionEventStream.listen(
         _handleInterruptionEvent,
       );
-
-      if (Platform.isAndroid || Platform.isIOS) {
-        _becomingNoisySubscription?.cancel();
-        _becomingNoisySubscription =
-            _audioSession!.becomingNoisyEventStream.listen((_) {
-          if (_handler?.playbackState.value.playing ?? false) {
-            unawaited(_safePause());
-          }
-        });
-      }
     } catch (e) {
       AppLogger().w('AudioController: audio_session init failed', error: e);
     }

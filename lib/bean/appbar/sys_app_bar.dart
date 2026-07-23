@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kanyingyin/bean/widget/embedded_native_control_area.dart';
@@ -75,7 +74,7 @@ class SysAppBar extends StatelessWidget implements PreferredSizeWidget {
                 child: title!,
               )
             : null,
-        centerTitle: Platform.isIOS ? true : false,
+        centerTitle: false,
         actions: acs.map((e) {
           return EmbeddedNativeControlArea(
             requireOffset: needTopOffset,
@@ -119,16 +118,6 @@ class SysAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Size get preferredSize {
-    // macOS needs to add 22(macOS title bar height)
-    // to default toolbar height to build appbar like normal
-    if (Platform.isMacOS && needTopOffset && showWindowButton()) {
-      if (toolbarHeight != null) {
-        return Size.fromHeight(toolbarHeight! + 22);
-      } else {
-        return const Size.fromHeight(kToolbarHeight + 22);
-      }
-    } else {
-      return Size.fromHeight(toolbarHeight ?? kToolbarHeight);
-    }
+    return Size.fromHeight(toolbarHeight ?? kToolbarHeight);
   }
 }

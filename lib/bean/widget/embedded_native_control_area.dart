@@ -1,6 +1,4 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:kanyingyin/utils/storage.dart';
 
 class EmbeddedNativeControlArea extends StatefulWidget {
   /// The widget won't draw anything, just a placeholder for native window control.
@@ -20,29 +18,10 @@ class EmbeddedNativeControlArea extends StatefulWidget {
 }
 
 class _EmbeddedNativeControlAreaState extends State<EmbeddedNativeControlArea> {
-  bool showWindowButton = GStorage.setting.getTyped<bool>(
-    SettingBoxKey.showWindowButton,
-    defaultValue: false,
-  );
-
-  EdgeInsets get getInsets {
-    if (!showWindowButton) {
-      return EdgeInsets.zero;
-    }
-    if (!widget.requireOffset) {
-      return EdgeInsets.zero;
-    }
-    if (Platform.isMacOS) {
-      return const EdgeInsets.only(top: 22);
-    } else {
-      return EdgeInsets.zero;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: getInsets,
+      padding: EdgeInsets.zero,
       child: widget.child,
     );
   }

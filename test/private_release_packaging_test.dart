@@ -77,12 +77,15 @@ void main() {
     expect(script, isNot(contains('setting.hive')));
   });
 
-  test('异机安装脚本先验证清单哈希和签名再导入当前用户证书', () async {
+  test('异机安装脚本提权后把证书导入本机受信任人', () async {
     final script =
         await File('tool/windows/installer/安装看影音.ps1').readAsString();
 
-    expect(script, contains(r'Cert:\CurrentUser\TrustedPeople'));
-    expect(script, isNot(contains(r'Cert:\LocalMachine')));
+    expect(script, contains('WindowsBuiltInRole]::Administrator'));
+    expect(script, contains("-Verb 'RunAs'"));
+    expect(script, contains(r'Cert:\LocalMachine\TrustedPeople'));
+    expect(script, isNot(contains(r'Cert:\CurrentUser\TrustedPeople')));
+    expect(script, isNot(contains(r'Cert:\LocalMachine\Root')));
     expect(script, contains('Get-FileHash'));
     expect(script, contains('Get-AuthenticodeSignature'));
     expect(script, contains('AppxManifest.xml'));
@@ -92,8 +95,10 @@ void main() {
     expect(script, contains('Add-AppxPackage'));
 
     final manifestCheck = script.indexOf('AppxManifest.xml');
+    final elevation = script.indexOf("-Verb 'RunAs'");
     final importCertificate = script.indexOf('Import-Certificate');
     final installPackage = script.indexOf('Add-AppxPackage');
+    expect(elevation, lessThan(importCertificate));
     expect(manifestCheck, lessThan(importCertificate));
     expect(importCertificate, lessThan(installPackage));
   });
@@ -137,5 +142,19 @@ void main() {
     expect(script, contains('-File'));
     expect(script, contains('安装看影音.ps1'));
     expect(script, isNot(contains('%*')));
+  });
+
+  test('异机安装说明告知管理员授权和本机证书范围', () async {
+    final publicScript =
+        await File('tool/windows/build_signed_release.ps1').readAsString();
+    final privateInstructions =
+        await File('tool/windows/installer/安装说明.txt').readAsString();
+
+    for (final instructions in <String>[publicScript, privateInstructions]) {
+      expect(instructions, contains('管理员权限'));
+      expect(instructions, contains('本机'));
+      expect(instructions, contains('TrustedPeople'));
+      expect(instructions, isNot(contains('导入当前用户')));
+    }
   });
 }

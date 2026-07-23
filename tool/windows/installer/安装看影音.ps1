@@ -83,11 +83,29 @@ if ($signature.SignerCertificate.Thumbprint -ne $certificate.Thumbprint) {
   throw 'MSIX 签名证书与安装包证书不一致'
 }
 
-Import-Certificate -FilePath $cerPath `
-  -CertStoreLocation 'Cert:\CurrentUser\TrustedPeople' | Out-Null
+$currentIdentity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+$currentPrincipal = [System.Security.Principal.WindowsPrincipal]::new($currentIdentity)
+$isAdministrator = $currentPrincipal.IsInRole(
+  [System.Security.Principal.WindowsBuiltInRole]::Administrator
+)
+if (-not $isAdministrator) {
+  Write-Host '安装看影音需要管理员权限来信任签名证书。'
+  $scriptPath = $MyInvocation.MyCommand.Path
+  $elevatedArguments = "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`""
+  $elevatedProcess = Start-Process -FilePath 'powershell.exe' `
+    -ArgumentList $elevatedArguments `
+    -Verb 'RunAs' `
+    -Wait `
+    -PassThru
+  exit $elevatedProcess.ExitCode
+}
 
-if ((Get-AuthenticodeSignature -LiteralPath $msixPath).Status -ne 'Valid') {
-  throw 'MSIX 签名验证失败'
+Import-Certificate -FilePath $cerPath `
+  -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' | Out-Null
+
+$trustedSignature = Get-AuthenticodeSignature -LiteralPath $msixPath
+if ($trustedSignature.Status -ne 'Valid') {
+  throw "MSIX 签名验证失败：$($trustedSignature.Status) - $($trustedSignature.StatusMessage)"
 }
 
 Add-AppxPackage -Path $msixPath

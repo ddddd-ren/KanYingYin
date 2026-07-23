@@ -6,6 +6,7 @@ import 'package:kanyingyin/repositories/quark_import_history_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_share_transfer_service.dart';
 
+typedef QuarkSourceRefresher = Future<void> Function(String sourceId);
 typedef QuarkSourceScanner = Future<void> Function(String sourceId);
 typedef QuarkLibraryRefresher = Future<void> Function();
 
@@ -14,21 +15,40 @@ class QuarkDuplicateImportException implements Exception {
   final String idempotencyKey;
 }
 
+class QuarkImportBatchResult {
+  const QuarkImportBatchResult({
+    required this.task,
+    this.refreshError,
+  });
+
+  final QuarkTransferTask task;
+  final Object? refreshError;
+
+  bool get libraryRefreshed => refreshError == null;
+}
+
 class QuarkImportController extends ChangeNotifier {
   QuarkImportController({
     required QuarkImportHistoryRepository historyRepository,
     required QuarkShareTransfer transferService,
-    required QuarkSourceScanner scanSource,
-    required QuarkLibraryRefresher refreshLibrary,
+    QuarkSourceRefresher? refreshSource,
+    QuarkSourceScanner? scanSource,
+    QuarkLibraryRefresher? refreshLibrary,
   })  : _historyRepository = historyRepository,
         _transferService = transferService,
-        _scanSource = scanSource,
-        _refreshLibrary = refreshLibrary;
+        assert(
+          refreshSource != null ||
+              (scanSource != null && refreshLibrary != null),
+        ),
+        _refreshSource = refreshSource ??
+            ((sourceId) async {
+              await scanSource!(sourceId);
+              await refreshLibrary!();
+            });
 
   final QuarkImportHistoryRepository _historyRepository;
   final QuarkShareTransfer _transferService;
-  final QuarkSourceScanner _scanSource;
-  final QuarkLibraryRefresher _refreshLibrary;
+  final QuarkSourceRefresher _refreshSource;
 
   bool busy = false;
   String? errorMessage;
@@ -39,55 +59,98 @@ class QuarkImportController extends ChangeNotifier {
     required QuarkShareEntry entry,
     required String targetDirectoryId,
   }) async {
+    final result = await importEntries(
+      sourceId: sourceId,
+      shareId: shareId,
+      entries: <QuarkShareEntry>[entry],
+      targetDirectoryId: targetDirectoryId,
+    );
+    return result.task;
+  }
+
+  Future<QuarkImportBatchResult> importEntries({
+    required String sourceId,
+    required String shareId,
+    required List<QuarkShareEntry> entries,
+    required String targetDirectoryId,
+  }) async {
+    if (entries.isEmpty) {
+      throw const CloudDriveException(CloudDriveErrorType.invalidAddress);
+    }
     busy = true;
     errorMessage = null;
     notifyListeners();
     final now = DateTime.now().toUtc();
-    var record = QuarkImportRecord(
-      sourceId: sourceId,
-      shareId: shareId,
-      sharedFileId: entry.id,
-      targetDirectoryId: targetDirectoryId,
-      displayName: entry.name,
-      status: QuarkImportStatus.pending,
-      createdAt: now,
-      updatedAt: now,
-    );
+    var records = entries
+        .map(
+          (entry) => QuarkImportRecord(
+            sourceId: sourceId,
+            shareId: shareId,
+            sharedFileId: entry.id,
+            targetDirectoryId: targetDirectoryId,
+            displayName: entry.name,
+            status: QuarkImportStatus.pending,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        )
+        .toList(growable: false);
     var claimed = false;
     try {
-      claimed = await _historyRepository.tryBegin(record);
+      claimed = await _historyRepository.tryBeginAll(records);
       if (!claimed) {
-        throw QuarkDuplicateImportException(record.idempotencyKey);
+        throw QuarkDuplicateImportException(records.first.idempotencyKey);
       }
       final taskId = await _transferService.saveShare(
         shareId: shareId,
-        entries: <QuarkShareEntry>[entry],
+        entries: entries,
         targetDirectoryId: targetDirectoryId,
       );
-      record =
-          record.copyWith(taskId: taskId, updatedAt: DateTime.now().toUtc());
-      await _historyRepository.save(record);
+      records = records
+          .map(
+            (record) => record.copyWith(
+              taskId: taskId,
+              updatedAt: DateTime.now().toUtc(),
+            ),
+          )
+          .toList(growable: false);
+      await _historyRepository.saveAll(records);
       final task = await _transferService.waitForTask(taskId);
-      record = record.copyWith(
-        status: QuarkImportStatus.succeeded,
-        updatedAt: DateTime.now().toUtc(),
+      records = records
+          .map(
+            (record) => record.copyWith(
+              status: QuarkImportStatus.succeeded,
+              updatedAt: DateTime.now().toUtc(),
+            ),
+          )
+          .toList(growable: false);
+      await _historyRepository.saveAll(records);
+      Object? refreshError;
+      try {
+        await _refreshSource(sourceId);
+      } on Object catch (error) {
+        refreshError = error;
+      }
+      return QuarkImportBatchResult(
+        task: task,
+        refreshError: refreshError,
       );
-      await _historyRepository.save(record);
-      await _scanSource(sourceId);
-      await _refreshLibrary();
-      return task;
     } on CloudDriveException catch (error) {
       errorMessage = error.type.name;
       if (claimed) {
-        record = record.copyWith(
-          status: switch (error.type) {
-            CloudDriveErrorType.taskTimeout => QuarkImportStatus.timedOut,
-            CloudDriveErrorType.cancelled => QuarkImportStatus.cancelled,
-            _ => QuarkImportStatus.failed,
-          },
-          updatedAt: DateTime.now().toUtc(),
-        );
-        await _historyRepository.save(record);
+        records = records
+            .map(
+              (record) => record.copyWith(
+                status: switch (error.type) {
+                  CloudDriveErrorType.taskTimeout => QuarkImportStatus.timedOut,
+                  CloudDriveErrorType.cancelled => QuarkImportStatus.cancelled,
+                  _ => QuarkImportStatus.failed,
+                },
+                updatedAt: DateTime.now().toUtc(),
+              ),
+            )
+            .toList(growable: false);
+        await _historyRepository.saveAll(records);
       }
       rethrow;
     } finally {

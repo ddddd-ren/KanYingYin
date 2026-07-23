@@ -16,16 +16,14 @@ void main() {
     fileToken: 'file-token-fixture',
   );
 
-  test('转存成功后只触发一次完整来源扫描和媒体库刷新', () async {
-    var scans = 0;
+  test('转存成功后只触发一次完整来源刷新', () async {
     var refreshes = 0;
     final controller = QuarkImportController(
       historyRepository: QuarkImportHistoryRepository(
         storage: MemoryQuarkImportHistoryStorage(),
       ),
       transferService: _FakeTransferService(),
-      scanSource: (_) async => scans++,
-      refreshLibrary: () async => refreshes++,
+      refreshSource: (_) async => refreshes++,
     );
 
     final task = await controller.importEntry(
@@ -36,7 +34,6 @@ void main() {
     );
 
     expect(task.status, QuarkTransferTaskStatus.succeeded);
-    expect(scans, 1);
     expect(refreshes, 1);
     expect(controller.busy, isFalse);
   });
@@ -48,8 +45,7 @@ void main() {
     final controller = QuarkImportController(
       historyRepository: repository,
       transferService: _FakeTransferService(),
-      scanSource: (_) async {},
-      refreshLibrary: () async {},
+      refreshSource: (_) async {},
     );
 
     await controller.importEntry(
@@ -82,8 +78,7 @@ void main() {
       final controller = QuarkImportController(
         historyRepository: repository,
         transferService: _FakeTransferService(errorType: type),
-        scanSource: (_) async {},
-        refreshLibrary: () async => refreshed = true,
+        refreshSource: (_) async => refreshed = true,
       );
 
       await expectLater(
@@ -107,11 +102,100 @@ void main() {
       expect(refreshed, isFalse);
     }
   });
+
+  test('多个条目共用一个转存任务且只刷新一次', () async {
+    final transfer = _FakeTransferService();
+    var refreshes = 0;
+    final controller = QuarkImportController(
+      historyRepository: QuarkImportHistoryRepository(
+        storage: MemoryQuarkImportHistoryStorage(),
+      ),
+      transferService: transfer,
+      refreshSource: (_) async => refreshes++,
+    );
+
+    final result = await controller.importEntries(
+      sourceId: 'source-fixture',
+      shareId: 'share-fixture',
+      entries: const <QuarkShareEntry>[
+        entry,
+        QuarkShareEntry(
+          id: 'shared-second',
+          name: '示例目录二',
+          isDirectory: true,
+          size: 0,
+          fileToken: 'file-token-second',
+        ),
+      ],
+      targetDirectoryId: 'target-fixture',
+    );
+
+    expect(result.libraryRefreshed, isTrue);
+    expect(transfer.saveCalls, 1);
+    expect(transfer.savedEntries, hasLength(2));
+    expect(refreshes, 1);
+  });
+
+  test('整批存在重复项时不发起转存', () async {
+    final repository = QuarkImportHistoryRepository(
+      storage: MemoryQuarkImportHistoryStorage(),
+    );
+    final transfer = _FakeTransferService();
+    final controller = QuarkImportController(
+      historyRepository: repository,
+      transferService: transfer,
+      refreshSource: (_) async {},
+    );
+    await controller.importEntries(
+      sourceId: 'source-fixture',
+      shareId: 'share-fixture',
+      entries: const <QuarkShareEntry>[entry],
+      targetDirectoryId: 'target-fixture',
+    );
+
+    await expectLater(
+      controller.importEntries(
+        sourceId: 'source-fixture',
+        shareId: 'share-fixture',
+        entries: const <QuarkShareEntry>[entry],
+        targetDirectoryId: 'target-fixture',
+      ),
+      throwsA(isA<QuarkDuplicateImportException>()),
+    );
+    expect(transfer.saveCalls, 1);
+  });
+
+  test('转存成功但刷新失败时历史保持成功', () async {
+    final repository = QuarkImportHistoryRepository(
+      storage: MemoryQuarkImportHistoryStorage(),
+    );
+    final controller = QuarkImportController(
+      historyRepository: repository,
+      transferService: _FakeTransferService(),
+      refreshSource: (_) async => throw StateError('模拟刷新失败'),
+    );
+
+    final result = await controller.importEntries(
+      sourceId: 'source-fixture',
+      shareId: 'share-fixture',
+      entries: const <QuarkShareEntry>[entry],
+      targetDirectoryId: 'target-fixture',
+    );
+
+    expect(result.libraryRefreshed, isFalse);
+    expect(result.refreshError, isA<StateError>());
+    expect(
+      (await repository.getAll()).single.status,
+      QuarkImportStatus.succeeded,
+    );
+  });
 }
 
 class _FakeTransferService implements QuarkShareTransfer {
   _FakeTransferService({this.errorType});
   final CloudDriveErrorType? errorType;
+  int saveCalls = 0;
+  List<QuarkShareEntry> savedEntries = const <QuarkShareEntry>[];
 
   @override
   Future<void> close() async {}
@@ -131,8 +215,11 @@ class _FakeTransferService implements QuarkShareTransfer {
     required String shareId,
     required List<QuarkShareEntry> entries,
     required String targetDirectoryId,
-  }) async =>
-      'task-fixture';
+  }) async {
+    saveCalls++;
+    savedEntries = List<QuarkShareEntry>.from(entries);
+    return 'task-fixture';
+  }
 
   @override
   Future<QuarkTransferTask> waitForTask(String taskId,

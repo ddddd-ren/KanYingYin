@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:flutter_modular/flutter_modular.dart';
@@ -7,7 +6,6 @@ import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/utils/diagnostic_log_exporter.dart';
 import 'package:kanyingyin/utils/storage.dart';
-import 'package:kanyingyin/utils/pip_utils.dart';
 // ignore_for_file: avoid_print
 
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
@@ -26,8 +24,6 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
   late double defaultShortcutForwardPlaySpeed;
   late int defaultAspectRatioType;
   late bool hAenable;
-  late bool androidEnableOpenSLES;
-  late bool androidAutoEnterPIP;
   late bool lowMemoryMode;
   late bool playResume;
   late bool showPlayerError;
@@ -57,14 +53,6 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
     );
     hAenable =
         setting.getTyped<bool>(SettingBoxKey.hAenable, defaultValue: true);
-    androidEnableOpenSLES = setting.getTyped<bool>(
-      SettingBoxKey.androidEnableOpenSLES,
-      defaultValue: true,
-    );
-    androidAutoEnterPIP = setting.getTyped<bool>(
-      SettingBoxKey.androidAutoEnterPIP,
-      defaultValue: false,
-    );
     lowMemoryMode = setting.getTyped<bool>(
       SettingBoxKey.lowMemoryMode,
       defaultValue: false,
@@ -256,17 +244,6 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                       ))}',
                       style: TextStyle(fontFamily: fontFamily)),
                 ),
-                if (Platform.isAndroid) ...[
-                  KSettingsTile<void>.navigation(
-                    onPressed: (_) async {
-                      await Modular.to.pushNamed('/settings/player/renderer');
-                    },
-                    title:
-                        Text('视频渲染器', style: TextStyle(fontFamily: fontFamily)),
-                    description: Text('选择视频输出方式',
-                        style: TextStyle(fontFamily: fontFamily)),
-                  ),
-                ],
                 KSettingsTile<bool>.switchTile(
                   onToggle: (value) async {
                     lowMemoryMode = value ?? !lowMemoryMode;
@@ -280,21 +257,6 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                       style: TextStyle(fontFamily: fontFamily)),
                   initialValue: lowMemoryMode,
                 ),
-                if (Platform.isAndroid) ...[
-                  KSettingsTile<bool>.switchTile(
-                    onToggle: (value) async {
-                      androidEnableOpenSLES = value ?? !androidEnableOpenSLES;
-                      await setting.put(SettingBoxKey.androidEnableOpenSLES,
-                          androidEnableOpenSLES);
-                      setState(() {});
-                    },
-                    title:
-                        Text('低延迟音频', style: TextStyle(fontFamily: fontFamily)),
-                    description: Text('启用OpenSLES音频输出以降低延时',
-                        style: TextStyle(fontFamily: fontFamily)),
-                    initialValue: androidEnableOpenSLES,
-                  ),
-                ],
                 KSettingsTile<void>.navigation(
                   onPressed: (_) async {
                     Modular.to.pushNamed('/settings/player/super');
@@ -351,22 +313,6 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                       style: TextStyle(fontFamily: fontFamily)),
                   initialValue: localAutoLoadSubtitle,
                 ),
-                if (Platform.isAndroid)
-                  KSettingsTile<bool>.switchTile(
-                    onToggle: (value) async {
-                      androidAutoEnterPIP = value ?? !androidAutoEnterPIP;
-                      await setting.put(SettingBoxKey.androidAutoEnterPIP,
-                          androidAutoEnterPIP);
-                      await PipUtils.setAndroidAutoEnterPIPEnabled(
-                          androidAutoEnterPIP);
-                      setState(() {});
-                    },
-                    title: Text('自动进入画中画',
-                        style: TextStyle(fontFamily: fontFamily)),
-                    description: Text('切到后台时，自动进入画中画',
-                        style: TextStyle(fontFamily: fontFamily)),
-                    initialValue: androidAutoEnterPIP,
-                  ),
                 KSettingsTile<bool>.switchTile(
                   onToggle: (value) async {
                     playerDisableAnimations = value ?? !playerDisableAnimations;

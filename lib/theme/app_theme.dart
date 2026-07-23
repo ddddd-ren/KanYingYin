@@ -53,17 +53,6 @@ abstract final class AppTheme {
     );
   }
 
-  static ThemeData fromColorScheme(
-    ColorScheme colorScheme, {
-    String? fontFamily,
-  }) {
-    return _build(
-      colorScheme: colorScheme,
-      fontFamily: fontFamily,
-      scaffoldBackgroundColor: colorScheme.surface,
-    );
-  }
-
   static ThemeData withOledBackground(ThemeData theme) {
     const background = Color(0xFF000000);
     return theme.copyWith(

@@ -344,6 +344,17 @@ void main() {
     expect(changes, contains('不会修改网盘文件'));
   });
 
+  test('二点一四十八收敛 Windows 网盘入口和 Anime4K', () {
+    final entries = versionHistoryForCurrent('2.1.48');
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(entries.single.isPrerelease, isTrue);
+    expect(changes, contains('百度'));
+    expect(changes, contains('Windows'));
+    expect(changes, contains('Anime4K'));
+    expect(changes, contains('不会修改或删除'));
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

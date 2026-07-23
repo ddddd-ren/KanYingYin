@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:kanyingyin/core/app_version.dart';
 
 class StyleString {
   static const double cardSpace = 10;
@@ -112,30 +111,12 @@ const List<String> userAgentsList = [
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 Edg/136.0.0.0',
 ];
 
-/// 默认 SyncPlay 服务器列表
-const List<String> defaultSyncPlayEndPoints = [
-  'syncplay.pl:8995',
-  'syncplay.pl:8996',
-  'syncplay.pl:8997',
-  'syncplay.pl:8998',
-  'syncplay.pl:8999',
-];
-
-const String defaultSyncPlayEndPoint = 'syncplay.pl:8996';
-
 /// 随机HTTP请求头accept-language字段列表
 const List<String> acceptLanguageList = [
   'zh-CN,zh;q=0.9',
   'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
   'zh-CN,zh-TW;q=0.9,zh;q=0.8,en-US;q=0.7,en;q=0.6',
 ];
-
-/// Bangumi API 文档要求的UA格式
-Map<String, String> bangumiHTTPHeader = {
-  'user-agent': 'KanYingYin/${AppVersion.current} (com.kanyingyin.player)',
-  'referer': '',
-  'content-type': 'application/json'
-};
 
 /// 可选解码方式
 const String defaultHardwareDecoder = 'auto';

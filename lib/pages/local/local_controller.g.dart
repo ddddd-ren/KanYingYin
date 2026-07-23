@@ -410,68 +410,67 @@ mixin _$LocalController on _LocalController, Store {
     });
   }
 
-  late final _$isMatchingBangumiAtom =
-      Atom(name: '_LocalController.isMatchingBangumi', context: context);
+  late final _$isScrapingTmdbAtom =
+      Atom(name: '_LocalController.isScrapingTmdb', context: context);
 
   @override
-  bool get isMatchingBangumi {
-    _$isMatchingBangumiAtom.reportRead();
-    return super.isMatchingBangumi;
+  bool get isScrapingTmdb {
+    _$isScrapingTmdbAtom.reportRead();
+    return super.isScrapingTmdb;
   }
 
   @override
-  set isMatchingBangumi(bool value) {
-    _$isMatchingBangumiAtom.reportWrite(value, super.isMatchingBangumi, () {
-      super.isMatchingBangumi = value;
+  set isScrapingTmdb(bool value) {
+    _$isScrapingTmdbAtom.reportWrite(value, super.isScrapingTmdb, () {
+      super.isScrapingTmdb = value;
     });
   }
 
-  late final _$bangumiMatchProgressAtom =
-      Atom(name: '_LocalController.bangumiMatchProgress', context: context);
+  late final _$tmdbScrapeProgressAtom =
+      Atom(name: '_LocalController.tmdbScrapeProgress', context: context);
 
   @override
-  String get bangumiMatchProgress {
-    _$bangumiMatchProgressAtom.reportRead();
-    return super.bangumiMatchProgress;
+  String get tmdbScrapeProgress {
+    _$tmdbScrapeProgressAtom.reportRead();
+    return super.tmdbScrapeProgress;
   }
 
   @override
-  set bangumiMatchProgress(String value) {
-    _$bangumiMatchProgressAtom.reportWrite(value, super.bangumiMatchProgress,
-        () {
-      super.bangumiMatchProgress = value;
+  set tmdbScrapeProgress(String value) {
+    _$tmdbScrapeProgressAtom.reportWrite(value, super.tmdbScrapeProgress, () {
+      super.tmdbScrapeProgress = value;
     });
   }
 
-  late final _$bangumiMatchCurrentAtom =
-      Atom(name: '_LocalController.bangumiMatchCurrent', context: context);
+  late final _$tmdbScrapeCurrentAtom =
+      Atom(name: '_LocalController.tmdbScrapeCurrent', context: context);
 
   @override
-  int get bangumiMatchCurrent {
-    _$bangumiMatchCurrentAtom.reportRead();
-    return super.bangumiMatchCurrent;
+  int get tmdbScrapeCurrent {
+    _$tmdbScrapeCurrentAtom.reportRead();
+    return super.tmdbScrapeCurrent;
   }
 
   @override
-  set bangumiMatchCurrent(int value) {
-    _$bangumiMatchCurrentAtom.reportWrite(value, super.bangumiMatchCurrent, () {
-      super.bangumiMatchCurrent = value;
+  set tmdbScrapeCurrent(int value) {
+    _$tmdbScrapeCurrentAtom.reportWrite(value, super.tmdbScrapeCurrent, () {
+      super.tmdbScrapeCurrent = value;
     });
   }
 
-  late final _$bangumiMatchTotalAtom =
-      Atom(name: '_LocalController.bangumiMatchTotal', context: context);
+  late final _$tmdbScrapeTotalAtom =
+      Atom(name: '_LocalController.tmdbScrapeTotal', context: context);
 
   @override
-  int get bangumiMatchTotal {
-    _$bangumiMatchTotalAtom.reportRead();
-    return super.bangumiMatchTotal;
+  int get tmdbScrapeTotal {
+    _$tmdbScrapeTotalAtom.reportRead();
+    return super.tmdbScrapeTotal;
   }
 
   @override
-  set bangumiMatchTotal(int value) {
-    _$bangumiMatchTotalAtom.reportWrite(value, super.bangumiMatchTotal, () {
-      super.bangumiMatchTotal = value;
+  set tmdbScrapeTotal(int value) {
+    _$tmdbScrapeTotalAtom.reportWrite(value, super.tmdbScrapeTotal, () {
+      super.tmdbScrapeTotal = value;
     });
   }
 
@@ -787,12 +786,13 @@ mixin _$LocalController on _LocalController, Store {
         .run(() => super.retryFailedLocalLibraryIndexItems());
   }
 
-  late final _$matchWithBangumiAsyncAction =
-      AsyncAction('_LocalController.matchWithBangumi', context: context);
+  late final _$scrapeTmdbMetadataAsyncAction =
+      AsyncAction('_LocalController.scrapeTmdbMetadata', context: context);
 
   @override
-  Future<int> matchWithBangumi() {
-    return _$matchWithBangumiAsyncAction.run(() => super.matchWithBangumi());
+  Future<int> scrapeTmdbMetadata() {
+    return _$scrapeTmdbMetadataAsyncAction
+        .run(() => super.scrapeTmdbMetadata());
   }
 
   late final _$updateLocalLibraryItemAsyncAction =
@@ -925,10 +925,10 @@ thumbnailCurrentFile: ${thumbnailCurrentFile},
 thumbnailCurrent: ${thumbnailCurrent},
 thumbnailTotal: ${thumbnailTotal},
 localLibraryItems: ${localLibraryItems},
-isMatchingBangumi: ${isMatchingBangumi},
-bangumiMatchProgress: ${bangumiMatchProgress},
-bangumiMatchCurrent: ${bangumiMatchCurrent},
-bangumiMatchTotal: ${bangumiMatchTotal},
+isScrapingTmdb: ${isScrapingTmdb},
+tmdbScrapeProgress: ${tmdbScrapeProgress},
+tmdbScrapeCurrent: ${tmdbScrapeCurrent},
+tmdbScrapeTotal: ${tmdbScrapeTotal},
 isIndexingLibrary: ${isIndexingLibrary},
 libraryIndexCurrentFile: ${libraryIndexCurrentFile},
 libraryIndexCurrent: ${libraryIndexCurrent},

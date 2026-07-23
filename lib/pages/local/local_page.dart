@@ -274,11 +274,11 @@ class _LocalPageState extends State<LocalPage>
 
   Future<void> _scrapeTmdb(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
-    await localController.matchWithBangumi();
+    await localController.scrapeTmdbMetadata();
     if (!mounted) return;
     messenger.showSnackBar(
       SnackBar(
-        content: Text(localController.bangumiMatchProgress),
+        content: Text(localController.tmdbScrapeProgress),
         duration: const Duration(seconds: 3),
       ),
     );
@@ -836,7 +836,7 @@ class _LocalPageState extends State<LocalPage>
       isFetchingPosters: localController.isFetchingPosters,
       isFetchingMediaInfo: localController.isFetchingMediaInfo,
       isFetchingThumbnails: localController.isFetchingThumbnails,
-      isMatchingMetadata: localController.isMatchingBangumi,
+      isMatchingMetadata: localController.isScrapingTmdb,
       canScanLibrary: !localController.isLoading &&
           !localController.isIndexingLibrary &&
           localController.mediaSources.isNotEmpty,
@@ -850,7 +850,7 @@ class _LocalPageState extends State<LocalPage>
           !localController.isFetchingThumbnails &&
           localController.currentPath.isNotEmpty,
       canMatchMetadata: !localController.isLoading &&
-          !localController.isMatchingBangumi &&
+          !localController.isScrapingTmdb &&
           localController.localLibraryVideoCount > 0,
     );
   }
@@ -906,11 +906,11 @@ class _LocalPageState extends State<LocalPage>
           kind: LibraryDirectoryStatusKind.indexFailures,
           label: '${localController.libraryIndexFailures.length} 项扫描失败');
     }
-    if (localController.isMatchingBangumi) {
+    if (localController.isScrapingTmdb) {
       return LibraryDirectoryStatusViewData.matchingMetadata(
-          label: localController.bangumiMatchProgress,
-          current: localController.bangumiMatchCurrent,
-          total: localController.bangumiMatchTotal);
+          label: localController.tmdbScrapeProgress,
+          current: localController.tmdbScrapeCurrent,
+          total: localController.tmdbScrapeTotal);
     }
     if (localController.isFetchingPosters) {
       return LibraryDirectoryStatusViewData(
@@ -1117,15 +1117,15 @@ class _LocalPageState extends State<LocalPage>
 }
 
 /// 可展开的媒体简介区块。
-class _BangumiSummaryBlock extends StatefulWidget {
-  const _BangumiSummaryBlock({required this.summary});
+class _MediaSummaryBlock extends StatefulWidget {
+  const _MediaSummaryBlock({required this.summary});
   final String summary;
 
   @override
-  State<_BangumiSummaryBlock> createState() => _BangumiSummaryBlockState();
+  State<_MediaSummaryBlock> createState() => _MediaSummaryBlockState();
 }
 
-class _BangumiSummaryBlockState extends State<_BangumiSummaryBlock> {
+class _MediaSummaryBlockState extends State<_MediaSummaryBlock> {
   bool _expanded = false;
 
   @override

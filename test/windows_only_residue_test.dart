@@ -67,4 +67,20 @@ void main() {
       );
     }
   });
+
+  test('Windows 插件注册不含已删除插件', () {
+    final generated = <String>[
+      File('windows/flutter/generated_plugin_registrant.cc').readAsStringSync(),
+      File('windows/flutter/generated_plugins.cmake').readAsStringSync(),
+    ].join('\n');
+    for (final token in const <String>[
+      'dynamic_color',
+      'flutter_displaymode',
+      'saver_gallery',
+      'screen_brightness',
+      'audio_service_mpris',
+    ]) {
+      expect(generated, isNot(contains(token)), reason: token);
+    }
+  });
 }

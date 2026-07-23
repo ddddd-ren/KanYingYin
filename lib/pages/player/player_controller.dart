@@ -1615,12 +1615,6 @@ abstract class _PlayerController with Store {
     return '#${color.toARGB32().toRadixString(16).padLeft(8, '0')}';
   }
 
-  int get superResolutionType => switch (anime4kPreference) {
-        Anime4kPreference.off => 1,
-        Anime4kPreference.efficiency => 2,
-        Anime4kPreference.quality => 3,
-      };
-
   void updateAnime4kOutputSize({
     required Size logicalSize,
     required double devicePixelRatio,
@@ -1649,13 +1643,6 @@ abstract class _PlayerController with Store {
     anime4kPreference = value;
     await _evaluateAnime4k();
   }
-
-  Future<void> setShader(int type, {bool synchronized = true}) =>
-      setAnime4kPreference(switch (type) {
-        2 => Anime4kPreference.efficiency,
-        3 => Anime4kPreference.quality,
-        _ => Anime4kPreference.off,
-      });
 
   @action
   void setAspectRatioType(int value) {

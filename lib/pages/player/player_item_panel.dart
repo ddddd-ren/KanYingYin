@@ -16,6 +16,8 @@ import 'package:kanyingyin/utils/storage.dart';
 import 'package:audio_video_progress_bar/audio_video_progress_bar.dart';
 import 'package:kanyingyin/services/timed_shutdown_service.dart';
 import 'package:kanyingyin/pages/player/widgets/embedded_track_menus.dart';
+import 'package:kanyingyin/features/player/application/anime4k_policy.dart';
+import 'package:kanyingyin/pages/player/widgets/anime4k_status_label.dart';
 
 class PlayerItemPanel extends StatefulWidget {
   const PlayerItemPanel({
@@ -50,7 +52,8 @@ class PlayerItemPanel extends StatefulWidget {
   final void Function() handleScreenShot;
   final void Function(ThumbDragDetails details) handleProgressBarDragStart;
   final void Function() handleProgressBarDragEnd;
-  final Future<void> Function(int shaderIndex) handleSuperResolutionChange;
+  final Future<void> Function(Anime4kPreference preference)
+      handleSuperResolutionChange;
   final AnimationController animationController;
   final FocusNode keyboardFocus;
   final void Function() startHideTimer;
@@ -617,31 +620,35 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
                               controller.open();
                             }
                           },
-                          child: const Text(
-                            '超分辨率',
-                            style: TextStyle(color: Colors.white),
+                          child: Anime4kStatusLabel(
+                            preference: playerController.anime4kPreference,
+                            runtimeState: playerController.anime4kRuntimeState,
+                            style: const TextStyle(color: Colors.white),
                           ),
                         );
                       },
                       menuChildren: List<MenuItemButton>.generate(
                         3,
                         (int index) => MenuItemButton(
-                          onPressed: () =>
-                              widget.handleSuperResolutionChange(index + 1),
+                          onPressed: () async {
+                            await widget.handleSuperResolutionChange(
+                              Anime4kPreference.values[index],
+                            );
+                          },
                           child: Container(
                             height: 48,
                             constraints: BoxConstraints(minWidth: 112),
                             child: Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                index + 1 == 1
-                                    ? '关闭'
-                                    : index + 1 == 2
-                                        ? '效率档'
-                                        : '质量档',
+                                switch (Anime4kPreference.values[index]) {
+                                  Anime4kPreference.off => '关闭',
+                                  Anime4kPreference.efficiency => '效率档',
+                                  Anime4kPreference.quality => '质量档',
+                                },
                                 style: TextStyle(
-                                  color: playerController.superResolutionType ==
-                                          index + 1
+                                  color: playerController.anime4kPreference ==
+                                          Anime4kPreference.values[index]
                                       ? Theme.of(context).colorScheme.primary
                                       : null,
                                 ),

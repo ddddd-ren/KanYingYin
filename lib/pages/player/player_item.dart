@@ -30,6 +30,7 @@ import 'package:kanyingyin/pages/player/widgets/track_language_confirmation_dial
 import 'package:kanyingyin/features/player/presentation/player_overlay_coordinator.dart';
 import 'package:kanyingyin/features/player/presentation/player_shortcut_handler.dart';
 import 'package:kanyingyin/features/player/presentation/player_exit_coordinator.dart';
+import 'package:kanyingyin/features/player/application/anime4k_policy.dart';
 import 'package:path/path.dart' as p;
 
 class PlayerItem extends StatefulWidget {
@@ -97,6 +98,8 @@ class _PlayerItemState extends State<PlayerItem>
   late mobx.ReactionDisposer _playerSizeListener;
 
   late mobx.ReactionDisposer _fullscreenListener;
+  late mobx.ReactionDisposer _anime4kStateReaction;
+  bool _anime4kFailureShown = false;
 
   bool get _canUsePlayer =>
       mounted && _acceptingInput && playerController.hasActivePlayer;
@@ -509,10 +512,12 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   // 启用超分辨率（质量档）时弹出提示
-  Future<void> handleSuperResolutionChange(int shaderIndex) async {
+  Future<void> handleSuperResolutionChange(
+    Anime4kPreference preference,
+  ) async {
     if (!_canUsePlayer) return;
 
-    final bool isHighMode = shaderIndex == 3;
+    final bool isHighMode = preference == Anime4kPreference.quality;
     final bool alreadyShown = setting.getTyped<bool>(
       SettingBoxKey.superResolutionWarn,
       defaultValue: false,
@@ -574,10 +579,14 @@ class _PlayerItemState extends State<PlayerItem>
       if (!_canUsePlayer) return;
 
       if (confirmed) {
-        playerController.setShader(shaderIndex);
+        _anime4kFailureShown = false;
+        await playerController.setAnime4kPreference(preference);
       }
     } else {
-      playerController.setShader(shaderIndex);
+      if (preference != Anime4kPreference.off) {
+        _anime4kFailureShown = false;
+      }
+      await playerController.setAnime4kPreference(preference);
     }
   }
 
@@ -1076,6 +1085,18 @@ class _PlayerItemState extends State<PlayerItem>
         unawaited(_syncPIPAspectWhenVideoSizeReady());
       },
     );
+    _anime4kStateReaction = mobx.reaction<Anime4kRuntimeState>(
+      (_) => playerController.anime4kRuntimeState,
+      (state) {
+        if (state != Anime4kRuntimeState.failedDisabled ||
+            _anime4kFailureShown ||
+            !_canUsePlayer) {
+          return;
+        }
+        _anime4kFailureShown = true;
+        AppDialog.showToast(message: '当前显卡或渲染器无法启用超分辨率');
+      },
+    );
     WidgetsBinding.instance.addObserver(this);
     animationController ??= AnimationController(
       duration: StyleString.animationDuration,
@@ -1110,6 +1131,7 @@ class _PlayerItemState extends State<PlayerItem>
     _stopInteractiveWorkForExit();
     _fullscreenListener();
     _playerSizeListener();
+    _anime4kStateReaction();
     WidgetsBinding.instance.removeObserver(this);
     windowManager.removeListener(this);
     playerTimer?.cancel();

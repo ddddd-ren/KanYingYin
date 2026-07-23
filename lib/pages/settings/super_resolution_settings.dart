@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
+import 'package:kanyingyin/features/player/application/anime4k_policy.dart';
 
 class SuperResolutionSettings extends StatefulWidget {
   const SuperResolutionSettings({super.key});
@@ -14,11 +15,14 @@ class SuperResolutionSettings extends StatefulWidget {
 class _SuperResolutionSettingsState extends State<SuperResolutionSettings> {
   late final Box<Object?> setting = GStorage.setting;
   late bool promptOnEnable;
-  late final ValueNotifier<String> superResolutionType = ValueNotifier<String>(
-    setting
-        .get(SettingBoxKey.defaultSuperResolutionType, defaultValue: 1)
-        .toString(),
-  );
+  late Anime4kPreference anime4kPreference = switch (setting.getTyped<int>(
+    SettingBoxKey.defaultSuperResolutionType,
+    defaultValue: 1,
+  )) {
+    2 => Anime4kPreference.efficiency,
+    3 => Anime4kPreference.quality,
+    _ => Anime4kPreference.off,
+  };
 
   @override
   void initState() {
@@ -27,6 +31,18 @@ class _SuperResolutionSettingsState extends State<SuperResolutionSettings> {
       SettingBoxKey.superResolutionWarn,
       defaultValue: false,
     );
+  }
+
+  Future<void> _setPreference(Anime4kPreference? value) async {
+    if (value == null) return;
+    final stored = switch (value) {
+      Anime4kPreference.off => 1,
+      Anime4kPreference.efficiency => 2,
+      Anime4kPreference.quality => 3,
+    };
+    await setting.put(SettingBoxKey.defaultSuperResolutionType, stored);
+    if (!mounted) return;
+    setState(() => anime4kPreference = value);
   }
 
   @override
@@ -38,59 +54,41 @@ class _SuperResolutionSettingsState extends State<SuperResolutionSettings> {
         maxWidth: 1000,
         sections: [
           KSettingsSection(
-              title: Text('超分辨率需要启用硬件解码, 若启用硬件解码后仍然不生效, 尝试切换视频渲染器为 gpu',
+              title: Text('Anime4K 自适应超分辨率',
                   style: TextStyle(fontFamily: fontFamily)),
               tiles: [
-                KSettingsTile<String>.radioTile(
-                  title: Text("OFF", style: TextStyle(fontFamily: fontFamily)),
-                  description: Text("默认禁用超分辨率",
+                KSettingsTile<Anime4kPreference>.radioTile(
+                  title: Text('关闭', style: TextStyle(fontFamily: fontFamily)),
+                  description: Text('不使用 Anime4K。',
                       style: TextStyle(fontFamily: fontFamily)),
-                  radioValue: "1",
-                  groupValue: superResolutionType.value,
-                  onChanged: (String? value) {
-                    if (value != null) {
-                      setting.put(SettingBoxKey.defaultSuperResolutionType,
-                          int.tryParse(value) ?? 1);
-                      setState(() {
-                        superResolutionType.value = value;
-                      });
-                    }
-                  },
+                  radioValue: Anime4kPreference.off,
+                  groupValue: anime4kPreference,
+                  onChanged: _setPreference,
                 ),
-                KSettingsTile<String>.radioTile(
-                  title: Text("Efficiency",
+                KSettingsTile<Anime4kPreference>.radioTile(
+                  title: Text('效率档', style: TextStyle(fontFamily: fontFamily)),
+                  description: Text('需要放大时自动启用轻量 Anime4K。',
                       style: TextStyle(fontFamily: fontFamily)),
-                  description: Text("默认启用基于Anime4K的超分辨率 (效率优先)",
-                      style: TextStyle(fontFamily: fontFamily)),
-                  radioValue: "2",
-                  groupValue: superResolutionType.value,
-                  onChanged: (String? value) {
-                    if (value != null) {
-                      setting.put(SettingBoxKey.defaultSuperResolutionType,
-                          int.tryParse(value) ?? 1);
-                      setState(() {
-                        superResolutionType.value = value;
-                      });
-                    }
-                  },
+                  radioValue: Anime4kPreference.efficiency,
+                  groupValue: anime4kPreference,
+                  onChanged: _setPreference,
                 ),
-                KSettingsTile<String>.radioTile(
+                KSettingsTile<Anime4kPreference>.radioTile(
+                  title: Text('质量档', style: TextStyle(fontFamily: fontFamily)),
+                  description: Text('需要放大时自动启用完整 Anime4K，显卡负载更高。',
+                      style: TextStyle(fontFamily: fontFamily)),
+                  radioValue: Anime4kPreference.quality,
+                  groupValue: anime4kPreference,
+                  onChanged: _setPreference,
+                ),
+                KSettingsTile<void>(
                   title:
-                      Text("Quality", style: TextStyle(fontFamily: fontFamily)),
-                  description: Text("默认启用基于Anime4K的超分辨率 (质量优先)",
-                      style: TextStyle(fontFamily: fontFamily)),
-                  radioValue: "3",
-                  groupValue: superResolutionType.value,
-                  onChanged: (String? value) {
-                    if (value != null) {
-                      setting.put(SettingBoxKey.defaultSuperResolutionType,
-                          int.tryParse(value) ?? 1);
-                      setState(() {
-                        superResolutionType.value = value;
-                      });
-                    }
-                  },
-                )
+                      Text('自适应说明', style: TextStyle(fontFamily: fontFamily)),
+                  description: Text(
+                    '窗口缩小或原始分辨率足够时会暂时关闭，不会更改默认选择。',
+                    style: TextStyle(fontFamily: fontFamily),
+                  ),
+                ),
               ]),
           KSettingsSection(
             title: Text('默认行为', style: TextStyle(fontFamily: fontFamily)),

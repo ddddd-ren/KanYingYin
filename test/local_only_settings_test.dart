@@ -70,4 +70,29 @@ void main() {
       expect(source, isNot(contains(text)));
     }
   });
+
+  test('活动源码不再使用旧项目命名或在线能力', () {
+    final offenders = <String>[];
+    for (final entity in Directory('lib').listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      final path = entity.path.replaceAll('\\', '/');
+      if (path.startsWith('lib/legacy/')) continue;
+      final source = entity.readAsStringSync();
+      for (final token in const <String>[
+        'BangumiItem',
+        'matchWithBangumi',
+        'isMatchingBangumi',
+        'bangumiMatchProgress',
+        'bangumiHTTPHeader',
+        'bgm.tv',
+        'clearWebviewLog',
+        'Bangumi fallback',
+        'pluginName',
+        'adBlockerEnabled',
+      ]) {
+        if (source.contains(token)) offenders.add('$path: $token');
+      }
+    }
+    expect(offenders, isEmpty, reason: offenders.join('\n'));
+  });
 }

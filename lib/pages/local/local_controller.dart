@@ -246,16 +246,16 @@ abstract class _LocalController with Store {
   String? cloudRefreshError;
 
   @observable
-  bool isMatchingBangumi = false;
+  bool isScrapingTmdb = false;
 
   @observable
-  String bangumiMatchProgress = '';
+  String tmdbScrapeProgress = '';
 
   @observable
-  int bangumiMatchCurrent = 0;
+  int tmdbScrapeCurrent = 0;
 
   @observable
-  int bangumiMatchTotal = 0;
+  int tmdbScrapeTotal = 0;
 
   @observable
   bool isIndexingLibrary = false;
@@ -950,8 +950,8 @@ abstract class _LocalController with Store {
   }
 
   @action
-  Future<int> matchWithBangumi() async {
-    if (isMatchingBangumi) return 0;
+  Future<int> scrapeTmdbMetadata() async {
+    if (isScrapingTmdb) return 0;
 
     final items = localLibraryItems;
     if (items.isEmpty) return 0;
@@ -964,25 +964,25 @@ abstract class _LocalController with Store {
       }
     }
     if (unmatched.isEmpty) {
-      bangumiMatchProgress = '所有系列已完成 TMDB 刮削';
+      tmdbScrapeProgress = '所有系列已完成 TMDB 刮削';
       return 0;
     }
     if (_tmdbApiKey.isEmpty) {
-      bangumiMatchProgress = '请先在设置中填写 TMDB API Key';
+      tmdbScrapeProgress = '请先在设置中填写 TMDB API Key';
       return 0;
     }
 
-    isMatchingBangumi = true;
-    bangumiMatchCurrent = 0;
-    bangumiMatchTotal = unmatched.length;
-    bangumiMatchProgress = '正在刮削 TMDB 信息...';
+    isScrapingTmdb = true;
+    tmdbScrapeCurrent = 0;
+    tmdbScrapeTotal = unmatched.length;
+    tmdbScrapeProgress = '正在刮削 TMDB 信息...';
     var matched = 0;
 
     try {
       for (final seriesName in unmatched) {
-        bangumiMatchCurrent++;
-        bangumiMatchProgress =
-            '正在匹配 $seriesName ($bangumiMatchCurrent/$bangumiMatchTotal)';
+        tmdbScrapeCurrent++;
+        tmdbScrapeProgress =
+            '正在匹配 $seriesName ($tmdbScrapeCurrent/$tmdbScrapeTotal)';
 
         final result = await _tmdbScrapeService.scrapeSeries(
           apiKey: _tmdbApiKey,
@@ -992,13 +992,13 @@ abstract class _LocalController with Store {
         if (result.status == TmdbScrapeStatus.matched) matched++;
       }
       _reloadLocalLibraryIndexSafe();
-      bangumiMatchProgress =
+      tmdbScrapeProgress =
           matched > 0 ? '已完成 $matched 个系列的 TMDB 刮削' : '没有可自动匹配的 TMDB 信息';
     } catch (e) {
-      bangumiMatchProgress = 'TMDB 刮削出错';
+      tmdbScrapeProgress = 'TMDB 刮削出错';
       AppLogger().w('LocalController: TMDB scrape failed', error: e);
     } finally {
-      isMatchingBangumi = false;
+      isScrapingTmdb = false;
     }
 
     return matched;
@@ -1534,7 +1534,7 @@ abstract class _LocalController with Store {
     AppLogger().i(
       'LocalController: auto-scraping ${unmatched.length} series with TMDB',
     );
-    matchWithBangumi().then((matched) {
+    unawaited(scrapeTmdbMetadata().then((matched) {
       if (matched > 0) {
         AppLogger().i(
           'LocalController: auto-scraped $matched series with TMDB',
@@ -1545,7 +1545,7 @@ abstract class _LocalController with Store {
         'LocalController: automatic TMDB scrape failed',
         error: e,
       );
-    });
+    }));
   }
 
   void _reloadLocalLibraryIndexSafe() {

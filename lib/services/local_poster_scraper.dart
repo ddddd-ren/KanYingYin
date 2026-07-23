@@ -86,14 +86,14 @@ class LocalPosterScraper implements ILocalPosterScraper {
 
       String? effectivePosterUrl = posterUrl;
 
-      // If TMDB failed, try Bangumi cover fallback.
+      // TMDB 未返回海报时，尝试使用索引中已有的备用海报。
       if (effectivePosterUrl == null && fallbackCover != null) {
         for (final item in groupItems) {
           final fallback = await fallbackCover(item);
           if (fallback != null && fallback.isNotEmpty) {
             effectivePosterUrl = fallback;
             AppLogger().i(
-              'LocalPosterScraper: using Bangumi fallback cover for "$displayName"',
+              'LocalPosterScraper: using indexed fallback cover for "$displayName"',
             );
             break;
           }

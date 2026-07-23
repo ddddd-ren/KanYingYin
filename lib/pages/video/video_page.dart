@@ -165,7 +165,7 @@ class _VideoPageState extends State<VideoPage>
     });
   }
 
-  void clearWebviewLog() {
+  void clearPlayerLog() {
     setState(() {
       playerController.playerLog.clear();
     });
@@ -182,7 +182,7 @@ class _VideoPageState extends State<VideoPage>
   Future<void> changeEpisode(int episode,
       {int currentRoad = 0, int offset = 0}) async {
     _resetRelayVisibility();
-    clearWebviewLog();
+    clearPlayerLog();
     hideDebugConsole();
     localVideoController.loading = true;
     localVideoController.errorMessage = null;

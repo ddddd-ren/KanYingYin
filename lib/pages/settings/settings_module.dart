@@ -177,7 +177,10 @@ class SettingsModule extends Module {
       r,
       "/cloud-sources/quark/import",
       child: (_) => r.args.data is CloudSource
-          ? QuarkShareImportPage(source: r.args.data as CloudSource)
+          ? QuarkShareImportPage(
+              source: r.args.data as CloudSource,
+              cloudLibraryController: Modular.get<CloudLibraryController>(),
+            )
           : const Scaffold(body: Center(child: Text('夸克来源不存在'))),
     );
     _child(

@@ -3,24 +3,29 @@ import 'package:kanyingyin/features/settings/presentation/settings_presentation.
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/cloud/quark/quark_share_entry.dart';
-import 'package:kanyingyin/pages/local/local_controller.dart';
+import 'package:kanyingyin/pages/cloud/quark/quark_directory_picker.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/providers/quark_import_controller.dart';
 import 'package:kanyingyin/repositories/quark_import_history_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
+import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+import 'package:kanyingyin/services/cloud/cloud_source_root_refresh_coordinator.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_api_client.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_share_transfer_service.dart';
+import 'package:kanyingyin/services/cloud/quark/quark_transfer_target_policy.dart';
 
 class QuarkShareImportPage extends StatefulWidget {
   const QuarkShareImportPage({
     super.key,
     required this.source,
+    this.cloudLibraryController,
     this.credentialStore,
     this.transferService,
     this.importController,
   });
 
   final CloudSource source;
+  final CloudLibraryController? cloudLibraryController;
   final CloudCredentialStore? credentialStore;
   final QuarkShareTransfer? transferService;
   final QuarkImportController? importController;
@@ -35,19 +40,33 @@ class _QuarkShareImportPageState extends State<QuarkShareImportPage> {
   final Set<String> _selectedIds = <String>{};
   QuarkShareTransfer? _transferService;
   QuarkImportController? _importController;
+  CloudLibraryController? _cloudLibraryController;
+  late CloudSource _source;
   QuarkShareInspection? _inspection;
   bool _initializing = true;
   bool _inspecting = false;
+  bool _savingTarget = false;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
+    _source = widget.source;
     _initialize();
   }
 
   Future<void> _initialize() async {
     try {
+      final cloudController = widget.cloudLibraryController ??
+          Modular.get<CloudLibraryController>();
+      _cloudLibraryController = cloudController;
+      await cloudController.load();
+      for (final source in cloudController.sources) {
+        if (source.id == widget.source.id) {
+          _source = source;
+          break;
+        }
+      }
       if (widget.transferService != null && widget.importController != null) {
         _transferService = widget.transferService;
         _importController = widget.importController;
@@ -70,12 +89,8 @@ class _QuarkShareImportPageState extends State<QuarkShareImportPage> {
           QuarkImportController(
             historyRepository: QuarkImportHistoryRepository(),
             transferService: transfer,
-            scanSource: (sourceId) async {
-              await Modular.get<CloudLibraryController>().scanSource(sourceId);
-            },
-            refreshLibrary: () async {
-              await Modular.get<LocalController>().reloadCloudLibraryIndex();
-            },
+            refreshSource:
+                Modular.get<CloudSourceRootRefreshCoordinator>().refreshSource,
           );
       importer.addListener(_refresh);
       if (!mounted) {
@@ -99,6 +114,51 @@ class _QuarkShareImportPageState extends State<QuarkShareImportPage> {
 
   void _refresh() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _chooseTransferDirectory() async {
+    final controller = _cloudLibraryController;
+    if (controller == null) return;
+    final selected = await Navigator.of(context).push<List<CloudRemoteRef>>(
+      MaterialPageRoute(
+        builder: (_) => QuarkDirectoryPickerPage(
+          source: _source,
+          controller: controller,
+          initialSelection: <CloudRemoteRef>[
+            if (_source.defaultTransferDirectory != null)
+              _source.defaultTransferDirectory!,
+          ],
+          singleSelection: true,
+          title: '选择默认转存目录',
+        ),
+      ),
+    );
+    if (!mounted || selected?.isNotEmpty != true) return;
+    await _saveTransferTarget(selected!.single);
+  }
+
+  Future<bool> _saveTransferTarget(CloudRemoteRef target) async {
+    final controller = _cloudLibraryController;
+    if (controller == null) {
+      if (mounted) setState(() => _errorMessage = '网盘来源尚未加载，请重试');
+      return false;
+    }
+    final updated = QuarkTransferTargetPolicy.apply(_source, target);
+    if (updated == _source) return true;
+    setState(() {
+      _savingTarget = true;
+      _errorMessage = null;
+    });
+    try {
+      await controller.save(updated);
+      if (mounted) setState(() => _source = updated);
+      return true;
+    } on Object {
+      if (mounted) setState(() => _errorMessage = '转存目录保存失败，请重试');
+      return false;
+    } finally {
+      if (mounted) setState(() => _savingTarget = false);
+    }
   }
 
   Future<void> _inspect() async {
@@ -127,24 +187,27 @@ class _QuarkShareImportPageState extends State<QuarkShareImportPage> {
   Future<void> _importSelected() async {
     final inspection = _inspection;
     final importer = _importController;
-    final target = widget.source.defaultTransferDirectory;
+    final target = _source.defaultTransferDirectory;
     if (inspection == null || importer == null || target == null) return;
     final selected = inspection.entries
         .where((entry) => _selectedIds.contains(entry.id))
         .toList();
     if (selected.isEmpty) return;
+    if (!await _saveTransferTarget(target)) return;
     try {
-      for (final entry in selected) {
-        await importer.importEntry(
-          sourceId: widget.source.id,
-          shareId: inspection.shareId,
-          entry: entry,
-          targetDirectoryId: target.id,
-        );
-      }
+      final result = await importer.importEntries(
+        sourceId: _source.id,
+        shareId: inspection.shareId,
+        entries: selected,
+        targetDirectoryId: target.id,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('转存完成，媒体库已刷新')),
+        SnackBar(
+          content: Text(
+            result.libraryRefreshed ? '转存完成，已扫描到媒体库' : '文件已转存，但媒体库刷新失败，请重试扫描',
+          ),
+        ),
       );
     } on QuarkDuplicateImportException {
       if (mounted) setState(() => _errorMessage = '相同内容已在转存或已经转存成功');
@@ -166,13 +229,24 @@ class _QuarkShareImportPageState extends State<QuarkShareImportPage> {
   @override
   Widget build(BuildContext context) {
     final inspection = _inspection;
-    final busy = _importController?.busy == true;
+    final busy = _importController?.busy == true || _savingTarget;
+    final target = _source.defaultTransferDirectory;
     return KSettingsScaffold(
       title: '导入夸克分享',
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
-          Text('转存到：${widget.source.defaultTransferDirectory?.path ?? '未设置'}'),
+          Row(
+            children: [
+              Expanded(child: Text('转存到：${target?.path ?? '未设置'}')),
+              OutlinedButton.icon(
+                onPressed:
+                    _initializing || busy ? null : _chooseTransferDirectory,
+                icon: const Icon(Icons.folder_open_outlined),
+                label: Text(target == null ? '选择目录' : '更改目录'),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           TextField(
             controller: _linkController,
@@ -190,7 +264,7 @@ class _QuarkShareImportPageState extends State<QuarkShareImportPage> {
           Align(
             alignment: Alignment.centerRight,
             child: OutlinedButton.icon(
-              onPressed: _initializing || _inspecting ? null : _inspect,
+              onPressed: _initializing || _inspecting || busy ? null : _inspect,
               icon: const Icon(Icons.search),
               label: Text(_inspecting ? '正在读取' : '查看分享内容'),
             ),
@@ -226,9 +300,7 @@ class _QuarkShareImportPageState extends State<QuarkShareImportPage> {
               ),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: busy ||
-                      _selectedIds.isEmpty ||
-                      widget.source.defaultTransferDirectory == null
+              onPressed: busy || _selectedIds.isEmpty || target == null
                   ? null
                   : _importSelected,
               icon: const Icon(Icons.drive_folder_upload_outlined),

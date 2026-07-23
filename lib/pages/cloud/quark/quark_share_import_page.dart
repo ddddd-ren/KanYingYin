@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:flutter_modular/flutter_modular.dart';
@@ -14,6 +16,11 @@ import 'package:kanyingyin/services/cloud/quark/quark_api_client.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_share_transfer_service.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_transfer_target_policy.dart';
 
+typedef QuarkShareTransferFactory = QuarkShareTransfer Function(String cookie);
+typedef QuarkImportControllerFactory = QuarkImportController Function(
+  QuarkShareTransfer transferService,
+);
+
 class QuarkShareImportPage extends StatefulWidget {
   const QuarkShareImportPage({
     super.key,
@@ -22,6 +29,8 @@ class QuarkShareImportPage extends StatefulWidget {
     this.credentialStore,
     this.transferService,
     this.importController,
+    this.transferServiceFactory,
+    this.importControllerFactory,
   });
 
   final CloudSource source;
@@ -29,6 +38,8 @@ class QuarkShareImportPage extends StatefulWidget {
   final CloudCredentialStore? credentialStore;
   final QuarkShareTransfer? transferService;
   final QuarkImportController? importController;
+  final QuarkShareTransferFactory? transferServiceFactory;
+  final QuarkImportControllerFactory? importControllerFactory;
 
   @override
   State<QuarkShareImportPage> createState() => _QuarkShareImportPageState();
@@ -46,6 +57,9 @@ class _QuarkShareImportPageState extends State<QuarkShareImportPage> {
   bool _initializing = true;
   bool _inspecting = false;
   bool _savingTarget = false;
+  bool _pageDisposed = false;
+  bool _resourcesReleased = false;
+  Completer<void>? _activeImport;
   String? _errorMessage;
 
   @override
@@ -61,6 +75,7 @@ class _QuarkShareImportPageState extends State<QuarkShareImportPage> {
           Modular.get<CloudLibraryController>();
       _cloudLibraryController = cloudController;
       await cloudController.load();
+      if (!mounted) return;
       for (final source in cloudController.sources) {
         if (source.id == widget.source.id) {
           _source = source;
@@ -77,15 +92,18 @@ class _QuarkShareImportPageState extends State<QuarkShareImportPage> {
       final store =
           widget.credentialStore ?? Modular.get<CloudCredentialStore>();
       final credential = await store.read(widget.source.id);
+      if (!mounted) return;
       final cookie = credential?.cookie?.trim();
       if (cookie == null || cookie.isEmpty) {
         throw StateError('夸克 Cookie 不存在，请先编辑来源');
       }
       final transfer = widget.transferService ??
+          widget.transferServiceFactory?.call(cookie) ??
           QuarkShareTransferService(
             api: QuarkApiClient(cookie: cookie),
           );
       final importer = widget.importController ??
+          widget.importControllerFactory?.call(transfer) ??
           QuarkImportController(
             historyRepository: QuarkImportHistoryRepository(),
             transferService: transfer,
@@ -94,8 +112,9 @@ class _QuarkShareImportPageState extends State<QuarkShareImportPage> {
           );
       importer.addListener(_refresh);
       if (!mounted) {
-        await transfer.close();
-        importer.dispose();
+        importer.removeListener(_refresh);
+        if (widget.importController == null) importer.dispose();
+        if (widget.transferService == null) await transfer.close();
         return;
       }
       setState(() {
@@ -143,15 +162,32 @@ class _QuarkShareImportPageState extends State<QuarkShareImportPage> {
       if (mounted) setState(() => _errorMessage = '网盘来源尚未加载，请重试');
       return false;
     }
-    final updated = QuarkTransferTargetPolicy.apply(_source, target);
-    if (updated == _source) return true;
     setState(() {
       _savingTarget = true;
       _errorMessage = null;
     });
     try {
+      await controller.load();
+      if (!mounted) return false;
+      if (controller.errorMessage != null) {
+        throw const CloudSourcesLoadException();
+      }
+      final latest = controller.sources
+          .where((source) => source.id == _source.id)
+          .firstOrNull;
+      if (latest == null) throw StateError('网盘来源不存在');
+      final updated = QuarkTransferTargetPolicy.apply(latest, target);
+      if (updated == latest) {
+        setState(() => _source = latest);
+        return true;
+      }
       await controller.save(updated);
-      if (mounted) setState(() => _source = updated);
+      if (mounted) {
+        final saved = controller.sources
+            .where((source) => source.id == updated.id)
+            .firstOrNull;
+        setState(() => _source = saved ?? updated);
+      }
       return true;
     } on Object {
       if (mounted) setState(() => _errorMessage = '转存目录保存失败，请重试');
@@ -185,6 +221,19 @@ class _QuarkShareImportPageState extends State<QuarkShareImportPage> {
   }
 
   Future<void> _importSelected() async {
+    if (_activeImport != null) return _activeImport!.future;
+    final completion = Completer<void>();
+    _activeImport = completion;
+    try {
+      await _performImportSelected();
+    } finally {
+      if (!completion.isCompleted) completion.complete();
+      if (identical(_activeImport, completion)) _activeImport = null;
+      if (_pageDisposed) _releaseOwnedResources();
+    }
+  }
+
+  Future<void> _performImportSelected() async {
     final inspection = _inspection;
     final importer = _importController;
     final target = _source.defaultTransferDirectory;
@@ -218,18 +267,30 @@ class _QuarkShareImportPageState extends State<QuarkShareImportPage> {
 
   @override
   void dispose() {
+    _pageDisposed = true;
     _importController?.removeListener(_refresh);
-    if (widget.importController == null) _importController?.dispose();
-    if (widget.transferService == null) _transferService?.close();
+    if (_activeImport == null) _releaseOwnedResources();
     _linkController.dispose();
     _passcodeController.dispose();
     super.dispose();
   }
 
+  void _releaseOwnedResources() {
+    if (_resourcesReleased) return;
+    _resourcesReleased = true;
+    if (widget.importController == null) _importController?.dispose();
+    if (widget.transferService == null) {
+      final transfer = _transferService;
+      if (transfer != null) unawaited(transfer.close());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final inspection = _inspection;
-    final busy = _importController?.busy == true || _savingTarget;
+    final busy = _importController?.busy == true ||
+        _savingTarget ||
+        _cloudLibraryController?.scanningSourceId != null;
     final target = _source.defaultTransferDirectory;
     return KSettingsScaffold(
       title: '导入夸克分享',

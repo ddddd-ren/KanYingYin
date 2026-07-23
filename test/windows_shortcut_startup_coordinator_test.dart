@@ -28,25 +28,27 @@ void main() {
     expect(result.markDialogShown, isFalse);
   });
 
-  test('仅开始菜单入口存在时不修复也不询问', () async {
-    var callbackCount = 0;
+  test('仅开始菜单入口时按用户确认创建桌面快捷方式', () async {
+    var askCount = 0;
+    var repairCount = 0;
 
     final result = await coordinator.run(
       state: WindowsShortcutEntryState.startMenuOnly,
       dialogAlreadyShown: false,
       askToCreate: () async {
-        callbackCount++;
+        askCount++;
         return true;
       },
       repairOrCreate: () async {
-        callbackCount++;
+        repairCount++;
         return true;
       },
     );
 
-    expect(callbackCount, 0);
-    expect(result.feedback, ShortcutStartupFeedback.none);
-    expect(result.markDialogShown, isFalse);
+    expect(askCount, 1);
+    expect(repairCount, 1);
+    expect(result.feedback, ShortcutStartupFeedback.created);
+    expect(result.markDialogShown, isTrue);
   });
 
   test('两个入口均不存在时按用户确认创建并记住已询问', () async {

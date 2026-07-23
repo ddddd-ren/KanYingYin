@@ -28,11 +28,18 @@ void main() {
     }
   });
 
-  test('仅开始菜单入口存在时跳过询问', () {
+  test('仅开始菜单入口时首次询问且已询问后跳过', () {
     expect(
       decideShortcutStartup(
         state: WindowsShortcutEntryState.startMenuOnly,
         dialogAlreadyShown: false,
+      ),
+      ShortcutStartupDecision.askToCreateDesktop,
+    );
+    expect(
+      decideShortcutStartup(
+        state: WindowsShortcutEntryState.startMenuOnly,
+        dialogAlreadyShown: true,
       ),
       ShortcutStartupDecision.skip,
     );

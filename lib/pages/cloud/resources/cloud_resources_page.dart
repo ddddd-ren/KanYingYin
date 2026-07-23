@@ -25,20 +25,22 @@ String cloudPlaybackFailureDiagnostic(CloudSource source, Object error) =>
     'provider=${source.type.name} sourceId=${source.id} '
     'stage=resolve-or-load errorType=${error.runtimeType}';
 
+typedef CloudSourceAddCallback = FutureOr<String?> Function();
+
 class CloudResourcesPage extends StatefulWidget {
   const CloudResourcesPage({
     super.key,
     this.controller,
-    this.onAddOpenList,
     this.onAddQuark,
+    this.onAddBaidu,
     this.onManageSources,
     this.onPlayRequest,
     this.onDeleteSource,
   });
 
   final CloudResourcesController? controller;
-  final VoidCallback? onAddOpenList;
-  final VoidCallback? onAddQuark;
+  final CloudSourceAddCallback? onAddQuark;
+  final CloudSourceAddCallback? onAddBaidu;
   final VoidCallback? onManageSources;
   final FutureOr<void> Function(CloudResourcePlaybackRequest request)?
       onPlayRequest;
@@ -76,22 +78,22 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     if (mounted) setState(() {});
   }
 
-  void _addOpenList() {
-    final callback = widget.onAddOpenList;
-    if (callback != null) {
-      callback();
-    } else {
-      Modular.to.pushNamed('/settings/cloud-sources/openlist/edit');
-    }
-  }
-
-  void _addQuark() {
-    final callback = widget.onAddQuark;
-    if (callback != null) {
-      callback();
-    } else {
-      Modular.to.pushNamed('/settings/cloud-sources/quark/edit');
-    }
+  Future<void> _addCloudSource(_CloudAddAction action) async {
+    final callback = action == _CloudAddAction.quark
+        ? widget.onAddQuark
+        : widget.onAddBaidu;
+    final route = action == _CloudAddAction.quark
+        ? '/settings/cloud-sources/quark/edit'
+        : '/settings/cloud-sources/baidu/edit';
+    final sourceId = callback != null
+        ? await callback()
+        : await Modular.to.pushNamed<String>(route);
+    if (!mounted || sourceId == null || sourceId.isEmpty) return;
+    await _controller.reloadSourcesAndSnapshot(
+      preferredSourceId: sourceId,
+    );
+    if (!mounted || _controller.errorMessage == null) return;
+    _showMessage('网盘来源刷新失败，已保留当前媒体库，请重试');
   }
 
   void _manageSources() {
@@ -674,6 +676,21 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
               ),
             ),
           const Spacer(),
+          PopupMenuButton<_CloudAddAction>(
+            tooltip: '添加网盘',
+            icon: const Icon(Icons.add_circle_outline),
+            onSelected: (action) => unawaited(_addCloudSource(action)),
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: _CloudAddAction.quark,
+                child: Text('添加夸克网盘'),
+              ),
+              PopupMenuItem(
+                value: _CloudAddAction.baidu,
+                child: Text('添加百度网盘'),
+              ),
+            ],
+          ),
           IconButton(
             tooltip: '管理网盘来源',
             onPressed: _manageSources,
@@ -790,15 +807,19 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
             Wrap(
               spacing: 12,
               children: [
-                OutlinedButton.icon(
-                  onPressed: _addOpenList,
-                  icon: const Icon(Icons.cloud_outlined),
-                  label: const Text('添加 OpenList'),
-                ),
                 FilledButton.icon(
-                  onPressed: _addQuark,
+                  onPressed: () => unawaited(
+                    _addCloudSource(_CloudAddAction.quark),
+                  ),
                   icon: const Icon(Icons.cloud_queue_outlined),
                   label: const Text('添加夸克网盘'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => unawaited(
+                    _addCloudSource(_CloudAddAction.baidu),
+                  ),
+                  icon: const Icon(Icons.cloud_outlined),
+                  label: const Text('添加百度网盘'),
                 ),
               ],
             ),
@@ -933,3 +954,5 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
 }
 
 enum _CloudToolbarAction { autoOrganize, scrape, removeSource }
+
+enum _CloudAddAction { quark, baidu }

@@ -29,6 +29,93 @@ import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
 void main() {
   group('CloudResourcesController', () {
+    test('无扫描重载优先选择刚创建的可用来源', () async {
+      final credentials = MemoryCloudCredentialStore();
+      final repository = CloudSourceRepository(
+        storage: MemoryCloudSourceStorage(),
+        credentialStore: credentials,
+      );
+      const quark = CloudSource(
+        id: 'quark-existing',
+        type: CloudSourceType.quark,
+        name: '夸克网盘',
+        baseUrl: 'https://pan.quark.cn',
+        rootPaths: <String>[],
+      );
+      const baidu = CloudSource(
+        id: 'baidu-new',
+        type: CloudSourceType.baidu,
+        name: '百度网盘',
+        baseUrl: 'https://pan.baidu.com',
+        rootPaths: <String>[],
+      );
+      await repository.save(quark);
+      await repository.save(baidu);
+      final controller = CloudResourcesController(
+        repository: repository,
+        credentialStore: credentials,
+      );
+
+      await controller.reloadSourcesAndSnapshot();
+      expect(controller.selectedSource?.id, quark.id);
+
+      await controller.reloadSourcesAndSnapshot(preferredSourceId: baidu.id);
+
+      expect(controller.selectedSource?.id, baidu.id);
+      controller.dispose();
+    });
+
+    test('来源重载失败时保留当前来源和已有媒体快照', () async {
+      final credentials = MemoryCloudCredentialStore();
+      final storage = _SwitchableCloudSourceStorage();
+      final repository = CloudSourceRepository(
+        storage: storage,
+        credentialStore: credentials,
+      );
+      const source = CloudSource(
+        id: 'stable-source',
+        type: CloudSourceType.quark,
+        name: '稳定来源',
+        baseUrl: 'https://pan.quark.cn',
+        rootPaths: <String>['/影视'],
+      );
+      await repository.save(source);
+      final indexRepository = CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      );
+      await indexRepository.replaceSource(
+        source.id,
+        <CloudMediaIndexItem>[
+          _scopedCloudEpisode(
+            source.id,
+            'video-id',
+            '/影视/剧集/S01E01.mkv',
+            '剧集',
+          ),
+        ],
+        const <String, String>{},
+        const {},
+        const <String>['/影视'],
+      );
+      final controller = CloudResourcesController(
+        repository: repository,
+        credentialStore: credentials,
+        mediaIndexRepository: indexRepository,
+      );
+      await controller.reloadSourcesAndSnapshot();
+      expect(controller.entries.single.id, 'video-id');
+      storage.failReads = true;
+
+      await controller.reloadSourcesAndSnapshot(
+        preferredSourceId: 'missing-source',
+      );
+
+      expect(controller.selectedSource?.id, source.id);
+      expect(controller.entries.single.id, 'video-id');
+      expect(controller.errorMessage, '网盘来源加载失败，请重试');
+      controller.dispose();
+    });
+
     test('无扫描重载按最新根目录过滤旧快照且不回退旧资源', () async {
       final credentials = MemoryCloudCredentialStore();
       final sourceRepository = CloudSourceRepository(
@@ -1181,6 +1268,16 @@ void main() {
       fixture.controller.dispose();
     });
   });
+}
+
+class _SwitchableCloudSourceStorage extends MemoryCloudSourceStorage {
+  bool failReads = false;
+
+  @override
+  Future<List<Map<String, dynamic>>> read() {
+    if (failReads) throw StateError('read failed');
+    return super.read();
+  }
 }
 
 final _matchedAt = DateTime.utc(2026, 7, 19);

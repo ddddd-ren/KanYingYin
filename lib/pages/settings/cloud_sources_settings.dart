@@ -94,7 +94,7 @@ class _CloudSourcesSettingsPageState extends State<CloudSourcesSettingsPage> {
   Widget build(BuildContext context) {
     return KSettingsScaffold(
       title: '网盘数据源',
-      description: '管理个人 OpenList、夸克与百度网盘媒体来源。',
+      description: '管理个人夸克、百度与 OpenList 网盘媒体来源；OpenList 功能仍在调试。',
       body: _controller.loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
@@ -166,7 +166,7 @@ class _CloudSourcesSettingsPageState extends State<CloudSourcesSettingsPage> {
                     itemBuilder: (_) => const [
                       PopupMenuItem(
                         value: CloudSourceType.openList,
-                        child: Text('添加 OpenList'),
+                        child: Text('添加 OpenList（调试中）'),
                       ),
                       PopupMenuItem(
                         value: CloudSourceType.quark,
@@ -225,7 +225,7 @@ class CloudSourceTypePickerPage extends StatelessWidget {
           children: [
             ListTile(
               leading: const Icon(Icons.cloud_outlined),
-              title: const Text('添加 OpenList'),
+              title: const Text('添加 OpenList（调试中）'),
               onTap: () =>
                   Modular.to.pushNamed('/settings/cloud-sources/openlist/edit'),
             ),

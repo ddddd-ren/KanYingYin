@@ -31,7 +31,7 @@ void main() {
     expect(find.text('还没有添加网盘数据源'), findsOneWidget);
   });
 
-  testWidgets('添加菜单包含 OpenList、夸克网盘和百度网盘', (tester) async {
+  testWidgets('添加菜单保留 OpenList 并标注调试中', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(home: CloudSourcesSettingsPage()),
     );
@@ -40,7 +40,7 @@ void main() {
     await tester.tap(find.text('添加网盘来源'));
     await tester.pumpAndSettle();
 
-    expect(find.text('添加 OpenList'), findsOneWidget);
+    expect(find.text('添加 OpenList（调试中）'), findsOneWidget);
     expect(find.text('添加夸克网盘'), findsOneWidget);
     expect(find.text('添加百度网盘'), findsOneWidget);
   });

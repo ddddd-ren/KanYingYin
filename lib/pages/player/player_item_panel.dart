@@ -752,7 +752,7 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
                         for (final entry in aspectRatioTypeMap.entries)
                           MenuItemButton(
                             onPressed: () =>
-                                playerController.aspectRatioType = entry.key,
+                                playerController.setAspectRatioType(entry.key),
                             child: Container(
                               height: 48,
                               constraints: BoxConstraints(minWidth: 112),

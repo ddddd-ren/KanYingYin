@@ -113,6 +113,10 @@ class AppLogOutput extends LogOutput {
 
   @override
   void output(OutputEvent event) {
+    if (identical(_writer, sharedWriter) &&
+        Platform.environment['FLUTTER_TEST'] == 'true') {
+      return;
+    }
     final sanitizedLines = event.lines
         .map((line) => _sanitizer.sanitize(_removeAnsiCodes(line)))
         .toList(growable: false);

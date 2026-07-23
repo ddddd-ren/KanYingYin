@@ -7,6 +7,24 @@ import 'package:kanyingyin/utils/rotating_log_writer.dart';
 import 'package:logger/logger.dart';
 
 void main() {
+  test('测试环境中的共享日志器不访问未注册的平台目录', () async {
+    final output = AppLogOutput();
+    final printed = <String>[];
+
+    runZoned(
+      () => output.output(OutputEvent(
+        LogEvent(Level.info, 'ignored'),
+        const <String>['测试扫描日志'],
+      )),
+      zoneSpecification: ZoneSpecification(
+        print: (_, __, ___, line) => printed.add(line),
+      ),
+    );
+    await output.flush();
+
+    expect(printed, isEmpty);
+  });
+
   test('控制台与文件使用相同脱敏日志', () async {
     final tempDir = await Directory.systemTemp.createTemp('logger_console_');
     addTearDown(() => tempDir.delete(recursive: true));

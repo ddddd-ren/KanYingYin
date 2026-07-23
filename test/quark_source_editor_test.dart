@@ -102,6 +102,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey<String>('select-new-fid')));
+    await tester.pump();
     await tester.tap(find.text('确定'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('保存'));
@@ -117,6 +118,64 @@ void main() {
       saved?.rootRefs,
       contains(const CloudRemoteRef(id: 'new-fid', path: '/影视')),
     );
+    controller.dispose();
+  });
+
+  testWidgets('保存默认转存目录时自动加入媒体根目录并刷新媒体库', (tester) async {
+    const source = CloudSource(
+      id: 'quark-transfer-root',
+      type: CloudSourceType.quark,
+      name: '夸克媒体库',
+      baseUrl: 'https://pan.quark.cn',
+      rootPaths: <String>['/旧目录'],
+      rootRefs: <CloudRemoteRef>[
+        CloudRemoteRef(id: 'old-fid', path: '/旧目录'),
+      ],
+    );
+    final credentials = MemoryCloudCredentialStore();
+    await credentials.write(
+      source.id,
+      const CloudCredential(cookie: 'existing-cookie'),
+    );
+    final repository = CloudSourceRepository(
+      storage: MemoryCloudSourceStorage(),
+      credentialStore: credentials,
+    );
+    await repository.save(source);
+    final controller = CloudLibraryController(
+      repository: repository,
+      credentialStore: credentials,
+      clientFactory: (_, __, ___) => _QuarkDirectoryCloudClient(),
+    );
+    final refreshedSourceIds = <String>[];
+
+    await tester.pumpWidget(MaterialApp(
+      home: QuarkSourceEditorPage(
+        source: source,
+        controller: controller,
+        onRootSelectionChanged: (sourceId) async {
+          refreshedSourceIds.add(sourceId);
+        },
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(OutlinedButton, '选择目录').last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey<String>('select-new-fid')));
+    await tester.pump();
+    await tester.tap(find.text('确定'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    final saved = await repository.getById(source.id);
+    const transferDirectory = CloudRemoteRef(id: 'new-fid', path: '/影视');
+    expect(saved?.defaultTransferDirectory, transferDirectory);
+    expect(saved?.rootRefs, contains(transferDirectory));
+    expect(saved?.rootPaths, contains('/影视'));
+    expect(refreshedSourceIds, <String>[source.id]);
     controller.dispose();
   });
 }

@@ -6,6 +6,7 @@ import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_source_path_scope.dart';
+import 'package:kanyingyin/services/cloud/quark/quark_transfer_target_policy.dart';
 
 class QuarkSourceEditorPage extends StatefulWidget {
   const QuarkSourceEditorPage({
@@ -69,7 +70,7 @@ class _QuarkSourceEditorPageState extends State<QuarkSourceEditorPage> {
 
   CloudSource? _sourceFromForm() {
     if (!(_formKey.currentState?.validate() ?? false)) return null;
-    return CloudSource(
+    final source = CloudSource(
       id: _sourceId,
       type: CloudSourceType.quark,
       name: _nameController.text.trim(),
@@ -84,6 +85,10 @@ class _QuarkSourceEditorPageState extends State<QuarkSourceEditorPage> {
       matchedSubtitleCount: widget.source?.matchedSubtitleCount ?? 0,
       lastScanFailureCount: widget.source?.lastScanFailureCount ?? 0,
     );
+    final transferDirectory = _defaultTransferDirectory;
+    return transferDirectory == null
+        ? source
+        : QuarkTransferTargetPolicy.apply(source, transferDirectory);
   }
 
   Future<void> _test() async {

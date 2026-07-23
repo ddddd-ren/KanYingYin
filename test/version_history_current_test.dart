@@ -292,6 +292,19 @@ void main() {
     expect(entries.single.isPrerelease, isTrue);
   });
 
+  test('二点一四十四说明夸克转存目录与扫描联动', () {
+    final entries = versionHistoryForCurrent('2.1.44');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    expect(changes, contains('转存目录'));
+    expect(changes, contains('媒体根目录'));
+    expect(changes, contains('扫描'));
+    expect(changes, contains('不会修改网盘文件'));
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

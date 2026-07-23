@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.44',
+    date: '2026-07-24',
+    isPrerelease: true,
+    changes: [
+      '本测试版让夸克分享导入页可直接选择或更改转存目录，未设置时也能在当前页面完成配置',
+      '所选转存目录会自动加入媒体根目录；批量转存完成后只扫描一次并刷新媒体库，转存的视频无需重启即可出现',
+      '转存成功但扫描失败时会明确提示文件已经保存，可稍后重试扫描，不会把已完成的转存误报为失败',
+      '没有 TMDB Key、断网或暂时连接不到 TMDB 时，本地与网盘媒体库、扫描和播放器仍可使用',
+      '本次不会修改网盘文件，也不会删除用户的原始媒体；播放器的字幕、选集、全屏、硬件解码和 Anime4K 行为保持不变',
+    ],
+  ),
+  VersionHistory(
     version: '1.0.1',
     date: '2026-07-23',
     changes: [

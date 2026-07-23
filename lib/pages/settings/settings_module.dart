@@ -4,9 +4,7 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/pages/settings/interface_settings.dart';
 import 'package:kanyingyin/pages/settings/theme_settings_page.dart';
 import 'package:kanyingyin/pages/settings/player_settings.dart';
-import 'package:kanyingyin/pages/settings/displaymode_settings.dart';
 import 'package:kanyingyin/pages/settings/decoder_settings.dart';
-import 'package:kanyingyin/pages/settings/renderer_settings.dart';
 import 'package:kanyingyin/pages/settings/super_resolution_settings.dart';
 import 'package:kanyingyin/pages/settings/keyboard_settings.dart';
 import 'package:kanyingyin/pages/settings/tmdb_settings.dart';
@@ -75,15 +73,9 @@ class SettingsModule extends Module {
   @override
   void routes(r) {
     _child(r, "/theme", child: (_) => const ThemeSettingsPage());
-    _child(
-      r,
-      "/theme/display",
-      child: (_) => const SetDisplayMode(),
-    );
     _child(r, "/keyboard", child: (_) => const KeyboardSettingsPage());
     _child(r, "/player", child: (_) => const PlayerSettingsPage());
     _child(r, "/player/decoder", child: (_) => const DecoderSettings());
-    _child(r, "/player/renderer", child: (_) => const RendererSettings());
     _child(r, "/interface", child: (_) => const InterfaceSettingsPage());
     _child(
       r,

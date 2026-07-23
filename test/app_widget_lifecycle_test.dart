@@ -476,7 +476,8 @@ void main() {
 
     expect(source, contains('AppTheme.light('));
     expect(source, contains('AppTheme.dark('));
-    expect(source, contains('AppTheme.fromColorScheme('));
+    expect(source, isNot(contains('AppTheme.fromColorScheme(')));
+    expect(source, isNot(contains('DynamicColorBuilder')));
     expect(source, contains('AppTheme.withOledBackground('));
     expect(source, isNot(contains('Utils.oledDarkTheme(')));
   });

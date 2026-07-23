@@ -3,8 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_modular/flutter_modular.dart';
-import 'package:dynamic_color/dynamic_color.dart';
-import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:tray_manager/tray_manager.dart';
@@ -134,7 +132,6 @@ class _AppWidgetState extends State<AppWidget>
   late final WindowsAppShellService appShellService;
   late final AppShellServiceOwnership appShellServiceOwnership;
   bool showingExitDialog = false;
-  bool _displayModeInitialized = false;
 
   @override
   void initState() {
@@ -145,10 +142,6 @@ class _AppWidgetState extends State<AppWidget>
         : widget.appShellServiceOwnership;
     WidgetsBinding.instance.addObserver(this);
     Modular.setObservers([AppDialog.observer]);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      unawaited(_initializeDisplayMode());
-    });
   }
 
   @override
@@ -318,32 +311,6 @@ class _AppWidgetState extends State<AppWidget>
     themeProvider.setFontFamily(useSystemFont, notify: false);
   }
 
-  Future<void> _initializeDisplayMode() async {
-    if (_displayModeInitialized || !Platform.isAndroid) return;
-    _displayModeInitialized = true;
-    try {
-      final modes = await FlutterDisplayMode.supported;
-      final Object? storedDisplayMode = setting.get(SettingBoxKey.displayMode);
-      final selectedMode = storedDisplayMode == null
-          ? DisplayMode.auto
-          : modes.firstWhere(
-              (mode) => mode.toString() == storedDisplayMode,
-              orElse: () => DisplayMode.auto,
-            );
-      final preferredMode = modes.firstWhere(
-        (mode) => mode == selectedMode,
-        orElse: () => DisplayMode.auto,
-      );
-      await FlutterDisplayMode.setPreferredMode(preferredMode);
-    } catch (error, stackTrace) {
-      AppLogger().e(
-        'DisPlay: set preferred mode failed',
-        error: error,
-        stackTrace: stackTrace,
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final ThemeProvider themeProvider = Provider.of<ThemeProvider>(context);
@@ -362,46 +329,27 @@ class _AppWidgetState extends State<AppWidget>
       fontFamily: themeProvider.currentFontFamily,
       seedColor: color,
     );
+    final effectiveDarkTheme = oledEnhance
+        ? AppTheme.withOledBackground(defaultDarkTheme)
+        : defaultDarkTheme;
     final app = AppShellLifecycle(
       service: appShellService,
       trayListener: this,
       windowListener: this,
       ownership: appShellServiceOwnership,
-      child: DynamicColorBuilder(
-        builder: (theme, darkTheme) {
-          final useDynamicTheme = themeProvider.useDynamicColor &&
-              theme != null &&
-              darkTheme != null;
-          final lightTheme = useDynamicTheme
-              ? AppTheme.fromColorScheme(
-                  theme,
-                  fontFamily: themeProvider.currentFontFamily,
-                )
-              : defaultLightTheme;
-          final dynamicDarkTheme = useDynamicTheme
-              ? AppTheme.fromColorScheme(
-                  darkTheme,
-                  fontFamily: themeProvider.currentFontFamily,
-                )
-              : defaultDarkTheme;
-          final effectiveDarkTheme = oledEnhance
-              ? AppTheme.withOledBackground(dynamicDarkTheme)
-              : dynamicDarkTheme;
-          return MaterialApp.router(
-            title: AppIdentity.displayName,
-            localizationsDelegates: GlobalMaterialLocalizations.delegates,
-            supportedLocales: const [
-              Locale.fromSubtags(
-                  languageCode: 'zh', scriptCode: 'Hans', countryCode: "CN")
-            ],
-            locale: const Locale.fromSubtags(
-                languageCode: 'zh', scriptCode: 'Hans', countryCode: "CN"),
-            theme: lightTheme,
-            darkTheme: effectiveDarkTheme,
-            themeMode: themeProvider.themeMode,
-            routerConfig: Modular.routerConfig,
-          );
-        },
+      child: MaterialApp.router(
+        title: AppIdentity.displayName,
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
+        supportedLocales: const [
+          Locale.fromSubtags(
+              languageCode: 'zh', scriptCode: 'Hans', countryCode: "CN")
+        ],
+        locale: const Locale.fromSubtags(
+            languageCode: 'zh', scriptCode: 'Hans', countryCode: "CN"),
+        theme: defaultLightTheme,
+        darkTheme: effectiveDarkTheme,
+        themeMode: themeProvider.themeMode,
+        routerConfig: Modular.routerConfig,
       ),
     );
     return app;

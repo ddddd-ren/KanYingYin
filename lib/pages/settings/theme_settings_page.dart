@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/bean/card/palette_card.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:hive_ce/hive.dart';
@@ -25,7 +24,6 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
   late String defaultThemeMode;
   late String defaultThemeColor;
   late bool oledEnhance;
-  late bool useDynamicColor;
   late bool showWindowButton;
   late bool useSystemFont;
   late final ThemeProvider themeProvider;
@@ -44,10 +42,6 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
     );
     oledEnhance = setting.getTyped<bool>(
       SettingBoxKey.oledEnhance,
-      defaultValue: false,
-    );
-    useDynamicColor = setting.getTyped<bool>(
-      SettingBoxKey.useDynamicColor,
       defaultValue: false,
     );
     showWindowButton = setting.getTyped<bool>(
@@ -133,7 +127,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
       },
       child: KSettingsScaffold(
         title: '外观设置',
-        description: '管理主题、字体、动态配色与桌面显示。',
+        description: '管理主题、字体与桌面显示。',
         body: KSettingsList(
           maxWidth: 1000,
           sections: [
@@ -259,7 +253,6 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
                   ),
                 ),
                 KSettingsTile<void>.navigation(
-                  enabled: !useDynamicColor,
                   onPressed: (_) async {
                     AppDialog.show<void>(builder: (context) {
                       return AlertDialog(
@@ -307,18 +300,6 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
                     });
                   },
                   title: Text('配色方案', style: TextStyle(fontFamily: fontFamily)),
-                ),
-                KSettingsTile<bool>.switchTile(
-                  enabled: !Platform.isIOS,
-                  onToggle: (value) async {
-                    useDynamicColor = value ?? !useDynamicColor;
-                    await setting.put(
-                        SettingBoxKey.useDynamicColor, useDynamicColor);
-                    themeProvider.setDynamic(useDynamicColor);
-                    setState(() {});
-                  },
-                  title: Text('动态配色', style: TextStyle(fontFamily: fontFamily)),
-                  initialValue: useDynamicColor,
                 ),
                 KSettingsTile<bool>.switchTile(
                   onToggle: (value) async {
@@ -375,18 +356,6 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
                     description: Text('重启应用生效',
                         style: TextStyle(fontFamily: fontFamily)),
                     initialValue: showWindowButton,
-                  ),
-                ],
-              ),
-            if (Platform.isAndroid)
-              KSettingsSection(
-                tiles: [
-                  KSettingsTile<void>.navigation(
-                    onPressed: (_) async {
-                      Modular.to.pushNamed('/settings/theme/display');
-                    },
-                    title:
-                        Text('屏幕帧率', style: TextStyle(fontFamily: fontFamily)),
                   ),
                 ],
               ),

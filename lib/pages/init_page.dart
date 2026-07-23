@@ -50,12 +50,6 @@ class _InitPageState extends State<InitPage> {
       defaultValue: defaultStartupPage,
     );
     final startupPage = _normalizeDefaultStartupPage(storedDefaultStartupPage);
-    // Workaround for dynamic_color. dynamic_color need PlatformChannel to get color, it takes time.
-    // setDynamic here to avoid white screen flash when themeMode is dark.
-    themeProvider.setDynamic(setting.getTyped<bool>(
-      SettingBoxKey.useDynamicColor,
-      defaultValue: false,
-    ));
     Modular.to.navigate(startupPage);
   }
 

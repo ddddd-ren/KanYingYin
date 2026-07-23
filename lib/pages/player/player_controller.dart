@@ -317,7 +317,6 @@ abstract class _PlayerController with Store {
   Box<Object?> setting = GStorage.setting;
   bool hAenable = true;
   late String hardwareDecoder;
-  bool androidEnableOpenSLES = true;
   bool lowMemoryMode = false;
   bool autoPlay = true;
   bool playerDebugMode = false;
@@ -703,10 +702,6 @@ abstract class _PlayerController with Store {
     );
     hAenable =
         setting.getTyped<bool>(SettingBoxKey.hAenable, defaultValue: true);
-    androidEnableOpenSLES = setting.getTyped<bool>(
-      SettingBoxKey.androidEnableOpenSLES,
-      defaultValue: true,
-    );
     hardwareDecoder = normalizeHardwareDecoder(
       setting.getTyped<String>(
         SettingBoxKey.hardwareDecoder,
@@ -764,15 +759,6 @@ abstract class _PlayerController with Store {
     for (final property in cachePolicy.mpvProperties.entries) {
       await pp.setProperty(property.key, property.value);
     }
-    if (Platform.isAndroid) {
-      await pp.setProperty("volume-max", "100");
-      if (androidEnableOpenSLES) {
-        await pp.setProperty("ao", "opensles");
-      } else {
-        await pp.setProperty("ao", "audiotrack");
-      }
-    }
-
     // 设置 HTTP 代理
     final bool proxyEnable = setting.getTyped<bool>(
       SettingBoxKey.proxyEnable,
@@ -797,38 +783,9 @@ abstract class _PlayerController with Store {
       AudioTrack.auto(),
     );
 
-    String? videoRenderer;
-    if (Platform.isAndroid) {
-      final String androidVideoRenderer = setting.getTyped<String>(
-        SettingBoxKey.androidVideoRenderer,
-        defaultValue: 'auto',
-      );
-
-      if (androidVideoRenderer == 'auto') {
-        // Android 14 及以上使用基于 Vulkan 的 MPV GPU-NEXT 视频输出，着色器性能更好
-        // GPU-NEXT 需要 Vulkan 1.2 支持
-        // 避免 Android 14 及以下设备上部分机型 Vulkan 支持不佳导致的黑屏问题
-        final int androidSdkVersion = await Utils.getAndroidSdkVersion();
-        if (androidSdkVersion >= 34) {
-          videoRenderer = 'gpu-next';
-        } else {
-          videoRenderer = 'gpu';
-        }
-      } else {
-        videoRenderer = androidVideoRenderer;
-      }
-    }
-
-    if (videoRenderer == 'mediacodec_embed') {
-      hAenable = true;
-      hardwareDecoder = 'mediacodec';
-      superResolutionType = 1;
-    }
-
     videoController ??= VideoController(
       mediaPlayer!,
       configuration: VideoControllerConfiguration(
-        vo: videoRenderer,
         enableHardwareAcceleration: hAenable,
         hwdec: hAenable ? hardwareDecoder : 'no',
         androidAttachSurfaceAfterVideoParameters: false,

@@ -165,24 +165,6 @@ class _PlayerItemState extends State<PlayerItem>
     }
   }
 
-  Future<void> _syncAndroidAutoEnterPIPSetting() async {
-    if (!Platform.isAndroid) {
-      return;
-    }
-    final bool autoEnterPIPEnabled = setting.getTyped<bool>(
-      SettingBoxKey.androidAutoEnterPIP,
-      defaultValue: false,
-    );
-    try {
-      await PipUtils.setAndroidAutoEnterPIPEnabled(autoEnterPIPEnabled);
-    } catch (e) {
-      AppLogger().w(
-        'PlayerItem: failed to sync android auto enter pip setting',
-        error: e,
-      );
-    }
-  }
-
   Future<void> _syncAndroidPIPPlayerPageState(bool inPlayerPage) async {
     if (!Platform.isAndroid) {
       return;
@@ -592,34 +574,6 @@ class _PlayerItemState extends State<PlayerItem>
   // 启用超分辨率（质量档）时弹出提示
   Future<void> handleSuperResolutionChange(int shaderIndex) async {
     if (!_canUsePlayer) return;
-
-    // mediacodec_embed 不支持超分辨率
-    if (Platform.isAndroid && shaderIndex != 1) {
-      final String androidVideoRenderer = setting.getTyped<String>(
-        SettingBoxKey.androidVideoRenderer,
-        defaultValue: 'auto',
-      );
-
-      if (androidVideoRenderer == 'mediacodec_embed') {
-        await AppDialog.show<void>(builder: (context) {
-          return AlertDialog(
-            title: const Text('兼容性提示'),
-            content: const Text('MediaCodec 渲染器不支持超分辨率功能。\n\n'
-                '如需使用超分辨率，请在播放设置中将视频渲染器切换为 gpu 或 gpu-next。'),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  AppDialog.dismiss<void>();
-                },
-                child: const Text('确定'),
-              ),
-            ],
-          );
-        });
-        if (!_canUsePlayer) return;
-        return;
-      }
-    }
 
     final bool isHighMode = shaderIndex == 3;
     final bool alreadyShown = setting.getTyped<bool>(
@@ -1229,7 +1183,6 @@ class _PlayerItemState extends State<PlayerItem>
           await _updateAndroidPIPActions(force: true);
         },
       );
-      unawaited(_syncAndroidAutoEnterPIPSetting());
       unawaited(_syncAndroidPIPPlayerPageState(true));
       unawaited(_updateAndroidPIPActions(force: true));
     }

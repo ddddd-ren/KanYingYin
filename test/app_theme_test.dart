@@ -31,20 +31,9 @@ void main() {
     expect(dialogShape.borderRadius, BorderRadius.circular(12));
   });
 
-  test('动态配色仍使用看影音组件和表面规范', () {
-    final source = ColorScheme.fromSeed(
-      seedColor: Colors.purple,
-      brightness: Brightness.dark,
-    );
-    final theme = AppTheme.fromColorScheme(
-      source,
-      fontFamily: 'MiSans',
-    );
-
-    expect(theme.colorScheme, source);
-    expect(theme.scaffoldBackgroundColor, source.surface);
-    expect(theme.cardTheme.margin, EdgeInsets.zero);
-    expect(theme.textTheme.bodyMedium?.fontFamily, 'MiSans');
+  test('主题工厂不再暴露动态配色入口', () {
+    final source = File('lib/theme/app_theme.dart').readAsStringSync();
+    expect(source, isNot(contains('fromColorScheme')));
   });
 
   test('OLED 增强只把最底层背景改为纯黑', () {

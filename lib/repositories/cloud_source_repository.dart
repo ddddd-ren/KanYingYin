@@ -105,6 +105,27 @@ class CloudSourceRepository {
         );
       });
 
+  Future<CloudSource?> updateSource(
+    String sourceId,
+    CloudSource Function(CloudSource current) update,
+  ) =>
+      _mutationLock.synchronized(() async {
+        final sources = await getAll();
+        final index = sources.indexWhere((source) => source.id == sourceId);
+        if (index < 0) return null;
+        final current = sources[index];
+        final updated = update(current);
+        if (updated.id != sourceId) {
+          throw StateError('更新网盘数据源时不能修改来源 ID');
+        }
+        if (updated == current) return current;
+        sources[index] = updated;
+        await _storage.write(
+          sources.map((source) => source.toJson()).toList(growable: false),
+        );
+        return updated;
+      });
+
   Future<void> updateScanSummary(
     String sourceId, {
     required CloudScanStatus status,

@@ -305,6 +305,45 @@ void main() {
     expect(changes, contains('不会修改网盘文件'));
   });
 
+  test('二点一四十五说明夸克旧转存目录扫描自愈', () {
+    final entries = versionHistoryForCurrent('2.1.45');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    expect(changes, contains('默认转存目录'));
+    expect(changes, contains('下次扫描时自动补齐'));
+    expect(changes, contains('不记录 Cookie'));
+    expect(changes, contains('不会修改网盘文件'));
+  });
+
+  test('二点一四十六继续修复夸克默认转存目录漏扫', () {
+    final entries = versionHistoryForCurrent('2.1.46');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    expect(changes, contains('默认转存目录'));
+    expect(changes, contains('自动检查并补齐'));
+    expect(changes, contains('不记录 Cookie'));
+    expect(changes, contains('不会修改网盘文件'));
+  });
+
+  test('二点一四十七修复夸克旧 ID 和取消状态', () {
+    final entries = versionHistoryForCurrent('2.1.47');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    expect(changes, contains('默认转存目录'));
+    expect(changes, contains('旧远程 ID'));
+    expect(changes, contains('不再残留“正在扫描”'));
+    expect(changes, contains('不会修改网盘文件'));
+  });
+
   testWidgets('二点一七更新弹窗明确显示自定义剧名安全边界', (tester) async {
     final entries = versionHistoryForCurrent('2.1.7');
 

@@ -19,6 +19,8 @@ import 'package:kanyingyin/services/cloud/cloud_poster_cache.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_subtitle_cache.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+import 'package:kanyingyin/services/cloud/quark/quark_transfer_target_policy.dart';
+import 'package:kanyingyin/utils/logger.dart';
 
 typedef CloudClientFactory = CloudDriveClient Function(
   CloudSource source,
@@ -445,15 +447,46 @@ class CloudLibraryController extends ChangeNotifier {
     _notify();
     CloudDriveClient? client;
     try {
-      final source = await _repository.getById(sourceId);
+      var source = await _repository.getById(sourceId);
       if (_disposed || token.isCancelled) return _cancelledScanResult();
       if (source == null) throw StateError('网盘数据源不存在');
+      var repairedTransferRoot = false;
+      source = await _repository.updateSource(sourceId, (latest) {
+        final transferDirectory = latest.defaultTransferDirectory;
+        if (latest.type != CloudSourceType.quark || transferDirectory == null) {
+          return latest;
+        }
+        final updated =
+            QuarkTransferTargetPolicy.apply(latest, transferDirectory);
+        repairedTransferRoot = updated != latest;
+        return updated;
+      });
+      if (source == null) throw StateError('网盘数据源不存在');
+      if (_disposed || token.isCancelled) return _cancelledScanResult();
+      AppLogger().i(
+        'CloudLibraryController: scan started source=$sourceId '
+        'type=${source.type.name} roots=${source.remoteRoots.length} '
+        'transferRootRepaired=$repairedTransferRoot',
+      );
       await _repository.updateScanSummary(
         sourceId,
         status: CloudScanStatus.scanning,
       );
+      if (_disposed || token.isCancelled) {
+        await _repository.updateScanSummary(
+          sourceId,
+          status: source.scanStatus,
+        );
+        return _cancelledScanResult();
+      }
       client = _providerRegistry.createClient(source, _credentialStore);
-      if (_disposed || token.isCancelled) return _cancelledScanResult();
+      if (_disposed || token.isCancelled) {
+        await _repository.updateScanSummary(
+          sourceId,
+          status: source.scanStatus,
+        );
+        return _cancelledScanResult();
+      }
       final result = await _mediaIndexer.scan(
         source: source,
         client: client,
@@ -488,8 +521,18 @@ class CloudLibraryController extends ChangeNotifier {
         );
       }
       if (!_disposed) sources = await _repository.getAll();
+      AppLogger().i(
+        'CloudLibraryController: scan finished source=$sourceId '
+        'scanned=${result.scanned} videos=${result.videoCount} '
+        'subtitles=${result.matchedSubtitleCount} '
+        'failures=${result.failures} cancelled=${result.cancelled}',
+      );
       return result;
-    } catch (_) {
+    } catch (error) {
+      AppLogger().w(
+        'CloudLibraryController: scan failed source=$sourceId '
+        'errorType=${error.runtimeType}',
+      );
       if (!_disposed) {
         errorMessage = '网盘媒体扫描失败，请稍后重试';
         await _repository.updateScanSummary(

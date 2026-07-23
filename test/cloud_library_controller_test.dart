@@ -17,6 +17,8 @@ import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   const source = CloudSource(
     id: 'source-1',
     type: CloudSourceType.openList,
@@ -166,6 +168,241 @@ void main() {
     expect(await controller.scanAllSources(), 0);
     expect(controller.sources, isEmpty);
     expect(controller.errorMessage, isNull);
+  });
+
+  test('扫描夸克旧配置时自动将默认转存目录加入扫描根并持久化', () async {
+    const transferDirectory = CloudRemoteRef(
+      id: 'transfer-fid',
+      path: '/转存目录',
+    );
+    const quarkSource = CloudSource(
+      id: 'quark-transfer-migration',
+      type: CloudSourceType.quark,
+      name: '夸克网盘',
+      baseUrl: 'https://pan.quark.cn',
+      rootPaths: <String>['/旧目录'],
+      rootRefs: <CloudRemoteRef>[
+        CloudRemoteRef(id: 'old-fid', path: '/旧目录'),
+      ],
+      defaultTransferDirectory: transferDirectory,
+    );
+    final credentials = MemoryCloudCredentialStore();
+    final repository = CloudSourceRepository(
+      storage: MemoryCloudSourceStorage(),
+      credentialStore: credentials,
+    );
+    final indexRepository = CloudMediaIndexRepository(
+      storage: MemoryCloudMediaIndexStorage(),
+    );
+    await repository.save(quarkSource);
+    await credentials.write(
+      quarkSource.id,
+      const CloudCredential(cookie: 'existing-cookie'),
+    );
+    CloudSource? sourceUsedForScan;
+    final controller = CloudLibraryController(
+      repository: repository,
+      credentialStore: credentials,
+      mediaIndexRepository: indexRepository,
+      clientFactory: (source, _, __) {
+        sourceUsedForScan = source;
+        return const _TransferDirectoryScanClient();
+      },
+    );
+
+    final result = await controller.scanSource(quarkSource.id);
+
+    expect(sourceUsedForScan?.rootRefs, contains(transferDirectory));
+    expect(result.videoCount, 1);
+    expect(
+      (await repository.getById(quarkSource.id))?.rootRefs,
+      contains(transferDirectory),
+    );
+    expect(await indexRepository.getBySource(quarkSource.id), hasLength(1));
+  });
+
+  test('扫描只有同路径旧引用的夸克配置时替换为默认转存目录真实 ID', () async {
+    const transferDirectory = CloudRemoteRef(
+      id: 'transfer-fid',
+      path: '/转存目录',
+    );
+    const quarkSource = CloudSource(
+      id: 'quark-transfer-legacy-id',
+      type: CloudSourceType.quark,
+      name: '夸克网盘',
+      baseUrl: 'https://pan.quark.cn',
+      rootPaths: <String>['/转存目录'],
+      defaultTransferDirectory: transferDirectory,
+    );
+    final repository = CloudSourceRepository(
+      storage: MemoryCloudSourceStorage(),
+      credentialStore: MemoryCloudCredentialStore(),
+    );
+    await repository.save(quarkSource);
+    CloudSource? sourceUsedForScan;
+    final controller = CloudLibraryController(
+      repository: repository,
+      mediaIndexRepository: CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      ),
+      clientFactory: (source, _, __) {
+        sourceUsedForScan = source;
+        return const _TransferDirectoryScanClient();
+      },
+    );
+
+    final result = await controller.scanSource(quarkSource.id);
+
+    expect(sourceUsedForScan?.rootRefs, <CloudRemoteRef>[transferDirectory]);
+    expect(result.videoCount, 1);
+    expect(
+      (await repository.getById(quarkSource.id))?.rootRefs,
+      <CloudRemoteRef>[transferDirectory],
+    );
+  });
+
+  test('扫描修复夸克转存目录时保留并发保存的最新来源字段', () async {
+    const transferDirectory = CloudRemoteRef(
+      id: 'transfer-fid',
+      path: '/转存目录',
+    );
+    const quarkSource = CloudSource(
+      id: 'quark-transfer-concurrent-edit',
+      type: CloudSourceType.quark,
+      name: '旧名称',
+      baseUrl: 'https://pan.quark.cn',
+      rootPaths: <String>['/旧目录'],
+      rootRefs: <CloudRemoteRef>[
+        CloudRemoteRef(id: 'old-fid', path: '/旧目录'),
+      ],
+      defaultTransferDirectory: transferDirectory,
+    );
+    final repository = _BlockingGetCloudSourceRepository();
+    await repository.seed(quarkSource);
+    final controller = CloudLibraryController(
+      repository: repository,
+      mediaIndexRepository: CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      ),
+      clientFactory: (_, __, ___) => const _TransferDirectoryScanClient(),
+    );
+
+    final operation = controller.scanSource(quarkSource.id);
+    await repository.readStarted.future;
+    await repository.save(quarkSource.copyWith(
+      name: '用户刚保存的新名称',
+      enabled: false,
+    ));
+    repository.releaseRead.complete();
+    await operation;
+
+    final saved = await repository.getById(quarkSource.id);
+    expect(saved?.name, '用户刚保存的新名称');
+    expect(saved?.enabled, isFalse);
+    expect(saved?.rootRefs, contains(transferDirectory));
+  });
+
+  test('夸克旧配置修复写入期间取消不会遗留扫描中状态', () async {
+    const transferDirectory = CloudRemoteRef(
+      id: 'transfer-fid',
+      path: '/转存目录',
+    );
+    final storage = _BlockingNextWriteCloudSourceStorage();
+    final repository = CloudSourceRepository(
+      storage: storage,
+      credentialStore: MemoryCloudCredentialStore(),
+    );
+    final lastScannedAt = DateTime.utc(2026, 7, 24);
+    final quarkSource = CloudSource(
+      id: 'quark-transfer-cancel-repair',
+      type: CloudSourceType.quark,
+      name: '夸克网盘',
+      baseUrl: 'https://pan.quark.cn',
+      rootPaths: const <String>['/旧目录'],
+      rootRefs: const <CloudRemoteRef>[
+        CloudRemoteRef(id: 'old-fid', path: '/旧目录'),
+      ],
+      defaultTransferDirectory: transferDirectory,
+      lastScannedAt: lastScannedAt,
+      scanStatus: CloudScanStatus.completed,
+    );
+    await repository.save(quarkSource);
+    storage.blockNextWrite = true;
+    var clientCreated = false;
+    final controller = CloudLibraryController(
+      repository: repository,
+      mediaIndexRepository: CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      ),
+      clientFactory: (_, __, ___) {
+        clientCreated = true;
+        return const _TransferDirectoryScanClient();
+      },
+    );
+
+    final operation = controller.scanSource(quarkSource.id);
+    await storage.writeStarted.future;
+    controller.cancelScan(quarkSource.id);
+    storage.releaseWrite.complete();
+    final result = await operation;
+
+    final saved = await repository.getById(quarkSource.id);
+    expect(result.cancelled, isTrue);
+    expect(clientCreated, isFalse);
+    expect(saved?.scanStatus, CloudScanStatus.completed);
+    expect(saved?.lastScannedAt, lastScannedAt);
+    expect(saved?.rootRefs, contains(transferDirectory));
+  });
+
+  test('写入扫描中状态期间取消会恢复夸克来源原扫描状态', () async {
+    const transferDirectory = CloudRemoteRef(
+      id: 'transfer-fid',
+      path: '/转存目录',
+    );
+    final storage = _BlockingNextWriteCloudSourceStorage();
+    final repository = CloudSourceRepository(
+      storage: storage,
+      credentialStore: MemoryCloudCredentialStore(),
+    );
+    final lastScannedAt = DateTime.utc(2026, 7, 24);
+    final quarkSource = CloudSource(
+      id: 'quark-transfer-cancel-scan-status',
+      type: CloudSourceType.quark,
+      name: '夸克网盘',
+      baseUrl: 'https://pan.quark.cn',
+      rootPaths: const <String>['/转存目录'],
+      rootRefs: const <CloudRemoteRef>[transferDirectory],
+      defaultTransferDirectory: transferDirectory,
+      lastScannedAt: lastScannedAt,
+      scanStatus: CloudScanStatus.completed,
+      indexedVideoCount: 8,
+    );
+    await repository.save(quarkSource);
+    storage.blockNextWrite = true;
+    var clientCreated = false;
+    final controller = CloudLibraryController(
+      repository: repository,
+      mediaIndexRepository: CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      ),
+      clientFactory: (_, __, ___) {
+        clientCreated = true;
+        return const _TransferDirectoryScanClient();
+      },
+    );
+
+    final operation = controller.scanSource(quarkSource.id);
+    await storage.writeStarted.future;
+    controller.cancelScan(quarkSource.id);
+    storage.releaseWrite.complete();
+    final result = await operation;
+
+    final saved = await repository.getById(quarkSource.id);
+    expect(result.cancelled, isTrue);
+    expect(clientCreated, isFalse);
+    expect(saved?.scanStatus, CloudScanStatus.completed);
+    expect(saved?.lastScannedAt, lastScannedAt);
+    expect(saved?.indexedVideoCount, 8);
   });
 
   test('保存编辑来源时空密码保留已有密码并更新用户名', () async {
@@ -929,6 +1166,42 @@ class _OrderedScanClient implements CloudDriveClient {
       throw UnimplementedError();
 }
 
+class _TransferDirectoryScanClient implements CloudDriveClient {
+  const _TransferDirectoryScanClient();
+
+  @override
+  Future<void> authenticate(
+    CloudSource source,
+    CloudCredential credential,
+  ) async {}
+
+  @override
+  Future<void> close() async {}
+
+  @override
+  Future<CloudFileEntry> getFile(CloudRemoteRef file) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<CloudFileEntry>> listDirectory(CloudRemoteRef directory) async {
+    if (directory.id != 'transfer-fid') return const <CloudFileEntry>[];
+    return const <CloudFileEntry>[
+      CloudFileEntry(
+        id: 'video-fid',
+        remotePath: '/转存目录/测试影片.mp4',
+        name: '测试影片.mp4',
+        size: 2 * 1024 * 1024,
+        modifiedAt: null,
+        isDirectory: false,
+      ),
+    ];
+  }
+
+  @override
+  Future<CloudPlaybackResource> resolvePlayback(CloudRemoteRef file) =>
+      throw UnimplementedError();
+}
+
 class _BlockingRepository extends CloudSourceRepository {
   _BlockingRepository()
       : super(
@@ -955,6 +1228,47 @@ class _BlockingRepository extends CloudSourceRepository {
     deleteStarted.complete();
     await releaseDelete.future;
     return super.delete(sourceId);
+  }
+}
+
+class _BlockingGetCloudSourceRepository extends CloudSourceRepository {
+  _BlockingGetCloudSourceRepository()
+      : super(
+          storage: MemoryCloudSourceStorage(),
+          credentialStore: MemoryCloudCredentialStore(),
+        );
+
+  final Completer<void> readStarted = Completer<void>();
+  final Completer<void> releaseRead = Completer<void>();
+  bool _blocked = false;
+
+  Future<void> seed(CloudSource source) => super.save(source);
+
+  @override
+  Future<CloudSource?> getById(String sourceId) async {
+    final source = await super.getById(sourceId);
+    if (!_blocked) {
+      _blocked = true;
+      readStarted.complete();
+      await releaseRead.future;
+    }
+    return source;
+  }
+}
+
+class _BlockingNextWriteCloudSourceStorage extends MemoryCloudSourceStorage {
+  final Completer<void> writeStarted = Completer<void>();
+  final Completer<void> releaseWrite = Completer<void>();
+  bool blockNextWrite = false;
+
+  @override
+  Future<void> write(List<Map<String, dynamic>> sources) async {
+    if (blockNextWrite) {
+      blockNextWrite = false;
+      writeStarted.complete();
+      await releaseWrite.future;
+    }
+    await super.write(sources);
   }
 }
 

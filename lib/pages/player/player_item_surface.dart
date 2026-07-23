@@ -82,35 +82,43 @@ class _PlayerItemSurfaceState extends State<PlayerItemSurface> {
         shadows: shadows,
       );
 
-      return Stack(
-        children: [
-          Video(
-            controller: videoController,
-            controls: null,
-            pauseUponEnteringBackgroundMode: false,
-            fit: playerController.aspectRatioType == 1
-                ? BoxFit.contain
-                : playerController.aspectRatioType == 2
-                    ? BoxFit.cover
-                    : BoxFit.fill,
-            subtitleViewConfiguration: const SubtitleViewConfiguration(
-              visible: false,
-            ),
-          ),
-          if (showSubtitle)
-            Positioned.fill(
-              child: _PrimarySubtitleView(
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          playerController.updateAnime4kOutputSize(
+            logicalSize: constraints.biggest,
+            devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+          );
+          return Stack(
+            children: <Widget>[
+              Video(
                 controller: videoController,
-                textStyle: subtitleTextStyle,
-                padding: EdgeInsets.fromLTRB(
-                  24.0,
-                  0,
-                  24.0,
-                  subtitlePaddingBottom,
+                controls: null,
+                pauseUponEnteringBackgroundMode: false,
+                fit: playerController.aspectRatioType == 1
+                    ? BoxFit.contain
+                    : playerController.aspectRatioType == 2
+                        ? BoxFit.cover
+                        : BoxFit.fill,
+                subtitleViewConfiguration: const SubtitleViewConfiguration(
+                  visible: false,
                 ),
               ),
-            ),
-        ],
+              if (showSubtitle)
+                Positioned.fill(
+                  child: _PrimarySubtitleView(
+                    controller: videoController,
+                    textStyle: subtitleTextStyle,
+                    padding: EdgeInsets.fromLTRB(
+                      24.0,
+                      0,
+                      24.0,
+                      subtitlePaddingBottom,
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
       );
     });
   }

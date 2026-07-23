@@ -21,6 +21,9 @@ import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:kanyingyin/features/player/application/cloud_playback_cache_policy.dart';
+import 'package:kanyingyin/features/player/application/anime4k_coordinator.dart';
+import 'package:kanyingyin/features/player/application/anime4k_policy.dart';
+import 'package:kanyingyin/features/player/application/anime4k_shader_executor.dart';
 import 'package:kanyingyin/features/player/application/embedded_track_language_preferences.dart';
 import 'package:kanyingyin/features/player/application/subtitle_preferences.dart';
 import 'package:kanyingyin/features/player/application/truehd_fallback_policy.dart';
@@ -218,6 +221,10 @@ abstract class _PlayerController with Store {
       CloudPlaybackLeaseCoordinator();
 
   final ShadersController shadersController;
+  late final Anime4kCoordinator _anime4kCoordinator = Anime4kCoordinator(
+    policy: const Anime4kPolicy(),
+    execute: _executeAnime4kDecision,
+  );
 
   late int mediaId;
   late int currentEpisode;
@@ -232,12 +239,14 @@ abstract class _PlayerController with Store {
   @observable
   int aspectRatioType = 1;
 
-  /// 视频超分
-  /// 1. OFF
-  /// 2. Anime4K Efficiency
-  /// 3. Anime4K Quality
   @observable
-  int superResolutionType = 1;
+  Anime4kPreference anime4kPreference = Anime4kPreference.off;
+
+  @observable
+  Anime4kRuntimeState anime4kRuntimeState = Anime4kRuntimeState.off;
+
+  Timer? _anime4kLayoutDebounce;
+  Size _anime4kOutputPixels = Size.zero;
 
   // 视频音量/亮度
   @observable
@@ -617,10 +626,12 @@ abstract class _PlayerController with Store {
     await playerWidthSubscription?.cancel();
     playerWidthSubscription = mediaPlayer!.stream.width.listen((event) {
       playerWidth = event ?? 0;
+      _scheduleAnime4kEvaluation();
     });
     await playerHeightSubscription?.cancel();
     playerHeightSubscription = mediaPlayer!.stream.height.listen((event) {
       playerHeight = event ?? 0;
+      _scheduleAnime4kEvaluation();
     });
     await playerVideoParamsSubscription?.cancel();
     playerVideoParamsSubscription =
@@ -679,10 +690,18 @@ abstract class _PlayerController with Store {
       required PlaybackInitParams initParams,
       int offset = 0,
       String? subtitlePath}) async {
-    superResolutionType = setting.getTyped<int>(
+    anime4kPreference = switch (setting.getTyped<int>(
       SettingBoxKey.defaultSuperResolutionType,
       defaultValue: 1,
-    );
+    )) {
+      2 => Anime4kPreference.efficiency,
+      3 => Anime4kPreference.quality,
+      _ => Anime4kPreference.off,
+    };
+    anime4kRuntimeState = anime4kPreference == Anime4kPreference.off
+        ? Anime4kRuntimeState.off
+        : Anime4kRuntimeState.waitingForSize;
+    _anime4kCoordinator.reset();
     hAenable =
         setting.getTyped<bool>(SettingBoxKey.hAenable, defaultValue: true);
     hardwareDecoder = normalizeHardwareDecoder(
@@ -828,10 +847,6 @@ abstract class _PlayerController with Store {
       );
     });
 
-    if (superResolutionType != 1) {
-      await setShader(superResolutionType);
-    }
-
     await applySubtitleStyle(save: false);
     final playableUri = MediaUriUtils.toPlayableUri(
       videoUrl,
@@ -865,6 +880,7 @@ abstract class _PlayerController with Store {
     }
     await applySubtitleStyle(save: false);
     await _syncSubtitleDelayToPlayer();
+    _scheduleAnime4kEvaluation();
 
     return mediaPlayer!;
   }
@@ -1599,34 +1615,121 @@ abstract class _PlayerController with Store {
     return '#${color.toARGB32().toRadixString(16).padLeft(8, '0')}';
   }
 
-  Future<void> setShader(int type, {bool synchronized = true}) async {
-    var pp = mediaPlayer!.platform as NativePlayer;
-    await pp.waitForPlayerInitialization;
-    await pp.waitForVideoControllerInitializationIfAttached;
-    if (type == 2) {
-      await pp.command([
-        'change-list',
-        'glsl-shaders',
-        'set',
-        Utils.buildShadersAbsolutePath(
-            shadersController.shadersDirectory.path, mpvAnime4KShadersLite),
-      ]);
-      superResolutionType = 2;
-      return;
+  int get superResolutionType => switch (anime4kPreference) {
+        Anime4kPreference.off => 1,
+        Anime4kPreference.efficiency => 2,
+        Anime4kPreference.quality => 3,
+      };
+
+  void updateAnime4kOutputSize({
+    required Size logicalSize,
+    required double devicePixelRatio,
+  }) {
+    final pixels = Size(
+      logicalSize.width * devicePixelRatio,
+      logicalSize.height * devicePixelRatio,
+    );
+    if (pixels == _anime4kOutputPixels) return;
+    _anime4kOutputPixels = pixels;
+    _scheduleAnime4kEvaluation();
+  }
+
+  void _scheduleAnime4kEvaluation() {
+    _anime4kLayoutDebounce?.cancel();
+    _anime4kLayoutDebounce = Timer(
+      const Duration(milliseconds: 250),
+      () => unawaited(_evaluateAnime4k()),
+    );
+  }
+
+  @action
+  Future<void> setAnime4kPreference(Anime4kPreference value) async {
+    _anime4kLayoutDebounce?.cancel();
+    _anime4kCoordinator.resetFailureLock();
+    anime4kPreference = value;
+    await _evaluateAnime4k();
+  }
+
+  Future<void> setShader(int type, {bool synchronized = true}) =>
+      setAnime4kPreference(switch (type) {
+        2 => Anime4kPreference.efficiency,
+        3 => Anime4kPreference.quality,
+        _ => Anime4kPreference.off,
+      });
+
+  @action
+  void setAspectRatioType(int value) {
+    if (aspectRatioType == value) return;
+    aspectRatioType = value;
+    _scheduleAnime4kEvaluation();
+  }
+
+  Future<void> _evaluateAnime4k() async {
+    final decision = await _anime4kCoordinator.evaluateAndApply(
+      Anime4kPolicyInput(
+        preference: anime4kPreference,
+        sourceWidth: playerWidth.toDouble(),
+        sourceHeight: playerHeight.toDouble(),
+        outputWidth: _anime4kOutputPixels.width,
+        outputHeight: _anime4kOutputPixels.height,
+        fit: switch (aspectRatioType) {
+          2 => Anime4kFit.cover,
+          3 => Anime4kFit.fill,
+          _ => Anime4kFit.contain,
+        },
+        shaderSupported: mediaPlayer?.platform is NativePlayer,
+      ),
+    );
+    runInAction(() => anime4kRuntimeState = decision.state);
+  }
+
+  Future<void> _executeAnime4kDecision(Anime4kDecision decision) async {
+    final platform = mediaPlayer?.platform;
+    if (platform is! NativePlayer) return;
+    final stopwatch = Stopwatch()..start();
+    var shaderCount = 0;
+    await platform.waitForPlayerInitialization;
+    await platform.waitForVideoControllerInitializationIfAttached;
+    final executor = Anime4kShaderExecutor(command: platform.command);
+    try {
+      if (decision.action == Anime4kAction.clear) {
+        await executor.apply(Anime4kAction.clear);
+        return;
+      }
+      runInAction(() => anime4kRuntimeState = Anime4kRuntimeState.loading);
+      final names = decision.action == Anime4kAction.enableEfficiency
+          ? mpvAnime4KShadersLite
+          : mpvAnime4KShaders;
+      final shaderPaths = names
+          .map((name) => p.join(shadersController.shadersDirectory.path, name))
+          .toList(growable: false);
+      shaderCount = shaderPaths.length;
+      await executor.apply(
+        decision.action,
+        shaderPaths: shaderPaths,
+      );
+    } on Object catch (error, stackTrace) {
+      AppLogger().w(
+        'Anime4K: disabled after load failure '
+        'preference=${anime4kPreference.name} '
+        'source=${playerWidth}x$playerHeight '
+        'output=${_anime4kOutputPixels.width.round()}x${_anime4kOutputPixels.height.round()} '
+        'shaders=$shaderCount elapsedMs=${stopwatch.elapsedMilliseconds}',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    } finally {
+      stopwatch.stop();
+      AppLogger().i(
+        'Anime4K: apply finished '
+        'preference=${anime4kPreference.name} '
+        'action=${decision.action.name} '
+        'source=${playerWidth}x$playerHeight '
+        'output=${_anime4kOutputPixels.width.round()}x${_anime4kOutputPixels.height.round()} '
+        'shaders=$shaderCount elapsedMs=${stopwatch.elapsedMilliseconds}',
+      );
     }
-    if (type == 3) {
-      await pp.command([
-        'change-list',
-        'glsl-shaders',
-        'set',
-        Utils.buildShadersAbsolutePath(
-            shadersController.shadersDirectory.path, mpvAnime4KShaders),
-      ]);
-      superResolutionType = 3;
-      return;
-    }
-    await pp.command(['change-list', 'glsl-shaders', 'clr', '']);
-    superResolutionType = 1;
   }
 
   Future<void> setPlaybackSpeed(double playerSpeed) async {
@@ -1707,6 +1810,11 @@ abstract class _PlayerController with Store {
   }
 
   Future<void> _disposePlayerResources() async {
+    _anime4kLayoutDebounce?.cancel();
+    _anime4kLayoutDebounce = null;
+    _anime4kOutputPixels = Size.zero;
+    _anime4kCoordinator.reset();
+    runInAction(() => anime4kRuntimeState = Anime4kRuntimeState.off);
     await playerErrorSubscription?.cancel();
     playerErrorSubscription = null;
     try {

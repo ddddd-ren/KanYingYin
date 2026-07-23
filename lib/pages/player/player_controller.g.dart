@@ -25,19 +25,35 @@ mixin _$PlayerController on _PlayerController, Store {
     });
   }
 
-  late final _$superResolutionTypeAtom =
-      Atom(name: '_PlayerController.superResolutionType', context: context);
+  late final _$anime4kPreferenceAtom =
+      Atom(name: '_PlayerController.anime4kPreference', context: context);
 
   @override
-  int get superResolutionType {
-    _$superResolutionTypeAtom.reportRead();
-    return super.superResolutionType;
+  Anime4kPreference get anime4kPreference {
+    _$anime4kPreferenceAtom.reportRead();
+    return super.anime4kPreference;
   }
 
   @override
-  set superResolutionType(int value) {
-    _$superResolutionTypeAtom.reportWrite(value, super.superResolutionType, () {
-      super.superResolutionType = value;
+  set anime4kPreference(Anime4kPreference value) {
+    _$anime4kPreferenceAtom.reportWrite(value, super.anime4kPreference, () {
+      super.anime4kPreference = value;
+    });
+  }
+
+  late final _$anime4kRuntimeStateAtom =
+      Atom(name: '_PlayerController.anime4kRuntimeState', context: context);
+
+  @override
+  Anime4kRuntimeState get anime4kRuntimeState {
+    _$anime4kRuntimeStateAtom.reportRead();
+    return super.anime4kRuntimeState;
+  }
+
+  @override
+  set anime4kRuntimeState(Anime4kRuntimeState value) {
+    _$anime4kRuntimeStateAtom.reportWrite(value, super.anime4kRuntimeState, () {
+      super.anime4kRuntimeState = value;
     });
   }
 
@@ -902,6 +918,15 @@ mixin _$PlayerController on _PlayerController, Store {
         .run(() => super.setSubtitleDelay(seconds));
   }
 
+  late final _$setAnime4kPreferenceAsyncAction =
+      AsyncAction('_PlayerController.setAnime4kPreference', context: context);
+
+  @override
+  Future<void> setAnime4kPreference(Anime4kPreference value) {
+    return _$setAnime4kPreferenceAsyncAction
+        .run(() => super.setAnime4kPreference(value));
+  }
+
   late final _$_PlayerControllerActionController =
       ActionController(name: '_PlayerController', context: context);
 
@@ -950,10 +975,22 @@ mixin _$PlayerController on _PlayerController, Store {
   }
 
   @override
+  void setAspectRatioType(int value) {
+    final _$actionInfo = _$_PlayerControllerActionController.startAction(
+        name: '_PlayerController.setAspectRatioType');
+    try {
+      return super.setAspectRatioType(value);
+    } finally {
+      _$_PlayerControllerActionController.endAction(_$actionInfo);
+    }
+  }
+
+  @override
   String toString() {
     return '''
 aspectRatioType: ${aspectRatioType},
-superResolutionType: ${superResolutionType},
+anime4kPreference: ${anime4kPreference},
+anime4kRuntimeState: ${anime4kRuntimeState},
 volume: ${volume},
 brightness: ${brightness},
 lockPanel: ${lockPanel},

@@ -43,7 +43,42 @@ void main() {
   });
 
   test('旧 Bangumi 索引可以映射为 TMDB 迁移元数据', () {
-    final restored = LocalMediaIndexItem.fromJson({
+    final restored = LocalMediaIndexItem.fromJson(_legacyIndexJson());
+
+    expect(restored.tmdb?.id, 456);
+    expect(restored.tmdb?.title, '旧中文名');
+    expect(restored.tmdb?.overview, '旧简介');
+  });
+
+  test('迁移旧字段后新 JSON 不再写回旧键', () {
+    final restored = LocalMediaIndexItem.fromJson(_legacyIndexJson());
+    final encoded = restored.toJson();
+
+    expect(restored.tmdb?.id, 456);
+    for (final key in const <String>[
+      'bangumiId',
+      'bangumiName',
+      'bangumiNameCn',
+      'bangumiRatingScore',
+      'bangumiAirDate',
+      'bangumiSummary',
+      'bangumiCoverUrl',
+    ]) {
+      expect(encoded, isNot(contains(key)), reason: key);
+    }
+  });
+
+  test('旧元数据损坏时仍保留视频索引', () {
+    final json = _legacyIndexJson()..['bangumiId'] = <String>['bad'];
+    final restored = LocalMediaIndexItem.fromJson(json);
+
+    expect(restored.path, r'D:\Video\Movie.mkv');
+    expect(restored.name, 'Movie.mkv');
+    expect(restored.tmdb, isNull);
+  });
+}
+
+Map<String, dynamic> _legacyIndexJson() => <String, dynamic>{
       'path': r'D:\Video\Movie.mkv',
       'name': 'Movie.mkv',
       'parentPath': r'D:\Video',
@@ -53,13 +88,8 @@ void main() {
       'seriesName': 'Movie',
       'indexedAtMillis': DateTime(2026).millisecondsSinceEpoch,
       'bangumiId': 456,
+      'bangumiName': 'Movie',
       'bangumiNameCn': '旧中文名',
       'bangumiSummary': '旧简介',
       'bangumiCoverUrl': 'https://example.com/cover.jpg',
-    });
-
-    expect(restored.tmdb?.id, 456);
-    expect(restored.tmdb?.title, '旧中文名');
-    expect(restored.tmdb?.overview, '旧简介');
-  });
-}
+    };

@@ -1,12 +1,12 @@
-import 'package:kanyingyin/modules/bangumi/bangumi_item.dart';
 import 'package:kanyingyin/modules/roads/road_module.dart';
+import 'package:kanyingyin/modules/video/playback_media_item.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:mobx/mobx.dart';
 
 /// VideoPageController 的抽象接口，供 player/ 层依赖
 /// 避免 player/ 直接耦合 video/ 的具体实现
 abstract class IVideoPageController {
-  BangumiItem get bangumiItem;
+  PlaybackMediaItem get mediaItem;
   String get title;
 
   ObservableList<Road> get roadList;

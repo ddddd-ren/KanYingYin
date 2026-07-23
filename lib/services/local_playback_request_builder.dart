@@ -1,9 +1,9 @@
-import 'package:kanyingyin/modules/bangumi/bangumi_item.dart';
 import 'package:kanyingyin/modules/local/local_episode_info.dart';
 import 'package:kanyingyin/modules/roads/road_module.dart';
 import 'package:kanyingyin/modules/video/local_playback_request.dart';
 import 'package:kanyingyin/modules/local/local_episode.dart';
 import 'package:kanyingyin/modules/video/local_playback_session.dart';
+import 'package:kanyingyin/modules/video/playback_media_item.dart';
 import 'package:kanyingyin/services/local_episode_parser.dart';
 import 'package:kanyingyin/services/local_subtitle_matcher.dart';
 import 'package:path/path.dart' as p;
@@ -59,12 +59,12 @@ class LocalPlaybackRequestBuilder {
   LocalPlaybackRequest build({
     required String filePath,
     required String fileName,
-    String? pluginName,
+    String? sourceLabel,
     List<Map<String, String>>? directoryFiles,
     bool playlistAlreadyIsolated = false,
     bool autoLoadSubtitle = true,
   }) {
-    final effectivePluginName = pluginName ?? '本地文件';
+    final effectiveSourceLabel = sourceLabel ?? '本地文件';
     final dirPath = p.dirname(filePath);
     final normalizedFiles = _normalizePlaylistFiles(
       filePath: filePath,
@@ -79,29 +79,18 @@ class LocalPlaybackRequestBuilder {
           );
     final data = files.map((file) => file.path).toList();
     final identifiers = files.map((file) => file.displayName).toList();
-    final bangumiItem = BangumiItem(
+    final mediaItem = PlaybackMediaItem(
       id: _stableLocalId(dirPath),
-      type: 0,
-      name: fileName,
-      nameCn: fileName,
+      title: fileName,
+      displayTitle: fileName,
       summary: data.join('\n'),
-      airDate: '',
-      airWeekday: 0,
-      rank: 0,
-      images: {},
-      tags: [],
-      alias: [],
-      ratingScore: 0.0,
-      votes: 0,
-      votesCount: [],
-      info: '',
     );
 
     final index = data.indexOf(filePath);
 
     return LocalPlaybackRequest(
-      bangumiItem: bangumiItem,
-      pluginName: effectivePluginName,
+      mediaItem: mediaItem,
+      sourceLabel: effectiveSourceLabel,
       title: fileName,
       videoPath: filePath,
       currentRoad: 0,

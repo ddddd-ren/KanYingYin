@@ -71,16 +71,15 @@ class PlaybackInitParams {
   final String videoUrl;
   final int offset;
   final bool isLocalPlayback;
-  final int bangumiId;
-  final String pluginName;
+  final int mediaId;
+  final String sourceLabel;
   final int episode;
   final Map<String, String> httpHeaders;
-  final bool adBlockerEnabled;
   final String episodeTitle;
   final String referer;
   final int currentRoad;
   final String? coverUrl;
-  final String? bangumiName;
+  final String? mediaTitle;
   final String? subtitlePath;
   final String? subtitleStorageKey;
   final String? stableMediaKey;
@@ -95,16 +94,15 @@ class PlaybackInitParams {
     required this.videoUrl,
     required this.offset,
     required this.isLocalPlayback,
-    required this.bangumiId,
-    required this.pluginName,
+    required this.mediaId,
+    required this.sourceLabel,
     required this.episode,
     required this.httpHeaders,
-    required this.adBlockerEnabled,
     required this.episodeTitle,
     required this.referer,
     required this.currentRoad,
     this.coverUrl,
-    this.bangumiName,
+    this.mediaTitle,
     this.subtitlePath,
     this.subtitleStorageKey,
     this.stableMediaKey,
@@ -120,16 +118,15 @@ class PlaybackInitParams {
         videoUrl: videoUrl,
         offset: value,
         isLocalPlayback: isLocalPlayback,
-        bangumiId: bangumiId,
-        pluginName: pluginName,
+        mediaId: mediaId,
+        sourceLabel: sourceLabel,
         episode: episode,
         httpHeaders: httpHeaders,
-        adBlockerEnabled: adBlockerEnabled,
         episodeTitle: episodeTitle,
         referer: referer,
         currentRoad: currentRoad,
         coverUrl: coverUrl,
-        bangumiName: bangumiName,
+        mediaTitle: mediaTitle,
         subtitlePath: subtitlePath,
         subtitleStorageKey: subtitleStorageKey,
         stableMediaKey: stableMediaKey,
@@ -151,16 +148,15 @@ PlaybackInitParams mergeRefreshedCloudPlayback({
       videoUrl: refreshed.videoUrl,
       offset: position.inSeconds,
       isLocalPlayback: refreshed.isLocalPlayback,
-      bangumiId: refreshed.bangumiId,
-      pluginName: refreshed.pluginName,
+      mediaId: refreshed.mediaId,
+      sourceLabel: refreshed.sourceLabel,
       episode: refreshed.episode,
       httpHeaders: refreshed.httpHeaders,
-      adBlockerEnabled: refreshed.adBlockerEnabled,
       episodeTitle: refreshed.episodeTitle,
       referer: refreshed.referer,
       currentRoad: refreshed.currentRoad,
       coverUrl: refreshed.coverUrl,
-      bangumiName: refreshed.bangumiName,
+      mediaTitle: refreshed.mediaTitle,
       subtitlePath: refreshed.subtitlePath ?? previous.subtitlePath,
       subtitleStorageKey:
           refreshed.subtitleStorageKey ?? previous.subtitleStorageKey,
@@ -223,7 +219,7 @@ abstract class _PlayerController with Store {
 
   final ShadersController shadersController;
 
-  late int bangumiId;
+  late int mediaId;
   late int currentEpisode;
   late int currentRoad;
   late String referer;
@@ -505,7 +501,7 @@ abstract class _PlayerController with Store {
     isLocalPlayback = params.isLocalPlayback;
     _subtitleStorageKey = params.subtitleStorageKey;
     _loadSubtitleDelayForCurrentVideo();
-    bangumiId = params.bangumiId;
+    mediaId = params.mediaId;
     currentEpisode = params.episode;
     currentRoad = params.currentRoad;
     referer = params.referer;
@@ -569,7 +565,6 @@ abstract class _PlayerController with Store {
     try {
       mediaPlayer ??= await createVideoController(
         params.httpHeaders,
-        params.adBlockerEnabled,
         mediaToken: mediaToken,
         lifecycleToken: lifecycleToken,
         initParams: params,
@@ -678,8 +673,7 @@ abstract class _PlayerController with Store {
     await playerAudioBitrateSubscription?.cancel();
   }
 
-  Future<Player> createVideoController(
-      Map<String, String> httpHeaders, bool adBlockerEnabled,
+  Future<Player> createVideoController(Map<String, String> httpHeaders,
       {required PlayerMediaToken mediaToken,
       required PlayerLifecycleToken lifecycleToken,
       required PlaybackInitParams initParams,
@@ -723,7 +717,6 @@ abstract class _PlayerController with Store {
         osc: false,
         libass: true,
         logLevel: MPVLogLevel.v,
-        adBlocker: adBlockerEnabled,
       ),
     );
     if (!_isMediaOperationActive(mediaToken, lifecycleToken)) {

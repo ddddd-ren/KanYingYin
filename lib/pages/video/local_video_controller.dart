@@ -1,9 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter_modular/flutter_modular.dart';
-import 'package:kanyingyin/modules/bangumi/bangumi_item.dart';
 import 'package:kanyingyin/modules/roads/road_module.dart';
 import 'package:kanyingyin/modules/video/local_playback_session.dart';
+import 'package:kanyingyin/modules/video/playback_media_item.dart';
 import 'package:kanyingyin/pages/player/player_controller.dart';
 import 'package:kanyingyin/pages/video/video_page_controller_interface.dart';
 import 'package:kanyingyin/services/local_playback_request_builder.dart';
@@ -38,7 +38,7 @@ class LocalVideoController implements IVideoPageController {
   CloudPlaybackSessionToken? _playbackSessionToken;
 
   @override
-  late BangumiItem bangumiItem;
+  late PlaybackMediaItem mediaItem;
 
   @override
   final ObservableList<Road> roadList = ObservableList<Road>();
@@ -139,7 +139,7 @@ class LocalVideoController implements IVideoPageController {
     currentEpisode = session.currentIndex + 1;
     loading = false;
     errorMessage = null;
-    bangumiItem = _buildBangumiItem(session);
+    mediaItem = _buildMediaItem(session);
     roadList
       ..clear()
       ..add(
@@ -209,7 +209,7 @@ class LocalVideoController implements IVideoPageController {
       currentEpisode = selectedIndex + 1;
       loading = false;
       errorMessage = null;
-      bangumiItem = _buildCloudBangumiItem(seriesTitle, sourceId);
+      mediaItem = _buildCloudMediaItem(seriesTitle, sourceId);
       roadList
         ..clear()
         ..add(Road(
@@ -266,16 +266,15 @@ class LocalVideoController implements IVideoPageController {
       videoUrl: episode.path,
       offset: 0,
       isLocalPlayback: true,
-      bangumiId: _stableId(currentSession.seriesId),
-      pluginName: '本地媒体库',
+      mediaId: _stableId(currentSession.seriesId),
+      sourceLabel: '本地媒体库',
       episode: currentSession.currentIndex + 1,
       httpHeaders: const {},
-      adBlockerEnabled: false,
       episodeTitle: episode.title,
       referer: '',
       currentRoad: 0,
       coverUrl: currentSession.coverPath,
-      bangumiName: currentSession.seriesTitle,
+      mediaTitle: currentSession.seriesTitle,
       subtitlePath: episode.subtitlePath,
     );
   }
@@ -390,15 +389,14 @@ class LocalVideoController implements IVideoPageController {
       videoUrl: resolved.videoUrl,
       offset: offset,
       isLocalPlayback: false,
-      bangumiId: _stableId('${target.sourceId}|${_cloudSeriesTitle ?? ''}'),
-      pluginName: '网盘媒体库',
+      mediaId: _stableId('${target.sourceId}|${_cloudSeriesTitle ?? ''}'),
+      sourceLabel: '网盘媒体库',
       episode: episode,
       httpHeaders: resolved.httpHeaders,
-      adBlockerEnabled: false,
       episodeTitle: target.title,
       referer: '',
       currentRoad: 0,
-      bangumiName: _cloudSeriesTitle,
+      mediaTitle: _cloudSeriesTitle,
       subtitlePath: resolved.subtitlePath,
       subtitleStorageKey: target.subtitleOffsetKey,
       stableMediaKey: '${target.sourceId}|${target.stableId}',
@@ -460,45 +458,22 @@ class LocalVideoController implements IVideoPageController {
     isFullscreen = false;
   }
 
-  BangumiItem _buildBangumiItem(LocalPlaybackSession session) {
-    return BangumiItem(
+  PlaybackMediaItem _buildMediaItem(LocalPlaybackSession session) {
+    return PlaybackMediaItem(
       id: _stableId(session.seriesId),
-      type: 0,
-      name: session.seriesTitle,
-      nameCn: session.seriesTitle,
+      title: session.seriesTitle,
+      displayTitle: session.seriesTitle,
       summary: '',
-      airDate: '',
-      airWeekday: 0,
-      rank: 0,
-      images: {
-        if (session.coverPath != null) 'large': session.coverPath!,
-      },
-      tags: [],
-      alias: [],
-      ratingScore: 0,
-      votes: 0,
-      votesCount: [],
-      info: '',
+      artworkUrl: session.coverPath,
     );
   }
 
-  BangumiItem _buildCloudBangumiItem(String seriesTitle, String sourceId) {
-    return BangumiItem(
+  PlaybackMediaItem _buildCloudMediaItem(String seriesTitle, String sourceId) {
+    return PlaybackMediaItem(
       id: _stableId('$sourceId|$seriesTitle'),
-      type: 0,
-      name: seriesTitle,
-      nameCn: seriesTitle,
+      title: seriesTitle,
+      displayTitle: seriesTitle,
       summary: '',
-      airDate: '',
-      airWeekday: 0,
-      rank: 0,
-      images: const {},
-      tags: const [],
-      alias: const [],
-      ratingScore: 0,
-      votes: 0,
-      votesCount: const [],
-      info: '',
     );
   }
 

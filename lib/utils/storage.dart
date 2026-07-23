@@ -5,8 +5,8 @@ import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/utils/legacy_history_data_cleaner.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:kanyingyin/modules/bangumi/bangumi_item.dart';
-import 'package:kanyingyin/modules/bangumi/bangumi_tag.dart';
+import 'package:kanyingyin/legacy/hive/legacy_bangumi_tag_adapter.dart';
+import 'package:kanyingyin/legacy/hive/legacy_playback_media_item_adapter.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 class GStorage {
@@ -29,8 +29,8 @@ class GStorage {
       );
     }
 
-    Hive.registerAdapter(BangumiItemAdapter());
-    Hive.registerAdapter(BangumiTagAdapter());
+    Hive.registerAdapter(LegacyPlaybackMediaItemAdapter());
+    Hive.registerAdapter(LegacyBangumiTagAdapter());
 
     // Open each box with automatic recovery on corruption
     setting = await _openBoxSafe<Object?>('setting');

@@ -419,20 +419,17 @@ class _PlayerItemState extends State<PlayerItem>
 
       final canSkipToPrevious = currentEpisode > 1;
       final canSkipToNext = currentEpisode < currentRoadData.data.length;
-      final bangumiTitle = videoPageController.bangumiItem.nameCn.isNotEmpty
-          ? videoPageController.bangumiItem.nameCn
-          : videoPageController.bangumiItem.name;
+      final mediaItem = videoPageController.mediaItem;
       final episodeTitle = currentRoadData.identifier[safeEpisodeIndex];
-      final artworkUrl = videoPageController.bangumiItem.images['large'];
+      final artworkUrl = mediaItem.artworkUrl;
       final artworkUri = (artworkUrl == null || artworkUrl.isEmpty)
           ? null
           : Uri.tryParse(artworkUrl);
 
       unawaited(
         _audioController.updateSession(
-          mediaId:
-              '${videoPageController.bangumiItem.id}_${currentRoad}_$currentEpisode',
-          title: bangumiTitle,
+          mediaId: '${mediaItem.id}_${currentRoad}_$currentEpisode',
+          title: mediaItem.effectiveTitle,
           album: '本地文件',
           artist: episodeTitle,
           artUri: artworkUri,

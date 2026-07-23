@@ -56,10 +56,7 @@ class Utils {
     List<String> absolutePaths = shaders.map((shader) {
       return path.join(baseDirectory, shader);
     }).toList();
-    if (Platform.isWindows) {
-      return absolutePaths.join(';');
-    }
-    return absolutePaths.join(':');
+    return absolutePaths.join(';');
   }
 
   // Delegates to split files
@@ -70,12 +67,6 @@ class Utils {
   static bool isWideScreen() => DisplayUtils.isWideScreen();
   static bool isTablet() => DisplayUtils.isTablet();
   static bool isCompact() => DisplayUtils.isCompact();
-  static Future<bool> isInMultiWindowMode() =>
-      DisplayUtils.isInMultiWindowMode();
-  static Future<bool> isRunningOnX11() => DisplayUtils.isRunningOnX11();
-  static Future<int> getAndroidSdkVersion() =>
-      DisplayUtils.getAndroidSdkVersion();
-
   static Future<void> enterWindowsFullscreen() =>
       WindowUtils.enterWindowsFullscreen();
   static Future<void> exitWindowsFullscreen() =>
@@ -84,14 +75,6 @@ class Utils {
       WindowUtils.enterFullScreen(lockOrientation: lockOrientation);
   static Future<void> exitFullScreen({bool lockOrientation = true}) =>
       WindowUtils.exitFullScreen(lockOrientation: lockOrientation);
-  static Future<void> landScape() => WindowUtils.landScape();
-  static Future<void> verticalScreen() => WindowUtils.verticalScreen();
-  static Future<void> unlockScreenRotation() =>
-      WindowUtils.unlockScreenRotation();
-  static Future<void> disposePlayerMenu() => WindowUtils.disposePlayerMenu();
-  static Future<void> initPlayerMenu(Map<String, void Function()> actions) =>
-      WindowUtils.initPlayerMenu(actions);
-
   static String formatTimestampToRelativeTime(int timeStamp) =>
       TimeUtils.formatTimestampToRelativeTime(timeStamp);
   static String dateFormat(int timeStamp, {String formatType = 'list'}) =>

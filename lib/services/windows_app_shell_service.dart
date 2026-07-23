@@ -297,14 +297,13 @@ class _PluginWindowsAppShellPlatform implements WindowsAppShellPlatform {
   final TrayManager _trayManager = TrayManager.instance;
 
   @override
-  bool get isDesktop =>
-      Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+  bool get isDesktop => true;
 
   @override
-  bool get isWindows => Platform.isWindows;
+  bool get isWindows => true;
 
   @override
-  bool get isLinux => Platform.isLinux;
+  bool get isLinux => false;
 
   @override
   void addTrayListener(TrayListener listener) =>

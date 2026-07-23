@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:flutter_modular/flutter_modular.dart';
@@ -507,44 +506,22 @@ class _SmallestPlayerItemPanelState extends State<SmallestPlayerItemPanel> {
             ),
             // 跳过
             forwardIcon(),
-            if (Utils.isDesktop() || Platform.isAndroid)
-              IconButton(
-                  onPressed: () async {
-                    if (Utils.isDesktop()) {
-                      if (videoPageController.isPip) {
-                        await PipUtils.exitDesktopPIPWindow();
-                      } else {
-                        // 进入画中画时使用播放源比例，避免窗口比例与视频比例不一致产生黑边
-                        await PipUtils.enterDesktopPIPWindow(
-                          width: playerController.playerWidth,
-                          height: playerController.playerHeight,
-                        );
-                      }
-                      videoPageController.isPip = !videoPageController.isPip;
-                      return;
-                    }
-                    final bool supported =
-                        await PipUtils.isAndroidPIPSupported();
-                    if (!supported) {
-                      AppDialog.showToast(message: '当前设备不支持画中画');
-                      return;
-                    }
-                    await PipUtils.updateAndroidPIPActions(
-                      playing: playerController.playing,
+            IconButton(
+                onPressed: () async {
+                  if (videoPageController.isPip) {
+                    await PipUtils.exitDesktopPIPWindow();
+                  } else {
+                    // 进入画中画时使用播放源比例，避免窗口比例与视频比例不一致产生黑边
+                    await PipUtils.enterDesktopPIPWindow(
                       width: playerController.playerWidth,
                       height: playerController.playerHeight,
                     );
-                    final bool entered = await PipUtils.enterAndroidPIPWindow(
-                      width: playerController.playerWidth,
-                      height: playerController.playerHeight,
-                    );
-                    if (!entered) {
-                      AppDialog.showToast(message: '进入画中画失败');
-                    }
-                  },
-                  tooltip: '画中画',
-                  icon: const Icon(Icons.picture_in_picture,
-                      color: Colors.white)),
+                  }
+                  videoPageController.isPip = !videoPageController.isPip;
+                },
+                tooltip: '画中画',
+                icon:
+                    const Icon(Icons.picture_in_picture, color: Colors.white)),
             MenuAnchor(
               consumeOutsideTap: true,
               onOpen: () {

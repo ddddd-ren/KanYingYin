@@ -12,7 +12,6 @@ import 'package:kanyingyin/utils/utils.dart';
 import 'package:kanyingyin/utils/pip_utils.dart';
 import 'package:kanyingyin/bean/appbar/drag_to_move_bar.dart' as dtb;
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
-import 'package:screen_brightness_platform_interface/screen_brightness_platform_interface.dart';
 import 'package:scrollview_observer/scrollview_observer.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:kanyingyin/bean/widget/embedded_native_control_area.dart';
@@ -130,12 +129,6 @@ class _VideoPageState extends State<VideoPage>
       AppLogger().e('LocalVideoController: failed to dispose playerController',
           error: e);
     }
-    if (!Utils.isDesktop()) {
-      try {
-        ScreenBrightnessPlatform.instance.resetApplicationScreenBrightness();
-      } catch (_) {}
-    }
-    Utils.unlockScreenRotation();
     tabController.dispose();
     // Cancel timed shutdown when leaving anime page
     TimedShutdownService().cancel();

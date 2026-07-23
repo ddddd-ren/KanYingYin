@@ -1,12 +1,7 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:kanyingyin/utils/logger.dart';
 
 class DisplayUtils {
   static Future<bool> isLowResolution() async {
-    if (Platform.isMacOS) return false;
     Map<String, double> screenInfo = await getScreenInfo();
     if (screenInfo['height']! / screenInfo['ratio']! < 900) return true;
     return false;
@@ -27,9 +22,7 @@ class DisplayUtils {
     return screenInfo;
   }
 
-  static bool isDesktop() {
-    return Platform.isWindows || Platform.isMacOS || Platform.isLinux;
-  }
+  static bool isDesktop() => true;
 
   static bool isWideScreen() {
     final MediaQueryData mediaQuery = MediaQueryData.fromView(
@@ -39,51 +32,7 @@ class DisplayUtils {
     return isWideScreen;
   }
 
-  static bool isTablet() {
-    return isWideScreen() && !isDesktop();
-  }
+  static bool isTablet() => false;
 
-  static bool isCompact() {
-    return !isDesktop() && !isWideScreen();
-  }
-
-  static Future<bool> isInMultiWindowMode() async {
-    if (Platform.isAndroid) {
-      const platform = MethodChannel('com.kanyingyin.player/intent');
-      try {
-        return await platform.invokeMethod<bool>('checkIfInMultiWindowMode') ??
-            false;
-      } on PlatformException catch (e) {
-        AppLogger().e("Failed to check multi window mode: '${e.message}'.");
-        return false;
-      }
-    }
-    return false;
-  }
-
-  static Future<bool> isRunningOnX11() async {
-    if (Platform.isLinux) {
-      const platform = MethodChannel('com.kanyingyin.player/intent');
-      try {
-        return await platform.invokeMethod<bool>('isRunningOnX11') ?? false;
-      } on PlatformException catch (e) {
-        AppLogger().e("Failed to check X11 environment: '${e.message}'.");
-        return false;
-      }
-    }
-    return false;
-  }
-
-  static Future<int> getAndroidSdkVersion() async {
-    if (Platform.isAndroid) {
-      const platform = MethodChannel('com.kanyingyin.player/intent');
-      try {
-        return await platform.invokeMethod<int>('getAndroidSdkVersion') ?? 0;
-      } on PlatformException catch (e) {
-        AppLogger().e("Failed to get Android SDK version: '${e.message}'.");
-        return 0;
-      }
-    }
-    return 0;
-  }
+  static bool isCompact() => false;
 }

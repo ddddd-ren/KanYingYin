@@ -8,7 +8,7 @@ import 'package:kanyingyin/utils/storage.dart';
 
 /// 代理管理器
 /// 统一管理 Dio HTTP 请求的代理设置
-/// 注意：WebView 代理在各平台 controller 初始化时单独处理
+/// 供 TMDB 等在线元数据请求读取统一代理配置。
 class ProxyManager {
   ProxyManager._();
 
@@ -40,8 +40,8 @@ class ProxyManager {
   /// 启动时初始化代理。
   ///
   /// 如果用户已经手动配置并启用代理，验证后供新建客户端读取。
-  /// 如果在线资源直连正常，不主动改动用户的代理开关。
-  /// 如果 Bangumi 直连超时，会自动探测常见本机代理端口并启用。
+  /// 如果在线元数据直连正常，不主动改动用户的代理开关。
+  /// 如果 TMDB 直连超时，会自动探测常见本机代理端口并启用。
   static Future<void> initializeProxy() async {
     final setting = GStorage.setting;
     final bool proxyEnable = setting.getTyped<bool>(
@@ -115,10 +115,6 @@ class ProxyManager {
   }
 
   static Future<(String, int)?> _detectLocalProxy() async {
-    if (!Platform.isWindows && !Platform.isMacOS && !Platform.isLinux) {
-      return null;
-    }
-
     for (final port in _localProxyPorts) {
       final portOpen = await _isPortOpen('127.0.0.1', port);
       if (!portOpen) continue;

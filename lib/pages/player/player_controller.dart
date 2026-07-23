@@ -1,10 +1,8 @@
 // ignore_for_file: avoid_print
 
-import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_volume_controller/flutter_volume_controller.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -30,7 +28,6 @@ import 'package:kanyingyin/pages/player/models/embedded_track_info.dart';
 import 'package:kanyingyin/utils/external_player.dart';
 import 'package:kanyingyin/utils/media_uri_utils.dart';
 import 'package:path/path.dart' as p;
-import 'package:url_launcher/url_launcher_string.dart';
 import 'package:synchronized/synchronized.dart';
 
 part 'player_controller.g.dart';
@@ -584,16 +581,8 @@ abstract class _PlayerController with Store {
         return false;
       }
 
-      if (Utils.isDesktop()) {
-        volume = volume != -1 ? volume : 100;
-        await setVolume(volume);
-      } else {
-        // mobile is using system volume, don't setVolume here,
-        // or iOS will mute if system volume is too low (#732)
-        await FlutterVolumeController.getVolume().then((value) {
-          volume = (value ?? 0.0) * 100;
-        });
-      }
+      volume = volume != -1 ? volume : 100;
+      await setVolume(volume);
       setPlaybackSpeed(playerSpeed);
       AppLogger().i('PlayerController: video initialized');
       if (!_isMediaOperationActive(mediaToken, lifecycleToken)) {
@@ -732,7 +721,7 @@ abstract class _PlayerController with Store {
                 ? 15 * 1024 * 1024
                 : 1500 * 1024 * 1024,
         osc: false,
-        libass: Platform.isWindows,
+        libass: true,
         logLevel: MPVLogLevel.v,
         adBlocker: adBlockerEnabled,
       ),
@@ -1662,14 +1651,9 @@ abstract class _PlayerController with Store {
     value = value.clamp(0.0, 100.0);
     volume = value;
     try {
-      if (Utils.isDesktop()) {
-        final player = mediaPlayer;
-        if (_disposeRequested || player == null) return;
-        await player.setVolume(value);
-      } else {
-        await FlutterVolumeController.updateShowSystemUI(false);
-        await FlutterVolumeController.setVolume(value / 100);
-      }
+      final player = mediaPlayer;
+      if (_disposeRequested || player == null) return;
+      await player.setVolume(value);
     } catch (_) {}
   }
 
@@ -1764,50 +1748,15 @@ abstract class _PlayerController with Store {
   }
 
   void lanunchExternalPlayer() async {
-    if ((Platform.isAndroid || Platform.isWindows) && referer.isEmpty) {
-      if (await ExternalPlayer.launchURLWithMIME(videoUrl, 'video/mp4')) {
-        AppDialog.dismiss<void>();
-        AppDialog.showToast(
-          message: '尝试唤起外部播放器',
-        );
-      } else {
-        AppDialog.showToast(
-          message: '唤起外部播放器失败',
-        );
-      }
-    } else if (Platform.isMacOS || Platform.isIOS) {
-      if (await ExternalPlayer.launchURLWithReferer(videoUrl, referer)) {
-        AppDialog.dismiss<void>();
-        AppDialog.showToast(
-          message: '尝试唤起外部播放器',
-        );
-      } else {
-        AppDialog.showToast(
-          message: '唤起外部播放器失败',
-        );
-      }
-    } else if (Platform.isLinux && referer.isEmpty) {
+    if (referer.isNotEmpty) {
+      AppDialog.showToast(message: '带鉴权请求头的视频暂不支持外部播放器');
+      return;
+    }
+    if (await ExternalPlayer.launchURLWithMIME(videoUrl, 'video/mp4')) {
       AppDialog.dismiss<void>();
-      if (await canLaunchUrlString(videoUrl)) {
-        launchUrlString(videoUrl);
-        AppDialog.showToast(
-          message: '尝试唤起外部播放器',
-        );
-      } else {
-        AppDialog.showToast(
-          message: '无法使用外部播放器',
-        );
-      }
+      AppDialog.showToast(message: '尝试唤起外部播放器');
     } else {
-      if (referer.isEmpty) {
-        AppDialog.showToast(
-          message: '暂不支持该设备',
-        );
-      } else {
-        AppDialog.showToast(
-          message: '暂不支持该规则',
-        );
-      }
+      AppDialog.showToast(message: '唤起外部播放器失败');
     }
   }
 }

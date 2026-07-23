@@ -1,11 +1,9 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/core/app_version.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:flutter_modular/flutter_modular.dart';
-import 'package:kanyingyin/utils/utils.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 import 'package:provider/provider.dart';
 import 'package:kanyingyin/providers/theme_provider.dart';
@@ -35,7 +33,6 @@ class _InitPageState extends State<InitPage> {
 
   Future<void> _initializeApp() async {
     await _loadShaders();
-    await _checkRunningOnX11();
     await _showShortcutDialog();
 
     _startDefaultPage();
@@ -66,48 +63,7 @@ class _InitPageState extends State<InitPage> {
     await shadersController.copyShadersToExternalDirectory();
   }
 
-  Future<void> _checkRunningOnX11() async {
-    if (!Platform.isLinux) {
-      return;
-    }
-    bool isRunningOnX11 = await Utils.isRunningOnX11();
-    if (isRunningOnX11) {
-      await AppDialog.show<void>(
-        clickMaskDismiss: false,
-        builder: (context) {
-          return PopScope(
-            canPop: false,
-            child: AlertDialog(
-              title: const Text('X11环境检测'),
-              content: const Text(
-                  '检测到您当前运行在X11环境下，看影音在X11环境下可能出现性能问题或界面异常，建议切换到Wayland以获得更好的体验。您是否希望在X11下继续使用看影音？'),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    exit(0);
-                  },
-                  child: Text(
-                    '退出',
-                    style:
-                        TextStyle(color: Theme.of(context).colorScheme.outline),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    AppDialog.dismiss<void>();
-                  },
-                  child: const Text('继续'),
-                ),
-              ],
-            ),
-          );
-        },
-      );
-    }
-  }
-
   Future<void> _showShortcutDialog() async {
-    if (!Platform.isWindows) return;
     final shortcutState = await WindowsShortcut.inspectShortcutEntries();
     final dialogAlreadyShown = setting.getTyped<bool>(
       SettingBoxKey.shortcutDialogShown,

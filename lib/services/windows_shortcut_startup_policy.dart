@@ -93,9 +93,10 @@ ShortcutStartupDecision decideShortcutStartup({
     WindowsShortcutEntryState.desktopOnly ||
     WindowsShortcutEntryState.desktopAndStartMenu =>
       ShortcutStartupDecision.repairDesktop,
-    WindowsShortcutEntryState.startMenuOnly => ShortcutStartupDecision.skip,
+    WindowsShortcutEntryState.startMenuOnly ||
     WindowsShortcutEntryState.none when dialogAlreadyShown =>
       ShortcutStartupDecision.skip,
+    WindowsShortcutEntryState.startMenuOnly ||
     WindowsShortcutEntryState.none =>
       ShortcutStartupDecision.askToCreateDesktop,
     WindowsShortcutEntryState.unknown =>

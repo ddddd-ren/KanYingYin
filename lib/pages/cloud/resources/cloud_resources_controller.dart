@@ -241,13 +241,46 @@ class CloudResourcesController extends ChangeNotifier {
 
   Future<void> load() => _loadSources(startScan: true);
 
-  Future<void> reloadSourcesAndSnapshot() async {
+  Future<void> reloadSourcesAndSnapshot({String? preferredSourceId}) async {
     _scanToken?.cancel();
     await scanCompletion;
-    await _loadSources(startScan: false);
+    final previousSources = List<CloudSource>.from(sources);
+    final previousEntries = List<CloudFileEntry>.from(entries);
+    final previousSelectedSource = selectedSource;
+    final previousCurrentDirectory = currentDirectory;
+    final previousIsVirtualRoot = isVirtualRoot;
+    final previousIndexedItems = Map<String, CloudMediaIndexItem>.from(
+      _indexedItems,
+    );
+    final previousWorks = List<CloudWorkIdentity>.from(_works);
+    final previousMediaTree = _mediaTree;
+    final previousQuery = query;
+    await _loadSources(
+      startScan: false,
+      preferredSourceId: preferredSourceId,
+    );
+    if (errorMessage != '网盘来源加载失败') return;
+    sources = previousSources;
+    entries = previousEntries;
+    selectedSource = previousSelectedSource;
+    currentDirectory = previousCurrentDirectory;
+    isVirtualRoot = previousIsVirtualRoot;
+    _indexedItems
+      ..clear()
+      ..addAll(previousIndexedItems);
+    _works = previousWorks;
+    _mediaTree = previousMediaTree;
+    query = previousQuery;
+    loading = false;
+    scanning = false;
+    errorMessage = '网盘来源加载失败，请重试';
+    _notify();
   }
 
-  Future<void> _loadSources({required bool startScan}) async {
+  Future<void> _loadSources({
+    required bool startScan,
+    String? preferredSourceId,
+  }) async {
     final generation = ++_generation;
     _scanToken?.cancel();
     loading = true;
@@ -260,9 +293,13 @@ class CloudResourcesController extends ChangeNotifier {
       if (!_isCurrent(generation)) return;
       sources = loadedSources;
       final currentId = selectedSource?.id;
-      final nextId = loadedSources.any((source) => source.id == currentId)
-          ? currentId
-          : loadedSources.firstOrNull?.id;
+      final nextId = loadedSources.any(
+        (source) => source.id == preferredSourceId,
+      )
+          ? preferredSourceId
+          : loadedSources.any((source) => source.id == currentId)
+              ? currentId
+              : loadedSources.firstOrNull?.id;
       await _selectSource(
         nextId,
         generation: generation,

@@ -257,7 +257,7 @@ class _BaiduSourceEditorPageState extends State<BaiduSourceEditorPage> {
         if (mounted) setState(() => _updatingLibrary = false);
       }
     }
-    if (mounted) Navigator.of(context).maybePop();
+    if (mounted) Navigator.of(context).pop(source.id);
   }
 
   void _showMessage(String message) {

@@ -553,7 +553,7 @@ void main() {
     expect(manualMatchCalls, 2);
   });
 
-  testWidgets('无来源时显示两种添加入口', (tester) async {
+  testWidgets('无来源时只显示夸克和百度添加入口', (tester) async {
     final fixture = await _PageFixture.create();
 
     await tester.pumpWidget(
@@ -565,8 +565,27 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('还没有可用的网盘来源'), findsOneWidget);
-    expect(find.text('添加 OpenList'), findsOneWidget);
     expect(find.text('添加夸克网盘'), findsOneWidget);
+    expect(find.text('添加百度网盘'), findsOneWidget);
+    expect(find.text('添加 OpenList'), findsNothing);
+    fixture.controller.dispose();
+  });
+
+  testWidgets('已有来源时常驻添加网盘菜单只提供夸克和百度', (tester) async {
+    final fixture = await _PageFixture.create(source: _quarkSource);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CloudResourcesPage(controller: fixture.controller),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('添加网盘'));
+    await tester.pumpAndSettle();
+    expect(find.text('添加夸克网盘'), findsOneWidget);
+    expect(find.text('添加百度网盘'), findsOneWidget);
+    expect(find.textContaining('OpenList'), findsNothing);
     fixture.controller.dispose();
   });
 

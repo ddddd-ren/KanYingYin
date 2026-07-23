@@ -143,7 +143,7 @@ class _QuarkSourceEditorPageState extends State<QuarkSourceEditorPage> {
         if (mounted) setState(() => _updatingLibrary = false);
       }
     }
-    if (mounted) Navigator.of(context).maybePop();
+    if (mounted) Navigator.of(context).pop(source.id);
   }
 
   Future<void> _chooseRoots() async {

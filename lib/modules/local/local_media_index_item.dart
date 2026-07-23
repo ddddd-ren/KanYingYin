@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:kanyingyin/legacy/local_index/legacy_local_media_index_parser.dart';
 import 'package:kanyingyin/modules/local/local_episode_info.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
@@ -29,13 +30,6 @@ class LocalMediaIndexItem {
   final String? resolution;
   final String? source;
   final String? codec;
-  final int? bangumiId;
-  final String? bangumiName;
-  final String? bangumiNameCn;
-  final double? bangumiRatingScore;
-  final String? bangumiAirDate;
-  final String? bangumiSummary;
-  final String? bangumiCoverUrl;
   final TmdbMetadata? tmdb;
   final bool titleLocked;
   final bool posterLocked;
@@ -69,13 +63,6 @@ class LocalMediaIndexItem {
     this.resolution,
     this.source,
     this.codec,
-    this.bangumiId,
-    this.bangumiName,
-    this.bangumiNameCn,
-    this.bangumiRatingScore,
-    this.bangumiAirDate,
-    this.bangumiSummary,
-    this.bangumiCoverUrl,
     this.tmdb,
     this.titleLocked = false,
     this.posterLocked = false,
@@ -149,13 +136,6 @@ class LocalMediaIndexItem {
       resolution: _asNullableString(json['resolution']),
       source: _asNullableString(json['source']),
       codec: _asNullableString(json['codec']),
-      bangumiId: _asNullableInt(json['bangumiId']),
-      bangumiName: _asNullableString(json['bangumiName']),
-      bangumiNameCn: _asNullableString(json['bangumiNameCn']),
-      bangumiRatingScore: _asNullableDouble(json['bangumiRatingScore']),
-      bangumiAirDate: _asNullableString(json['bangumiAirDate']),
-      bangumiSummary: _asNullableString(json['bangumiSummary']),
-      bangumiCoverUrl: _asNullableString(json['bangumiCoverUrl']),
       tmdb: _parseTmdb(json),
       titleLocked: json['titleLocked'] == true,
       posterLocked: json['posterLocked'] == true,
@@ -201,18 +181,6 @@ class LocalMediaIndexItem {
         'resolution': resolution,
       if (source != null && source!.isNotEmpty) 'source': source,
       if (codec != null && codec!.isNotEmpty) 'codec': codec,
-      if (bangumiId != null) 'bangumiId': bangumiId,
-      if (bangumiName != null && bangumiName!.isNotEmpty)
-        'bangumiName': bangumiName,
-      if (bangumiNameCn != null && bangumiNameCn!.isNotEmpty)
-        'bangumiNameCn': bangumiNameCn,
-      if (bangumiRatingScore != null) 'bangumiRatingScore': bangumiRatingScore,
-      if (bangumiAirDate != null && bangumiAirDate!.isNotEmpty)
-        'bangumiAirDate': bangumiAirDate,
-      if (bangumiSummary != null && bangumiSummary!.isNotEmpty)
-        'bangumiSummary': bangumiSummary,
-      if (bangumiCoverUrl != null && bangumiCoverUrl!.isNotEmpty)
-        'bangumiCoverUrl': bangumiCoverUrl,
       if (tmdb != null) 'tmdb': tmdb!.toJson(),
       if (titleLocked) 'titleLocked': true,
       if (posterLocked) 'posterLocked': true,
@@ -315,13 +283,6 @@ class LocalMediaIndexItem {
     String? resolution,
     String? source,
     String? codec,
-    int? bangumiId,
-    String? bangumiName,
-    String? bangumiNameCn,
-    double? bangumiRatingScore,
-    String? bangumiAirDate,
-    String? bangumiSummary,
-    String? bangumiCoverUrl,
     TmdbMetadata? tmdb,
     bool? titleLocked,
     bool? posterLocked,
@@ -354,13 +315,6 @@ class LocalMediaIndexItem {
       resolution: resolution ?? this.resolution,
       source: source ?? this.source,
       codec: codec ?? this.codec,
-      bangumiId: bangumiId ?? this.bangumiId,
-      bangumiName: bangumiName ?? this.bangumiName,
-      bangumiNameCn: bangumiNameCn ?? this.bangumiNameCn,
-      bangumiRatingScore: bangumiRatingScore ?? this.bangumiRatingScore,
-      bangumiAirDate: bangumiAirDate ?? this.bangumiAirDate,
-      bangumiSummary: bangumiSummary ?? this.bangumiSummary,
-      bangumiCoverUrl: bangumiCoverUrl ?? this.bangumiCoverUrl,
       tmdb: tmdb ?? this.tmdb,
       titleLocked: titleLocked ?? this.titleLocked,
       posterLocked: posterLocked ?? this.posterLocked,
@@ -401,13 +355,6 @@ class LocalMediaIndexItem {
     return int.tryParse(value.toString());
   }
 
-  static double? _asNullableDouble(Object? value) {
-    if (value == null) return null;
-    if (value is double) return value;
-    if (value is num) return value.toDouble();
-    return double.tryParse(value.toString());
-  }
-
   static String? _asNullableString(Object? value) {
     final text = value?.toString().trim();
     return text == null || text.isEmpty ? null : text;
@@ -422,26 +369,13 @@ class LocalMediaIndexItem {
   static TmdbMetadata? _parseTmdb(Map<String, dynamic> json) {
     final rawTmdb = json['tmdb'];
     if (rawTmdb is Map) {
-      return TmdbMetadata.fromJson(Map<String, dynamic>.from(rawTmdb));
+      try {
+        return TmdbMetadata.fromJson(Map<String, dynamic>.from(rawTmdb));
+      } on Object {
+        return null;
+      }
     }
-
-    final legacyId = _asNullableInt(json['bangumiId']);
-    if (legacyId == null || legacyId == 0) return null;
-    return TmdbMetadata(
-      id: legacyId,
-      mediaType: TmdbMediaType.tv,
-      title: _asNullableString(json['bangumiNameCn']) ??
-          _asNullableString(json['bangumiName']) ??
-          '',
-      originalTitle: _asNullableString(json['bangumiName']),
-      overview: _asNullableString(json['bangumiSummary']),
-      releaseDate: _asNullableString(json['bangumiAirDate']),
-      rating: _asNullableDouble(json['bangumiRatingScore']),
-      posterUrl: _asNullableString(json['bangumiCoverUrl']),
-      language: 'zh-CN',
-      matchedAt: _dateFromMillis(json['indexedAtMillis']),
-      matchConfidence: 0,
-    );
+    return LegacyLocalMediaIndexParser.parseTmdb(json);
   }
 
   static TmdbScrapeStatus _parseScrapeStatus(Object? value) {

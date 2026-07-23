@@ -60,26 +60,36 @@ class QuarkImportHistoryRepository {
       _decode(await _storage.read());
 
   Future<bool> tryBegin(QuarkImportRecord record) =>
+      tryBeginAll(<QuarkImportRecord>[record]);
+
+  Future<bool> tryBeginAll(List<QuarkImportRecord> pending) =>
       _lock.synchronized(() async {
+        if (pending.isEmpty) return false;
+        final keys = pending.map((record) => record.idempotencyKey).toSet();
+        if (keys.length != pending.length) return false;
         final records = _decode(await _storage.read());
-        final existing = records
-            .where((item) => item.idempotencyKey == record.idempotencyKey)
-            .firstOrNull;
-        if (existing?.blocksDuplicate == true) return false;
-        records.removeWhere(
-          (item) => item.idempotencyKey == record.idempotencyKey,
+        final blocked = records.any(
+          (record) =>
+              keys.contains(record.idempotencyKey) && record.blocksDuplicate,
         );
-        records.add(record);
+        if (blocked) return false;
+        records.removeWhere(
+          (record) => keys.contains(record.idempotencyKey),
+        );
+        records.addAll(pending);
         await _storage.write(records.map((item) => item.toJson()).toList());
         return true;
       });
 
-  Future<void> save(QuarkImportRecord record) => _lock.synchronized(() async {
+  Future<void> save(QuarkImportRecord record) =>
+      saveAll(<QuarkImportRecord>[record]);
+
+  Future<void> saveAll(List<QuarkImportRecord> updates) =>
+      _lock.synchronized(() async {
+        final keys = updates.map((record) => record.idempotencyKey).toSet();
         final records = _decode(await _storage.read())
-          ..removeWhere(
-            (item) => item.idempotencyKey == record.idempotencyKey,
-          )
-          ..add(record);
+          ..removeWhere((record) => keys.contains(record.idempotencyKey))
+          ..addAll(updates);
         await _storage.write(records.map((item) => item.toJson()).toList());
       });
 

@@ -69,4 +69,50 @@ void main() {
       expect(await repository.tryBegin(base), isTrue);
     }
   });
+
+  test('批量占用在同一次写入中保存全部记录', () async {
+    final repository = QuarkImportHistoryRepository(
+      storage: MemoryQuarkImportHistoryStorage(),
+    );
+
+    expect(
+      await repository.tryBeginAll([
+        _record('a'),
+        _record('b'),
+      ]),
+      isTrue,
+    );
+    expect(await repository.getAll(), hasLength(2));
+  });
+
+  test('批量包含重复项时不留下其他待处理记录', () async {
+    final repository = QuarkImportHistoryRepository(
+      storage: MemoryQuarkImportHistoryStorage(),
+    );
+    await repository.save(
+      _record('a').copyWith(status: QuarkImportStatus.succeeded),
+    );
+
+    expect(
+      await repository.tryBeginAll([
+        _record('a'),
+        _record('b'),
+      ]),
+      isFalse,
+    );
+    final records = await repository.getAll();
+    expect(records, hasLength(1));
+    expect(records.single.sharedFileId, 'a');
+  });
 }
+
+QuarkImportRecord _record(String fileId) => QuarkImportRecord(
+      sourceId: 'source-fixture',
+      shareId: 'share-fixture',
+      sharedFileId: fileId,
+      targetDirectoryId: 'target-fixture',
+      displayName: fileId,
+      status: QuarkImportStatus.pending,
+      createdAt: DateTime.utc(2026, 7, 24),
+      updatedAt: DateTime.utc(2026, 7, 24),
+    );

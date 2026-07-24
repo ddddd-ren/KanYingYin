@@ -29,6 +29,92 @@ import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
 void main() {
   group('CloudResourcesController', () {
+    test('选择网盘目录后仅聚合该目录子树并可返回全部根目录', () async {
+      final credentials = MemoryCloudCredentialStore();
+      final sourceRepository = CloudSourceRepository(
+        storage: MemoryCloudSourceStorage(),
+        credentialStore: credentials,
+      );
+      const source = CloudSource(
+        id: 'directory-scope-source',
+        type: CloudSourceType.openList,
+        name: '目录范围来源',
+        baseUrl: 'https://drive.example.com',
+        rootPaths: <String>['/影视', '/其他'],
+      );
+      await sourceRepository.save(source);
+      final indexRepository = CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      );
+      await indexRepository.replaceSource(
+        source.id,
+        <CloudMediaIndexItem>[
+          _scopedCloudEpisode(
+            source.id,
+            'movie-a',
+            '/影视/电影/A.mkv',
+            '影片 A',
+          ),
+          _scopedCloudEpisode(
+            source.id,
+            'show-b',
+            '/影视/剧集/B.mkv',
+            '剧集 B',
+          ),
+          _scopedCloudEpisode(
+            source.id,
+            'other-c',
+            '/其他/C.mkv',
+            '其他 C',
+          ),
+        ],
+        const <String, String>{},
+        const <String, List<CloudFileEntry>>{},
+        const <String>['/影视', '/其他'],
+      );
+      final controller = CloudResourcesController(
+        repository: sourceRepository,
+        credentialStore: credentials,
+        mediaIndexRepository: indexRepository,
+        minRecognizedVideoSizeBytesProvider: () => 0,
+      );
+      await controller.reloadSourcesAndSnapshot();
+
+      expect(
+        controller.directoryScopeChildren.map((item) => item.path),
+        <String>['/其他', '/影视'],
+      );
+      expect(controller.visibleIndexedItems, hasLength(3));
+
+      controller.selectDirectoryScope('/影视/电影');
+      expect(controller.currentDirectoryScope, '/影视/电影');
+      expect(
+        controller.visibleIndexedItems.map((item) => item.remotePath),
+        <String>['/影视/电影/A.mkv'],
+      );
+      expect(
+        controller.collection.groups
+            .expand((group) => group.videos)
+            .map((entry) => entry.id),
+        <String>['movie-a'],
+      );
+
+      controller.navigateDirectoryScopeUp();
+      expect(controller.currentDirectoryScope, '/影视');
+      expect(controller.visibleIndexedItems, hasLength(2));
+
+      expect(
+        controller.submitDirectoryScope('/不存在'),
+        '目录不存在或无法访问',
+      );
+      expect(controller.currentDirectoryScope, '/影视');
+
+      controller.clearDirectoryScope();
+      expect(controller.currentDirectoryScope, isNull);
+      expect(controller.visibleIndexedItems, hasLength(3));
+      controller.dispose();
+    });
+
     test('无扫描重载优先选择刚创建的可用来源', () async {
       final credentials = MemoryCloudCredentialStore();
       final repository = CloudSourceRepository(

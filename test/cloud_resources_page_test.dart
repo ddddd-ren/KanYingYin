@@ -666,6 +666,57 @@ void main() {
     fixture.controller.dispose();
   });
 
+  testWidgets('网盘路径下拉按目录过滤海报墙并可返回上级', (tester) async {
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      entries: <CloudFileEntry>[
+        CloudFileEntry(
+          id: 'movie-a',
+          remotePath: '/影视/电影/影片 A.mkv',
+          name: '影片 A.mkv',
+          size: 1024 * 1024 * 700,
+          modifiedAt: DateTime(2026, 7, 24),
+          isDirectory: false,
+        ),
+        CloudFileEntry(
+          id: 'show-b',
+          remotePath: '/影视/剧集/剧集 B.mkv',
+          name: '剧集 B.mkv',
+          size: 1024 * 1024 * 700,
+          modifiedAt: DateTime(2026, 7, 24),
+          isDirectory: false,
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: CloudResourcesPage(controller: fixture.controller)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey<String>('cloud-directory-address')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byTooltip('展开子文件夹'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('影视'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('展开子文件夹'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('电影'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('影片 A.mkv'), findsOneWidget);
+    expect(find.text('剧集 B.mkv'), findsNothing);
+    expect(find.byTooltip('返回上级'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('返回上级'));
+    await tester.pumpAndSettle();
+    expect(find.text('剧集 B.mkv'), findsOneWidget);
+    fixture.controller.dispose();
+  });
+
   testWidgets('点击视频使用来源 ID、远程 ID 和同名字幕播放', (tester) async {
     CloudResourcePlaybackRequest? playbackRequest;
     final fixture = await _PageFixture.create(

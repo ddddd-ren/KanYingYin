@@ -347,6 +347,12 @@ void main() {
     );
     await tester.pump();
 
+    final resourceAction = find.byTooltip('资源操作');
+    expect(tester.getSize(resourceAction), const Size.square(32));
+    final actionButton = tester.widget<IconButton>(
+      find.ancestor(of: resourceAction, matching: find.byType(IconButton)),
+    );
+    expect(actionButton.iconSize, 16);
     expect(find.text('中文剧名 第 3 季'), findsOneWidget);
     expect(
         find.byKey(const ValueKey<String>('season-poster-3')), findsOneWidget);
@@ -649,7 +655,7 @@ void main() {
       find.widgetWithText(TextField, '搜索全部网盘资源'),
       findsOneWidget,
     );
-    expect(find.text('已汇总全部媒体根目录'), findsOneWidget);
+    expect(find.text('已汇总全部媒体根目录'), findsNothing);
     expect(find.byTooltip('返回上级'), findsNothing);
     expect(find.byTooltip('管理网盘来源'), findsOneWidget);
     expect(find.byTooltip('刷新当前来源'), findsOneWidget);
@@ -666,7 +672,7 @@ void main() {
     fixture.controller.dispose();
   });
 
-  testWidgets('网盘路径下拉按目录过滤海报墙并可返回上级', (tester) async {
+  testWidgets('网盘媒体库不显示目录导航且展示全部海报', (tester) async {
     final fixture = await _PageFixture.create(
       source: _quarkSource,
       entries: <CloudFileEntry>[
@@ -695,24 +701,11 @@ void main() {
 
     expect(
       find.byKey(const ValueKey<String>('cloud-directory-address')),
-      findsOneWidget,
+      findsNothing,
     );
-    await tester.tap(find.byTooltip('展开子文件夹'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('影视'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byTooltip('展开子文件夹'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('电影'));
-    await tester.pumpAndSettle();
-
+    expect(find.text('已汇总全部媒体根目录'), findsNothing);
+    expect(find.byTooltip('返回上级'), findsNothing);
     expect(find.text('影片 A.mkv'), findsOneWidget);
-    expect(find.text('剧集 B.mkv'), findsNothing);
-    expect(find.byTooltip('返回上级'), findsOneWidget);
-
-    await tester.tap(find.byTooltip('返回上级'));
-    await tester.pumpAndSettle();
     expect(find.text('剧集 B.mkv'), findsOneWidget);
     fixture.controller.dispose();
   });
@@ -1330,7 +1323,7 @@ void main() {
       findsNothing,
     );
     expect(find.text('中文片名'), findsOneWidget);
-    expect(find.text('已汇总全部媒体根目录'), findsOneWidget);
+    expect(find.text('已汇总全部媒体根目录'), findsNothing);
     fixture.controller.dispose();
   });
 

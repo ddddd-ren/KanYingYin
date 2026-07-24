@@ -553,6 +553,13 @@ void main() {
         ),
       );
 
+      final cardMaterial = tester
+          .widgetList<Material>(find.byType(Material))
+          .singleWhere(
+            (material) =>
+                material.borderRadius == BorderRadius.circular(8),
+          );
+      expect(cardMaterial.clipBehavior, Clip.antiAlias);
       final opacity =
           tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity));
       expect(opacity.opacity, 1);
@@ -931,14 +938,14 @@ void main() {
         ),
       ) as Image;
       expect(networkImage.image, same(networkProvider));
-      expect(networkImage.fit, BoxFit.contain);
+      expect(networkImage.fit, BoxFit.cover);
       final localFallback = networkImage.errorBuilder!(
         imageContext,
         StateError('模拟网络封面失败'),
         StackTrace.empty,
       ) as Image;
       expect(localFallback.image, isA<FileImage>());
-      expect(localFallback.fit, BoxFit.contain);
+      expect(localFallback.fit, BoxFit.cover);
 
       final placeholder = localFallback.errorBuilder!(
         imageContext,

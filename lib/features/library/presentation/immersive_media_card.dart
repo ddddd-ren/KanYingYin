@@ -64,7 +64,7 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
       child: Material(
         color: colors.surfaceContainerHighest.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(8),
-        clipBehavior: Clip.hardEdge,
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: widget.onTap,
           onLongPress: widget.onLongPress,

@@ -353,6 +353,10 @@ void main() {
       find.ancestor(of: resourceAction, matching: find.byType(IconButton)),
     );
     expect(actionButton.iconSize, 16);
+    final actionSurface = tester.widget<Material>(
+      find.byKey(const ValueKey<String>('cloud-resource-action-surface')),
+    );
+    expect(actionSurface.type, MaterialType.transparency);
     expect(find.text('中文剧名 第 3 季'), findsOneWidget);
     expect(
         find.byKey(const ValueKey<String>('season-poster-3')), findsOneWidget);

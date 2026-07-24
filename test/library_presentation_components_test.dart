@@ -1095,6 +1095,21 @@ void main() {
     expect(viewDataBuilder, contains('heroTag: first.path'));
     expect(source, contains('trailingBuilder:'));
     expect(source, contains('PopupMenuButton<_LocalMediaAction>'));
+    final menuStart = source.indexOf('Widget _localMediaMenu');
+    final menuEnd = source.indexOf('Future<void> _copyGroupPath', menuStart);
+    expect(menuStart, isNonNegative);
+    expect(menuEnd, greaterThan(menuStart));
+    final menuSource = source.substring(menuStart, menuEnd);
+    expect(
+      menuSource,
+      contains(
+        "key: const ValueKey<String>('local-media-action-surface')",
+      ),
+    );
+    expect(menuSource, contains('type: MaterialType.transparency'));
+    expect(menuSource, contains('minimumSize: const Size.square(32)'));
+    expect(menuSource, contains('maximumSize: const Size.square(32)'));
+    expect(menuSource, contains('iconSize: 16'));
     expect(source, contains('_LocalMediaAction.scrapeTmdb'));
     expect(source, contains('_LocalMediaAction.rematchTmdb'));
     expect(source, contains('TmdbMatchDialog<TmdbScrapeResult>'));

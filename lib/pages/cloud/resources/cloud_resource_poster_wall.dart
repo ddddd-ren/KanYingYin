@@ -109,9 +109,9 @@ class CloudResourcePosterWall extends StatelessWidget {
   }
 
   Widget _resourceMenu(BuildContext context, CloudResourceMediaGroup group) {
-    final colors = Theme.of(context).colorScheme;
     return Material(
-      color: colors.surface.withValues(alpha: 0.62),
+      key: const ValueKey<String>('cloud-resource-action-surface'),
+      type: MaterialType.transparency,
       shape: const CircleBorder(),
       child: PopupMenuButton<_ResourceAction>(
         tooltip: '资源操作',

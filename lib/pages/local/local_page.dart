@@ -549,13 +549,21 @@ class _LocalPageState extends State<LocalPage>
   }
 
   Widget _localMediaMenu(BuildContext context, LocalVideoGroup group) {
-    final colors = Theme.of(context).colorScheme;
     return Material(
-      color: colors.surface.withValues(alpha: 0.86),
+      key: const ValueKey<String>('local-media-action-surface'),
+      type: MaterialType.transparency,
       shape: const CircleBorder(),
       child: PopupMenuButton<_LocalMediaAction>(
         tooltip: '本地媒体操作',
-        icon: const Icon(Icons.more_vert, size: 20),
+        padding: EdgeInsets.zero,
+        iconSize: 16,
+        style: IconButton.styleFrom(
+          minimumSize: const Size.square(32),
+          maximumSize: const Size.square(32),
+          padding: EdgeInsets.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        icon: const Icon(Icons.more_vert),
         onSelected: (action) async {
           switch (action) {
             case _LocalMediaAction.play:

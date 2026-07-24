@@ -177,6 +177,33 @@ import 'package:flutter_modular/flutter_modular.dart';
     expect(forbidden, isEmpty, reason: _formatImports(forbidden));
   });
 
+  test('IndexModule 只组合路由与应用级依赖注册', () {
+    final indexModule = File(
+      '${libDirectory.path}${Platform.pathSeparator}pages'
+      '${Platform.pathSeparator}index_module.dart',
+    );
+    final imports = _imports(indexModule, projectRoot: projectRoot).toList();
+    final forbidden = imports
+        .where(
+          (import) =>
+              _isProjectUri(import.uri) &&
+              (RegExp(r'^lib/(repositories|providers)/').hasMatch(import.uri) ||
+                  RegExp(r'^lib/services/(?!tmdb/tmdb_credential_manager\.dart$)')
+                      .hasMatch(import.uri) ||
+                  RegExp(r'^lib/pages/.+_controller\.dart$')
+                      .hasMatch(import.uri) ||
+                  RegExp(r'^lib/features/.+/(application|presentation)/')
+                      .hasMatch(import.uri)),
+        )
+        .toList(growable: false);
+
+    expect(forbidden, isEmpty, reason: _formatImports(forbidden));
+    expect(
+      imports.map((import) => import.uri),
+      contains('lib/app/bindings/app_bindings.dart'),
+    );
+  });
+
   test('library 和 player 表现组件不越层访问控制器与数据层', () {
     final presentationDirectories = [
       Directory(

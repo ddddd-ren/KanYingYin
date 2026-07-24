@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.50',
+    date: '2026-07-24',
+    isPrerelease: true,
+    changes: [
+      '本测试版优化了 Windows 应用内部结构，将本地与网盘媒体库、播放器和 TMDB 的启动依赖分开整理，降低后续更新互相影响的风险',
+      '启动、导航和播放方式保持不变；夸克、百度网盘和本地媒体来源仍按原有方式扫描、整理和播放',
+      '没有 TMDB Key、断网或 TMDB 暂时不可用时，本地与网盘媒体库及播放器仍可继续使用',
+      '播放器的字幕、选集、全屏、硬件解码和 Anime4K 行为保持不变',
+      '本次只调整应用内部结构，不会修改或删除本地、网盘中的原始视频及用户媒体数据',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.49',
     date: '2026-07-24',
     isPrerelease: true,

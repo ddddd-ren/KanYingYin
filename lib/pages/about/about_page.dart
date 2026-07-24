@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:flutter_modular/flutter_modular.dart';
-import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/core/app_version.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/services/local_image_cache_service.dart';
-import 'package:kanyingyin/utils/storage.dart';
 import 'package:kanyingyin/utils/utils.dart';
 
 class AboutPage extends StatefulWidget {
@@ -19,7 +18,7 @@ class AboutPage extends StatefulWidget {
 
 class _AboutPageState extends State<AboutPage> {
   final exitBehaviorTitles = <String>['退出看影音', '最小化至托盘', '每次都询问'];
-  Box<Object?> setting = GStorage.setting;
+  final TypedSettings setting = Modular.get<TypedSettings>();
   late int exitBehavior = setting.getTyped<int>(
     SettingBoxKey.exitBehavior,
     defaultValue: 2,

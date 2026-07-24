@@ -166,6 +166,25 @@ import 'package:flutter_modular/flutter_modular.dart';
     expect(forbidden, isEmpty, reason: _formatImports(forbidden));
   });
 
+  test('业务与表现层不反向依赖 legacy 兼容实现', () {
+    final guardedDirectories = [
+      Directory('${libDirectory.path}${Platform.pathSeparator}modules'),
+      Directory('${libDirectory.path}${Platform.pathSeparator}pages'),
+      Directory('${libDirectory.path}${Platform.pathSeparator}features'),
+    ];
+    final forbidden = guardedDirectories
+        .expand(_dartFiles)
+        .expand((file) => _imports(file, projectRoot: projectRoot))
+        .where(
+          (import) =>
+              _isProjectUri(import.uri) &&
+              RegExp(r'^lib/legacy/').hasMatch(import.uri),
+        )
+        .toList(growable: false);
+
+    expect(forbidden, isEmpty, reason: _formatImports(forbidden));
+  });
+
   test('core 不反向依赖业务和表现层', () {
     final coreDirectory =
         Directory('${libDirectory.path}${Platform.pathSeparator}core');
@@ -202,6 +221,28 @@ import 'package:flutter_modular/flutter_modular.dart';
       imports.map((import) => import.uri),
       contains('lib/app/bindings/app_bindings.dart'),
     );
+  });
+
+  test('pages 只通过强类型设置边界访问应用设置', () {
+    final pagesDirectory =
+        Directory('${libDirectory.path}${Platform.pathSeparator}pages');
+    final forbiddenImports = _dartFiles(pagesDirectory)
+        .expand((file) => _imports(file, projectRoot: projectRoot))
+        .where(
+          (import) => import.uri == 'lib/utils/storage.dart',
+        )
+        .toList(growable: false);
+    final forbiddenAccess = _dartFiles(pagesDirectory)
+        .where((file) => file.readAsStringSync().contains('GStorage.setting'))
+        .map((file) => file.path)
+        .toList(growable: false);
+
+    expect(
+      forbiddenImports,
+      isEmpty,
+      reason: _formatImports(forbiddenImports),
+    );
+    expect(forbiddenAccess, isEmpty, reason: forbiddenAccess.join('\n'));
   });
 
   test('library 和 player 表现组件不越层访问控制器与数据层', () {

@@ -1,6 +1,7 @@
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/features/library/application/local_library_metadata_coordinator.dart';
 import 'package:kanyingyin/features/library/application/local_library_preferences.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
@@ -11,6 +12,7 @@ import 'package:kanyingyin/services/local_media_indexer.dart';
 import 'package:kanyingyin/services/local_media_scanner.dart';
 import 'package:kanyingyin/services/media_recognition_settings.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
 /// 注册本地媒体库及其与网盘媒体索引的集成依赖。
 void registerLibraryBindings(Injector i) {
@@ -46,6 +48,18 @@ void registerLibraryBindings(Injector i) {
         await Modular.get<CloudLibraryController>().scanSource(sourceId);
       },
       tmdbApiKeyProvider: Modular.get<TmdbApiKeyProvider>(),
+      tmdbScrapeOptionsProvider: () {
+        final settings = Modular.get<TypedSettings>();
+        try {
+          return TmdbScrapeOptions.fromMap(settings.get('tmdbScrapeOptions'));
+        } on Object {
+          return const TmdbScrapeOptions.defaults();
+        }
+      },
+      tmdbAutoScrapeProvider: () => Modular.get<TypedSettings>().getTyped<bool>(
+        'tmdbAutoScrape',
+        defaultValue: true,
+      ),
     ),
   );
 }

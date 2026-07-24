@@ -1,6 +1,5 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
+import 'package:kanyingyin/features/cloud/application/cloud_source_coordinator.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_series_match_rule.dart';
@@ -86,10 +85,7 @@ class CloudLibraryController extends ChangeNotifier {
   final CloudMediaIndexer _mediaIndexer;
   final CloudSourceCacheCleaner? _posterCacheCleaner;
   final CloudSourceCacheCleaner? _subtitleCacheCleaner;
-  final Map<String, CloudScanCancellationToken> _scanTokens =
-      <String, CloudScanCancellationToken>{};
-  final Map<String, Completer<void>> _scanCompletions =
-      <String, Completer<void>>{};
+  final CloudSourceCoordinator _sourceCoordinator = CloudSourceCoordinator();
 
   List<CloudSource> sources = <CloudSource>[];
   final Set<String> _usableQuarkSourceIds = <String>{};
@@ -277,7 +273,7 @@ class CloudLibraryController extends ChangeNotifier {
     List<CloudSeriesMatchRule>? removedSeriesRules;
     try {
       cancelScan(sourceId);
-      await _scanCompletions[sourceId]?.future;
+      await _sourceCoordinator.waitFor(sourceId);
       removedIndex = await _mediaIndexRepository.removeSource(sourceId);
       final resourceTmdbRepository = _resourceTmdbRepository;
       if (resourceTmdbRepository != null) {
@@ -407,7 +403,8 @@ class CloudLibraryController extends ChangeNotifier {
         cacheRoot: await _cacheRootProvider(), sourceId: sourceId);
   }
 
-  bool isScanningSource(String sourceId) => _scanTokens.containsKey(sourceId);
+  bool isScanningSource(String sourceId) =>
+      _sourceCoordinator.activeSourceId == sourceId;
 
   Future<int> scanAllSources() async {
     await load();
@@ -432,13 +429,8 @@ class CloudLibraryController extends ChangeNotifier {
 
   Future<CloudMediaScanResult> scanSource(String sourceId) async {
     if (_disposed) return _cancelledScanResult();
-    if (_scanTokens.isNotEmpty) {
-      throw CloudScanInProgressException(scanningSourceId ?? sourceId);
-    }
-    final token = CloudScanCancellationToken();
-    final completion = Completer<void>();
-    _scanTokens[sourceId] = token;
-    _scanCompletions[sourceId] = completion;
+    final scanHandle = _sourceCoordinator.beginScan(sourceId);
+    final token = scanHandle.token;
     scanningSourceId = sourceId;
     scanProgress = 0;
     currentScanPath = null;
@@ -544,7 +536,6 @@ class CloudLibraryController extends ChangeNotifier {
       }
       rethrow;
     } finally {
-      _scanTokens.remove(sourceId);
       if (!_disposed) {
         if (scanningSourceId == sourceId) scanningSourceId = null;
         _notify();
@@ -552,14 +543,13 @@ class CloudLibraryController extends ChangeNotifier {
       try {
         await client?.close();
       } finally {
-        _scanCompletions.remove(sourceId);
-        if (!completion.isCompleted) completion.complete();
+        scanHandle.complete();
       }
     }
   }
 
   void cancelScan(String sourceId) {
-    _scanTokens[sourceId]?.cancel();
+    _sourceCoordinator.cancel(sourceId);
   }
 
   Future<CloudMediaScanResult> retryFailedScan() {
@@ -584,9 +574,7 @@ class CloudLibraryController extends ChangeNotifier {
 
   @override
   void dispose() {
-    for (final token in _scanTokens.values) {
-      token.cancel();
-    }
+    _sourceCoordinator.cancelActive();
     _disposed = true;
     super.dispose();
   }

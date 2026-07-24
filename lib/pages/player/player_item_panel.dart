@@ -11,8 +11,7 @@ import 'package:kanyingyin/pages/player/models/embedded_track_info.dart';
 import 'package:flutter/services.dart';
 import 'package:kanyingyin/bean/appbar/drag_to_move_bar.dart' as dtb;
 import 'package:kanyingyin/utils/constants.dart';
-import 'package:hive_ce/hive.dart';
-import 'package:kanyingyin/utils/storage.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:audio_video_progress_bar/audio_video_progress_bar.dart';
 import 'package:kanyingyin/services/timed_shutdown_service.dart';
 import 'package:kanyingyin/pages/player/widgets/embedded_track_menus.dart';
@@ -71,7 +70,7 @@ class PlayerItemPanel extends StatefulWidget {
 }
 
 class _PlayerItemPanelState extends State<PlayerItemPanel> {
-  Box<Object?> setting = GStorage.setting;
+  final TypedSettings setting = Modular.get<TypedSettings>();
   late bool haEnable;
   late Animation<Offset> topOffsetAnimation;
   late Animation<Offset> bottomOffsetAnimation;

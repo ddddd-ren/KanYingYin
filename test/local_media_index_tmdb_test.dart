@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/repositories/local_media_index_repository.dart';
 
 void main() {
   test('TMDB 元数据和锁定状态可以 JSON 往返', () {
@@ -42,19 +44,27 @@ void main() {
     expect(restored.scrapeStatus, TmdbScrapeStatus.matched);
   });
 
-  test('旧 Bangumi 索引可以映射为 TMDB 迁移元数据', () {
+  test('领域模型只解析当前 TMDB 结构', () {
     final restored = LocalMediaIndexItem.fromJson(_legacyIndexJson());
+
+    expect(restored.tmdb, isNull);
+  });
+
+  test('仓储读取边界把旧 Bangumi 索引迁移为 TMDB 元数据', () {
+    final repository = LocalMediaIndexRepository(
+      storage: _MemoryLocalMediaIndexStorage(
+        <String, Object?>{
+          SettingBoxKey.localMediaIndex: [_legacyIndexJson()],
+        },
+      ),
+    );
+
+    final restored = repository.getAll().single;
+    final encoded = restored.toJson();
 
     expect(restored.tmdb?.id, 456);
     expect(restored.tmdb?.title, '旧中文名');
     expect(restored.tmdb?.overview, '旧简介');
-  });
-
-  test('迁移旧字段后新 JSON 不再写回旧键', () {
-    final restored = LocalMediaIndexItem.fromJson(_legacyIndexJson());
-    final encoded = restored.toJson();
-
-    expect(restored.tmdb?.id, 456);
     for (final key in const <String>[
       'bangumiId',
       'bangumiName',
@@ -70,12 +80,39 @@ void main() {
 
   test('旧元数据损坏时仍保留视频索引', () {
     final json = _legacyIndexJson()..['bangumiId'] = <String>['bad'];
-    final restored = LocalMediaIndexItem.fromJson(json);
+    final repository = LocalMediaIndexRepository(
+      storage: _MemoryLocalMediaIndexStorage(
+        <String, Object?>{
+          SettingBoxKey.localMediaIndex: [json],
+        },
+      ),
+    );
+    final restored = repository.getAll().single;
 
     expect(restored.path, r'D:\Video\Movie.mkv');
     expect(restored.name, 'Movie.mkv');
     expect(restored.tmdb, isNull);
   });
+}
+
+class _MemoryLocalMediaIndexStorage implements LocalMediaIndexStorage {
+  _MemoryLocalMediaIndexStorage(this.values);
+
+  final Map<String, Object?> values;
+
+  @override
+  Object? read(String key, {Object? defaultValue}) =>
+      values[key] ?? defaultValue;
+
+  @override
+  Future<void> write(String key, Object? value) async {
+    values[key] = value;
+  }
+
+  @override
+  Future<void> delete(String key) async {
+    values.remove(key);
+  }
 }
 
 Map<String, dynamic> _legacyIndexJson() => <String, dynamic>{

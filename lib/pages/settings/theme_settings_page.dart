@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/bean/card/palette_card.dart';
-import 'package:kanyingyin/utils/storage.dart';
-import 'package:hive_ce/hive.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/providers/theme_provider.dart';
 import 'package:kanyingyin/bean/settings/color_type.dart';
@@ -20,7 +20,7 @@ class ThemeSettingsPage extends StatefulWidget {
 }
 
 class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
-  Box<Object?> setting = GStorage.setting;
+  final TypedSettings setting = Modular.get<TypedSettings>();
   late String defaultThemeMode;
   late String defaultThemeColor;
   late bool oledEnhance;

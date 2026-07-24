@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
@@ -21,7 +22,6 @@ import 'package:kanyingyin/services/media_recognition_settings.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
-import 'package:kanyingyin/utils/storage.dart';
 
 /// 注册网盘媒体库、索引和 TMDB 协调依赖。
 void registerCloudBindings(Injector i) {
@@ -119,7 +119,7 @@ void registerCloudBindings(Injector i) {
 TmdbScrapeOptions _tmdbScrapeOptions() {
   try {
     return TmdbScrapeOptions.fromMap(
-      GStorage.setting.get('tmdbScrapeOptions'),
+      Modular.get<TypedSettings>().get('tmdbScrapeOptions'),
     );
   } on Object {
     return const TmdbScrapeOptions.defaults();

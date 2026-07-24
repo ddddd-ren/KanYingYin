@@ -128,6 +128,9 @@ void main() {
 
   test('TMDB 刮削完成后由 Observer 重建网格展示数据', () {
     final page = File('lib/pages/local/local_page.dart').readAsStringSync();
+    final viewDataBuilder = File(
+      'lib/features/library/application/library_media_view_data_builder.dart',
+    ).readAsStringSync();
     final grid = File(
       'lib/features/library/presentation/library_media_grid.dart',
     ).readAsStringSync();
@@ -140,7 +143,10 @@ void main() {
     expect(mediaItems, greaterThan(observerBuilder));
     expect(page, contains('tmdbPosterUrlForPaths'));
     expect(page, contains('networkCoverUrl:'));
-    expect(page, contains('preferLocalCover: !group.needsOnlinePoster'));
+    expect(
+      viewDataBuilder,
+      contains('preferLocalCover: !group.needsOnlinePoster'),
+    );
     expect(grid, contains('GridView.builder'));
     expect(grid, contains('final url = item.networkCoverUrl'));
     expect(grid, contains('LibraryMediaCoverFallback.build('));
@@ -152,9 +158,14 @@ void main() {
     final overlay = File(
       'lib/pages/player/widgets/subtitle_settings_overlay.dart',
     ).readAsStringSync();
-    final storage = File('lib/utils/storage.dart').readAsStringSync();
+    final typedSettings = File(
+      'lib/features/settings/application/typed_settings.dart',
+    ).readAsStringSync();
 
-    expect(storage, contains("subtitleDelayByVideo = 'subtitleDelayByVideo'"));
+    expect(
+      typedSettings,
+      contains("subtitleDelayByVideo = 'subtitleDelayByVideo'"),
+    );
     expect(controller, contains('double subtitleDelaySeconds = 0.0'));
     expect(
         controller, contains('Future<void> setSubtitleDelay(double seconds)'));

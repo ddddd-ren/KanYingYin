@@ -1043,6 +1043,9 @@ void main() {
 
   test('LocalPage 实际组合三个媒体库展示组件', () {
     final source = File('lib/pages/local/local_page.dart').readAsStringSync();
+    final viewDataBuilder = File(
+      'lib/features/library/application/library_media_view_data_builder.dart',
+    ).readAsStringSync();
     expect(source, contains('LibraryPathBar('));
     expect(source, contains('LibrarySourceMenu('));
     expect(source, contains('LibrarySourceMenuViewData('));
@@ -1061,7 +1064,8 @@ void main() {
       hasLength(2),
     );
     expect(source, contains('LibraryMediaGrid('));
-    expect(source, contains('heroTag:'));
+    expect(source, contains('_mediaViewDataBuilder.build('));
+    expect(viewDataBuilder, contains('heroTag: first.path'));
     expect(source, contains('trailingBuilder:'));
     expect(source, contains('PopupMenuButton<_LocalMediaAction>'));
     expect(source, contains('_LocalMediaAction.scrapeTmdb'));

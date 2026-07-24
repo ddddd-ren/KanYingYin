@@ -15,11 +15,10 @@ import 'package:kanyingyin/pages/player/models/embedded_track_info.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/pages/video/video_page_controller_interface.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
-import 'package:hive_ce/hive.dart';
-import 'package:kanyingyin/utils/storage.dart';
 import 'package:kanyingyin/pages/player/player_item_surface.dart';
 import 'package:mobx/mobx.dart' as mobx;
 import 'package:kanyingyin/services/audio_controller.dart';
@@ -31,6 +30,7 @@ import 'package:kanyingyin/features/player/presentation/player_overlay_coordinat
 import 'package:kanyingyin/features/player/presentation/player_shortcut_handler.dart';
 import 'package:kanyingyin/features/player/presentation/player_exit_coordinator.dart';
 import 'package:kanyingyin/features/player/application/anime4k_policy.dart';
+import 'package:kanyingyin/features/player/application/player_audio_service_coordinator.dart';
 import 'package:path/path.dart' as p;
 
 class PlayerItem extends StatefulWidget {
@@ -65,11 +65,14 @@ class _PlayerItemState extends State<PlayerItem>
         WindowListener,
         WidgetsBindingObserver,
         SingleTickerProviderStateMixin {
-  Box<Object?> setting = GStorage.setting;
+  final TypedSettings setting = Modular.get<TypedSettings>();
   final PlayerController playerController = Modular.get<PlayerController>();
   final IVideoPageController videoPageController =
       Modular.get<IVideoPageController>();
-  final AudioController _audioController = AudioController();
+  late final PlayerAudioServiceCoordinator _audioServiceCoordinator =
+      PlayerAudioServiceCoordinator(
+    service: AudioControllerPlayerAudioService(AudioController()),
+  );
   late PlayerShortcutHandler _shortcutHandler;
   late Map<PlayerShortcutAction, PlayerShortcutCallback> keyboardActions;
   final PlayerOverlayCoordinator _overlayCoordinator =
@@ -388,70 +391,57 @@ class _PlayerItemState extends State<PlayerItem>
   }
 
   Future<void> _bindAudioService() async {
-    try {
-      await _audioController.bindCallbacks(
-        onPlay: () => playerController.play(),
-        onPause: () => playerController.pause(),
-        onSkipToNext: () => handlePreNextEpisode('next'),
-        onSkipToPrevious: () => handlePreNextEpisode('prev'),
-        onSeek: (position) => playerController.seek(position),
-      );
-      if (!_acceptingInput || !mounted) return;
-      _syncAudioServiceState();
-    } catch (e) {
-      AppLogger().w('AudioController: failed to bind callbacks', error: e);
-    }
+    await _audioServiceCoordinator.bindCallbacks(
+      onPlay: () => playerController.play(),
+      onPause: () => playerController.pause(),
+      onSkipToNext: () => handlePreNextEpisode('next'),
+      onSkipToPrevious: () => handlePreNextEpisode('prev'),
+      onSeek: (position) => playerController.seek(position),
+      isActive: () => _acceptingInput && mounted,
+      snapshotProvider: _audioServiceSnapshot,
+    );
   }
 
   void _syncAudioServiceState() {
     if (!_acceptingInput) return;
-    try {
-      final currentRoad = videoPageController.currentRoad;
-      final currentEpisode = videoPageController.currentEpisode;
-      if (videoPageController.roadList.isEmpty ||
-          currentRoad < 0 ||
-          currentRoad >= videoPageController.roadList.length) {
-        return;
-      }
-      final currentRoadData = videoPageController.roadList[currentRoad];
-      if (currentEpisode <= 0 || currentRoadData.identifier.isEmpty) return;
-      final safeEpisodeIndex = currentEpisode - 1;
-      if (safeEpisodeIndex >= currentRoadData.identifier.length) return;
+    unawaited(_audioServiceCoordinator.sync(_audioServiceSnapshot()));
+  }
 
-      if (playerController.duration <= Duration.zero) return;
-
-      final canSkipToPrevious = currentEpisode > 1;
-      final canSkipToNext = currentEpisode < currentRoadData.data.length;
-      final mediaItem = videoPageController.mediaItem;
-      final episodeTitle = currentRoadData.identifier[safeEpisodeIndex];
-      final artworkUrl = mediaItem.artworkUrl;
-      final artworkUri = (artworkUrl == null || artworkUrl.isEmpty)
-          ? null
-          : Uri.tryParse(artworkUrl);
-
-      unawaited(
-        _audioController.updateSession(
-          mediaId: '${mediaItem.id}_${currentRoad}_$currentEpisode',
-          title: mediaItem.effectiveTitle,
-          album: '本地文件',
-          artist: episodeTitle,
-          artUri: artworkUri,
-          duration: playerController.duration,
-          playing: playerController.playing,
-          loading: playerController.loading,
-          buffering: playerController.isBuffering,
-          completed: playerController.completed,
-          updatePosition: playerController.currentPosition,
-          bufferedPosition: playerController.buffer,
-          speed: playerController.playerSpeed,
-          queueIndex: safeEpisodeIndex,
-          canSkipToNext: canSkipToNext,
-          canSkipToPrevious: canSkipToPrevious,
-        ),
-      );
-    } catch (e) {
-      AppLogger().w('AudioController: failed to sync playback state', error: e);
+  PlayerAudioServiceSnapshot? _audioServiceSnapshot() {
+    final currentRoad = videoPageController.currentRoad;
+    final currentEpisode = videoPageController.currentEpisode;
+    if (videoPageController.roadList.isEmpty ||
+        currentRoad < 0 ||
+        currentRoad >= videoPageController.roadList.length) {
+      return null;
     }
+    final currentRoadData = videoPageController.roadList[currentRoad];
+    if (currentEpisode <= 0 || currentRoadData.identifier.isEmpty) return null;
+    final safeEpisodeIndex = currentEpisode - 1;
+    if (safeEpisodeIndex >= currentRoadData.identifier.length) return null;
+
+    final mediaItem = videoPageController.mediaItem;
+    final artworkUrl = mediaItem.artworkUrl;
+    return PlayerAudioServiceSnapshot(
+      mediaId: '${mediaItem.id}_${currentRoad}_$currentEpisode',
+      title: mediaItem.effectiveTitle,
+      album: '本地文件',
+      artist: currentRoadData.identifier[safeEpisodeIndex],
+      artUri: artworkUrl == null || artworkUrl.isEmpty
+          ? null
+          : Uri.tryParse(artworkUrl),
+      duration: playerController.duration,
+      playing: playerController.playing,
+      loading: playerController.loading,
+      buffering: playerController.isBuffering,
+      completed: playerController.completed,
+      updatePosition: playerController.currentPosition,
+      bufferedPosition: playerController.buffer,
+      speed: playerController.playerSpeed,
+      queueIndex: safeEpisodeIndex,
+      canSkipToNext: currentEpisode < currentRoadData.data.length,
+      canSkipToPrevious: currentEpisode > 1,
+    );
   }
 
   void _handleFullscreenChange(BuildContext context) async {
@@ -1153,8 +1143,7 @@ class _PlayerItemState extends State<PlayerItem>
     playerController.brightnessSeeking = false;
     playerController.volumeSeeking = false;
     playerController.canHidePlayerPanel = true;
-    unawaited(_audioController.deactivate());
-    _audioController.clearCallbacks();
+    unawaited(_audioServiceCoordinator.dispose());
     super.dispose();
   }
 

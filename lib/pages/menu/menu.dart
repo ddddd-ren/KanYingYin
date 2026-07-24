@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/bean/widget/embedded_native_control_area.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/pages/navigation/navigation_config.dart';
 import 'package:kanyingyin/pages/router.dart';
 import 'package:kanyingyin/utils/constants.dart';
-import 'package:kanyingyin/utils/storage.dart';
 import 'package:kanyingyin/utils/utils.dart';
 import 'package:kanyingyin/bean/appbar/desktop_window_controls.dart';
 import 'package:kanyingyin/bean/appbar/drag_to_move_bar.dart';
@@ -27,7 +27,7 @@ class NavigationBarState extends ChangeNotifier {
   bool get isHide => _isHide;
 
   int getDefaultSelectedIndex() {
-    final defaultPage = GStorage.setting.get(
+    final defaultPage = Modular.get<TypedSettings>().get(
       SettingBoxKey.defaultStartupPage,
       defaultValue: defaultStartupPage,
     );
@@ -89,7 +89,7 @@ class _ScaffoldMenu extends State<ScaffoldMenu> {
 
   bool get _showCustomWindowControls =>
       Utils.isDesktop() &&
-      !GStorage.setting.getTyped<bool>(
+      !Modular.get<TypedSettings>().getTyped<bool>(
         SettingBoxKey.showWindowButton,
         defaultValue: false,
       );

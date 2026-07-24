@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:kanyingyin/legacy/local_index/legacy_local_media_index_parser.dart';
 import 'package:kanyingyin/modules/local/local_episode_info.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
@@ -375,7 +374,7 @@ class LocalMediaIndexItem {
         return null;
       }
     }
-    return LegacyLocalMediaIndexParser.parseTmdb(json);
+    return null;
   }
 
   static TmdbScrapeStatus _parseScrapeStatus(Object? value) {

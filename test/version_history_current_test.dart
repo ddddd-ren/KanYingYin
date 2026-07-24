@@ -4,14 +4,15 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一五十四说明本地与网盘海报按钮透明化', () {
-    final entries = versionHistoryForCurrent('2.1.54');
+  test('二点一五十五说明海报铺满与圆角抗锯齿', () {
+    final entries = versionHistoryForCurrent('2.1.55');
 
     expect(entries, hasLength(1));
     final changes = entries.single.changes.join('\n');
-    expect(changes, contains('透明背景'));
     expect(changes, contains('本地与网盘'));
-    expect(changes, contains('三点按钮'));
+    expect(changes, contains('铺满'));
+    expect(changes, contains('浅色白边'));
+    expect(changes, contains('抗锯齿'));
     expect(changes, contains('夸克'));
     expect(changes, contains('百度'));
     expect(changes, contains('OpenList'));

@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.55',
+    date: '2026-07-24',
+    isPrerelease: true,
+    changes: [
+      '本测试版统一了 Windows 本地与网盘媒体库的海报显示，本地封面现在和网盘一样铺满卡片，消除比例不同造成的浅色白边',
+      '海报卡圆角改用抗锯齿裁剪，边缘更平滑；卡片比例、透明三点按钮、悬停和播放器入口保持不变',
+      '夸克、百度和 OpenList 的目录选择，以及本地媒体库目录下拉继续可用',
+      'TMDB 信息、字幕、全屏、硬件解码和 Anime4K 播放行为保持不变',
+      '本次显示修复不会修改或删除本地与网盘中的海报源文件、原始视频或用户媒体数据',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.54',
     date: '2026-07-24',
     isPrerelease: true,

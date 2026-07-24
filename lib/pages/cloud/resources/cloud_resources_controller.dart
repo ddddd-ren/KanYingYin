@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:kanyingyin/features/cloud/application/cloud_directory_scope_tree.dart';
 import 'package:kanyingyin/features/cloud/application/cloud_resource_tmdb_facade.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
@@ -140,6 +141,7 @@ class CloudResourcesController extends ChangeNotifier {
   bool autoOrganizing = false;
   String query = '';
   String? errorMessage;
+  String? currentDirectoryScope;
 
   int _generation = 0;
   bool _disposed = false;
@@ -179,6 +181,27 @@ class CloudResourcesController extends ChangeNotifier {
 
   CloudResourceTmdbRecord? get currentDirectoryTmdbRecord => null;
 
+  CloudDirectoryScopeTree get _directoryScopeTree =>
+      CloudDirectoryScopeTree.build(
+        rootPaths: selectedSource?.remoteRoots.map((root) => root.path) ??
+            const <String>[],
+        mediaPaths: _indexedItems.values.map((item) => item.remotePath),
+      );
+
+  List<CloudDirectoryScopeItem> get directoryScopeChildren =>
+      _directoryScopeTree.childrenOf(currentDirectoryScope);
+
+  String get directoryScopeAddress => currentDirectoryScope ?? '/';
+
+  List<CloudMediaIndexItem> get visibleIndexedItems => _indexedItems.values
+      .where(
+        (item) => _directoryScopeTree.contains(
+          item.remotePath,
+          currentDirectoryScope,
+        ),
+      )
+      .toList(growable: false);
+
   List<CloudFileEntry> get visibleEntries {
     final keyword = query.trim().toLowerCase();
     final minSizeBytes = _minRecognizedVideoSizeBytesProvider();
@@ -189,6 +212,10 @@ class CloudResourcesController extends ChangeNotifier {
                 entry.name,
                 size: entry.size,
                 minSizeBytes: minSizeBytes,
+              ) &&
+              _directoryScopeTree.contains(
+                entry.remotePath,
+                currentDirectoryScope,
               ) &&
               (keyword.isEmpty || entry.name.toLowerCase().contains(keyword)),
         )
@@ -201,17 +228,29 @@ class CloudResourcesController extends ChangeNotifier {
   }
 
   CloudResourceCollection get collection {
+    final scopedItems = visibleIndexedItems;
     if (_workTmdbCoordinator != null && _works.isNotEmpty) {
+      final visibleWorkKeys =
+          scopedItems.map((item) => item.workKey).whereType<String>().toSet();
       return _collectionGrouper.group(
-        items: _indexedItems.values.toList(growable: false),
-        works: _works,
+        items: scopedItems,
+        works: _works
+            .where((work) => visibleWorkKeys.contains(work.workKey))
+            .toList(growable: false),
         recordsByWorkKey: workTmdbRecords,
         query: query,
       );
     }
     return _collectionGrouper.group(
       sourceId: selectedSource?.id ?? '',
-      entries: entries,
+      entries: entries
+          .where(
+            (entry) => _directoryScopeTree.contains(
+              entry.remotePath,
+              currentDirectoryScope,
+            ),
+          )
+          .toList(growable: false),
       records: tmdbRecords,
       minSizeBytes: _minRecognizedVideoSizeBytesProvider(),
       query: query,
@@ -257,6 +296,7 @@ class CloudResourcesController extends ChangeNotifier {
     final previousWorks = List<CloudWorkIdentity>.from(_works);
     final previousMediaTree = _mediaTree;
     final previousQuery = query;
+    final previousDirectoryScope = currentDirectoryScope;
     await _loadSources(
       startScan: false,
       preferredSourceId: preferredSourceId,
@@ -273,6 +313,7 @@ class CloudResourcesController extends ChangeNotifier {
     _works = previousWorks;
     _mediaTree = previousMediaTree;
     query = previousQuery;
+    currentDirectoryScope = previousDirectoryScope;
     loading = false;
     scanning = false;
     errorMessage = '网盘来源加载失败，请重试';
@@ -316,6 +357,7 @@ class CloudResourcesController extends ChangeNotifier {
       _indexedItems.clear();
       _works = <CloudWorkIdentity>[];
       _mediaTree = null;
+      currentDirectoryScope = null;
       loading = false;
       errorMessage = '网盘来源加载失败';
       _notify();
@@ -342,6 +384,7 @@ class CloudResourcesController extends ChangeNotifier {
     _indexedItems.clear();
     _works = <CloudWorkIdentity>[];
     _mediaTree = null;
+    currentDirectoryScope = null;
     currentDirectory = null;
     isVirtualRoot = false;
     errorMessage = null;
@@ -412,6 +455,7 @@ class CloudResourcesController extends ChangeNotifier {
           ),
         )
         .toList(growable: false);
+    _reconcileDirectoryScope();
   }
 
   void _startScan(CloudSource source, int generation) {
@@ -482,6 +526,48 @@ class CloudResourcesController extends ChangeNotifier {
 
   @Deprecated('网盘资源页已改为来源级海报墙')
   Future<void> goBack() async {}
+
+  void selectDirectoryScope(String path) {
+    final normalized = CloudDirectoryScopeTree.normalize(path);
+    if (!_directoryScopeTree.hasDirectory(normalized)) {
+      throw ArgumentError.value(path, 'path', '目录不在当前媒体索引中');
+    }
+    if (currentDirectoryScope == normalized) return;
+    currentDirectoryScope = normalized;
+    _notify();
+  }
+
+  void navigateDirectoryScopeUp() {
+    final current = currentDirectoryScope;
+    if (current == null) return;
+    currentDirectoryScope = _directoryScopeTree.parentOf(current);
+    _notify();
+  }
+
+  String? submitDirectoryScope(String rawPath) {
+    final normalized = CloudDirectoryScopeTree.normalize(rawPath);
+    if (normalized == '/') {
+      clearDirectoryScope();
+      return null;
+    }
+    if (!_directoryScopeTree.hasDirectory(normalized)) {
+      return '目录不存在或无法访问';
+    }
+    selectDirectoryScope(normalized);
+    return null;
+  }
+
+  void clearDirectoryScope() {
+    if (currentDirectoryScope == null) return;
+    currentDirectoryScope = null;
+    _notify();
+  }
+
+  void _reconcileDirectoryScope() {
+    final current = currentDirectoryScope;
+    if (current == null || _directoryScopeTree.hasDirectory(current)) return;
+    currentDirectoryScope = null;
+  }
 
   Future<void> refresh() async {
     if (loading) return;

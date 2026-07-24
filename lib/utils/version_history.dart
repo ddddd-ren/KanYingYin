@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.54',
+    date: '2026-07-24',
+    isPrerelease: true,
+    changes: [
+      '本测试版将 Windows 本地与网盘媒体库海报卡右上角的三点按钮改为透明背景，并统一为紧凑尺寸，减少对封面的遮挡',
+      '本地与网盘的资源操作菜单内容、悬停与点击反馈、播放器入口保持不变',
+      '夸克、百度和 OpenList 的目录选择，以及本地媒体库目录下拉继续可用',
+      'TMDB 信息、字幕、全屏、硬件解码和 Anime4K 播放行为保持不变',
+      '本次界面调整不会修改或删除本地与网盘中的原始视频或用户媒体数据',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.53',
     date: '2026-07-24',
     isPrerelease: true,

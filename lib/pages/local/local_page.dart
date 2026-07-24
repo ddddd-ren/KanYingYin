@@ -6,6 +6,7 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:flutter/services.dart';
 import 'package:kanyingyin/features/library/application/library_media_view_data_builder.dart';
+import 'package:kanyingyin/features/library/presentation/directory_address_dropdown.dart';
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
 import 'package:kanyingyin/features/library/presentation/library_path_bar.dart';
 import 'package:kanyingyin/features/library/presentation/library_source_menu.dart';
@@ -170,6 +171,22 @@ class _LocalPageState extends State<LocalPage>
     }
     await _enterDirectory(path);
     return localController.currentPath == path ? null : '目录不存在或无法访问';
+  }
+
+  Future<List<DirectoryNavigationItem>> _loadChildDirectories(
+    String path,
+  ) async {
+    if (path.trim().isEmpty) return const <DirectoryNavigationItem>[];
+    final directories = await loadLocalDirectories(path);
+    return directories
+        .map(
+          (child) => DirectoryNavigationItem(
+            label: p.basename(child).isEmpty ? child : p.basename(child),
+            path: child,
+            subtitle: child,
+          ),
+        )
+        .toList(growable: false);
   }
 
   String _playbackTitle(LocalMediaIndexItem item) {
@@ -796,6 +813,9 @@ class _LocalPageState extends State<LocalPage>
                       onOpenRecentPath: _enterDirectory,
                       onNavigateUp: localController.navigateUp,
                       onPathSubmitted: _submitDirectoryAddress,
+                      onLoadChildDirectories: _loadChildDirectories,
+                      onChildDirectorySelected: (item) =>
+                          _enterDirectory(item.path),
                       onFetchMediaInfo: () => _fetchMediaInfo(context),
                       onGenerateThumbnails: () => _fetchThumbnails(context),
                       onMatchMetadata: () => _scrapeTmdb(context),

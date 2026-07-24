@@ -105,6 +105,15 @@ void main() {
     expect(pathBar, contains("'媒体库'"));
   });
 
+  test('LocalPage 为路径栏提供本地直接子目录', () {
+    final source = File('lib/pages/local/local_page.dart').readAsStringSync();
+
+    expect(source, contains('onLoadChildDirectories: _loadChildDirectories'));
+    expect(source, contains('onChildDirectorySelected:'));
+    expect(source, contains('loadLocalDirectories(path)'));
+    expect(source, contains('_enterDirectory(item.path)'));
+  });
+
   test('本地页面优先使用 TMDB 海报并保留本地封面回退', () {
     final pageSource =
         File('lib/pages/local/local_page.dart').readAsStringSync();

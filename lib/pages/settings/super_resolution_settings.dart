@@ -54,7 +54,7 @@ class _SuperResolutionSettingsState extends State<SuperResolutionSettings> {
         maxWidth: 1000,
         sections: [
           KSettingsSection(
-              title: Text('Anime4K 自适应超分辨率',
+              title: Text('Anime4K 动画画质增强',
                   style: TextStyle(fontFamily: fontFamily)),
               tiles: [
                 KSettingsTile<Anime4kPreference>.radioTile(
@@ -67,7 +67,7 @@ class _SuperResolutionSettingsState extends State<SuperResolutionSettings> {
                 ),
                 KSettingsTile<Anime4kPreference>.radioTile(
                   title: Text('效率档', style: TextStyle(fontFamily: fontFamily)),
-                  description: Text('需要放大时自动启用轻量 Anime4K。',
+                  description: Text('动画画面需要放大时使用轻量增强，优先保持流畅。',
                       style: TextStyle(fontFamily: fontFamily)),
                   radioValue: Anime4kPreference.efficiency,
                   groupValue: anime4kPreference,
@@ -75,7 +75,7 @@ class _SuperResolutionSettingsState extends State<SuperResolutionSettings> {
                 ),
                 KSettingsTile<Anime4kPreference>.radioTile(
                   title: Text('质量档', style: TextStyle(fontFamily: fontFamily)),
-                  description: Text('需要放大时自动启用完整 Anime4K，显卡负载更高。',
+                  description: Text('动画画面需要放大时使用完整增强，显卡负载更高。',
                       style: TextStyle(fontFamily: fontFamily)),
                   radioValue: Anime4kPreference.quality,
                   groupValue: anime4kPreference,

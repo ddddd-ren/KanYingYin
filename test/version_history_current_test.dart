@@ -4,6 +4,25 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('一点零一点说明累积正式版更新', () {
+    final entries = versionHistoryForCurrent('1.0.1');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isFalse);
+    expect(changes, contains('本地与网盘'));
+    expect(changes, contains('目录选择'));
+    expect(changes, contains('转存目录'));
+    expect(changes, contains('铺满'));
+    expect(changes, contains('动漫番剧'));
+    expect(changes, contains('Anime4K'));
+    expect(changes, contains('快捷方式'));
+    expect(changes, contains('TMDB'));
+    expect(changes, contains('播放器'));
+    expect(changes, contains('不会修改或删除'));
+  });
+
   test('二点一五十五说明海报铺满与圆角抗锯齿', () {
     final entries = versionHistoryForCurrent('2.1.55');
 

@@ -8,6 +8,7 @@ import 'package:flutter/gestures.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/features/library/presentation/directory_address_dropdown.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
 import 'package:kanyingyin/features/library/presentation/library_path_bar.dart';
@@ -101,6 +102,8 @@ void main() {
       required double width,
       String currentPath = r'D:\a TV\动画',
       Future<String?> Function(String path)? onPathSubmitted,
+      DirectoryChildrenLoader? onLoadChildDirectories,
+      DirectoryChildSelected? onChildDirectorySelected,
     }) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = Size(width, 900);
@@ -146,6 +149,8 @@ void main() {
                     recordedActions.add('address:$path');
                     return null;
                   },
+              onLoadChildDirectories: onLoadChildDirectories,
+              onChildDirectorySelected: onChildDirectorySelected,
             ),
           ),
         ),
@@ -429,6 +434,28 @@ void main() {
       expect(submitted, r'Z:\不存在');
       expect(find.text('目录不存在或无法访问'), findsOneWidget);
       expect(find.text(r'Z:\不存在'), findsOneWidget);
+    });
+
+    testWidgets('路径栏转发直接子目录加载和选择', (tester) async {
+      DirectoryNavigationItem? selected;
+      await pumpPathBar(
+        tester,
+        width: 900,
+        onLoadChildDirectories: (_) async => const <DirectoryNavigationItem>[
+          DirectoryNavigationItem(
+            label: '子目录',
+            path: r'D:\a TV\动画\子目录',
+          ),
+        ],
+        onChildDirectorySelected: (item) => selected = item,
+      );
+
+      await tester.tap(find.byTooltip('展开子文件夹'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('子目录'));
+      await tester.pumpAndSettle();
+
+      expect(selected?.path, r'D:\a TV\动画\子目录');
     });
   });
 

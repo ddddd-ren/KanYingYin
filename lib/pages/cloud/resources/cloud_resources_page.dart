@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:kanyingyin/features/cloud/application/cloud_resources_toolbar.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
@@ -54,6 +55,8 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
   late final CloudResourcesController _controller;
   final CloudProviderRegistry _providerRegistry = CloudProviderRegistry();
   final CloudPlaybackResolver _playbackResolver = CloudPlaybackResolver();
+  final CloudResourcesToolbarPolicy _toolbarPolicy =
+      const CloudResourcesToolbarPolicy();
   bool _batchScraping = false;
   int _batchCurrent = 0;
   int _batchTotal = 0;
@@ -79,9 +82,8 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
   }
 
   Future<void> _addCloudSource(_CloudAddAction action) async {
-    final callback = action == _CloudAddAction.quark
-        ? widget.onAddQuark
-        : widget.onAddBaidu;
+    final callback =
+        action == _CloudAddAction.quark ? widget.onAddQuark : widget.onAddBaidu;
     final route = action == _CloudAddAction.quark
         ? '/settings/cloud-sources/quark/edit'
         : '/settings/cloud-sources/baidu/edit';
@@ -649,6 +651,14 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
 
   Widget _toolbar(List<CloudSource> sources) {
     final selected = _controller.selectedSource;
+    final toolbarState = _toolbarPolicy.evaluate(
+      hasSelectedSource: selected != null,
+      loading: _controller.loading,
+      scanning: _controller.scanning,
+      batchScraping: _batchScraping,
+      autoOrganizing: _autoOrganizing,
+      tmdbBusy: _controller.tmdbScrapingKeys.isNotEmpty,
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Row(
@@ -670,7 +680,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
                       child: Text(source.name),
                     ),
                 ],
-                onChanged: _controller.loading || _autoOrganizing
+                onChanged: !toolbarState.canChangeSource
                     ? null
                     : (sourceId) => _controller.selectSource(sourceId),
               ),
@@ -698,54 +708,37 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
           ),
           IconButton(
             tooltip: '刷新当前来源',
-            onPressed: selected == null ||
-                    _controller.loading ||
-                    _controller.scanning ||
-                    _autoOrganizing
-                ? null
-                : _controller.refresh,
+            onPressed: toolbarState.canRefresh ? _controller.refresh : null,
             icon: const Icon(Icons.refresh),
           ),
-          PopupMenuButton<_CloudToolbarAction>(
+          PopupMenuButton<CloudToolbarAction>(
             tooltip: '更多网盘操作',
             icon: const Icon(Icons.more_horiz_rounded),
             onSelected: _handleToolbarAction,
             itemBuilder: (context) => [
               _cloudToolbarMenuItem(
                 context: context,
-                action: _CloudToolbarAction.autoOrganize,
+                action: CloudToolbarAction.autoOrganize,
                 icon: Icons.auto_awesome_motion,
                 label: '自动整理当前来源',
                 busy: _autoOrganizing,
-                enabled: selected != null &&
-                    !_controller.loading &&
-                    !_controller.scanning &&
-                    !_batchScraping &&
-                    !_autoOrganizing &&
-                    _controller.tmdbScrapingKeys.isEmpty,
+                enabled: toolbarState.canAutoOrganize,
               ),
               _cloudToolbarMenuItem(
                 context: context,
-                action: _CloudToolbarAction.scrape,
+                action: CloudToolbarAction.scrape,
                 icon: Icons.auto_awesome_outlined,
                 label: '刮削当前来源',
                 busy: _batchScraping,
-                enabled: selected != null &&
-                    !_controller.loading &&
-                    !_controller.scanning &&
-                    !_batchScraping &&
-                    !_autoOrganizing,
+                enabled: toolbarState.canScrape,
               ),
               const PopupMenuDivider(),
               _cloudToolbarMenuItem(
                 context: context,
-                action: _CloudToolbarAction.removeSource,
+                action: CloudToolbarAction.removeSource,
                 icon: Icons.delete_outline,
                 label: '移除当前来源',
-                enabled: selected != null &&
-                    !_controller.loading &&
-                    !_controller.scanning &&
-                    !_autoOrganizing,
+                enabled: toolbarState.canRemoveSource,
                 destructive: true,
               ),
             ],
@@ -755,9 +748,9 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     );
   }
 
-  PopupMenuItem<_CloudToolbarAction> _cloudToolbarMenuItem({
+  PopupMenuItem<CloudToolbarAction> _cloudToolbarMenuItem({
     required BuildContext context,
-    required _CloudToolbarAction action,
+    required CloudToolbarAction action,
     required IconData icon,
     required String label,
     required bool enabled,
@@ -765,7 +758,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     bool destructive = false,
   }) {
     final color = destructive ? Theme.of(context).colorScheme.error : null;
-    return PopupMenuItem<_CloudToolbarAction>(
+    return PopupMenuItem<CloudToolbarAction>(
       value: action,
       enabled: enabled,
       child: Row(
@@ -785,13 +778,13 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     );
   }
 
-  Future<void> _handleToolbarAction(_CloudToolbarAction action) async {
+  Future<void> _handleToolbarAction(CloudToolbarAction action) async {
     switch (action) {
-      case _CloudToolbarAction.autoOrganize:
+      case CloudToolbarAction.autoOrganize:
         await _confirmAutoOrganize();
-      case _CloudToolbarAction.scrape:
+      case CloudToolbarAction.scrape:
         await _scrapeSelectedSource();
-      case _CloudToolbarAction.removeSource:
+      case CloudToolbarAction.removeSource:
         await _confirmRemoveSource();
     }
   }
@@ -952,7 +945,5 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     );
   }
 }
-
-enum _CloudToolbarAction { autoOrganize, scrape, removeSource }
 
 enum _CloudAddAction { quark, baidu }

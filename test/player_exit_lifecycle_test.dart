@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/features/player/presentation/player_exit_coordinator.dart';
+import 'package:kanyingyin/features/player/application/player_runtime_preferences.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/pages/player/player_controller.dart';
 import 'package:kanyingyin/shaders/shaders_controller.dart';
 import 'package:kanyingyin/utils/storage.dart';
@@ -40,6 +42,8 @@ void main() {
   test('播放器不存在时状态读取和控制操作安全结束', () async {
     final controller = PlayerController(
       shadersController: ShadersController(),
+      runtimePreferences:
+          PlayerRuntimePreferences(TypedSettings(GStorage.setting)),
     );
 
     expect(controller.hasActivePlayer, isFalse);
@@ -53,6 +57,8 @@ void main() {
   test('播放器重复释放共享同一个清理任务', () async {
     final controller = PlayerController(
       shadersController: ShadersController(),
+      runtimePreferences:
+          PlayerRuntimePreferences(TypedSettings(GStorage.setting)),
     );
 
     final first = controller.dispose();

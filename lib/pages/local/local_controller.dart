@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:kanyingyin/features/library/application/local_library_metadata_coordinator.dart';
 import 'package:kanyingyin/features/library/application/local_library_preferences.dart';
+import 'package:kanyingyin/features/library/application/local_library_source_coordinator.dart';
+import 'package:kanyingyin/features/library/application/local_library_tmdb_coordinator.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/local_media_source.dart';
@@ -36,7 +38,6 @@ import 'package:kanyingyin/services/local_cover_finder.dart';
 import 'package:kanyingyin/services/local_series_grouper.dart';
 import 'package:kanyingyin/services/poster_service.dart';
 import 'package:kanyingyin/utils/logger.dart';
-import 'package:kanyingyin/utils/storage.dart';
 import 'package:mobx/mobx.dart';
 import 'package:path/path.dart' as p;
 
@@ -76,6 +77,8 @@ abstract class _LocalController with Store {
     CloudTmdbMetadataService? cloudTmdbMetadataService,
     LocalTmdbScrapeService? tmdbScrapeService,
     TmdbApiKeyProvider? tmdbApiKeyProvider,
+    TmdbScrapeOptions Function()? tmdbScrapeOptionsProvider,
+    bool Function()? tmdbAutoScrapeProvider,
   }) : this._(
           scanner: scanner,
           mediaIndexer: mediaIndexer,
@@ -94,6 +97,8 @@ abstract class _LocalController with Store {
           tmdbScrapeService: tmdbScrapeService,
           tmdbApiKeyProvider:
               tmdbApiKeyProvider ?? TmdbApiKeyProvider(userKeyReader: () => ''),
+          tmdbScrapeOptionsProvider: tmdbScrapeOptionsProvider,
+          tmdbAutoScrapeProvider: tmdbAutoScrapeProvider,
         );
 
   _LocalController._({
@@ -112,6 +117,8 @@ abstract class _LocalController with Store {
     CloudTmdbMetadataService? cloudTmdbMetadataService,
     LocalTmdbScrapeService? tmdbScrapeService,
     required TmdbApiKeyProvider tmdbApiKeyProvider,
+    TmdbScrapeOptions Function()? tmdbScrapeOptionsProvider,
+    bool Function()? tmdbAutoScrapeProvider,
   })  : _scanner = scanner ?? LocalMediaScanner(),
         _mediaIndexRepository = mediaIndexRepository,
         _mediaIndexer =
@@ -131,6 +138,9 @@ abstract class _LocalController with Store {
               clientFactory: (apiKey) => TmdbClient(apiKey: apiKey),
             ),
         _tmdbApiKeyProvider = tmdbApiKeyProvider,
+        _tmdbScrapeOptionsProvider = tmdbScrapeOptionsProvider ??
+            (() => const TmdbScrapeOptions.defaults()),
+        _tmdbAutoScrapeProvider = tmdbAutoScrapeProvider ?? (() => true),
         _posterService = PosterService(apiKeyProvider: tmdbApiKeyProvider),
         _mediaSourceRepository =
             mediaSourceRepository ?? LocalMediaSourceRepository(),
@@ -154,6 +164,8 @@ abstract class _LocalController with Store {
   final LocalSeriesGrouper _seriesGrouper;
   final LocalTmdbScrapeService _tmdbScrapeService;
   final TmdbApiKeyProvider _tmdbApiKeyProvider;
+  final TmdbScrapeOptions Function() _tmdbScrapeOptionsProvider;
+  final bool Function() _tmdbAutoScrapeProvider;
   final PosterService _posterService;
   final ILocalMediaSourceRepository _mediaSourceRepository;
   final ILocalSeriesTitleOverrideRepository _seriesTitleOverrideRepository;
@@ -162,6 +174,17 @@ abstract class _LocalController with Store {
   final CloudCacheRootProvider _cloudCacheRootProvider;
   final Future<void> Function(String sourceId)? _scanCloudSource;
   CloudTmdbMetadataService? _cloudTmdbMetadataService;
+  late final LocalLibrarySourceCoordinator _sourceCoordinator =
+      LocalLibrarySourceCoordinator(
+    sourceRepository: _mediaSourceRepository,
+    indexRepository: _mediaIndexRepository,
+  );
+  late final LocalLibraryTmdbCoordinator _tmdbCoordinator =
+      LocalLibraryTmdbCoordinator(
+    apiKeyProvider: _tmdbApiKeyProvider.read,
+    optionsProvider: _tmdbScrapeOptionsProvider,
+    autoScrapeProvider: _tmdbAutoScrapeProvider,
+  );
 
   static const int _maxRecentDirectories = 10;
 
@@ -653,10 +676,12 @@ abstract class _LocalController with Store {
 
   @action
   Future<bool> removeMediaSource(String path) async {
-    if (isIndexingLibrary) return false;
     try {
-      final removed = await _mediaSourceRepository.removePath(path);
-      await _tryRemoveMediaIndexSource(path);
+      final removed = await _sourceCoordinator.removeSource(
+        path,
+        scanInProgress: isIndexingLibrary,
+      );
+      if (isIndexingLibrary) return false;
       _reloadMediaSourcesSafe();
       _reloadLocalLibraryIndexSafe();
       return removed;
@@ -670,36 +695,19 @@ abstract class _LocalController with Store {
   }
 
   bool isMediaSourceAvailable(LocalMediaSource source) {
-    return Directory(source.path).existsSync();
+    return _sourceCoordinator.isAvailable(source);
   }
 
-  int unavailableMediaSourceCount() {
-    return mediaSources
-        .where((source) => !isMediaSourceAvailable(source))
-        .length;
-  }
+  int unavailableMediaSourceCount() =>
+      _sourceCoordinator.unavailableCount(mediaSources);
 
   @action
   Future<int> removeUnavailableMediaSources() async {
+    final removedCount = await _sourceCoordinator.removeUnavailableSources(
+      mediaSources,
+      scanInProgress: isIndexingLibrary,
+    );
     if (isIndexingLibrary) return 0;
-    final unavailableSources = mediaSources
-        .where((source) => !isMediaSourceAvailable(source))
-        .toList(growable: false);
-    var removedCount = 0;
-    for (final source in unavailableSources) {
-      try {
-        final removed = await _mediaSourceRepository.removePath(source.path);
-        if (removed) {
-          await _tryRemoveMediaIndexSource(source.path);
-          removedCount++;
-        }
-      } catch (e) {
-        AppLogger().w(
-          'LocalController: failed to remove unavailable media source: ${source.path}',
-          error: e,
-        );
-      }
-    }
     _reloadMediaSourcesSafe();
     _reloadLocalLibraryIndexSafe();
     return removedCount;
@@ -1092,13 +1100,7 @@ abstract class _LocalController with Store {
   String get _tmdbApiKey => _tmdbApiKeyProvider.read();
 
   TmdbScrapeOptions get tmdbScrapeOptions {
-    try {
-      return TmdbScrapeOptions.fromMap(
-        GStorage.setting.get('tmdbScrapeOptions'),
-      );
-    } catch (_) {
-      return const TmdbScrapeOptions.defaults();
-    }
+    return _tmdbCoordinator.options;
   }
 
   String? indexedSeriesNameForPaths(Iterable<String> paths) {
@@ -1515,21 +1517,8 @@ abstract class _LocalController with Store {
   }
 
   void _autoScrapeTmdbAfterScan() {
-    bool autoScrape;
-    try {
-      autoScrape =
-          GStorage.setting.get('tmdbAutoScrape', defaultValue: true) as bool;
-    } catch (_) {
-      return;
-    }
-    if (!autoScrape || _tmdbApiKey.isEmpty) return;
-
-    final unmatched = localLibraryItems
-        .where((item) =>
-            item.tmdb == null || item.scrapeStatus != TmdbScrapeStatus.matched)
-        .map((item) => item.seriesName.trim())
-        .where((name) => name.isNotEmpty)
-        .toSet();
+    if (!_tmdbCoordinator.shouldAutoScrape(localLibraryItems)) return;
+    final unmatched = _tmdbCoordinator.unmatchedSeriesNames(localLibraryItems);
     if (unmatched.isEmpty) return;
     AppLogger().i(
       'LocalController: auto-scraping ${unmatched.length} series with TMDB',
@@ -1592,17 +1581,6 @@ abstract class _LocalController with Store {
         checkedCount: 0,
         refreshedCount: 0,
         skippedCount: 0,
-      );
-    }
-  }
-
-  Future<void> _tryRemoveMediaIndexSource(String path) async {
-    try {
-      await _mediaIndexRepository.removeSource(path);
-    } catch (e) {
-      AppLogger().w(
-        'LocalController: failed to remove media index source: $path',
-        error: e,
       );
     }
   }

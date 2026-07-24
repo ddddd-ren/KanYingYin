@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/core/app_version.dart';
-import 'package:kanyingyin/utils/storage.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 import 'package:provider/provider.dart';
@@ -21,7 +20,7 @@ class InitPage extends StatefulWidget {
 
 class _InitPageState extends State<InitPage> {
   final ShadersController shadersController = Modular.get<ShadersController>();
-  Box<Object?> setting = GStorage.setting;
+  final TypedSettings setting = Modular.get<TypedSettings>();
   late final ThemeProvider themeProvider;
 
   @override

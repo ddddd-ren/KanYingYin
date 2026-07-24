@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:kanyingyin/features/cloud/application/cloud_resource_tmdb_facade.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
@@ -14,7 +15,6 @@ import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_indexer.dart';
-import 'package:kanyingyin/services/cloud/cloud_media_name_parser.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_tree_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
@@ -27,6 +27,7 @@ import 'package:kanyingyin/services/cloud/cloud_work_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_tmdb_service.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
 int _defaultCloudMinSizeBytes() =>
@@ -119,6 +120,7 @@ class CloudResourcesController extends ChangeNotifier {
   final int Function() _minRecognizedVideoSizeBytesProvider;
   final CloudResourceCollectionGrouper _collectionGrouper;
   final CloudMediaTreeResolver _mediaTreeResolver;
+  final CloudResourceTmdbFacade _tmdbFacade = const CloudResourceTmdbFacade();
   final Map<String, CloudMediaIndexItem> _indexedItems =
       <String, CloudMediaIndexItem>{};
   List<CloudWorkIdentity> _works = <CloudWorkIdentity>[];
@@ -505,20 +507,11 @@ class CloudResourcesController extends ChangeNotifier {
       remoteId: entry.id,
       remotePath: entry.remotePath,
     );
-    final indexed = _indexedItemFor(entry);
-    final indexedEpisode = indexed?.mediaType == CloudMediaType.episode;
-    return CloudResourceTmdbTarget(
-      sourceId: source.id,
-      remote: CloudRemoteRef(id: entry.id, path: entry.remotePath),
-      displayName: entry.name,
-      resourceKind: entry.isDirectory
-          ? CloudResourceKind.directory
-          : CloudResourceKind.standaloneVideo,
-      customTitle: tmdbRecords[key]?.customTitle,
-      matchingTitle: indexedEpisode ? indexed?.seriesName : null,
-      matchingSeasonNumber: indexedEpisode ? indexed?.seasonNumber : null,
-      matchingEpisodeNumber: indexedEpisode ? indexed?.episodeNumber : null,
-      size: entry.isDirectory ? null : entry.size,
+    return _tmdbFacade.targetFor(
+      source: source,
+      entry: entry,
+      record: tmdbRecords[key],
+      indexed: _indexedItemFor(entry),
     );
   }
 
@@ -527,26 +520,10 @@ class CloudResourcesController extends ChangeNotifier {
   }
 
   TmdbMatchDraft tmdbDraftFor(CloudFileEntry entry) {
-    final record = tmdbRecordFor(entry);
-    final parsed = const CloudMediaNameParser().parse(
-      originalName: entry.name,
-      isDirectory: entry.isDirectory,
-      preferredTitle: record?.customTitle ?? record?.title,
-    );
-    final indexed = _indexedItemFor(entry);
-    if (indexed == null || indexed.mediaType != CloudMediaType.episode) {
-      return parsed;
-    }
-    final preferredTitle = record?.customTitle ?? record?.title;
-    return TmdbMatchDraft(
-      originalName: parsed.originalName,
-      searchTitle: preferredTitle?.trim().isNotEmpty == true
-          ? preferredTitle!.trim()
-          : indexed.seriesName,
-      mediaTypeMode: TmdbMediaTypeMode.tv,
-      year: parsed.year,
-      seasonNumber: indexed.seasonNumber ?? parsed.seasonNumber,
-      episodeNumber: indexed.episodeNumber ?? parsed.episodeNumber,
+    return _tmdbFacade.draftFor(
+      entry: entry,
+      record: tmdbRecordFor(entry),
+      indexed: _indexedItemFor(entry),
     );
   }
 

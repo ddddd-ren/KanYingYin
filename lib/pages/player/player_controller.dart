@@ -8,8 +8,6 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:mobx/mobx.dart';
 import 'package:flutter_modular/flutter_modular.dart';
-import 'package:hive_ce/hive.dart';
-import 'package:kanyingyin/utils/storage.dart';
 import 'package:kanyingyin/utils/proxy_utils.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/utils/utils.dart';
@@ -21,10 +19,13 @@ import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:kanyingyin/features/player/application/cloud_playback_cache_policy.dart';
+import 'package:kanyingyin/features/player/application/embedded_track_coordinator.dart';
 import 'package:kanyingyin/features/player/application/anime4k_coordinator.dart';
 import 'package:kanyingyin/features/player/application/anime4k_policy.dart';
 import 'package:kanyingyin/features/player/application/anime4k_shader_executor.dart';
 import 'package:kanyingyin/features/player/application/embedded_track_language_preferences.dart';
+import 'package:kanyingyin/features/player/application/player_runtime_preferences.dart';
+import 'package:kanyingyin/features/player/application/player_subtitle_coordinator.dart';
 import 'package:kanyingyin/features/player/application/subtitle_preferences.dart';
 import 'package:kanyingyin/features/player/application/truehd_fallback_policy.dart';
 import 'package:kanyingyin/pages/player/models/embedded_track_info.dart';
@@ -204,11 +205,13 @@ abstract class _PlayerController with Store {
     EmbeddedTrackLanguagePreferences? trackLanguagePreferences,
     TrueHdFallbackPolicy? trueHdFallbackPolicy,
     ShadersController? shadersController,
+    required PlayerRuntimePreferences runtimePreferences,
   })  : _subtitlePreferences = subtitlePreferences ?? SubtitlePreferences(),
         _trackLanguagePreferences =
             trackLanguagePreferences ?? EmbeddedTrackLanguagePreferences(),
         _trueHdFallbackPolicy =
             trueHdFallbackPolicy ?? const TrueHdFallbackPolicy(),
+        _runtimePreferences = runtimePreferences,
         shadersController =
             shadersController ?? Modular.get<ShadersController>();
 
@@ -217,6 +220,11 @@ abstract class _PlayerController with Store {
   final SubtitlePreferences _subtitlePreferences;
   final EmbeddedTrackLanguagePreferences _trackLanguagePreferences;
   final TrueHdFallbackPolicy _trueHdFallbackPolicy;
+  final PlayerRuntimePreferences _runtimePreferences;
+  late final PlayerSubtitleCoordinator _subtitleCoordinator =
+      PlayerSubtitleCoordinator(_subtitlePreferences);
+  late final EmbeddedTrackCoordinator _embeddedTrackCoordinator =
+      EmbeddedTrackCoordinator(_trackLanguagePreferences);
   final CloudPlaybackLeaseCoordinator _playbackLeaseCoordinator =
       CloudPlaybackLeaseCoordinator();
 
@@ -316,7 +324,6 @@ abstract class _PlayerController with Store {
   @observable
   double playerSpeed = 1.0;
 
-  Box<Object?> setting = GStorage.setting;
   bool hAenable = true;
   late String hardwareDecoder;
   bool lowMemoryMode = false;
@@ -506,6 +513,7 @@ abstract class _PlayerController with Store {
       _resetEmbeddedTrackState();
     }
     _lastInitParams = params;
+    _embeddedTrackCoordinator.beginMedia(_currentTrackLanguageMediaKey());
     videoUrl = params.videoUrl;
     isLocalPlayback = params.isLocalPlayback;
     _subtitleStorageKey = params.subtitleStorageKey;
@@ -536,23 +544,11 @@ abstract class _PlayerController with Store {
     buffer = Duration.zero;
     duration = Duration.zero;
     completed = false;
-    playerSpeed = setting.getTyped<double>(
-      SettingBoxKey.defaultPlaySpeed,
-      defaultValue: 1.0,
-    );
-    aspectRatioType = setting.getTyped<int>(
-      SettingBoxKey.defaultAspectRatioType,
-      defaultValue: 1,
-    );
-
-    buttonSkipTime = setting.getTyped<int>(
-      SettingBoxKey.buttonSkipTime,
-      defaultValue: 80,
-    );
-    arrowKeySkipTime = setting.getTyped<int>(
-      SettingBoxKey.arrowKeySkipTime,
-      defaultValue: 10,
-    );
+    final runtimeSettings = _runtimePreferences.load();
+    playerSpeed = runtimeSettings.playSpeed;
+    aspectRatioType = runtimeSettings.aspectRatioType;
+    buttonSkipTime = runtimeSettings.buttonSkipTime;
+    arrowKeySkipTime = runtimeSettings.arrowKeySkipTime;
     try {
       await _disposePlayerResources();
     } catch (_) {}
@@ -690,39 +686,17 @@ abstract class _PlayerController with Store {
       required PlaybackInitParams initParams,
       int offset = 0,
       String? subtitlePath}) async {
-    anime4kPreference = switch (setting.getTyped<int>(
-      SettingBoxKey.defaultSuperResolutionType,
-      defaultValue: 1,
-    )) {
-      2 => Anime4kPreference.efficiency,
-      3 => Anime4kPreference.quality,
-      _ => Anime4kPreference.off,
-    };
+    final runtimeSettings = _runtimePreferences.load();
+    anime4kPreference = runtimeSettings.anime4kPreference;
     anime4kRuntimeState = anime4kPreference == Anime4kPreference.off
         ? Anime4kRuntimeState.off
         : Anime4kRuntimeState.waitingForSize;
     _anime4kCoordinator.reset();
-    hAenable =
-        setting.getTyped<bool>(SettingBoxKey.hAenable, defaultValue: true);
-    hardwareDecoder = normalizeHardwareDecoder(
-      setting.getTyped<String>(
-        SettingBoxKey.hardwareDecoder,
-        defaultValue: defaultHardwareDecoder,
-      ),
-    );
-    if (hardwareDecoder == 'no') {
-      hAenable = false;
-    }
-    autoPlay =
-        setting.getTyped<bool>(SettingBoxKey.autoPlay, defaultValue: true);
-    lowMemoryMode = setting.getTyped<bool>(
-      SettingBoxKey.lowMemoryMode,
-      defaultValue: false,
-    );
-    playerDebugMode = setting.getTyped<bool>(
-      SettingBoxKey.playerDebugMode,
-      defaultValue: false,
-    );
+    hAenable = runtimeSettings.hardwareAccelerationEnabled;
+    hardwareDecoder = runtimeSettings.hardwareDecoder;
+    autoPlay = runtimeSettings.autoPlay;
+    lowMemoryMode = runtimeSettings.lowMemoryMode;
+    playerDebugMode = runtimeSettings.debugMode;
 
     final cachePolicy =
         CloudPlaybackCachePolicy.forTransport(initParams.transport);
@@ -761,18 +735,12 @@ abstract class _PlayerController with Store {
       await pp.setProperty(property.key, property.value);
     }
     // 设置 HTTP 代理
-    final bool proxyEnable = setting.getTyped<bool>(
-      SettingBoxKey.proxyEnable,
-      defaultValue: false,
-    );
+    final bool proxyEnable = runtimeSettings.proxyEnabled;
     if (shouldApplyPlayerProxy(
       proxyEnabled: proxyEnable,
       networkRoute: initParams.networkRoute,
     )) {
-      final String proxyUrl = setting.getTyped<String>(
-        SettingBoxKey.proxyUrl,
-        defaultValue: '',
-      );
+      final String proxyUrl = runtimeSettings.proxyUrl;
       final formattedProxy = ProxyUtils.getFormattedProxyUrl(proxyUrl);
       if (formattedProxy != null) {
         await pp.setProperty("http-proxy", formattedProxy);
@@ -795,10 +763,7 @@ abstract class _PlayerController with Store {
     mediaPlayer!.setPlaylistMode(PlaylistMode.none);
 
     // error handle
-    bool showPlayerError = setting.getTyped<bool>(
-      SettingBoxKey.showPlayerError,
-      defaultValue: true,
-    );
+    final bool showPlayerError = runtimeSettings.showPlayerError;
     await playerErrorSubscription?.cancel();
     playerErrorSubscription = mediaPlayer!.stream.error.listen((event) async {
       if (!_isMediaOperationActive(mediaToken, lifecycleToken)) return;
@@ -1111,21 +1076,13 @@ abstract class _PlayerController with Store {
   }
 
   String _fingerprintForTrack(String mediaKey, EmbeddedTrackInfo track) =>
-      embeddedTrackLanguageFingerprint(
-        mediaKey: mediaKey,
-        type: track.type,
-        trackId: track.id,
-        codec: track.originalCodec,
-        title: track.originalTitle,
-      );
+      _embeddedTrackCoordinator.fingerprintForMedia(mediaKey, track);
 
   EmbeddedTrackInfo _applyStoredTrackLanguage(
     String mediaKey,
     EmbeddedTrackInfo track,
   ) {
-    final choice = _trackLanguagePreferences.load(
-      _fingerprintForTrack(mediaKey, track),
-    );
+    final choice = _embeddedTrackCoordinator.loadChoice(track);
     return choice == null ? track : track.withLanguage(choice);
   }
 
@@ -1438,7 +1395,7 @@ abstract class _PlayerController with Store {
     subtitleForceStyle = forceStyle ?? subtitleForceStyle;
 
     if (save) {
-      await _subtitlePreferences.saveStyle(subtitleStyleSettings);
+      await _subtitleCoordinator.saveStyle(subtitleStyleSettings);
     }
     await _syncSubtitleStyleToPlayer();
   }
@@ -1474,7 +1431,7 @@ abstract class _PlayerController with Store {
     if (_subtitleDelayStorageKey.isEmpty) return;
     try {
       subtitleDelaySeconds =
-          _subtitlePreferences.loadDelay(_subtitleDelayStorageKey);
+          _subtitleCoordinator.loadDelay(_subtitleDelayStorageKey);
     } catch (e) {
       AppLogger()
           .w('PlayerController: failed to load subtitle delay', error: e);
@@ -1485,7 +1442,7 @@ abstract class _PlayerController with Store {
     if (!isLocalPlayback && _subtitleStorageKey == null) return;
     if (_subtitleDelayStorageKey.isEmpty) return;
     try {
-      await _subtitlePreferences.saveDelay(
+      await _subtitleCoordinator.saveDelay(
         _subtitleDelayStorageKey,
         subtitleDelaySeconds,
       );
@@ -1567,7 +1524,7 @@ abstract class _PlayerController with Store {
   }
 
   void _applyStoredSubtitleStyle() {
-    final style = _subtitlePreferences.loadStyle();
+    final style = _subtitleCoordinator.loadStyle();
     subtitleFontSize = style.fontSize;
     subtitleColorValue = style.colorValue;
     subtitleBorderColorValue = style.borderColorValue;
@@ -1827,12 +1784,12 @@ abstract class _PlayerController with Store {
 
   void setButtonForwardTime(int time) {
     buttonSkipTime = time;
-    setting.put(SettingBoxKey.buttonSkipTime, time);
+    unawaited(_runtimePreferences.saveButtonSkipTime(time));
   }
 
   void setArrowKeyForwardTime(int time) {
     arrowKeySkipTime = time;
-    setting.put(SettingBoxKey.arrowKeySkipTime, time);
+    unawaited(_runtimePreferences.saveArrowKeySkipTime(time));
   }
 
   void lanunchExternalPlayer() async {

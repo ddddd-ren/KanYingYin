@@ -1,7 +1,9 @@
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/features/player/application/embedded_track_language_preferences.dart';
+import 'package:kanyingyin/features/player/application/player_runtime_preferences.dart';
 import 'package:kanyingyin/features/player/application/subtitle_preferences.dart';
 import 'package:kanyingyin/features/player/application/truehd_fallback_policy.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/pages/player/player_controller.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/pages/video/video_page_controller_interface.dart';
@@ -17,11 +19,15 @@ void registerPlaybackBindings(Injector i) {
     EmbeddedTrackLanguagePreferences.new,
   );
   i.addSingleton<TrueHdFallbackPolicy>(TrueHdFallbackPolicy.new);
+  i.addSingleton<PlayerRuntimePreferences>(
+    () => PlayerRuntimePreferences(Modular.get<TypedSettings>()),
+  );
   i.addSingleton<PlayerController>(
     () => PlayerController(
       subtitlePreferences: Modular.get<SubtitlePreferences>(),
       trackLanguagePreferences: Modular.get<EmbeddedTrackLanguagePreferences>(),
       trueHdFallbackPolicy: Modular.get<TrueHdFallbackPolicy>(),
+      runtimePreferences: Modular.get<PlayerRuntimePreferences>(),
     ),
   );
 }

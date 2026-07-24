@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/utils/storage.dart';
 
 void main() {
@@ -80,5 +81,23 @@ void main() {
     expect(result, <String>['space', 'enter', 'escape']);
     expect(defaults, <String>['fallback']);
     expect(result, isNot(same(defaults)));
+  });
+
+  test('TypedSettings 对错误标量类型返回默认值', () async {
+    final settings = TypedSettings(box);
+    await box.put('speed', 'fast');
+
+    expect(settings.read<double>('speed', defaultValue: 1.0), 1.0);
+  });
+
+  test('TypedSettings 写入读取和删除保持强类型边界', () async {
+    final settings = TypedSettings(box);
+
+    await settings.write<double>('speed', 1.5);
+    expect(settings.read<double>('speed', defaultValue: 1.0), 1.5);
+    expect(settings.readRaw('speed'), 1.5);
+
+    await settings.delete('speed');
+    expect(settings.read<double>('speed', defaultValue: 1.0), 1.0);
   });
 }

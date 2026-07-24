@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_modular/flutter_modular.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/pages/local/local_directory_picker.dart';
-import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/pages/navigation/navigation_config.dart';
-import 'package:kanyingyin/utils/storage.dart';
 
 class InterfaceSettingsPage extends StatefulWidget {
   const InterfaceSettingsPage({super.key});
@@ -13,7 +13,7 @@ class InterfaceSettingsPage extends StatefulWidget {
 }
 
 class _InterfaceSettingsPageState extends State<InterfaceSettingsPage> {
-  Box<Object?> setting = GStorage.setting;
+  final TypedSettings setting = Modular.get<TypedSettings>();
   late String defaultPage;
   late String localDefaultPath;
   final MenuController defaultPageMenuController = MenuController();

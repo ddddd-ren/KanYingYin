@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:hive_ce/hive.dart';
+import 'package:flutter_modular/flutter_modular.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/utils/constants.dart';
-import 'package:kanyingyin/utils/storage.dart';
 
 class DecoderSettings extends StatefulWidget {
   const DecoderSettings({super.key});
@@ -12,7 +12,7 @@ class DecoderSettings extends StatefulWidget {
 }
 
 class _DecoderSettingsState extends State<DecoderSettings> {
-  late final Box<Object?> setting = GStorage.setting;
+  late final TypedSettings setting = Modular.get<TypedSettings>();
   late final ValueNotifier<String> decoder = ValueNotifier<String>(
     normalizeHardwareDecoder(
       setting.getTyped<String>(

@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
-import 'package:hive_ce/hive.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/utils/diagnostic_log_exporter.dart';
-import 'package:kanyingyin/utils/storage.dart';
 // ignore_for_file: avoid_print
 
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
@@ -19,7 +18,7 @@ class PlayerSettingsPage extends StatefulWidget {
 }
 
 class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
-  Box<Object?> setting = GStorage.setting;
+  final TypedSettings setting = Modular.get<TypedSettings>();
   late double defaultPlaySpeed;
   late double defaultShortcutForwardPlaySpeed;
   late int defaultAspectRatioType;

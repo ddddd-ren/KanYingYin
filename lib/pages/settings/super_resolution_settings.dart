@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:hive_ce/hive.dart';
-import 'package:kanyingyin/utils/storage.dart';
+import 'package:flutter_modular/flutter_modular.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/features/player/application/anime4k_policy.dart';
 
@@ -13,7 +13,7 @@ class SuperResolutionSettings extends StatefulWidget {
 }
 
 class _SuperResolutionSettingsState extends State<SuperResolutionSettings> {
-  late final Box<Object?> setting = GStorage.setting;
+  late final TypedSettings setting = Modular.get<TypedSettings>();
   late bool promptOnEnable;
   late Anime4kPreference anime4kPreference = switch (setting.getTyped<int>(
     SettingBoxKey.defaultSuperResolutionType,

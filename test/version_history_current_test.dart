@@ -4,15 +4,16 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一五十说明应用结构优化且保持媒体功能不变', () {
-    final entries = versionHistoryForCurrent('2.1.50');
+  test('二点一五十一说明完成全部结构优化阶段且保持媒体功能不变', () {
+    final entries = versionHistoryForCurrent('2.1.51');
 
     expect(entries, hasLength(1));
     final changes = entries.single.changes.join('\n');
-    expect(changes, contains('应用内部结构'));
+    expect(changes, contains('核心结构优化'));
     expect(changes, contains('本地与网盘媒体库'));
     expect(changes, contains('播放器'));
     expect(changes, contains('TMDB'));
+    expect(changes, contains('内存快照'));
     expect(changes, contains('不会修改或删除'));
   });
 

@@ -1,5 +1,7 @@
+import 'package:kanyingyin/legacy/local_index/legacy_local_media_index_parser.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/utils/logger.dart';
+import 'package:kanyingyin/utils/library_performance_trace.dart';
 import 'package:kanyingyin/utils/storage.dart';
 
 abstract class ILocalMediaIndexRepository {
@@ -28,33 +30,85 @@ abstract class ILocalMediaIndexRepository {
   Future<void> clear();
 }
 
+abstract interface class LocalMediaIndexStorage {
+  Object? read(String key, {Object? defaultValue});
+
+  Future<void> write(String key, Object? value);
+
+  Future<void> delete(String key);
+}
+
+class _GStorageLocalMediaIndexStorage implements LocalMediaIndexStorage {
+  const _GStorageLocalMediaIndexStorage();
+
+  @override
+  Object? read(String key, {Object? defaultValue}) =>
+      GStorage.setting.get(key, defaultValue: defaultValue);
+
+  @override
+  Future<void> write(String key, Object? value) =>
+      GStorage.setting.put(key, value);
+
+  @override
+  Future<void> delete(String key) => GStorage.setting.delete(key);
+}
+
 class LocalMediaIndexRepository implements ILocalMediaIndexRepository {
+  LocalMediaIndexRepository({
+    LocalMediaIndexStorage? storage,
+    LibraryPerformanceTrace? performanceTrace,
+  })  : _storage = storage ?? const _GStorageLocalMediaIndexStorage(),
+        _performanceTrace = performanceTrace ?? LibraryPerformanceTrace();
+
+  final LocalMediaIndexStorage _storage;
+  final LibraryPerformanceTrace _performanceTrace;
+  List<LocalMediaIndexItem>? _cachedItems;
+
   @override
   List<LocalMediaIndexItem> getAll() {
+    final cached = _cachedItems;
+    if (cached != null) return cached;
     try {
-      final value = GStorage.setting.get(
-        SettingBoxKey.localMediaIndex,
-        defaultValue: const <Map<String, dynamic>>[],
-      );
-      if (value is! List) return <LocalMediaIndexItem>[];
+      final snapshot = _performanceTrace.measure(
+        LibraryPerformanceStage.localIndexRead,
+        () {
+          final value = _storage.read(
+            SettingBoxKey.localMediaIndex,
+            defaultValue: const <Map<String, dynamic>>[],
+          );
+          if (value is! List) return const <LocalMediaIndexItem>[];
 
-      final items = value
-          .whereType<Map<Object?, Object?>>()
-          .map((item) => LocalMediaIndexItem.fromJson(
-                Map<String, dynamic>.from(item),
-              ))
-          .where((item) => item.path.isNotEmpty && item.sourcePath.isNotEmpty)
-          .toList();
-      items.sort(_compareItems);
-      return items;
+          final items = value
+              .whereType<Map<Object?, Object?>>()
+              .map(_readIndexItem)
+              .where(
+                (item) => item.path.isNotEmpty && item.sourcePath.isNotEmpty,
+              )
+              .toList();
+          items.sort(_compareItems);
+          return List<LocalMediaIndexItem>.unmodifiable(items);
+        },
+        count: (items) => items.length,
+      );
+      _cachedItems = snapshot;
+      return snapshot;
     } catch (e, stackTrace) {
       AppLogger().w(
         'LocalMediaIndexRepository: failed to read index',
         error: e,
         stackTrace: stackTrace,
       );
-      return <LocalMediaIndexItem>[];
+      return _cachedItems = const <LocalMediaIndexItem>[];
     }
+  }
+
+  LocalMediaIndexItem _readIndexItem(Map<Object?, Object?> item) {
+    final json = Map<String, dynamic>.from(item);
+    if (json['tmdb'] is! Map) {
+      final migratedTmdb = LegacyLocalMediaIndexParser.parseTmdb(json);
+      if (migratedTmdb != null) json['tmdb'] = migratedTmdb.toJson();
+    }
+    return LocalMediaIndexItem.fromJson(json);
   }
 
   @override
@@ -108,7 +162,7 @@ class LocalMediaIndexRepository implements ILocalMediaIndexRepository {
 
   @override
   Future<void> updateItem(LocalMediaIndexItem item) async {
-    final items = getAll();
+    final items = getAll().toList();
     final index = items.indexWhere((current) => current.id == item.id);
     if (index >= 0) {
       items[index] = item;
@@ -125,7 +179,7 @@ class LocalMediaIndexRepository implements ILocalMediaIndexRepository {
   ) async {
     final all = _readFingerprintPayload();
     all[LocalMediaIndexItem.normalizePath(sourcePath)] = fingerprints;
-    await GStorage.setting.put(
+    await _storage.write(
       SettingBoxKey.localMediaDirectoryFingerprints,
       all,
     );
@@ -141,7 +195,7 @@ class LocalMediaIndexRepository implements ILocalMediaIndexRepository {
     await _save(nextItems);
     final all = _readFingerprintPayload();
     all.remove(sourceId);
-    await GStorage.setting.put(
+    await _storage.write(
       SettingBoxKey.localMediaDirectoryFingerprints,
       all,
     );
@@ -150,8 +204,7 @@ class LocalMediaIndexRepository implements ILocalMediaIndexRepository {
   @override
   Future<void> clear() async {
     await _save(const <LocalMediaIndexItem>[]);
-    await GStorage.setting
-        .delete(SettingBoxKey.localMediaDirectoryFingerprints);
+    await _storage.delete(SettingBoxKey.localMediaDirectoryFingerprints);
   }
 
   Future<void> _save(List<LocalMediaIndexItem> items) async {
@@ -160,10 +213,11 @@ class LocalMediaIndexRepository implements ILocalMediaIndexRepository {
       deduplicated[item.id] = item;
     }
     final payload = deduplicated.values.toList()..sort(_compareItems);
-    await GStorage.setting.put(
+    await _storage.write(
       SettingBoxKey.localMediaIndex,
       payload.map((item) => item.toJson()).toList(growable: false),
     );
+    _cachedItems = List<LocalMediaIndexItem>.unmodifiable(payload);
   }
 
   int _compareItems(LocalMediaIndexItem a, LocalMediaIndexItem b) {
@@ -181,7 +235,7 @@ class LocalMediaIndexRepository implements ILocalMediaIndexRepository {
   }
 
   Map<String, Map<String, String>> _readFingerprintPayload() {
-    final value = GStorage.setting.get(
+    final value = _storage.read(
       SettingBoxKey.localMediaDirectoryFingerprints,
       defaultValue: const <String, Map<String, String>>{},
     );

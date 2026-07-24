@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/pages/settings/tmdb_settings.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
@@ -25,7 +26,12 @@ void main() {
   testWidgets('识别语言提供简体中文繁体中文英语和日语', (tester) async {
     final manager = await _memoryManager();
     await tester.pumpWidget(
-      MaterialApp(home: TmdbSettingsPage(credentialManager: manager)),
+      MaterialApp(
+        home: TmdbSettingsPage(
+          credentialManager: manager,
+          settings: TypedSettings(GStorage.setting),
+        ),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -51,6 +57,7 @@ void main() {
       MaterialApp(
         home: TmdbSettingsPage(
           credentialManager: manager,
+          settings: TypedSettings(GStorage.setting),
           apiKeyProvider: provider,
         ),
       ),
@@ -70,6 +77,7 @@ void main() {
         home: TmdbSettingsPage(
           key: const ValueKey<String>('user-key-page'),
           credentialManager: manager,
+          settings: TypedSettings(GStorage.setting),
           apiKeyProvider: provider,
         ),
       ),
@@ -96,6 +104,7 @@ void main() {
 
     final page = TmdbSettingsPage(
       credentialManager: manager,
+      settings: TypedSettings(GStorage.setting),
       apiKeyProvider: provider,
     );
 

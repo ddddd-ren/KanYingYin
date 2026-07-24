@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:flutter/services.dart';
+import 'package:kanyingyin/features/library/application/library_media_view_data_builder.dart';
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
 import 'package:kanyingyin/features/library/presentation/library_path_bar.dart';
 import 'package:kanyingyin/features/library/presentation/library_source_menu.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/pages/tmdb_match_dialog.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
@@ -26,7 +28,6 @@ import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scraper.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/utils/logger.dart';
-import 'package:kanyingyin/utils/storage.dart';
 import 'package:path/path.dart' as p;
 
 enum _LocalMediaAction {
@@ -54,6 +55,8 @@ class _LocalPageState extends State<LocalPage>
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   final LocalSeriesGrouper _seriesGrouper = const LocalSeriesGrouper();
+  final LibraryMediaViewDataBuilder _mediaViewDataBuilder =
+      const LibraryMediaViewDataBuilder();
   final CloudPlaybackResolver _cloudPlaybackResolver = CloudPlaybackResolver();
   final CloudPlaybackNavigationCoordinator _cloudPlaybackNavigation =
       CloudPlaybackNavigationCoordinator();
@@ -86,7 +89,7 @@ class _LocalPageState extends State<LocalPage>
       seriesTitle: group.title,
       directoryFiles: group.playlistFilesForPlayback,
       playlistAlreadyIsolated: true,
-      autoLoadSubtitle: GStorage.setting.getTyped<bool>(
+      autoLoadSubtitle: Modular.get<TypedSettings>().getTyped<bool>(
         SettingBoxKey.localAutoLoadSubtitle,
         defaultValue: true,
       ),
@@ -112,7 +115,7 @@ class _LocalPageState extends State<LocalPage>
       seriesTitle: series.displayTitle,
       directoryFiles: directoryFiles,
       playlistAlreadyIsolated: true,
-      autoLoadSubtitle: GStorage.setting.getTyped<bool>(
+      autoLoadSubtitle: Modular.get<TypedSettings>().getTyped<bool>(
         SettingBoxKey.localAutoLoadSubtitle,
         defaultValue: true,
       ),
@@ -636,7 +639,10 @@ class _LocalPageState extends State<LocalPage>
                 ),
                 subtitle: Text(
                   group.episodeCount == 1
-                      ? _buildItemInfoText(firstEpisode, includeModified: true)
+                      ? _mediaViewDataBuilder.buildItemInfoText(
+                          firstEpisode,
+                          includeModified: true,
+                        )
                       : '${group.episodeCount} 集 · ${p.dirname(firstEpisode.path)}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -997,53 +1003,24 @@ class _LocalPageState extends State<LocalPage>
   }
 
   LibraryMediaItemViewData _mediaItemData(LocalVideoGroup group) {
-    final first = group.firstEpisode;
     final isScraping = localController.isFetchingPosters &&
         (localController.posterCurrentFile == group.title ||
             group.episodes
                 .any((item) => localController.posterCurrentFile == item.name));
-    return LibraryMediaItemViewData(
-      id: first.path,
-      title: group.title,
-      subtitle: group.subtitle,
-      infoText: group.hasMultipleEpisodes
-          ? _buildSeriesInfoText(group)
-          : _buildItemInfoText(first),
-      mediaInfoText: first.hasMediaInfo && !group.hasMultipleEpisodes
-          ? _buildMediaInfoText(first)
-          : '',
-      modifiedText: _latestModifiedText(group),
-      hasMultipleEpisodes: group.hasMultipleEpisodes,
-      hasSubtitle: group.episodes.any((item) => item.hasSubtitle),
-      scrapeLabel: isScraping
-          ? '正在刮削'
-          : group.needsOnlinePoster
-              ? '未刮削'
-              : '已刮削',
-      localCoverPath: group.cover,
-      networkCoverUrl: localController
-          .tmdbPosterUrlForPaths(group.episodes.map((item) => item.path)),
+    return _mediaViewDataBuilder.build(
+      group,
       isScraping: isScraping,
-      preferLocalCover: !group.needsOnlinePoster,
-      heroTag: first.path,
+      networkCoverUrl: localController.tmdbPosterUrlForPaths(
+        group.episodes.map((item) => item.path),
+      ),
     );
   }
 
   String _buildMediaSourceSubtitle(LocalMediaSource source) {
-    if (!localController.isMediaSourceAvailable(source)) {
-      return '目录不可访问，可移除这条记录';
-    }
-    final scanText = source.lastScannedAt == null
-        ? '未扫描'
-        : '上次扫描 ${_formatSourceScanTime(source.lastScannedAt!)}';
-    return '${source.directoryCount} 个文件夹  ${source.videoCount} 个视频  $scanText';
-  }
-
-  String _formatSourceScanTime(DateTime time) {
-    final local = time.toLocal();
-    String twoDigits(int value) => value.toString().padLeft(2, '0');
-    return '${local.year}-${twoDigits(local.month)}-${twoDigits(local.day)} '
-        '${twoDigits(local.hour)}:${twoDigits(local.minute)}';
+    return _mediaViewDataBuilder.buildMediaSourceSubtitle(
+      source,
+      isAvailable: localController.isMediaSourceAvailable(source),
+    );
   }
 
   String _breadcrumbLabel(String part) {
@@ -1061,58 +1038,6 @@ class _LocalPageState extends State<LocalPage>
       return groups;
     }
     return groups.where((group) => group.matches(_searchKeyword)).toList();
-  }
-
-  String _buildItemInfoText(
-    LocalFileItem item, {
-    bool includeModified = false,
-  }) {
-    final parts = [
-      if (item.extension.isNotEmpty) item.extension,
-      if (item.hasEpisodeInfo) item.episodeInfo!.episodeLabel,
-      item.formattedSize,
-      if (includeModified) item.formattedModified,
-    ].where((part) => part.isNotEmpty);
-    return parts.join('  ');
-  }
-
-  String _buildSeriesInfoText(LocalVideoGroup group) {
-    final extensions = group.episodes
-        .map((item) => item.extension)
-        .where((extension) => extension.isNotEmpty)
-        .toSet();
-    final sizes =
-        group.episodes.fold<int>(0, (total, item) => total + item.size);
-    final sizeText = _formatBytes(sizes);
-    return [
-      if (extensions.isNotEmpty) extensions.join('/'),
-      sizeText,
-    ].where((part) => part.isNotEmpty).join('  ');
-  }
-
-  String _latestModifiedText(LocalVideoGroup group) {
-    final latest = group.episodes
-        .map((item) => item.modified)
-        .reduce((left, right) => left.isAfter(right) ? left : right);
-    String twoDigits(int value) => value.toString().padLeft(2, '0');
-    return '${latest.year}-${twoDigits(latest.month)}-${twoDigits(latest.day)}';
-  }
-
-  String _formatBytes(int size) {
-    if (size < 1024) return '$size B';
-    if (size < 1024 * 1024) return '${(size / 1024).toStringAsFixed(1)} KB';
-    if (size < 1024 * 1024 * 1024) {
-      return '${(size / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    return '${(size / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
-  }
-
-  String _buildMediaInfoText(LocalFileItem item) {
-    final parts = [
-      item.formattedDuration,
-      item.formattedResolution,
-    ].where((part) => part.isNotEmpty);
-    return parts.join('  ');
   }
 }
 

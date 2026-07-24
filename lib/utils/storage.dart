@@ -9,6 +9,9 @@ import 'package:kanyingyin/legacy/hive/legacy_bangumi_tag_adapter.dart';
 import 'package:kanyingyin/legacy/hive/legacy_playback_media_item_adapter.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
+export 'package:kanyingyin/features/settings/application/typed_settings.dart'
+    show SettingBoxKey;
+
 class GStorage {
   static late final Box<Object?> setting;
 
@@ -99,64 +102,4 @@ extension TypedSettingsBox on Box<Object?> {
     final typedValues = value.whereType<T>().toList();
     return typedValues.length == value.length ? typedValues : defaultValue;
   }
-}
-
-class SettingBoxKey {
-  static const String hAenable = 'hAenable',
-      hardwareDecoder = 'hardwareDecoder',
-      defaultPlaySpeed = 'defaultPlaySpeed',
-      defaultShortcutForwardPlaySpeed = 'defaultShortcutForwardPlaySpeed',
-      defaultAspectRatioType = 'defaultAspectRatioType',
-      buttonSkipTime = 'buttonSkipTime',
-      arrowKeySkipTime = 'arrowKeySkipTime',
-      themeMode = 'themeMode',
-      themeColor = 'themeColor',
-      autoPlay = 'autoPlay',
-      autoPlayNext = 'autoPlayNext',
-      playResume = 'playResume',
-      showPlayerError = 'showPlayerError',
-      oledEnhance = 'oledEnhance',
-      enableSystemProxy = 'enableSystemProxy',
-      defaultStartupPage = 'defaultStartupPage',
-      lowMemoryMode = 'lowMemoryMode',
-      showWindowButton = 'showWindowButton',
-      exitBehavior = 'exitBehavior',
-      playerDebugMode = 'playerDebugMode',
-      defaultSuperResolutionType = 'defaultSuperResolutionType',
-      superResolutionWarn = 'superResolutionWarn',
-      playerDisableAnimations = 'playerDisableAnimations',
-      useSystemFont = 'useSystemFont',
-      backgroundPlayback = 'backgroundPlayback',
-      proxyEnable = 'proxyEnable',
-      proxyConfigured = 'proxyConfigured',
-      proxyUrl = 'proxyUrl',
-      shortcutDialogShown = 'shortcutDialogShown',
-      brightnessVolumeGesture = 'brightnessVolumeGesture',
-      localAutoLoadSubtitle = 'localAutoLoadSubtitle',
-      subtitleFontSize = 'subtitleFontSize',
-      subtitleColor = 'subtitleColor',
-      subtitleBorderColor = 'subtitleBorderColor',
-      subtitleBorderSize = 'subtitleBorderSize',
-      subtitleShadowEnabled = 'subtitleShadowEnabled',
-      subtitleShadowOffset = 'subtitleShadowOffset',
-      subtitlePosition = 'subtitlePosition',
-      subtitleForceStyle = 'subtitleForceStyle',
-      subtitleDelayByVideo = 'subtitleDelayByVideo',
-      embeddedTrackLanguageOverrides = 'embeddedTrackLanguageOverrides',
-      lastLocalDirectory = 'lastLocalDirectory',
-      localRecentDirectories = 'localRecentDirectories',
-      localMediaSources = 'localMediaSources',
-      localMediaIndex = 'localMediaIndex',
-      localMediaDirectoryFingerprints = 'localMediaDirectoryFingerprints',
-      localSeriesTitleOverrides = 'localSeriesTitleOverrides',
-      cloudSources = 'cloudSources',
-      cloudMediaIndex = 'cloudMediaIndex',
-      cloudResourceTmdbRecords = 'cloudResourceTmdbRecords',
-      cloudWorkTmdbRecords = 'cloudWorkTmdbRecords',
-      cloudSeriesMatchRules = 'cloudSeriesMatchRules',
-      quarkImportHistory = 'quarkImportHistory',
-      localDefaultPath = 'localDefaultPath',
-      localMinRecognizedVideoSizeBytes = 'localMinRecognizedVideoSizeBytes',
-      cloudMinRecognizedVideoSizeBytes = 'cloudMinRecognizedVideoSizeBytes',
-      lastSeenVersion = 'lastSeenVersion';
 }

@@ -1,21 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
-import 'package:kanyingyin/utils/storage.dart';
 
 class TmdbSettingsPage extends StatefulWidget {
   const TmdbSettingsPage({
     super.key,
     required this.credentialManager,
+    required this.settings,
     this.apiKeyProvider,
   });
 
   final TmdbCredentialManager credentialManager;
+  final TypedSettings settings;
   final TmdbApiKeyProvider? apiKeyProvider;
 
   @override
@@ -30,6 +32,7 @@ class _TmdbSettingsPageState extends State<TmdbSettingsPage> {
   bool _testing = false;
   late final TmdbApiKeyProvider _apiKeyProvider;
   late TmdbScrapeOptions _options;
+  TypedSettings get _settings => widget.settings;
 
   @override
   void initState() {
@@ -39,12 +42,12 @@ class _TmdbSettingsPageState extends State<TmdbSettingsPage> {
     _apiKeyController = TextEditingController(
       text: widget.credentialManager.read(),
     );
-    _autoScrape = GStorage.setting.getTyped<bool>(
+    _autoScrape = _settings.getTyped<bool>(
       _autoScrapeSetting,
       defaultValue: true,
     );
     _options = TmdbScrapeOptions.fromMap(
-      GStorage.setting.get('tmdbScrapeOptions'),
+      _settings.get('tmdbScrapeOptions'),
     );
   }
 
@@ -57,8 +60,8 @@ class _TmdbSettingsPageState extends State<TmdbSettingsPage> {
   Future<void> _save() async {
     try {
       await widget.credentialManager.save(_apiKeyController.text);
-      await GStorage.setting.put(_autoScrapeSetting, _autoScrape);
-      await GStorage.setting.put('tmdbScrapeOptions', _options.toMap());
+      await _settings.put(_autoScrapeSetting, _autoScrape);
+      await _settings.put('tmdbScrapeOptions', _options.toMap());
     } on Object {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -110,7 +113,7 @@ class _TmdbSettingsPageState extends State<TmdbSettingsPage> {
   }
 
   Future<void> _clearMetadataCache() async {
-    await GStorage.setting.delete('tmdbMetadataCache');
+    await _settings.delete('tmdbMetadataCache');
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('TMDB 元数据缓存已清理')),

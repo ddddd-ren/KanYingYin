@@ -1,6 +1,7 @@
 import 'package:kanyingyin/pages/about/about_module.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/pages/settings/interface_settings.dart';
 import 'package:kanyingyin/pages/settings/theme_settings_page.dart';
 import 'package:kanyingyin/pages/settings/player_settings.dart';
@@ -93,6 +94,7 @@ class SettingsModule extends Module {
       "/tmdb",
       child: (_) => TmdbSettingsPage(
         credentialManager: Modular.get<TmdbCredentialManager>(),
+        settings: Modular.get<TypedSettings>(),
         apiKeyProvider: Modular.get<TmdbApiKeyProvider>(),
       ),
     );

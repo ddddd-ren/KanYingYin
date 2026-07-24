@@ -3,6 +3,7 @@ import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/media/media_name_analysis.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/utils/storage.dart';
+import 'package:kanyingyin/utils/library_performance_trace.dart';
 import 'package:synchronized/synchronized.dart';
 
 abstract interface class CloudMediaIndexStorage {
@@ -65,13 +66,17 @@ class CloudMediaIndexSnapshot {
 class CloudMediaIndexRepository {
   static final Expando<Lock> _locks = Expando<Lock>();
 
-  CloudMediaIndexRepository({CloudMediaIndexStorage? storage})
-      : _storage = storage ?? HiveCloudMediaIndexStorage() {
+  CloudMediaIndexRepository({
+    CloudMediaIndexStorage? storage,
+    LibraryPerformanceTrace? performanceTrace,
+  })  : _storage = storage ?? HiveCloudMediaIndexStorage(),
+        _performanceTrace = performanceTrace ?? LibraryPerformanceTrace() {
     final identity = _storage.synchronizationIdentity;
     _lock = _locks[identity] ??= Lock();
   }
 
   final CloudMediaIndexStorage _storage;
+  final LibraryPerformanceTrace _performanceTrace;
   late final Lock _lock;
   Object get coordinationIdentity => _storage.synchronizationIdentity;
 
@@ -79,7 +84,11 @@ class CloudMediaIndexRepository {
       (await snapshot(sourceId)).items;
 
   Future<CloudMediaIndexSnapshot> snapshot(String sourceId) async =>
-      _snapshotFromData(sourceId, await _storage.read());
+      _performanceTrace.measureAsync(
+        LibraryPerformanceStage.cloudIndexRead,
+        () async => _snapshotFromData(sourceId, await _storage.read()),
+        count: (snapshot) => snapshot.items.length,
+      );
 
   static CloudMediaIndexSnapshot _snapshotFromData(
     String sourceId,

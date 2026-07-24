@@ -6,8 +6,7 @@ import 'package:kanyingyin/pages/player/player_controller.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/pages/player/player_item.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
-import 'package:hive_ce/hive.dart';
-import 'package:kanyingyin/utils/storage.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/utils/utils.dart';
 import 'package:kanyingyin/utils/pip_utils.dart';
 import 'package:kanyingyin/bean/appbar/drag_to_move_bar.dart' as dtb;
@@ -31,7 +30,7 @@ class VideoPage extends StatefulWidget {
 
 class _VideoPageState extends State<VideoPage>
     with TickerProviderStateMixin, WindowListener {
-  Box<Object?> setting = GStorage.setting;
+  final TypedSettings setting = Modular.get<TypedSettings>();
   final PlayerController playerController = Modular.get<PlayerController>();
   final LocalVideoController localVideoController =
       Modular.get<LocalVideoController>();

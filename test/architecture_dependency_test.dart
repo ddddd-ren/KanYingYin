@@ -271,6 +271,42 @@ import 'package:flutter_modular/flutter_modular.dart';
 
     expect(forbidden, isEmpty, reason: _formatImports(forbidden));
   });
+
+  test('目录导航表现组件不直接依赖控制器、仓储或全局装配', () {
+    final component = File(
+      '${libDirectory.path}${Platform.pathSeparator}features'
+      '${Platform.pathSeparator}library${Platform.pathSeparator}presentation'
+      '${Platform.pathSeparator}directory_address_dropdown.dart',
+    );
+    final forbidden = _imports(component, projectRoot: projectRoot)
+        .where(
+          (import) =>
+              _isFlutterModularUri(import.uri) ||
+              _isProjectUri(import.uri) &&
+                  RegExp(r'/(providers|repositories|services)/')
+                      .hasMatch(import.uri),
+        )
+        .toList(growable: false);
+
+    expect(forbidden, isEmpty, reason: _formatImports(forbidden));
+  });
+
+  test('三种网盘目录选择入口复用统一页面', () {
+    for (final relativePath in const <String>[
+      'pages/cloud/quark/quark_directory_picker.dart',
+      'pages/cloud/baidu/baidu_directory_picker.dart',
+      'pages/cloud/openlist_directory_picker.dart',
+    ]) {
+      final source = File(
+        '${libDirectory.path}${Platform.pathSeparator}'
+        '${relativePath.replaceAll('/', Platform.pathSeparator)}',
+      ).readAsStringSync();
+      expect(source, contains('CloudDirectoryPickerPage<'),
+          reason: relativePath);
+      expect(source, isNot(contains('ListView.builder')), reason: relativePath);
+      expect(source, isNot(contains('_directories')), reason: relativePath);
+    }
+  });
 }
 
 Directory _findProjectRoot() {

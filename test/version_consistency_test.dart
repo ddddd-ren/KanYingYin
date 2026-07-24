@@ -6,8 +6,8 @@ import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
   test('应用版本、MSIX 版本和更新日志保持一致', () {
-    const expectedVersion = '2.1.51';
-    const expectedBuildNumber = '20151';
+    const expectedVersion = '2.1.52';
+    const expectedBuildNumber = '20152';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
@@ -90,11 +90,13 @@ void main() {
       updateDialogCopy,
     ]) {
       expect(copy, contains('本地与网盘'));
+      expect(copy, contains('目录下拉'));
       expect(copy, contains('TMDB'));
       expect(copy, contains('不会修改或删除'));
       for (final feature in [
         '夸克',
         '百度',
+        'OpenList',
         'Windows',
         'Anime4K',
         '媒体库',

@@ -4,17 +4,20 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一五十一说明完成全部结构优化阶段且保持媒体功能不变', () {
-    final entries = versionHistoryForCurrent('2.1.51');
+  test('二点一五十二说明本地与网盘目录导航', () {
+    final entries = versionHistoryForCurrent('2.1.52');
 
     expect(entries, hasLength(1));
     final changes = entries.single.changes.join('\n');
-    expect(changes, contains('核心结构优化'));
+    expect(changes, contains('目录下拉'));
     expect(changes, contains('本地与网盘媒体库'));
+    expect(changes, contains('夸克'));
+    expect(changes, contains('百度'));
+    expect(changes, contains('OpenList'));
     expect(changes, contains('播放器'));
     expect(changes, contains('TMDB'));
-    expect(changes, contains('内存快照'));
     expect(changes, contains('不会修改或删除'));
+    expect(entries.single.isPrerelease, isTrue);
   });
 
   test('二点一四十九说明 Anime4K 效率档使用官方快速组合', () {

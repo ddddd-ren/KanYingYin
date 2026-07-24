@@ -6,8 +6,8 @@ import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
   test('应用版本、MSIX 版本和更新日志保持一致', () {
-    const expectedVersion = '2.1.55';
-    const expectedBuildNumber = '20155';
+    const expectedVersion = '1.0.1';
+    const expectedBuildNumber = '10001';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
@@ -48,7 +48,7 @@ void main() {
     expect(versionHistory, contains("version: '$version'"));
     expect(updateDialogCopy, contains('应用版本：$version'));
     expect(updateDialogCopy, contains('安装包版本：$version.0'));
-    expect(updateDialogCopy, contains('看影音 $version 测试版'));
+    expect(updateDialogCopy, contains('看影音 $version 正式版'));
     expect(
       versionHistory.indexOf("version: '$version'"),
       lessThan(versionHistory.indexOf("version: '1.4.6'")),
@@ -81,16 +81,20 @@ void main() {
         expect(currentCopy, contains(text));
       }
     }
-    expect(currentReleaseNotes, contains('测试版'));
-    expect(updateDialogCopy, contains('测试版'));
-    expect(currentVersionHistory, contains('isPrerelease: true'));
+    expect(currentReleaseNotes, contains('正式版'));
+    expect(updateDialogCopy, contains('正式版'));
+    expect(currentVersionHistory, isNot(contains('isPrerelease: true')));
     for (final copy in <String>[
       currentReleaseNotes,
       currentVersionHistory,
       updateDialogCopy,
     ]) {
       expect(copy, contains('本地与网盘'));
-      expect(copy, contains('目录下拉'));
+      expect(copy, contains('目录选择'));
+      expect(copy, contains('转存目录'));
+      expect(copy, contains('铺满'));
+      expect(copy, contains('动漫番剧'));
+      expect(copy, contains('快捷方式'));
       expect(copy, contains('TMDB'));
       expect(copy, contains('不会修改或删除'));
       for (final feature in [

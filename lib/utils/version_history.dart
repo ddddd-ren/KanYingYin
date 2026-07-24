@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.53',
+    date: '2026-07-24',
+    isPrerelease: true,
+    changes: [
+      '本测试版缩小了 Windows 网盘媒体库海报上的资源操作按钮，保留原有菜单能力，同时减少对海报画面的遮挡',
+      '网盘媒体库移除了不再需要的目录导航条，来源切换、搜索、刷新、刮削和播放器入口保持不变',
+      '夸克、百度和 OpenList 的来源配置仍可使用统一目录选择页面，多根媒体目录配置不受影响',
+      '本地媒体库目录下拉、TMDB 信息、字幕、全屏、硬件解码和 Anime4K 播放行为保持不变',
+      '本次界面精简不会修改或删除本地与网盘中的原始视频或用户媒体数据',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.52',
     date: '2026-07-24',
     isPrerelease: true,

@@ -4,6 +4,17 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一四十九说明 Anime4K 效率档使用官方快速组合', () {
+    final entries = versionHistoryForCurrent('2.1.49');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(changes, contains('效率档'));
+    expect(changes, contains('官方快速组合'));
+    expect(changes, contains('动画画质增强'));
+    expect(changes, contains('显卡'));
+  });
+
   test('更新弹窗只返回当前运行版本的文案', () {
     final entries = versionHistoryForCurrent('1.4.10');
 

@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.49',
+    date: '2026-07-24',
+    isPrerelease: true,
+    changes: [
+      'Anime4K 效率档已改用 v4.0.1 官方快速组合，移除一层多余的画面还原，在动画画质增强时降低显卡计算量并减少过度锐化',
+      '质量档继续使用官方高质量组合；播放器仍只在画面确实需要放大时启用增强，原始分辨率足够时不会额外占用性能',
+      'Windows 播放设置现在明确说明 Anime4K 更适合动画内容，并用普通用户语言区分效率档和质量档的性能取舍',
+      '本地与网盘媒体库、夸克和百度来源、TMDB 刮削及播放器其他功能不受影响；没有 TMDB Key 或断网时仍可扫描和播放',
+      '本次只调整 Anime4K 组合与说明，不会修改或删除本地、网盘中的原始视频及用户媒体数据',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.48',
     date: '2026-07-24',
     isPrerelease: true,

@@ -26,6 +26,15 @@ void main() {
     final settingsModule =
         File('lib/pages/settings/settings_module.dart').readAsStringSync();
     final indexModule = File('lib/pages/index_module.dart').readAsStringSync();
+    final infrastructureBindings =
+        File('lib/app/bindings/infrastructure_bindings.dart')
+            .readAsStringSync();
+    final libraryBindings =
+        File('lib/app/bindings/library_bindings.dart').readAsStringSync();
+    final cloudBindings =
+        File('lib/app/bindings/cloud_bindings.dart').readAsStringSync();
+    final appBindings =
+        File('lib/app/bindings/app_bindings.dart').readAsStringSync();
 
     expect(myPage, contains("'媒体识别'"));
     expect(
@@ -44,18 +53,18 @@ void main() {
         contains('reloadCloudLibraryIndex(\n'
             '            throwOnFailure: true,'));
     expect(
-        indexModule,
+        infrastructureBindings,
         contains(
           'i.addSingleton<MediaRecognitionSettings>('
           'MediaRecognitionSettings.new)',
         ));
     expect(
-      indexModule,
+      libraryBindings,
       contains('minRecognizedVideoSizeBytesProvider: () =>\n'
-          '              Modular.get<MediaRecognitionSettings>().localMinSizeBytes'),
+          '          Modular.get<MediaRecognitionSettings>().localMinSizeBytes'),
     );
     expect(
-      indexModule,
+      cloudBindings,
       matches(
         RegExp(
           r'i\.addSingleton<CloudMediaIndexer>[\s\S]*?'
@@ -65,16 +74,19 @@ void main() {
       ),
     );
     expect(
-      indexModule,
+      cloudBindings,
       contains('mediaIndexer: Modular.get<CloudMediaIndexer>()'),
     );
     expect(
-      indexModule,
+      cloudBindings,
       contains('i.addSingleton<CloudSeriesMatchRuleRepository>('),
     );
-    expect(indexModule, contains('i.addSingleton<CloudSeriesMatchService>('));
     expect(
-      indexModule,
+      cloudBindings,
+      contains('i.addSingleton<CloudSeriesMatchService>('),
+    );
+    expect(
+      cloudBindings,
       matches(
         RegExp(
           r'seriesMatchRuleRepository:\s+'
@@ -83,27 +95,28 @@ void main() {
       ),
     );
     expect(
-      indexModule,
+      cloudBindings,
       contains(
         'seriesMatchService: Modular.get<CloudSeriesMatchService>()',
       ),
     );
     expect(
-      indexModule,
+      appBindings,
       contains('i.addSingleton<CloudSourceRootRefreshCoordinator>('),
     );
     expect(
-      indexModule,
-      contains('reloadCloudLibraryIndex(\n          throwOnFailure: true,'),
+      appBindings,
+      contains('reloadCloudLibraryIndex(\n        throwOnFailure: true,'),
     );
     expect(
-      indexModule,
+      appBindings,
       contains('reloadSourcesAndSnapshot()'),
     );
     expect(
-      indexModule,
+      appBindings,
       contains('Modular.get<CloudLibraryController>().scanSource(sourceId)'),
     );
+    expect(indexModule, contains('registerApplicationBindings('));
     expect(
       RegExp(
         r'onRootSelectionChanged:\s*Modular\.get<'

@@ -292,6 +292,8 @@ void main() {
 
   test('根模块使用本地控制器提供播放器页面状态', () {
     final source = File('lib/pages/index_module.dart').readAsStringSync();
+    final playbackBindings =
+        File('lib/app/bindings/playback_bindings.dart').readAsStringSync();
 
     expect(source, isNot(contains('VideoPageController.new')));
     expect(source, isNot(contains('Modular.get<VideoPageController>()')));
@@ -309,9 +311,10 @@ void main() {
       expect(source, isNot(contains(text)));
     }
     expect(
-      source,
+      playbackBindings,
       contains('Modular.get<LocalVideoController>()'),
     );
+    expect(source, contains('registerApplicationBindings('));
   });
 
   test('播放器面板不再提供在线收藏同步和投屏控件', () {

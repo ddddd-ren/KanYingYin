@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/features/cloud/application/cloud_resources_toolbar.dart';
-import 'package:kanyingyin/features/library/presentation/directory_address_dropdown.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
@@ -17,7 +16,6 @@ import 'package:kanyingyin/pages/cloud/resources/cloud_tmdb_match_dialog.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
-import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/utils/logger.dart';
@@ -54,7 +52,6 @@ class CloudResourcesPage extends StatefulWidget {
 
 class _CloudResourcesPageState extends State<CloudResourcesPage> {
   late final CloudResourcesController _controller;
-  final CloudProviderRegistry _providerRegistry = CloudProviderRegistry();
   final CloudPlaybackResolver _playbackResolver = CloudPlaybackResolver();
   final CloudResourcesToolbarPolicy _toolbarPolicy =
       const CloudResourcesToolbarPolicy();
@@ -823,75 +820,6 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
 
   Widget _directoryContent() => Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Icon(
-                  _controller.selectedSource?.type == CloudSourceType.quark
-                      ? Icons.cloud_queue_outlined
-                      : Icons.cloud_outlined,
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  _providerRegistry.providerName(
-                    _controller.selectedSource!.type,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  _controller.currentDirectoryScope == null
-                      ? '已汇总全部媒体根目录'
-                      : '当前目录',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(width: 8),
-                if (_controller.currentDirectoryScope != null)
-                  IconButton(
-                    tooltip: '返回上级',
-                    onPressed: _controller.navigateDirectoryScopeUp,
-                    icon: const Icon(Icons.keyboard_arrow_up_rounded),
-                  ),
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        minWidth: 180,
-                        maxWidth: 420,
-                      ),
-                      child: DirectoryAddressDropdown(
-                        key: const ValueKey<String>(
-                          'cloud-directory-address-surface',
-                        ),
-                        addressKey: const ValueKey<String>(
-                          'cloud-directory-address',
-                        ),
-                        currentPath: _controller.directoryScopeAddress,
-                        enabled: !_controller.loading && !_controller.scanning,
-                        loadChildren: (_) async =>
-                            _controller.directoryScopeChildren
-                                .map(
-                                  (item) => DirectoryNavigationItem(
-                                    label: item.label,
-                                    path: item.path,
-                                    subtitle: item.path,
-                                  ),
-                                )
-                                .toList(growable: false),
-                        onChildSelected: (item) =>
-                            _controller.selectDirectoryScope(item.path),
-                        onSubmitted: (path) async =>
-                            _controller.submitDirectoryScope(path),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
           if (_autoOrganizing && _autoOrganizeProgress != null)
             _autoOrganizeIndicator(_autoOrganizeProgress!)
           else if (_batchScraping)

@@ -111,11 +111,19 @@ class CloudResourcePosterWall extends StatelessWidget {
   Widget _resourceMenu(BuildContext context, CloudResourceMediaGroup group) {
     final colors = Theme.of(context).colorScheme;
     return Material(
-      color: colors.surface.withValues(alpha: 0.86),
+      color: colors.surface.withValues(alpha: 0.62),
       shape: const CircleBorder(),
       child: PopupMenuButton<_ResourceAction>(
         tooltip: '资源操作',
-        icon: const Icon(Icons.more_vert, size: 20),
+        padding: EdgeInsets.zero,
+        iconSize: 16,
+        style: IconButton.styleFrom(
+          minimumSize: const Size.square(32),
+          maximumSize: const Size.square(32),
+          padding: EdgeInsets.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        icon: const Icon(Icons.more_vert),
         onSelected: (action) {
           switch (action) {
             case _ResourceAction.editTitle:

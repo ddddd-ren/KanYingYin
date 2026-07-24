@@ -1,17 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/features/library/presentation/directory_address_dropdown.dart';
 
 typedef LibraryPathSubmit = Future<String?> Function(String path);
 
 String normalizeLibraryPathAddress(String value) {
-  var normalized = value.trim();
-  if (normalized.length >= 2 &&
-      normalized.startsWith('"') &&
-      normalized.endsWith('"')) {
-    normalized = normalized.substring(1, normalized.length - 1).trim();
-  }
-  return normalized;
+  return normalizeDirectoryAddress(value);
 }
 
 class LibraryBreadcrumbViewData {
@@ -130,6 +125,8 @@ class LibraryPathBar extends StatelessWidget {
     this.onOpenRecentPath,
     this.onNavigateUp,
     required this.onPathSubmitted,
+    this.onLoadChildDirectories,
+    this.onChildDirectorySelected,
     this.onFetchMediaInfo,
     this.onGenerateThumbnails,
     this.onMatchMetadata,
@@ -151,6 +148,8 @@ class LibraryPathBar extends StatelessWidget {
   final FutureOr<void> Function(String path)? onOpenRecentPath;
   final FutureOr<void> Function()? onNavigateUp;
   final LibraryPathSubmit onPathSubmitted;
+  final DirectoryChildrenLoader? onLoadChildDirectories;
+  final DirectoryChildSelected? onChildDirectorySelected;
   final FutureOr<void> Function()? onFetchMediaInfo;
   final FutureOr<void> Function()? onGenerateThumbnails;
   final FutureOr<void> Function()? onMatchMetadata;
@@ -289,10 +288,16 @@ class LibraryPathBar extends StatelessWidget {
                       minWidth: 145,
                       maxWidth: 250,
                     ),
-                    child: _LibraryPathAddressField(
+                    child: DirectoryAddressDropdown(
                       key: const ValueKey('library-path-breadcrumb-surface'),
+                      addressKey:
+                          const ValueKey<String>('library-path-address'),
                       currentPath: data.currentPath,
                       enabled: !data.isLoading,
+                      loadChildren:
+                          onLoadChildDirectories ?? (_) async => const [],
+                      onChildSelected: (item) async =>
+                          await onChildDirectorySelected?.call(item),
                       onSubmitted: onPathSubmitted,
                     ),
                   ),
@@ -528,149 +533,5 @@ class LibraryPathBar extends StatelessWidget {
                         textTheme.labelSmall?.copyWith(color: colors.outline)),
               ],
             ]));
-  }
-}
-
-class _LibraryPathAddressField extends StatefulWidget {
-  const _LibraryPathAddressField({
-    super.key,
-    required this.currentPath,
-    required this.enabled,
-    required this.onSubmitted,
-  });
-
-  final String currentPath;
-  final bool enabled;
-  final LibraryPathSubmit onSubmitted;
-
-  @override
-  State<_LibraryPathAddressField> createState() =>
-      _LibraryPathAddressFieldState();
-}
-
-class _LibraryPathAddressFieldState extends State<_LibraryPathAddressField> {
-  late final TextEditingController _controller;
-  late final FocusNode _focusNode;
-  String? _error;
-  bool _submitting = false;
-  int _submissionGeneration = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.currentPath);
-    _focusNode = FocusNode();
-  }
-
-  @override
-  void didUpdateWidget(covariant _LibraryPathAddressField oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.currentPath != widget.currentPath) {
-      _controller.value = TextEditingValue(
-        text: widget.currentPath,
-        selection: TextSelection.collapsed(offset: widget.currentPath.length),
-      );
-      _error = null;
-    }
-  }
-
-  @override
-  void dispose() {
-    _submissionGeneration++;
-    _controller.dispose();
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    final path = normalizeLibraryPathAddress(_controller.text);
-    if (path.isEmpty) {
-      setState(() => _error = '请输入文件夹地址');
-      return;
-    }
-
-    final generation = ++_submissionGeneration;
-    setState(() {
-      _submitting = true;
-      _error = null;
-    });
-
-    String? error;
-    try {
-      error = await widget.onSubmitted(path);
-    } on Object {
-      error = '目录不存在或无法访问';
-    }
-    if (!mounted || generation != _submissionGeneration) return;
-    setState(() {
-      _submitting = false;
-      _error = error;
-      if (error == null) {
-        _controller.value = TextEditingValue(
-          text: path,
-          selection: TextSelection.collapsed(offset: path.length),
-        );
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final disabled = !widget.enabled || _submitting;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        TextField(
-          key: const ValueKey('library-path-address'),
-          controller: _controller,
-          focusNode: _focusNode,
-          enabled: !disabled,
-          textInputAction: TextInputAction.go,
-          onSubmitted: (_) => _submit(),
-          decoration: InputDecoration(
-            hintText: '输入文件夹地址',
-            prefixIcon: const Icon(Icons.folder_outlined, size: 18),
-            suffixIcon: _submitting
-                ? const Padding(
-                    padding: EdgeInsets.all(10),
-                    child: SizedBox.square(
-                      dimension: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  )
-                : IconButton(
-                    tooltip: '跳转',
-                    onPressed: disabled ? null : _submit,
-                    icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-                  ),
-            isDense: true,
-            filled: true,
-            fillColor: colors.surface,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: colors.outlineVariant),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: colors.outlineVariant),
-            ),
-          ),
-        ),
-        if (_error != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 3, left: 4),
-            child: Text(
-              _error!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: colors.error,
-                  ),
-            ),
-          ),
-      ],
-    );
   }
 }

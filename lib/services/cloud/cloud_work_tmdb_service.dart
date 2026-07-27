@@ -162,6 +162,7 @@ class CloudWorkTmdbService {
           remoteName: work.remoteName,
           checkedAt: _now(),
           scrapeTitleOverride: record?.scrapeTitleOverride,
+          tmdbRuleVersion: currentTmdbRuleVersion,
         ),
       );
       return const CloudWorkTmdbOutcome(candidates: <TmdbMetadata>[]);

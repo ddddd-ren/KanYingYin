@@ -9,6 +9,41 @@ void main() {
   group('CloudMediaTreeResolver', () {
     const resolver = CloudMediaTreeResolver();
 
+    test('同目录方括号发布名按共同剧名合并分集', () {
+      const workPath = '/动漫/假面骑士OOO';
+      final hashes = <String>['9F632FDD', '5A8A1BD9', 'B3F01416'];
+      final tree = resolver.resolve(
+        sourceId: 'baidu-a',
+        configuredRoots: const <String>[workPath],
+        directoryEntries: <String, List<CloudFileEntry>>{
+          workPath: <CloudFileEntry>[
+            for (var index = 0; index < hashes.length; index++)
+              _video(
+                'episode-${index + 1}',
+                '$workPath/[KRL][Kamen Rider OOO][0${index + 1}][BDRip][1080P][x265_AC3][Main10][${hashes[index]}].mkv',
+                '[KRL][Kamen Rider OOO][0${index + 1}][BDRip][1080P][x265_AC3][Main10][${hashes[index]}].mkv',
+              ),
+          ],
+        },
+        minSizeBytes: 100,
+      );
+
+      expect(tree.works, hasLength(1));
+      final work = tree.works.single;
+      expect(work.displayTitle, 'Kamen Rider OOO');
+      expect(work.titleCandidates.first, 'Kamen Rider OOO');
+      expect(
+        work.titleCandidates
+            .where((title) => title.contains(RegExp(r'[0-9A-F]{8}'))),
+        isEmpty,
+      );
+      expect(work.seasons, hasLength(1));
+      expect(
+        work.seasons.single.episodes.map((episode) => episode.episodeNumber),
+        <int>[1, 2, 3],
+      );
+    });
+
     test('真实多季度目录合并同季目录并继承纯数字集号', () {
       const workName = '154332_《弥留之国的爱丽丝3》(2025) 4K 全6集 内附第一二季';
       const workPath = '/影视/$workName';

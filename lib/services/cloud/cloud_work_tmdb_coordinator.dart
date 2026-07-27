@@ -113,6 +113,7 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
             cached.scrapeTitleOverride == null;
       }
       return cached.status != CloudWorkTmdbStatus.unmatched ||
+          cached.tmdbRuleVersion < currentTmdbRuleVersion ||
           !cached.checkedAt.add(unmatchedRetryInterval).isAfter(now);
     }).toList(growable: false);
     _totalCount = works.length;

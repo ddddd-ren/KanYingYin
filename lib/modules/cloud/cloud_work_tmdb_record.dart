@@ -79,6 +79,7 @@ class CloudWorkTmdbRecord {
     required String remoteName,
     required DateTime checkedAt,
     String? scrapeTitleOverride,
+    int tmdbRuleVersion = 0,
   }) =>
       _withoutMetadata(
         sourceId: sourceId,
@@ -89,6 +90,7 @@ class CloudWorkTmdbRecord {
         status: CloudWorkTmdbStatus.unmatched,
         checkedAt: checkedAt,
         scrapeTitleOverride: scrapeTitleOverride,
+        tmdbRuleVersion: tmdbRuleVersion,
       );
 
   factory CloudWorkTmdbRecord.failed({
@@ -333,6 +335,7 @@ CloudWorkTmdbRecord _withoutMetadata({
   required CloudWorkTmdbStatus status,
   required DateTime checkedAt,
   String? scrapeTitleOverride,
+  int tmdbRuleVersion = 0,
 }) {
   return CloudWorkTmdbRecord(
     sourceId: sourceId,
@@ -343,6 +346,7 @@ CloudWorkTmdbRecord _withoutMetadata({
     status: status,
     checkedAt: checkedAt,
     scrapeTitleOverride: _normalized(scrapeTitleOverride),
+    tmdbRuleVersion: tmdbRuleVersion,
   );
 }
 

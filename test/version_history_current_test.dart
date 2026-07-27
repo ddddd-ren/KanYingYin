@@ -90,6 +90,20 @@ void main() {
     expect(changes, contains('不会修改或删除'));
   });
 
+  test('二点一五十九说明方括号发布名识别和旧索引重试', () {
+    final entries = versionHistoryForCurrent('2.1.59');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    expect(changes, contains('发布组'));
+    expect(changes, contains('校验码'));
+    expect(changes, contains('错误索引'));
+    expect(changes, contains('TMDB 未匹配'));
+    expect(changes, contains('不会修改或删除'));
+  });
+
   test('二点一四十九说明 Anime4K 效率档使用官方快速组合', () {
     final entries = versionHistoryForCurrent('2.1.49');
 

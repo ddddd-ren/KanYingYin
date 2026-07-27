@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.57',
+    date: '2026-07-27',
+    isPrerelease: true,
+    changes: [
+      '夸克、百度和 OpenList 的来源编辑页现在可在媒体根目录旁一键清除当前目录列表，再重新选择需要的目录',
+      '清除只改变尚未保存的页面内容，不访问或删除网盘文件；保存前退出页面可以放弃变化',
+      '夸克默认转存目录等单选设置保持不变，统一目录选择页恢复为专注选择目录',
+      '本地与网盘媒体库、TMDB 信息和播放器的字幕、全屏、硬件解码、Anime4K 行为保持不变',
+      '本次更新不会修改或删除网盘原始文件、现有媒体索引、刮削信息或缓存',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.56',
     date: '2026-07-27',
     isPrerelease: true,

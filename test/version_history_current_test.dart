@@ -55,6 +55,22 @@ void main() {
     expect(changes, contains('不会修改或删除'));
   });
 
+  test('二点一五十七说明来源编辑页清除媒体根目录', () {
+    final entries = versionHistoryForCurrent('2.1.57');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    expect(changes, contains('来源编辑页'));
+    expect(changes, contains('媒体根目录'));
+    expect(changes, contains('一键清除'));
+    expect(changes, contains('夸克'));
+    expect(changes, contains('百度'));
+    expect(changes, contains('OpenList'));
+    expect(changes, contains('不会修改或删除'));
+  });
+
   test('二点一四十九说明 Anime4K 效率档使用官方快速组合', () {
     final entries = versionHistoryForCurrent('2.1.49');
 

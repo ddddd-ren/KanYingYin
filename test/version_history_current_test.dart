@@ -41,6 +41,20 @@ void main() {
     expect(entries.single.isPrerelease, isTrue);
   });
 
+  test('二点一五十六说明网盘多选目录一键清除', () {
+    final entries = versionHistoryForCurrent('2.1.56');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    expect(changes, contains('清除已选'));
+    expect(changes, contains('夸克'));
+    expect(changes, contains('百度'));
+    expect(changes, contains('OpenList'));
+    expect(changes, contains('不会修改或删除'));
+  });
+
   test('二点一四十九说明 Anime4K 效率档使用官方快速组合', () {
     final entries = versionHistoryForCurrent('2.1.49');
 

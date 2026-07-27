@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.56',
+    date: '2026-07-27',
+    isPrerelease: true,
+    changes: [
+      '本测试版为夸克、百度和 OpenList 的多选媒体目录页面增加“清除已选”，可一键取消全部已选目录，无需逐项取消',
+      '没有已选目录时清除按钮自动禁用；清除后必须重新选择至少一个目录并点击“确定”，才会写回来源配置',
+      '夸克默认转存目录等单选页面保持原有交互不变',
+      '本地与网盘媒体库、TMDB 信息和播放器的字幕、全屏、硬件解码、Anime4K 行为保持不变',
+      '本次目录选择改进不会修改或删除网盘原始文件、现有媒体索引、刮削信息或缓存',
+    ],
+  ),
+  VersionHistory(
     version: '1.0.1',
     date: '2026-07-24',
     changes: [

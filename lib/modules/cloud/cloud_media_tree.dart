@@ -51,6 +51,7 @@ class CloudWorkIdentity {
     required this.titleCandidates,
     required this.seasons,
     this.standaloneVideos = const <CloudFileEntry>[],
+    this.standaloneReleaseTags = const <String, MediaReleaseTags>{},
   });
 
   final String sourceId;
@@ -61,6 +62,10 @@ class CloudWorkIdentity {
   final List<String> titleCandidates;
   final List<CloudSeasonIdentity> seasons;
   final List<CloudFileEntry> standaloneVideos;
+  final Map<String, MediaReleaseTags> standaloneReleaseTags;
+
+  MediaReleaseTags releaseTagsFor(CloudFileEntry entry) =>
+      standaloneReleaseTags[entry.remotePath] ?? const MediaReleaseTags();
 }
 
 @immutable

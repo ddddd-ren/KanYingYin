@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
 import 'package:kanyingyin/modules/media/media_name_analysis.dart';
@@ -341,6 +344,7 @@ class _ResolutionContext {
           );
         } else if (!entry.isDirectory && _isRecognizedVideo(entry)) {
           standaloneVideos.add(entry);
+          standaloneReleaseTags[_pathOf(entry)] = analysis.releaseTags;
         } else if (entry.isDirectory) {
           if (nameAnalyzer.isTransparentDirectoryName(entry.name)) {
             transparentDirectories.add(entry);
@@ -414,18 +418,81 @@ class _ResolutionContext {
         ),
       );
     }
-    _works.add(
-      CloudWorkIdentity(
-        sourceId: sourceId,
-        workKey: workKey,
-        root: root,
-        remoteName: root.name,
-        displayTitle: displayTitle,
-        titleCandidates: List<String>.unmodifiable(titleCandidates),
-        seasons: List<CloudSeasonIdentity>.unmodifiable(seasons),
-        standaloneVideos: List<CloudFileEntry>.unmodifiable(standaloneVideos),
-      ),
+    if (seasons.isNotEmpty) {
+      _works.add(
+        CloudWorkIdentity(
+          sourceId: sourceId,
+          workKey: workKey,
+          root: root,
+          remoteName: root.name,
+          displayTitle: displayTitle,
+          titleCandidates: List<String>.unmodifiable(titleCandidates),
+          seasons: List<CloudSeasonIdentity>.unmodifiable(seasons),
+        ),
+      );
+    }
+    _addStandaloneMovieWorks(
+      root: root,
+      videos: standaloneVideos,
+      releaseTagsByEntry: standaloneReleaseTags,
     );
+  }
+
+  void _addStandaloneMovieWorks({
+    required CloudFileEntry root,
+    required List<CloudFileEntry> videos,
+    required Map<String, MediaReleaseTags> releaseTagsByEntry,
+  }) {
+    final groups = <String, _MovieBuilder>{};
+    for (final video in videos) {
+      final analysis = nameAnalyzer.analyze(video.name, isDirectory: false);
+      final candidates = analysis.titleCandidates.isEmpty
+          ? <String>[p.basenameWithoutExtension(video.name).trim()]
+          : List<String>.from(analysis.titleCandidates);
+      final displayTitle = candidates.first;
+      final identityKey = _movieIdentityKey(analysis, video, displayTitle);
+      final builder = groups.putIfAbsent(
+        identityKey,
+        () => _MovieBuilder(
+          identityKey: identityKey,
+          displayTitle: displayTitle,
+        ),
+      );
+      builder.videos.add(video);
+      for (final candidate in candidates) {
+        _addUnique(builder.titleCandidates, candidate);
+      }
+      builder.releaseTags[_pathOf(video)] =
+          releaseTagsByEntry[_pathOf(video)] ?? analysis.releaseTags;
+    }
+    for (final builder in groups.values) {
+      builder.videos.sort(
+        (first, second) => first.remotePath.compareTo(second.remotePath),
+      );
+      _works.add(
+        CloudWorkIdentity(
+          sourceId: sourceId,
+          workKey: movieWorkKeyFor(sourceId, root, builder.identityKey),
+          root: root,
+          remoteName: root.name,
+          displayTitle: builder.displayTitle,
+          titleCandidates: List<String>.unmodifiable(builder.titleCandidates),
+          seasons: const <CloudSeasonIdentity>[],
+          standaloneVideos: List<CloudFileEntry>.unmodifiable(builder.videos),
+          standaloneReleaseTags: builder.releaseTags,
+        ),
+      );
+    }
+  }
+
+  String _movieIdentityKey(
+    MediaNameAnalysis analysis,
+    CloudFileEntry entry,
+    String displayTitle,
+  ) {
+    final normalizedTitle = displayTitle.trim().toLowerCase();
+    if (normalizedTitle.isEmpty) return 'remote:${_pathOf(entry)}';
+    return '$normalizedTitle|${analysis.year ?? 0}';
   }
 
   void _collectStandaloneVideos({
@@ -596,13 +663,20 @@ class _ResolutionContext {
     _works.add(
       CloudWorkIdentity(
         sourceId: sourceId,
-        workKey: workKeyFor(sourceId, entry),
+        workKey: movieWorkKeyFor(
+          sourceId,
+          entry,
+          _movieIdentityKey(analysis, entry, candidates.first),
+        ),
         root: entry,
         remoteName: entry.name,
         displayTitle: candidates.first,
         titleCandidates: List<String>.unmodifiable(candidates),
         seasons: const <CloudSeasonIdentity>[],
         standaloneVideos: <CloudFileEntry>[entry],
+        standaloneReleaseTags: <String, MediaReleaseTags>{
+          _pathOf(entry): analysis.releaseTags,
+        },
       ),
     );
   }
@@ -739,6 +813,17 @@ class _ResolutionContext {
         : root.id.trim();
     return '$sourceId|work|$stableRoot';
   }
+
+  String movieWorkKeyFor(
+    String sourceId,
+    CloudFileEntry root,
+    String identityKey,
+  ) {
+    final stableBoundary = '${root.id.trim()}|${_pathOf(root)}';
+    final digest =
+        sha256.convert(utf8.encode('$stableBoundary|$identityKey')).toString();
+    return '$sourceId|movie|$digest';
+  }
 }
 
 class _SeasonBuilder {
@@ -747,6 +832,20 @@ class _SeasonBuilder {
   final List<CloudFileEntry> directories = <CloudFileEntry>[];
   final List<_ParsedEpisode> episodes = <_ParsedEpisode>[];
   int? year;
+}
+
+class _MovieBuilder {
+  _MovieBuilder({
+    required this.identityKey,
+    required this.displayTitle,
+  });
+
+  final String identityKey;
+  final String displayTitle;
+  final List<String> titleCandidates = <String>[];
+  final List<CloudFileEntry> videos = <CloudFileEntry>[];
+  final Map<String, MediaReleaseTags> releaseTags =
+      <String, MediaReleaseTags>{};
 }
 
 class _ParsedEpisode {

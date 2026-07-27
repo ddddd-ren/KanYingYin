@@ -10,7 +10,19 @@ class MediaNameAnalyzer {
     unicode: true,
   );
   static final RegExp _versionPattern = RegExp(
-    r'导演剪辑版|加长版|重剪版|最终章|特别篇',
+    r'导演剪辑版|加长版|重剪版|最终章',
+    caseSensitive: false,
+    unicode: true,
+  );
+  static final RegExp _theatricalPattern = RegExp(
+    r'剧场版|\bThe[\s._-]+Movie\b|\bMovie\b',
+    caseSensitive: false,
+    unicode: true,
+  );
+  static final RegExp _ovaPattern = RegExp(r'\bOVA\b', caseSensitive: false);
+  static final RegExp _oadPattern = RegExp(r'\bOAD\b', caseSensitive: false);
+  static final RegExp _specialPattern = RegExp(
+    r'特别篇|特别版|\bSpecial\b',
     caseSensitive: false,
     unicode: true,
   );
@@ -84,6 +96,11 @@ class MediaNameAnalyzer {
     caseSensitive: false,
     unicode: true,
   );
+  static final RegExp _languagePattern = RegExp(
+    r'国语|国配|日语|粤语|英语|双语',
+    caseSensitive: false,
+    unicode: true,
+  );
   static final RegExp _yearPattern = RegExp(
     r'(?:^|[\s._（(])((?:19|20)\d{2})(?=$|[\s._）)])',
   );
@@ -116,6 +133,7 @@ class MediaNameAnalyzer {
     }
 
     final releaseTags = _releaseTags(normalized);
+    final contentHint = _contentHint(normalized);
     final transparentDirectory =
         isDirectory && isTransparentDirectoryName(normalized);
     final versionMatch = _versionPattern.firstMatch(normalized);
@@ -185,6 +203,7 @@ class MediaNameAnalyzer {
       episodeEndNumber: episodeEndNumber,
       year: _year(normalized),
       releaseTags: releaseTags,
+      contentHint: contentHint,
       confidence: switch (role) {
         MediaNodeRole.advertisement => 1,
         MediaNodeRole.season ||
@@ -209,6 +228,7 @@ class MediaNameAnalyzer {
         .replaceAll(_atmosPattern, ' ')
         .replaceAll(_bitratePattern, ' ')
         .replaceAll(_subtitlePattern, ' ')
+        .replaceAll(_languagePattern, ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
   }
@@ -262,6 +282,10 @@ class MediaNameAnalyzer {
       audio: <String>[
         if (ddp != null) ddp.group(1) == null ? 'DDP' : 'DDP ${ddp.group(1)}',
         if (_atmosPattern.hasMatch(value)) 'Atmos',
+        ..._languagePattern
+            .allMatches(value)
+            .map((match) => match.group(0)!)
+            .toSet(),
       ],
       subtitles: subtitles,
       releaseGroup: releaseGroup,
@@ -421,5 +445,13 @@ class MediaNameAnalyzer {
     if (value.contains('重剪版')) return 'recut';
     if (value.contains('特别篇')) return 'special';
     return 'version';
+  }
+
+  MediaContentHint _contentHint(String value) {
+    if (_theatricalPattern.hasMatch(value)) return MediaContentHint.movie;
+    if (_ovaPattern.hasMatch(value)) return MediaContentHint.ova;
+    if (_oadPattern.hasMatch(value)) return MediaContentHint.oad;
+    if (_specialPattern.hasMatch(value)) return MediaContentHint.special;
+    return MediaContentHint.unknown;
   }
 }

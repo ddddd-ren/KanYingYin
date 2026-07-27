@@ -9,6 +9,8 @@ enum MediaNodeRole {
   unknown,
 }
 
+enum MediaContentHint { movie, ova, oad, special, unknown }
+
 @immutable
 class MediaReleaseTags {
   const MediaReleaseTags({
@@ -125,6 +127,7 @@ class MediaNameAnalysis {
     this.episodeEndNumber,
     this.year,
     this.releaseTags = const MediaReleaseTags(),
+    this.contentHint = MediaContentHint.unknown,
     this.confidence = 0,
     this.evidence = const <String>[],
   });
@@ -137,6 +140,7 @@ class MediaNameAnalysis {
   final int? episodeEndNumber;
   final int? year;
   final MediaReleaseTags releaseTags;
+  final MediaContentHint contentHint;
   final double confidence;
   final List<String> evidence;
 }

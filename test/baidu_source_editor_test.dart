@@ -74,6 +74,17 @@ void main() {
           .onPressed,
       isNotNull,
     );
+    final clearRoots = find.byKey(
+      const ValueKey<String>('clear-cloud-media-roots'),
+    );
+    expect(clearRoots, findsOneWidget);
+    expect(tester.widget<TextButton>(clearRoots).onPressed, isNotNull);
+    await tester.ensureVisible(clearRoots);
+    await tester.pumpAndSettle();
+    await tester.tap(clearRoots);
+    await tester.pump();
+    expect(find.text('/影视'), findsNothing);
+    expect(find.text('尚未选择'), findsOneWidget);
 
     await tester.enterText(
       find.widgetWithText(TextFormField, 'API Key'),

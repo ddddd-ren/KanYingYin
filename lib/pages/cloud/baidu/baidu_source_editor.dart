@@ -226,6 +226,11 @@ class _BaiduSourceEditorPageState extends State<BaiduSourceEditorPage> {
     if (mounted && selected != null) setState(() => _rootRefs = selected);
   }
 
+  void _clearRoots() {
+    if (_rootRefs.isEmpty) return;
+    setState(_rootRefs.clear);
+  }
+
   Future<void> _save() async {
     final source = _sourceFromForm();
     final credential = _authorizedCredential;
@@ -391,6 +396,13 @@ class _BaiduSourceEditorPageState extends State<BaiduSourceEditorPage> {
                       ],
                     ),
                   ),
+                  TextButton.icon(
+                    key: const ValueKey<String>('clear-cloud-media-roots'),
+                    onPressed: _busy || _rootRefs.isEmpty ? null : _clearRoots,
+                    icon: const Icon(Icons.clear_all_rounded),
+                    label: const Text('清除'),
+                  ),
+                  const SizedBox(width: 8),
                   OutlinedButton.icon(
                     onPressed: _busy || !_isAuthorized ? null : _chooseRoots,
                     icon: const Icon(Icons.folder_open_outlined),

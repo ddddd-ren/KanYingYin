@@ -697,6 +697,22 @@ void main() {
     expect(coordinator.isCurrent(second!), isTrue);
   });
 
+  test('导航协调器失效后旧请求不能恢复或完成新租约', () {
+    final coordinator = CloudPlaybackNavigationCoordinator();
+    final old = coordinator.tryBegin();
+    expect(old, isNotNull);
+
+    coordinator.invalidate();
+    final current = coordinator.tryBegin();
+
+    expect(current, isNotNull);
+    expect(coordinator.isCurrent(old!), isFalse);
+    coordinator.finish(old);
+    expect(coordinator.tryBegin(), isNull);
+    coordinator.finish(current!);
+    expect(coordinator.tryBegin(), isNotNull);
+  });
+
   test('媒体描述不泄露查询签名和用户信息', () {
     final description = sanitizeMediaDescription(
       'https://user:password@cdn.example.com/video.mkv?signature=secret&token=x',

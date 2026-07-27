@@ -768,6 +768,47 @@ void main() {
     fixture.controller.dispose();
   });
 
+  testWidgets('播放请求进行中连续点击只进入一次', (tester) async {
+    final release = Completer<void>();
+    var calls = 0;
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      entries: const <CloudFileEntry>[
+        CloudFileEntry(
+          id: 'video-fid',
+          remotePath: '/影视/电影.mkv',
+          name: '电影.mkv',
+          size: 1024 * 1024 * 700,
+          modifiedAt: null,
+          isDirectory: false,
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CloudResourcesPage(
+          controller: fixture.controller,
+          onPlayRequest: (_) async {
+            calls++;
+            await release.future;
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final card = find.byType(ImmersiveMediaCard).first;
+    await tester.tap(card);
+    await tester.pump();
+    await tester.tap(card);
+    await tester.pump();
+
+    expect(calls, 1);
+    release.complete();
+    await tester.pumpAndSettle();
+    fixture.controller.dispose();
+  });
+
   testWidgets('网盘目录按作品显示海报墙并从选集播放真实分集', (tester) async {
     CloudResourcePlaybackRequest? playbackRequest;
     final fixture = await _PageFixture.create(

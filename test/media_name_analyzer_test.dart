@@ -103,6 +103,22 @@ void main() {
       expect(result.releaseTags.audio, <String>['DDP 5.1', 'Atmos']);
     });
 
+    test('方括号发布名过滤音轨位深和校验码', () {
+      final result = analyzer.analyze(
+        '[KRL][Kamen Rider OOO][01][BDRip][1080P][x265_AC3][Main10][9F632FDD].mkv',
+        isDirectory: false,
+      );
+
+      expect(result.role, MediaNodeRole.episode);
+      expect(result.titleCandidates, <String>['Kamen Rider OOO']);
+      expect(result.episodeNumber, 1);
+      expect(result.releaseTags.resolution, '1080p');
+      expect(result.releaseTags.source, 'BDRip');
+      expect(result.releaseTags.codec, 'X265');
+      expect(result.releaseTags.audio, contains('AC3'));
+      expect(result.releaseTags.releaseGroup, 'KRL');
+    });
+
     test('广告和推广入口获得明确角色', () {
       for (final name in <String>[
         '0001更多资源请访问 00t.vip',

@@ -67,7 +67,19 @@ class MediaNameAnalyzer {
     caseSensitive: false,
   );
   static final RegExp _codecPattern = RegExp(
-    r'\b(x264|x265|H264|H265|HEVC|AVC|AV1)\b',
+    r'(?<![A-Za-z0-9])(x264|x265|H264|H265|HEVC|AVC|AV1)(?![A-Za-z0-9])',
+    caseSensitive: false,
+  );
+  static final RegExp _audioCodecPattern = RegExp(
+    r'(?<![A-Za-z0-9])(AC-?3|AAC|FLAC|DTS)(?![A-Za-z0-9])',
+    caseSensitive: false,
+  );
+  static final RegExp _bitDepthPattern = RegExp(
+    r'(?<![A-Za-z0-9])(?:Main10|8bit|10bit|12bit)(?![A-Za-z0-9])',
+    caseSensitive: false,
+  );
+  static final RegExp _trailingChecksumPattern = RegExp(
+    r'\[[0-9A-F]{8}\]\s*$',
     caseSensitive: false,
   );
   static final RegExp _dvPattern = RegExp(
@@ -222,6 +234,9 @@ class MediaNameAnalyzer {
         .replaceAll(_resolutionPattern, ' ')
         .replaceAll(_sourcePattern, ' ')
         .replaceAll(_codecPattern, ' ')
+        .replaceAll(_audioCodecPattern, ' ')
+        .replaceAll(_bitDepthPattern, ' ')
+        .replaceAll(_trailingChecksumPattern, ' ')
         .replaceAll(_dvPattern, ' ')
         .replaceAll(_hdrPattern, ' ')
         .replaceAll(_ddpPattern, ' ')
@@ -264,6 +279,10 @@ class MediaNameAnalyzer {
     final codec = _codecPattern.firstMatch(value)?.group(1);
     final bitrate = _bitratePattern.firstMatch(value)?.group(0);
     final ddp = _ddpPattern.firstMatch(value);
+    final audioCodecs = _audioCodecPattern
+        .allMatches(value)
+        .map((match) => match.group(1)!.replaceAll('-', '').toUpperCase())
+        .toSet();
     final subtitles = _subtitlePattern
         .allMatches(value)
         .map((match) => match.group(0)!)
@@ -281,6 +300,7 @@ class MediaNameAnalyzer {
       ],
       audio: <String>[
         if (ddp != null) ddp.group(1) == null ? 'DDP' : 'DDP ${ddp.group(1)}',
+        ...audioCodecs,
         if (_atmosPattern.hasMatch(value)) 'Atmos',
         ..._languagePattern
             .allMatches(value)

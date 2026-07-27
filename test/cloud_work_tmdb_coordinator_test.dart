@@ -115,6 +115,48 @@ void main() {
     expect(currentFixture.client.searchCalls, 0);
   });
 
+  test('旧规则未匹配立即重试而当前规则继续遵守七天间隔', () async {
+    final oldFixture = _Fixture();
+    final oldWork = _work('old-unmatched');
+    await oldFixture.repository.upsert(
+      CloudWorkTmdbRecord.unmatched(
+        sourceId: oldWork.sourceId,
+        workKey: oldWork.workKey,
+        workRootId: oldWork.root.id,
+        workRootPath: oldWork.root.remotePath,
+        remoteName: oldWork.remoteName,
+        checkedAt: DateTime.utc(2026, 7, 26),
+        tmdbRuleVersion: currentTmdbRuleVersion - 1,
+      ),
+    );
+
+    await oldFixture.coordinator.loadAndSchedule(
+      _tree(<CloudWorkIdentity>[oldWork]),
+    );
+
+    expect(oldFixture.client.searchCalls, 1);
+
+    final currentFixture = _Fixture();
+    final currentWork = _work('current-unmatched');
+    await currentFixture.repository.upsert(
+      CloudWorkTmdbRecord.unmatched(
+        sourceId: currentWork.sourceId,
+        workKey: currentWork.workKey,
+        workRootId: currentWork.root.id,
+        workRootPath: currentWork.root.remotePath,
+        remoteName: currentWork.remoteName,
+        checkedAt: DateTime.utc(2026, 7, 26),
+        tmdbRuleVersion: currentTmdbRuleVersion,
+      ),
+    );
+
+    await currentFixture.coordinator.loadAndSchedule(
+      _tree(<CloudWorkIdentity>[currentWork]),
+    );
+
+    expect(currentFixture.client.searchCalls, 0);
+  });
+
   test('旧手动作品不参与自动规则迁移', () async {
     final fixture = _Fixture();
     final work = _work('manual-version');

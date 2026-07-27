@@ -181,6 +181,11 @@ class _CloudDirectoryPickerPageState<T>
     _toggle(_current, selected);
   }
 
+  void _clearSelection() {
+    if (_selected.isEmpty) return;
+    setState(_selected.clear);
+  }
+
   void _complete() {
     final selected = _selected.values.toList()
       ..sort((left, right) => left.path.compareTo(right.path));
@@ -199,6 +204,15 @@ class _CloudDirectoryPickerPageState<T>
       appBar: AppBar(
         title: Text(widget.title),
         actions: [
+          if (!widget.singleSelection)
+            TextButton.icon(
+              key: const ValueKey<String>(
+                'clear-selected-cloud-directories',
+              ),
+              onPressed: _selected.isEmpty ? null : _clearSelection,
+              icon: const Icon(Icons.clear_all_rounded),
+              label: const Text('清除已选'),
+            ),
           TextButton.icon(
             key: const ValueKey<String>('select-current-directory'),
             onPressed: _loading ? null : _toggleCurrent,

@@ -70,10 +70,12 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          group.isWorkScoped
-                              ? '${group.uniqueEpisodeCount} 集'
-                              : '${group.seasons.length} 季 · '
-                                  '${group.uniqueEpisodeCount} 集',
+                          !group.isSeries
+                              ? '${group.videos.length} 个版本'
+                              : group.isWorkScoped
+                                  ? '${group.uniqueEpisodeCount} 集'
+                                  : '${group.seasons.length} 季 · '
+                                      '${group.uniqueEpisodeCount} 集',
                         ),
                       ],
                     ),
@@ -108,12 +110,18 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
     CloudResourceSeasonGroup season,
   ) {
     final seasonNumber = season.seasonNumber;
-    final title = seasonNumber == null ? '未识别季度' : '第 $seasonNumber 季';
+    final title = !group.isSeries
+        ? '可选版本'
+        : seasonNumber == null
+            ? '未识别季度'
+            : '第 $seasonNumber 季';
     final metadata = season.metadata;
     final year = _year(metadata?.airDate);
     final details = <String>[
       if (year != null) year,
-      '${season.uniqueEpisodeCount} 集',
+      group.isSeries
+          ? '${season.uniqueEpisodeCount} 集'
+          : '${season.videos.length} 个版本',
     ].join(' · ');
     return Container(
       key: ValueKey<String>('cloud-season-${seasonNumber ?? 'unknown'}'),
@@ -186,6 +194,7 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
     final parsed =
         hasIndexedEpisode ? null : LocalEpisodeParser().parse(video.remotePath);
     final episodeLabel = _episodeLabel(
+      isSeries: group.isSeries,
       seasonNumber: hasIndexedEpisode
           ? video.seasonNumber
           : video.seasonNumber ?? parsed?.seasonNumber,
@@ -308,10 +317,12 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
   }
 
   static String _episodeLabel({
+    required bool isSeries,
     required int? seasonNumber,
     required int? episodeNumber,
     required int index,
   }) {
+    if (!isSeries) return '版本 ${index + 1}';
     if (episodeNumber == null) return '第 ${index + 1} 集';
     final episodeToken = episodeNumber.toString().padLeft(2, '0');
     if (seasonNumber == null) return 'E$episodeToken';

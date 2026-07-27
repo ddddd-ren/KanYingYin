@@ -418,6 +418,44 @@ void main() {
     expect(password.controller?.text, isEmpty);
   });
 
+  testWidgets('OpenList 编辑器可一键清除媒体目录', (tester) async {
+    const source = CloudSource(
+      id: 'clear-directory-source',
+      type: CloudSourceType.openList,
+      name: '家庭网盘',
+      baseUrl: 'https://drive.example.com',
+      rootPaths: <String>['/动漫'],
+    );
+    final controller = CloudLibraryController(
+      repository: CloudSourceRepository(
+        storage: MemoryCloudSourceStorage(),
+        credentialStore: MemoryCloudCredentialStore(),
+      ),
+      credentialStore: MemoryCloudCredentialStore(),
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: OpenListSourceEditorPage(
+        source: source,
+        controller: controller,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('/动漫'), findsOneWidget);
+    final clearRoots = find.byKey(
+      const ValueKey<String>('clear-cloud-media-roots'),
+    );
+    expect(clearRoots, findsOneWidget);
+    expect(tester.widget<TextButton>(clearRoots).onPressed, isNotNull);
+    await tester.tap(clearRoots);
+    await tester.pump();
+
+    expect(find.text('/动漫'), findsNothing);
+    expect(find.text('尚未选择'), findsOneWidget);
+    expect(tester.widget<TextButton>(clearRoots).onPressed, isNull);
+    controller.dispose();
+  });
+
   testWidgets('OpenList 编辑器拒绝非 HTTP 地址和带凭据地址', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(home: OpenListSourceEditorPage()),

@@ -163,6 +163,11 @@ class _QuarkSourceEditorPageState extends State<QuarkSourceEditorPage> {
     if (mounted && selected != null) setState(() => _rootRefs = selected);
   }
 
+  void _clearRoots() {
+    if (_rootRefs.isEmpty) return;
+    setState(_rootRefs.clear);
+  }
+
   Future<void> _chooseTransferDirectory() async {
     final source = _sourceFromForm();
     if (source == null) return;
@@ -244,6 +249,13 @@ class _QuarkSourceEditorPageState extends State<QuarkSourceEditorPage> {
                   : _rootRefs.map((reference) => reference.path).join('、'),
               buttonLabel: '选择目录',
               onPressed: _busy || _controller.browsing ? null : _chooseRoots,
+              showClearAction: true,
+              clearButtonKey: const ValueKey<String>(
+                'clear-cloud-media-roots',
+              ),
+              onClear: _busy || _controller.browsing || _rootRefs.isEmpty
+                  ? null
+                  : _clearRoots,
             ),
             const SizedBox(height: 16),
             _DirectorySection(
@@ -284,12 +296,18 @@ class _DirectorySection extends StatelessWidget {
     required this.value,
     required this.buttonLabel,
     required this.onPressed,
+    this.showClearAction = false,
+    this.clearButtonKey,
+    this.onClear,
   });
 
   final String title;
   final String value;
   final String buttonLabel;
   final VoidCallback? onPressed;
+  final bool showClearAction;
+  final Key? clearButtonKey;
+  final VoidCallback? onClear;
 
   @override
   Widget build(BuildContext context) => Row(
@@ -304,6 +322,15 @@ class _DirectorySection extends StatelessWidget {
               ],
             ),
           ),
+          if (showClearAction) ...[
+            TextButton.icon(
+              key: clearButtonKey,
+              onPressed: onClear,
+              icon: const Icon(Icons.clear_all_rounded),
+              label: const Text('清除'),
+            ),
+            const SizedBox(width: 8),
+          ],
           OutlinedButton.icon(
             onPressed: onPressed,
             icon: const Icon(Icons.folder_open_outlined),

@@ -169,6 +169,11 @@ class _OpenListSourceEditorPageState extends State<OpenListSourceEditorPage> {
     }
   }
 
+  void _clearDirectories() {
+    if (_rootPaths.isEmpty) return;
+    setState(_rootPaths.clear);
+  }
+
   @override
   void dispose() {
     _controller.removeListener(_refresh);
@@ -265,6 +270,15 @@ class _OpenListSourceEditorPageState extends State<OpenListSourceEditorPage> {
                 const Expanded(
                   child: Text('扫描目录', style: TextStyle(fontSize: 16)),
                 ),
+                TextButton.icon(
+                  key: const ValueKey<String>('clear-cloud-media-roots'),
+                  onPressed: _busy || _controller.browsing || _rootPaths.isEmpty
+                      ? null
+                      : _clearDirectories,
+                  icon: const Icon(Icons.clear_all_rounded),
+                  label: const Text('清除'),
+                ),
+                const SizedBox(width: 8),
                 OutlinedButton.icon(
                   onPressed:
                       _busy || _controller.browsing ? null : _chooseDirectories,
@@ -274,13 +288,16 @@ class _OpenListSourceEditorPageState extends State<OpenListSourceEditorPage> {
               ],
             ),
             const SizedBox(height: 8),
-            for (final path in _rootPaths)
-              ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.folder_outlined),
-                title: Text(path),
-              ),
+            if (_rootPaths.isEmpty)
+              const Text('尚未选择')
+            else
+              for (final path in _rootPaths)
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.folder_outlined),
+                  title: Text(path),
+                ),
           ],
         ),
       ),

@@ -18,6 +18,10 @@ void main() {
       name: '夸克媒体库',
       baseUrl: 'https://pan.quark.cn',
       rootPaths: <String>['/影视'],
+      defaultTransferDirectory: CloudRemoteRef(
+        id: 'transfer-fixture',
+        path: '/转存',
+      ),
     );
     final credentials = MemoryCloudCredentialStore();
     await credentials.write(
@@ -43,6 +47,18 @@ void main() {
     expect(find.text('测试登录'), findsOneWidget);
     expect(find.text('媒体根目录'), findsOneWidget);
     expect(find.text('默认转存目录'), findsOneWidget);
+    expect(find.text('/影视'), findsOneWidget);
+    expect(find.text('/转存'), findsOneWidget);
+    final clearRoots = find.byKey(
+      const ValueKey<String>('clear-cloud-media-roots'),
+    );
+    expect(clearRoots, findsOneWidget);
+    expect(tester.widget<TextButton>(clearRoots).onPressed, isNotNull);
+    await tester.tap(clearRoots);
+    await tester.pump();
+    expect(find.text('/影视'), findsNothing);
+    expect(find.text('/转存'), findsOneWidget);
+    expect(find.text('尚未选择'), findsOneWidget);
     expect(find.text('启用此来源'), findsOneWidget);
     final cookieFinder = find.widgetWithText(TextFormField, 'Cookie');
     final cookieField = tester.widget<TextFormField>(cookieFinder);

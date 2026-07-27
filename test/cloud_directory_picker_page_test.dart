@@ -136,4 +136,76 @@ void main() {
     expect(find.text('影视'), findsOneWidget);
     expect(find.text('已选 1 个'), findsOneWidget);
   });
+
+  testWidgets('多选页支持一键清除并可重新选择', (tester) async {
+    const folder = CloudFileEntry(
+      id: 'tv',
+      remotePath: '/影视',
+      name: '影视',
+      size: 0,
+      modifiedAt: null,
+      isDirectory: true,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CloudDirectoryPickerPage<List<CloudRemoteRef>>(
+          title: '选择网盘目录',
+          root: const CloudRemoteRef(id: '0', path: '/'),
+          initialSelection: const <CloudRemoteRef>[
+            CloudRemoteRef(id: 'tv', path: '/影视'),
+          ],
+          loader: (_) async => const <CloudFileEntry>[folder],
+          resultBuilder: (selected) => selected,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final clearFinder = find.byKey(
+      const ValueKey<String>('clear-selected-cloud-directories'),
+    );
+    final checkboxFinder = find.byKey(const ValueKey<String>('select-tv'));
+    final confirmFinder = find.widgetWithText(TextButton, '确定');
+    expect(clearFinder, findsOneWidget);
+    expect(tester.widget<TextButton>(clearFinder).onPressed, isNotNull);
+    expect(tester.widget<Checkbox>(checkboxFinder).value, isTrue);
+
+    await tester.tap(clearFinder);
+    await tester.pump();
+
+    expect(tester.widget<Checkbox>(checkboxFinder).value, isFalse);
+    expect(find.text('已选 0 个'), findsOneWidget);
+    expect(tester.widget<TextButton>(clearFinder).onPressed, isNull);
+    expect(tester.widget<TextButton>(confirmFinder).onPressed, isNull);
+
+    await tester.tap(checkboxFinder);
+    await tester.pump();
+
+    expect(find.text('已选 1 个'), findsOneWidget);
+    expect(tester.widget<TextButton>(clearFinder).onPressed, isNotNull);
+    expect(tester.widget<TextButton>(confirmFinder).onPressed, isNotNull);
+  });
+
+  testWidgets('单选页不显示清除已选按钮', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CloudDirectoryPickerPage<CloudRemoteRef?>(
+          title: '选择网盘目录',
+          root: const CloudRemoteRef(id: '0', path: '/'),
+          initialSelection: const <CloudRemoteRef>[],
+          loader: (_) async => const <CloudFileEntry>[],
+          resultBuilder: (selected) => selected.firstOrNull,
+          singleSelection: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(
+        const ValueKey<String>('clear-selected-cloud-directories'),
+      ),
+      findsNothing,
+    );
+  });
 }

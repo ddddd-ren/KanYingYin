@@ -16,6 +16,17 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.62',
+    date: '2026-07-27',
+    isPrerelease: true,
+    changes: [
+      '夸克、百度和 OpenList 海报墙中的单一第一季作品现在只显示作品名，不再追加“第 1 季”',
+      '多季作品仍会分别显示季号；媒体库中只有第二季等非第一季内容时，也会保留对应季号',
+      '本次更新只调整海报标题，不改变 TMDB 刮削结果、网盘索引身份或播放路径',
+      '断网或 TMDB 不可用时媒体库和播放器仍可使用；本次更新不会修改或删除网盘中的原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.61',
     date: '2026-07-27',
     isPrerelease: true,

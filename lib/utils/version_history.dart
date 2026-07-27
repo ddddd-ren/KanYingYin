@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.58',
+    date: '2026-07-27',
+    isPrerelease: true,
+    changes: [
+      '夸克、百度和 OpenList 媒体库中的剧场版、OVA 和特别电影现在会作为独立电影识别，并分别进行 TMDB 刮削',
+      '同一电影的 4K、1080P、不同字幕或音轨等多版本会合并到一张海报卡，所有原始版本仍可选择播放',
+      '电影作品使用稳定身份复用海报缓存，重新扫描或网络暂时失败时优先保留已有海报',
+      '修复连续重复点击网盘视频可能叠加播放页并导致播放器画面卡住的问题',
+      '本次更新不会修改或删除网盘原始文件；断网或 TMDB 不可用时，已扫描的本地与网盘媒体库仍可继续浏览和播放',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.57',
     date: '2026-07-27',
     isPrerelease: true,

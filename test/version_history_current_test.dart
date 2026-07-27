@@ -71,6 +71,25 @@ void main() {
     expect(changes, contains('不会修改或删除'));
   });
 
+  test('二点一五十八说明剧场版识别和播放器防重', () {
+    final entries = versionHistoryForCurrent('2.1.58');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    expect(changes, contains('剧场版'));
+    expect(changes, contains('独立电影'));
+    expect(changes, contains('多版本'));
+    expect(changes, contains('海报缓存'));
+    expect(changes, contains('重复点击'));
+    expect(changes, contains('播放器'));
+    expect(changes, contains('夸克'));
+    expect(changes, contains('百度'));
+    expect(changes, contains('OpenList'));
+    expect(changes, contains('不会修改或删除'));
+  });
+
   test('二点一四十九说明 Anime4K 效率档使用官方快速组合', () {
     final entries = versionHistoryForCurrent('2.1.49');
 

@@ -132,6 +132,20 @@ void main() {
     expect(changes, contains('不会修改或删除'));
   });
 
+  test('二点一六十二说明单一第一季海报标题精简', () {
+    final entries = versionHistoryForCurrent('2.1.62');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    expect(changes, contains('单一第一季'));
+    expect(changes, contains('多季作品'));
+    expect(changes, contains('非第一季'));
+    expect(changes, contains('播放路径'));
+    expect(changes, contains('不会修改或删除'));
+  });
+
   test('二点一四十九说明 Anime4K 效率档使用官方快速组合', () {
     final entries = versionHistoryForCurrent('2.1.49');
 

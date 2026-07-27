@@ -391,6 +391,77 @@ void main() {
       expect(movieB.single.workKey, isNot(movieA.first.workKey));
     });
 
+    test('假面骑士 OOO 混合目录中的正剧剧场版和字幕都写入作品键', () async {
+      final repository =
+          CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());
+      const oooRoot = '/动漫/[2010] 假面骑士OOO';
+      const tvPath = '$oooRoot/OOO TV';
+      const moviesPath = '$oooRoot/OOO 剧场版';
+      const cutDirectory =
+          '$moviesPath/[KRSUB][假面骑士×假面骑士 OOO & W feat.Skull Movie大战 Core导剪版][BDRIP][1080P][官方中文][外挂字幕]';
+      const cutBase =
+          "[KRSUB][Kamen Rider × Kamen Rider OOO & W feat. Skull Movie War Core Director's Cut][BDrip][1080p][HEVC-10bit][FLAC][CHS]";
+      final client = _FakeCloudClient(<String, List<CloudFileEntry>>{
+        '/动漫': <CloudFileEntry>[_dir('ooo-root', oooRoot)],
+        oooRoot: <CloudFileEntry>[
+          _dir('ooo-tv', tvPath),
+          _dir('ooo-movies', moviesPath),
+        ],
+        tvPath: <CloudFileEntry>[
+          for (var episode = 1; episode <= 3; episode++)
+            _file(
+              'ooo-$episode',
+              '$tvPath/[KRL][Kamen Rider OOO][0$episode][BDRip][1080P][x265_AC3][Main10][9F632FD$episode].mkv',
+              size: _videoSize,
+            ),
+          _file(
+            'final-cut',
+            '$tvPath/[PKM][假面骑士OOO最终话][DC][正式特效][x264].mkv',
+            size: _videoSize,
+          ),
+        ],
+        moviesPath: <CloudFileEntry>[
+          _dir('core-cut', cutDirectory),
+          _file(
+            'ooo-10th',
+            '$moviesPath/[双语字幕][假面骑士OOO][10th 复活的核心硬币][BDrip][1080P][×265_FLAC×2][MKV].mkv',
+            size: _videoSize,
+          ),
+        ],
+        cutDirectory: <CloudFileEntry>[
+          _file('core-video', '$cutDirectory/$cutBase.mkv', size: _videoSize),
+          _file('core-subtitle', '$cutDirectory/$cutBase.ass', size: 77 * 1024),
+          _file('font-package', '$cutDirectory/font.zip',
+              size: 30 * 1024 * 1024),
+        ],
+      });
+
+      final result = await CloudMediaIndexer(
+        repository: repository,
+        minRecognizedVideoSizeBytesProvider: () => 100,
+      ).scan(source: source, client: client);
+      final items = await repository.getBySource(source.id);
+
+      expect(result.videoCount, 6);
+      expect(items, hasLength(6));
+      expect(items.every((item) => item.workKey?.isNotEmpty == true), isTrue);
+      final episodes = items
+          .where((item) =>
+              item.remoteId.startsWith('ooo-') && item.remoteId != 'ooo-10th')
+          .toList();
+      expect(episodes, hasLength(3));
+      expect(episodes.map((item) => item.workKey).toSet(), hasLength(1));
+      expect(episodes.every((item) => item.mediaType == CloudMediaType.episode),
+          isTrue);
+      final anniversary =
+          items.singleWhere((item) => item.remoteId == 'ooo-10th');
+      expect(anniversary.mediaType, CloudMediaType.movie);
+      final coreMovie =
+          items.singleWhere((item) => item.remoteId == 'core-video');
+      expect(coreMovie.mediaType, CloudMediaType.movie);
+      expect(coreMovie.subtitlePaths, <String>['$cutDirectory/$cutBase.ass']);
+    });
+
     test('使用队列递归扫描、去重、筛选视频并关联同名和集数字幕', () async {
       final repository = CloudMediaIndexRepository(
         storage: MemoryCloudMediaIndexStorage(),

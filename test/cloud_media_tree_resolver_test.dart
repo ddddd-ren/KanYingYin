@@ -44,6 +44,46 @@ void main() {
       );
     });
 
+    test('标准分集与最终话剪辑版混放时仍归并标准分集', () {
+      const seriesRoot = '/A视频/[2010] 假面骑士OOO';
+      const workPath = '/A视频/[2010] 假面骑士OOO/OOO TV';
+      final tree = resolver.resolve(
+        sourceId: 'baidu-a',
+        configuredRoots: const <String>['/A视频'],
+        directoryEntries: <String, List<CloudFileEntry>>{
+          '/A视频': <CloudFileEntry>[
+            _dir('ooo-root', seriesRoot, '[2010] 假面骑士OOO'),
+          ],
+          seriesRoot: <CloudFileEntry>[
+            _dir('ooo-tv', workPath, 'OOO TV'),
+          ],
+          workPath: <CloudFileEntry>[
+            for (var episode = 1; episode <= 3; episode++)
+              _video(
+                'ooo-$episode',
+                '$workPath/[KRL][Kamen Rider OOO][0$episode][BDRip][1080P][x265_AC3][Main10][9F632FD$episode].mkv',
+                '[KRL][Kamen Rider OOO][0$episode][BDRip][1080P][x265_AC3][Main10][9F632FD$episode].mkv',
+              ),
+            _video(
+              'final-cut',
+              '$workPath/[PKM][假面骑士OOO最终话][DC][正式特效][x264].mkv',
+              '[PKM][假面骑士OOO最终话][DC][正式特效][x264].mkv',
+            ),
+          ],
+        },
+        minSizeBytes: 100,
+      );
+
+      final series = tree.works.singleWhere((work) => work.seasons.isNotEmpty);
+      expect(series.displayTitle, 'Kamen Rider OOO');
+      expect(series.seasons.single.episodes, hasLength(3));
+      expect(
+        tree.works.where((work) =>
+            work.standaloneVideos.any((video) => video.id == 'final-cut')),
+        hasLength(1),
+      );
+    });
+
     test('迪迦奥特曼连续编号文件合并为一季五十二集', () {
       const workPath = '/视频/【日剧】迪迦奥特曼.全52集.国语配音中字.珍藏版.1996.1080P';
       final tree = resolver.resolve(

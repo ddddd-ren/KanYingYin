@@ -70,7 +70,7 @@ void main() {
   });
 
   test('已匹配作品修改刮削名称后海报卡优先显示手动名称', () {
-    final work = _workIdentity();
+    final work = _workIdentity(seasonNumbers: const <int>[1]);
     final record = CloudWorkTmdbRecord.matched(
       sourceId: work.sourceId,
       workKey: work.workKey,
@@ -113,7 +113,35 @@ void main() {
       query: '',
     );
 
-    expect(collection.groups.single.displayName, '回魂计 第 1 季');
+    expect(collection.groups.single.displayName, '回魂计');
+  });
+
+  test('作品只有第二季时海报标题仍保留季号', () {
+    final work = _workIdentity(seasonNumbers: const <int>[2]);
+    final item = CloudMediaIndexItem(
+      sourceId: work.sourceId,
+      remoteId: 'season-2-episode-1',
+      remotePath: '/影视/作品/第二季/01.mkv',
+      name: '01.mkv',
+      displayName: '规则标题 S02E01.mkv',
+      workKey: work.workKey,
+      workRootId: work.root.id,
+      workRootPath: work.root.remotePath,
+      size: 200,
+      modifiedAt: null,
+      seriesName: '规则标题',
+      seasonNumber: 2,
+      episodeNumber: 1,
+      mediaType: CloudMediaType.episode,
+    );
+
+    final collection = CloudResourceCollectionGrouper().group(
+      items: <CloudMediaIndexItem>[item],
+      works: <CloudWorkIdentity>[work],
+      query: '',
+    );
+
+    expect(collection.groups.single.displayName, '规则标题 第 2 季');
   });
 
   test('电影作品多版本只产出一张卡并显示发布标签', () {
@@ -299,7 +327,7 @@ void main() {
   });
 
   test('回魂计按九个唯一集号展示并保留二十七个真实版本', () {
-    final work = _workIdentity();
+    final work = _workIdentity(seasonNumbers: const <int>[1]);
     final record = CloudWorkTmdbRecord.matched(
       sourceId: work.sourceId,
       workKey: work.workKey,
@@ -366,7 +394,7 @@ void main() {
     );
 
     final group = collection.groups.single;
-    expect(group.displayName, '回魂计 第 1 季');
+    expect(group.displayName, '回魂计');
     expect(group.uniqueEpisodeCount, 9);
     expect(group.videos, hasLength(27));
     expect(group.videos.take(3).map((video) => video.name), <String>[
@@ -577,7 +605,10 @@ void main() {
   });
 }
 
-CloudWorkIdentity _workIdentity({String sourceId = 'quark'}) {
+CloudWorkIdentity _workIdentity({
+  String sourceId = 'quark',
+  List<int> seasonNumbers = const <int>[1, 2, 3],
+}) {
   final workKey = '$sourceId|work|work-id';
   const root = CloudFileEntry(
     id: 'work-id',
@@ -595,7 +626,7 @@ CloudWorkIdentity _workIdentity({String sourceId = 'quark'}) {
     displayTitle: '规则标题',
     titleCandidates: const <String>['规则标题', 'Original Title'],
     seasons: <CloudSeasonIdentity>[
-      for (var season = 1; season <= 3; season++)
+      for (final season in seasonNumbers)
         CloudSeasonIdentity(
           workKey: workKey,
           seasonNumber: season,

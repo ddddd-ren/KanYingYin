@@ -239,6 +239,8 @@ class CloudResourceCollectionGrouper {
         if (_matchesWork(group, work, workItems, query)) groups.add(group);
         continue;
       }
+      final omitOnlyFirstSeasonSuffix =
+          work.seasons.length == 1 && work.seasons.single.seasonNumber == 1;
       for (final season in work.seasons) {
         final seasonItems = workItems
             .where((item) => item.seasonNumber == season.seasonNumber)
@@ -258,7 +260,9 @@ class CloudResourceCollectionGrouper {
         final group = CloudResourceMediaGroup(
           stableKey: '${work.workKey}|season:${season.seasonNumber}',
           workKey: work.workKey,
-          displayName: '$title 第 ${season.seasonNumber} 季',
+          displayName: omitOnlyFirstSeasonSuffix
+              ? title
+              : '$title 第 ${season.seasonNumber} 季',
           seriesName: title,
           isSeries: true,
           seasonNumber: season.seasonNumber,

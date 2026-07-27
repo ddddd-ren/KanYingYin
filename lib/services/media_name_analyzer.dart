@@ -58,6 +58,10 @@ class MediaNameAnalyzer {
     r'^(?:EP?|Episode)?\s*(\d{1,3})\s*$',
     caseSensitive: false,
   );
+  static final RegExp _concatenatedEpisodePattern = RegExp(
+    r'^(.+?[A-Za-z\u3400-\u9FFF])(\d{2})$',
+    unicode: true,
+  );
   static final RegExp _resolutionPattern = RegExp(
     r'\b(480p|720p|1080p|1440p|2160p|4K|8K)\b',
     caseSensitive: false,
@@ -157,6 +161,15 @@ class MediaNameAnalyzer {
     final englishEpisode = _englishEpisodePattern.firstMatch(normalized);
     final bracketedEpisode = _bracketedEpisodePattern.firstMatch(normalized);
     final standaloneEpisode = _standaloneEpisodePattern.firstMatch(normalized);
+    final hasExplicitEpisode = seasonEpisode != null ||
+        chineseSeasonEpisode != null ||
+        chineseEpisode != null ||
+        englishEpisode != null ||
+        bracketedEpisode != null ||
+        standaloneEpisode != null;
+    final concatenatedEpisode = isDirectory || hasExplicitEpisode
+        ? null
+        : _concatenatedEpisodePattern.firstMatch(normalized);
 
     final seasonNumber = _firstPositive(<String?>[
       seasonEpisode?.group(1),
@@ -172,6 +185,7 @@ class MediaNameAnalyzer {
       englishEpisode?.group(1),
       bracketedEpisode?.group(1),
       standaloneEpisode?.group(1),
+      concatenatedEpisode?.group(2),
     ]);
     final episodeEndNumber = _firstPositive(<String?>[
       seasonEpisode?.group(3),
@@ -196,6 +210,7 @@ class MediaNameAnalyzer {
             normalized,
             role: role,
             releaseTags: releaseTags,
+            hasConcatenatedEpisode: concatenatedEpisode != null,
           );
     final evidence = <String>[
       if (versionMatch != null) _versionEvidence(versionMatch.group(0)!),
@@ -324,8 +339,13 @@ class MediaNameAnalyzer {
     String value, {
     required MediaNodeRole role,
     required MediaReleaseTags releaseTags,
+    required bool hasConcatenatedEpisode,
   }) {
-    final hasStructuralNoise = _hasStructuralNoise(value, releaseTags);
+    final hasStructuralNoise = _hasStructuralNoise(
+      value,
+      releaseTags,
+      hasConcatenatedEpisode: hasConcatenatedEpisode,
+    );
     if (!hasStructuralNoise && role == MediaNodeRole.work) {
       return <String>[value];
     }
@@ -336,14 +356,21 @@ class MediaNameAnalyzer {
       final candidate = _cleanTitle(quoted.group(1)!);
       if (candidate.isNotEmpty) candidates.add(candidate);
     }
-    final cleaned = _cleanTitle(value);
+    final cleaned = _cleanTitle(
+      value,
+      stripConcatenatedEpisode: hasConcatenatedEpisode,
+    );
     if (cleaned.isNotEmpty && !candidates.contains(cleaned)) {
       candidates.add(cleaned);
     }
     return candidates;
   }
 
-  bool _hasStructuralNoise(String value, MediaReleaseTags tags) {
+  bool _hasStructuralNoise(
+    String value,
+    MediaReleaseTags tags, {
+    required bool hasConcatenatedEpisode,
+  }) {
     return _seasonEpisodePattern.hasMatch(value) ||
         _chineseSeasonEpisodePattern.hasMatch(value) ||
         _seasonPattern.hasMatch(value) ||
@@ -351,6 +378,7 @@ class MediaNameAnalyzer {
         _englishEpisodePattern.hasMatch(value) ||
         _bracketedEpisodePattern.hasMatch(value) ||
         _standaloneEpisodePattern.hasMatch(value) ||
+        hasConcatenatedEpisode ||
         _versionPattern.hasMatch(value) ||
         tags.resolution != null ||
         tags.source != null ||
@@ -362,8 +390,17 @@ class MediaNameAnalyzer {
         (_year(value) != null && !RegExp(r'^\d{4}$').hasMatch(value));
   }
 
-  String _cleanTitle(String value) {
-    var result = cleanReleaseTokens(value)
+  String _cleanTitle(
+    String value, {
+    bool stripConcatenatedEpisode = false,
+  }) {
+    final structuralValue = stripConcatenatedEpisode
+        ? value.replaceAllMapped(
+            _concatenatedEpisodePattern,
+            (match) => match.group(1)!,
+          )
+        : value;
+    var result = cleanReleaseTokens(structuralValue)
         .replaceFirst(RegExp(r'^\d{4,}[\s._-]+'), '')
         .replaceAll(_seasonEpisodePattern, ' ')
         .replaceAll(_chineseSeasonEpisodePattern, ' ')

@@ -6,8 +6,8 @@ import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
   test('应用版本、MSIX 版本和更新日志保持一致', () {
-    const expectedVersion = '2.1.59';
-    const expectedBuildNumber = '20159';
+    const expectedVersion = '2.1.60';
+    const expectedBuildNumber = '20160';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
@@ -89,11 +89,10 @@ void main() {
       currentVersionHistory,
       updateDialogCopy,
     ]) {
-      expect(copy, contains('剧场版'));
-      expect(copy, contains('独立电影'));
-      expect(copy, contains('多版本'));
-      expect(copy, contains('海报缓存'));
-      expect(copy, contains('重复点击'));
+      expect(copy, contains('迪迦奥特曼01'));
+      expect(copy, contains('连续编号'));
+      expect(copy, contains('手动名称'));
+      expect(copy, contains('TMDB 标题'));
       expect(copy, contains('不会修改或删除'));
       for (final feature in [
         '夸克',

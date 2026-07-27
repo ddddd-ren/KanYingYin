@@ -119,6 +119,17 @@ void main() {
       expect(result.releaseTags.releaseGroup, 'KRL');
     });
 
+    test('中文剧名紧接两位数字时识别为分集', () {
+      final result = analyzer.analyze(
+        '迪迦奥特曼03.mp4',
+        isDirectory: false,
+      );
+
+      expect(result.role, MediaNodeRole.episode);
+      expect(result.titleCandidates, <String>['迪迦奥特曼']);
+      expect(result.episodeNumber, 3);
+    });
+
     test('广告和推广入口获得明确角色', () {
       for (final name in <String>[
         '0001更多资源请访问 00t.vip',

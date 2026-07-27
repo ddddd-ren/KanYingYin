@@ -104,6 +104,20 @@ void main() {
     expect(changes, contains('不会修改或删除'));
   });
 
+  test('二点一六十说明连续编号合并和手动名称优先', () {
+    final entries = versionHistoryForCurrent('2.1.60');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    expect(changes, contains('迪迦奥特曼01'));
+    expect(changes, contains('连续编号'));
+    expect(changes, contains('手动名称'));
+    expect(changes, contains('TMDB 标题'));
+    expect(changes, contains('不会修改或删除'));
+  });
+
   test('二点一四十九说明 Anime4K 效率档使用官方快速组合', () {
     final entries = versionHistoryForCurrent('2.1.49');
 

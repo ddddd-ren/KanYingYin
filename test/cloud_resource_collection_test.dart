@@ -69,6 +69,53 @@ void main() {
     expect(collection.groups.last.videos.single.id, 's3e1');
   });
 
+  test('已匹配作品修改刮削名称后海报卡优先显示手动名称', () {
+    final work = _workIdentity();
+    final record = CloudWorkTmdbRecord.matched(
+      sourceId: work.sourceId,
+      workKey: work.workKey,
+      workRootId: work.root.id,
+      workRootPath: work.root.remotePath,
+      remoteName: work.remoteName,
+      scrapeTitleOverride: '回魂计',
+      metadata: TmdbMetadata(
+        id: 42,
+        mediaType: TmdbMediaType.tv,
+        title: '死而复生',
+        originalTitle: 'The Resurrected',
+        language: 'zh-CN',
+        matchedAt: DateTime.utc(2026, 7, 27),
+        matchConfidence: 1,
+      ),
+      checkedAt: DateTime.utc(2026, 7, 27),
+    );
+    final item = CloudMediaIndexItem(
+      sourceId: work.sourceId,
+      remoteId: 'episode-1',
+      remotePath: '/影视/回魂计/01.mkv',
+      name: '01.mkv',
+      displayName: '回魂计 S01E01.mkv',
+      workKey: work.workKey,
+      workRootId: work.root.id,
+      workRootPath: work.root.remotePath,
+      size: 200,
+      modifiedAt: null,
+      seriesName: '回魂计',
+      seasonNumber: 1,
+      episodeNumber: 1,
+      mediaType: CloudMediaType.episode,
+    );
+
+    final collection = CloudResourceCollectionGrouper().group(
+      items: <CloudMediaIndexItem>[item],
+      works: <CloudWorkIdentity>[work],
+      recordsByWorkKey: <String, CloudWorkTmdbRecord>{work.workKey: record},
+      query: '',
+    );
+
+    expect(collection.groups.single.displayName, '回魂计 第 1 季');
+  });
+
   test('电影作品多版本只产出一张卡并显示发布标签', () {
     const first = CloudFileEntry(
       id: 'a4k',

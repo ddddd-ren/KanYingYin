@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
+import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_tree_resolver.dart';
 
 void main() {
@@ -415,6 +416,107 @@ void main() {
       );
 
       expect(tree.works, hasLength(2));
+    });
+
+    test('正剧目录中的不同剧场版拆分作品且同片版本归并', () {
+      const root = '/动漫/示例作品';
+      const season = '$root/第一季';
+      const movies = '$root/剧场版';
+      final tree = resolver.resolve(
+        sourceId: 'quark-a',
+        configuredRoots: const <String>[root],
+        directoryEntries: <String, List<CloudFileEntry>>{
+          root: <CloudFileEntry>[
+            _dir('season', season, '第一季'),
+            _dir('movies', movies, '剧场版'),
+          ],
+          season: <CloudFileEntry>[
+            _video('e1', '$season/01.mkv', '01.mkv'),
+            _video('e2', '$season/02.mkv', '02.mkv'),
+          ],
+          movies: <CloudFileEntry>[
+            _video(
+              'a4k',
+              '$movies/示例作品 剧场版 A 2160p.mkv',
+              '示例作品 剧场版 A 2160p.mkv',
+            ),
+            _video(
+              'a1080',
+              '$movies/示例作品 剧场版 A 1080p.mkv',
+              '示例作品 剧场版 A 1080p.mkv',
+            ),
+            _video(
+              'b',
+              '$movies/示例作品 剧场版 B.mkv',
+              '示例作品 剧场版 B.mkv',
+            ),
+          ],
+        },
+        minSizeBytes: 100,
+      );
+
+      expect(tree.works, hasLength(3));
+      expect(
+        tree.works.where((work) => work.seasons.isNotEmpty),
+        hasLength(1),
+      );
+      final moviesByTitle = <String, CloudWorkIdentity>{
+        for (final work in tree.works.where((work) => work.seasons.isEmpty))
+          work.displayTitle: work,
+      };
+      expect(
+        moviesByTitle['示例作品 剧场版 A']!.standaloneVideos,
+        hasLength(2),
+      );
+      expect(
+        moviesByTitle['示例作品 剧场版 B']!.standaloneVideos,
+        hasLength(1),
+      );
+      expect(
+        moviesByTitle.values.map((work) => work.workKey).toSet(),
+        hasLength(2),
+      );
+      expect(
+        moviesByTitle['示例作品 剧场版 A']!
+            .releaseTagsFor(
+              moviesByTitle['示例作品 剧场版 A']!.standaloneVideos.first,
+            )
+            .resolution,
+        isNotNull,
+      );
+    });
+
+    test('同名电影年份不同不合并且电影键按来源和根目录隔离', () {
+      CloudMediaTree build(String sourceId, String root) => resolver.resolve(
+            sourceId: sourceId,
+            configuredRoots: <String>[root],
+            directoryEntries: <String, List<CloudFileEntry>>{
+              root: <CloudFileEntry>[
+                _video('old', '$root/示例电影 2024.mkv', '示例电影 2024.mkv'),
+                _video('new', '$root/示例电影 2026.mkv', '示例电影 2026.mkv'),
+              ],
+            },
+            minSizeBytes: 100,
+          );
+
+      final first = build('quark-a', '/电影/A');
+      final anotherRoot = build('quark-a', '/电影/B');
+      final anotherSource = build('openlist-a', '/电影/A');
+
+      expect(first.works, hasLength(2));
+      expect(first.works.map((work) => work.workKey).toSet(), hasLength(2));
+      expect(
+        first.works.map((work) => work.workKey).toSet().intersection(
+              anotherRoot.works.map((work) => work.workKey).toSet(),
+            ),
+        isEmpty,
+      );
+      expect(
+        first.works.map((work) => work.workKey).toSet().intersection(
+              anotherSource.works.map((work) => work.workKey).toSet(),
+            ),
+        isEmpty,
+      );
     });
 
     test('遍历多个媒体根并隔离同名异目录作品', () {

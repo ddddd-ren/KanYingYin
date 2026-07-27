@@ -146,6 +146,51 @@ void main() {
       expect(result.evidence, contains('director-cut'));
     });
 
+    test('剧场版和 OVA 提供电影内容提示并保留完整作品标题', () {
+      final theatrical = analyzer.analyze(
+        '中二病也要谈恋爱 剧场版 Take On Me 2160p BluRay H265.mkv',
+        isDirectory: false,
+      );
+      final ova = analyzer.analyze('摇曳露营 OVA.mkv', isDirectory: false);
+
+      expect(theatrical.contentHint, MediaContentHint.movie);
+      expect(
+        theatrical.titleCandidates,
+        contains('中二病也要谈恋爱 剧场版 Take On Me'),
+      );
+      expect(theatrical.releaseTags.resolution, '2160p');
+      expect(ova.contentHint, MediaContentHint.ova);
+      expect(ova.titleCandidates, contains('摇曳露营 OVA'));
+    });
+
+    test('明确季集号优先于特别篇电影提示', () {
+      final result = analyzer.analyze(
+        '作品 S01E03 特别篇 1080p.mkv',
+        isDirectory: false,
+      );
+
+      expect(result.role, MediaNodeRole.episode);
+      expect(result.seasonNumber, 1);
+      expect(result.episodeNumber, 3);
+      expect(result.contentHint, MediaContentHint.special);
+    });
+
+    test('语言和字幕规格不改变电影标题身份', () {
+      final mandarin = analyzer.analyze(
+        '示例电影 2026 2160p 国语 内封简繁.mkv',
+        isDirectory: false,
+      );
+      final japanese = analyzer.analyze(
+        '示例电影 2026 1080p 日语 内嵌中字.mkv',
+        isDirectory: false,
+      );
+
+      expect(mandarin.titleCandidates.first, '示例电影');
+      expect(japanese.titleCandidates.first, '示例电影');
+      expect(mandarin.releaseTags.audio, contains('国语'));
+      expect(japanese.releaseTags.audio, contains('日语'));
+    });
+
     test('合法数字作品标题不会按季度编号删除', () {
       for (final title in <String>['The 100', '1923', '86 -不存在战区-']) {
         final directory = analyzer.analyze(title, isDirectory: true);

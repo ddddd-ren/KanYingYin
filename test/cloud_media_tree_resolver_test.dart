@@ -44,6 +44,38 @@ void main() {
       );
     });
 
+    test('迪迦奥特曼连续编号文件合并为一季五十二集', () {
+      const workPath = '/视频/【日剧】迪迦奥特曼.全52集.国语配音中字.珍藏版.1996.1080P';
+      final tree = resolver.resolve(
+        sourceId: 'quark-a',
+        configuredRoots: const <String>['/视频', workPath],
+        directoryEntries: <String, List<CloudFileEntry>>{
+          '/视频': <CloudFileEntry>[
+            _dir('tiga-root', workPath, '【日剧】迪迦奥特曼.全52集.国语配音中字.珍藏版.1996.1080P'),
+          ],
+          workPath: <CloudFileEntry>[
+            for (var episode = 1; episode <= 52; episode++)
+              _video(
+                'tiga-$episode',
+                '$workPath/迪迦奥特曼${episode.toString().padLeft(2, '0')}.mp4',
+                '迪迦奥特曼${episode.toString().padLeft(2, '0')}.mp4',
+              ),
+          ],
+        },
+        minSizeBytes: 100,
+      );
+
+      expect(tree.works, hasLength(1));
+      final work = tree.works.single;
+      expect(work.displayTitle, '迪迦奥特曼');
+      expect(work.seasons, hasLength(1));
+      expect(work.seasons.single.episodes, hasLength(52));
+      expect(
+        work.seasons.single.episodes.map((episode) => episode.episodeNumber),
+        List<int>.generate(52, (index) => index + 1),
+      );
+    });
+
     test('真实多季度目录合并同季目录并继承纯数字集号', () {
       const workName = '154332_《弥留之国的爱丽丝3》(2025) 4K 全6集 内附第一二季';
       const workPath = '/影视/$workName';

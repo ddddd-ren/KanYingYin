@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.60',
+    date: '2026-07-27',
+    isPrerelease: true,
+    changes: [
+      '修复夸克、百度和 OpenList 媒体库中 `迪迦奥特曼01` 这类“中文剧名紧接两位集号”的连续剧被拆成多张电影卡的问题',
+      '连续编号文件现在会按共同剧名合并到同一季度，升级后自动重建旧识别索引，不需要修改网盘文件名',
+      '修改刮削名称后，海报卡和季度标题会优先显示手动名称；TMDB 海报、简介和评分继续保留，清除手动名称可恢复 TMDB 标题',
+      '剧场版独立刮削、多版本合并、字幕、硬件解码、Anime4K 和播放器防重复打开功能保持不变',
+      '断网或 TMDB 不可用时媒体库和播放器仍可使用；本次更新不会修改或删除夸克、百度、OpenList 中的网盘原始文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.59',
     date: '2026-07-27',
     isPrerelease: true,

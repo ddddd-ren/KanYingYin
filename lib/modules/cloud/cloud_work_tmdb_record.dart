@@ -194,14 +194,15 @@ class CloudWorkTmdbRecord {
       metadata?.seasons ?? const <TmdbSeasonMetadata>[];
 
   String effectiveTitle(String recognizedTitle) {
+    final override = scrapeTitleOverride?.trim();
+    if (override != null && override.isNotEmpty) return override;
     final tmdbTitle = metadata?.title.trim();
     if (status == CloudWorkTmdbStatus.matched &&
         tmdbTitle != null &&
         tmdbTitle.isNotEmpty) {
       return tmdbTitle;
     }
-    final override = scrapeTitleOverride?.trim();
-    return override == null || override.isEmpty ? recognizedTitle : override;
+    return recognizedTitle;
   }
 
   CloudWorkTmdbRecord copyWithScrapeTitle(String value) {

@@ -56,7 +56,7 @@ void main() {
     expect(restored.seasons.map((item) => item.seasonNumber), <int>[1, 2, 3]);
     expect(restored.seasons.last.posterUrl, '/season-3.jpg');
     expect(restored.posterCachePath, 'cache-poster.jpg');
-    expect(restored.effectiveTitle('规则标题'), 'TMDB 中文标题');
+    expect(restored.effectiveTitle('规则标题'), '手动刮削名称');
   });
 
   test('未匹配作品使用刮削名称且冲突记录不伪造元数据', () {

@@ -38,7 +38,7 @@ class CloudTmdbSubjectBuilder {
       episodeNumbers: episodes,
       mediaEvidence: seasons.isNotEmpty || episodes.isNotEmpty
           ? TmdbMediaEvidence.tv
-          : work.standaloneVideos.length == 1
+          : work.standaloneVideos.isNotEmpty
               ? TmdbMediaEvidence.movie
               : TmdbMediaEvidence.unknown,
       existingMetadata: record?.metadata,

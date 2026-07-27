@@ -551,7 +551,7 @@ class _ResolutionContext {
     for (final video in standaloneVideos) {
       final analysis = nameAnalyzer.analyze(video.name, isDirectory: false);
       final episodeNumber = analysis.episodeNumber;
-      if (episodeNumber == null || episodeNumber <= 0) return;
+      if (episodeNumber == null || episodeNumber <= 0) continue;
       for (final candidate in analysis.titleCandidates) {
         _addUnique(aliases, candidate);
       }
@@ -562,7 +562,11 @@ class _ResolutionContext {
         releaseTags: releaseTagsByEntry[_pathOf(video)] ?? analysis.releaseTags,
       ));
     }
-    standaloneVideos.clear();
+    if (parsed.length < 2) return;
+    final episodePaths = parsed.map((item) => _pathOf(item.entry)).toSet();
+    standaloneVideos.removeWhere(
+      (video) => episodePaths.contains(_pathOf(video)),
+    );
     final seasonNumbers = parsed.map((item) => item.seasonNumber).toSet();
     for (final item in parsed) {
       final builder = builders.putIfAbsent(

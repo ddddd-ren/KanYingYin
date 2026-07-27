@@ -118,6 +118,20 @@ void main() {
     expect(changes, contains('不会修改或删除'));
   });
 
+  test('二点一六十一说明混合目录资源恢复海报墙显示', () {
+    final entries = versionHistoryForCurrent('2.1.61');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    expect(changes, contains('海报墙'));
+    expect(changes, contains('导演剪辑版'));
+    expect(changes, contains('10th'));
+    expect(changes, contains('ASS 字幕'));
+    expect(changes, contains('不会修改或删除'));
+  });
+
   test('二点一四十九说明 Anime4K 效率档使用官方快速组合', () {
     final entries = versionHistoryForCurrent('2.1.49');
 

@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.61',
+    date: '2026-07-27',
+    isPrerelease: true,
+    changes: [
+      '修复夸克、百度和 OpenList 已扫描到视频，但混合目录中的部分资源没有出现在海报墙的问题',
+      '正剧分集与最终话导演剪辑版混放时，标准分集现在仍会合并为同一季度，导演剪辑版作为有效独立资源保留',
+      '修复文件名中的 `10th`、`10bit` 等数字把剧场版误判为分集的问题；10 周年电影和 KRSUB 导剪版现在会写入电影作品并显示',
+      '同名 ASS 字幕继续与对应电影关联；升级后自动重建旧的空作品键索引，无需修改网盘目录或文件名',
+      '断网或 TMDB 不可用时媒体库和播放器仍可使用；本次更新不会修改或删除夸克、百度、OpenList 中的原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.60',
     date: '2026-07-27',
     isPrerelease: true,

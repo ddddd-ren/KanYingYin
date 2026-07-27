@@ -313,10 +313,17 @@ class CloudMediaIndexer {
       final subtitleRefs = _matchSubtitles(entry, subtitles);
       final resolvedEpisode = episodesByPath[normalizedPath];
       final standaloneWork = standaloneWorksByPath[normalizedPath];
+      final sharedAnalysis = _mediaTreeResolver.nameAnalyzer.analyze(
+        entry.name,
+        isDirectory: false,
+      );
+      final trustStandaloneWork = standaloneWork != null &&
+          sharedAnalysis.role != MediaNodeRole.episode;
       final resolvedWork = resolvedEpisode?.work ??
-          (pathMatch.isEpisode ? null : standaloneWork);
+          (pathMatch.isEpisode && !trustStandaloneWork ? null : standaloneWork);
       final episodeIdentity = resolvedEpisode?.episode;
-      final hasEpisodeEvidence = episodeIdentity != null || pathMatch.isEpisode;
+      final hasEpisodeEvidence = episodeIdentity != null ||
+          (pathMatch.isEpisode && !trustStandaloneWork);
       final isSpecial = hasEpisodeEvidence && _isSpecial(entry.remotePath);
       final standaloneReleaseTags =
           standaloneWork?.releaseTagsFor(entry) ?? const MediaReleaseTags();
@@ -336,12 +343,13 @@ class CloudMediaIndexer {
             ? _seriesName(entry.name, pathMatch.seriesName)
             : resolvedWork?.displayTitle ??
                 _seriesName(entry.name, pathMatch.seriesName),
-        seasonNumber: episodeIdentity?.seasonNumber ?? pathMatch.seasonNumber,
-        episodeNumber:
-            episodeIdentity?.episodeNumber ?? pathMatch.episodeNumber,
+        seasonNumber: episodeIdentity?.seasonNumber ??
+            (trustStandaloneWork ? null : pathMatch.seasonNumber),
+        episodeNumber: episodeIdentity?.episodeNumber ??
+            (trustStandaloneWork ? null : pathMatch.episodeNumber),
         mediaType: isSpecial
             ? CloudMediaType.special
-            : episodeIdentity != null || pathMatch.isEpisode
+            : hasEpisodeEvidence
                 ? CloudMediaType.episode
                 : CloudMediaType.movie,
         subtitlePaths: subtitleRefs.map((reference) => reference.path).toList(),

@@ -435,7 +435,7 @@ void main() {
     expect(find.text('4K · DV · HDR'), findsOneWidget);
   });
 
-  testWidgets('无季度多视频作品的选集弹层仍显示全部视频', (tester) async {
+  testWidgets('无季度电影多版本弹层显示版本数量和全部视频', (tester) async {
     final group = _standaloneMediaGroup();
     await tester.pumpWidget(
       MaterialApp(
@@ -458,7 +458,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('未识别季度作品'), findsOneWidget);
-    expect(find.text('2 集'), findsNWidgets(2));
+    expect(find.text('2 个版本'), findsNWidgets(2));
+    expect(find.text('版本 1'), findsOneWidget);
+    expect(find.text('版本 2'), findsOneWidget);
     expect(find.text('01.mp4'), findsOneWidget);
     expect(find.text('02.mp4'), findsOneWidget);
   });

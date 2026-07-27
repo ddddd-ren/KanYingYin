@@ -95,8 +95,11 @@ class CloudResourcePosterWall extends StatelessWidget {
           title: group.isWorkScoped
               ? group.displayName
               : group.record?.effectiveTitle ?? group.seriesName,
-          subtitle:
-              group.isSeries ? '${group.uniqueEpisodeCount} 集' : anchor.name,
+          subtitle: group.isSeries
+              ? '${group.uniqueEpisodeCount} 集'
+              : group.videos.length > 1
+                  ? '${group.videos.length} 个版本'
+                  : anchor.name,
           details: data.details,
           badges: _badges(group, data),
           loading: scraping,

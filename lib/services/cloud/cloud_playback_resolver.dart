@@ -154,6 +154,11 @@ class CloudPlaybackNavigationCoordinator {
 
   bool isCurrent(int generation) => _busy && generation == _generation;
 
+  void invalidate() {
+    _generation++;
+    _busy = false;
+  }
+
   void finish(int generation) {
     if (generation == _generation) _busy = false;
   }

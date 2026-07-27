@@ -53,6 +53,8 @@ class CloudResourcesPage extends StatefulWidget {
 class _CloudResourcesPageState extends State<CloudResourcesPage> {
   late final CloudResourcesController _controller;
   final CloudPlaybackResolver _playbackResolver = CloudPlaybackResolver();
+  final CloudPlaybackNavigationCoordinator _playbackNavigation =
+      CloudPlaybackNavigationCoordinator();
   final CloudResourcesToolbarPolicy _toolbarPolicy =
       const CloudResourcesToolbarPolicy();
   bool _batchScraping = false;
@@ -71,6 +73,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
 
   @override
   void dispose() {
+    _playbackNavigation.invalidate();
     _controller.removeListener(_refresh);
     super.dispose();
   }
@@ -111,25 +114,28 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
   ) async {
     final source = _controller.selectedSource;
     if (source == null) return;
-    final request = buildCloudResourcePlaybackRequest(
-      sourceId: source.id,
-      group: group,
-      selected: entry,
-      subtitleFor: _matchingSubtitle,
-    );
-    final callback = widget.onPlayRequest;
-    if (callback != null) {
-      await callback(request);
-      return;
-    }
+    final generation = _playbackNavigation.tryBegin();
+    if (generation == null) return;
     try {
+      final request = buildCloudResourcePlaybackRequest(
+        sourceId: source.id,
+        group: group,
+        selected: entry,
+        subtitleFor: _matchingSubtitle,
+      );
+      final callback = widget.onPlayRequest;
+      if (callback != null) {
+        await callback(request);
+        return;
+      }
       await Modular.get<LocalVideoController>().openCloudPlayback(
         seriesTitle: request.seriesTitle,
         targets: request.targets,
         selectedStableId: request.selectedStableId,
         resolver: _playbackResolver.resolve,
       );
-      if (mounted) Modular.to.pushNamed('/video/');
+      if (!mounted || !_playbackNavigation.isCurrent(generation)) return;
+      await Modular.to.pushNamed('/video/');
     } on Object catch (error, stackTrace) {
       AppLogger().w(
         cloudPlaybackFailureDiagnostic(source, error),
@@ -139,6 +145,8 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('网盘视频解析或加载失败')),
       );
+    } finally {
+      _playbackNavigation.finish(generation);
     }
   }
 

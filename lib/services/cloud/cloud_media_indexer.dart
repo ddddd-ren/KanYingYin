@@ -316,7 +316,10 @@ class CloudMediaIndexer {
       final resolvedWork = resolvedEpisode?.work ??
           (pathMatch.isEpisode ? null : standaloneWork);
       final episodeIdentity = resolvedEpisode?.episode;
-      final isSpecial = _isSpecial(entry.remotePath);
+      final hasEpisodeEvidence = episodeIdentity != null || pathMatch.isEpisode;
+      final isSpecial = hasEpisodeEvidence && _isSpecial(entry.remotePath);
+      final standaloneReleaseTags =
+          standaloneWork?.releaseTagsFor(entry) ?? const MediaReleaseTags();
       items[normalizedPath] = CloudMediaIndexItem(
         sourceId: source.id,
         remoteId: entry.id,
@@ -344,7 +347,7 @@ class CloudMediaIndexer {
         subtitlePaths: subtitleRefs.map((reference) => reference.path).toList(),
         subtitleRefs: subtitleRefs,
         recognitionVersion: CloudMediaIndexItem.currentRecognitionVersion,
-        releaseTags: episodeIdentity?.releaseTags ?? const MediaReleaseTags(),
+        releaseTags: episodeIdentity?.releaseTags ?? standaloneReleaseTags,
       );
     }
     final ruleRepository = _seriesMatchRuleRepository;

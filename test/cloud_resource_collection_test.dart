@@ -69,6 +69,78 @@ void main() {
     expect(collection.groups.last.videos.single.id, 's3e1');
   });
 
+  test('电影作品多版本只产出一张卡并显示发布标签', () {
+    const first = CloudFileEntry(
+      id: 'a4k',
+      remotePath: '/影视/示例电影/示例电影 2160p.mkv',
+      name: '示例电影 2160p.mkv',
+      size: 200,
+      modifiedAt: null,
+      isDirectory: false,
+    );
+    const second = CloudFileEntry(
+      id: 'a1080',
+      remotePath: '/影视/示例电影/示例电影 1080p.mkv',
+      name: '示例电影 1080p.mkv',
+      size: 200,
+      modifiedAt: null,
+      isDirectory: false,
+    );
+    const root = CloudFileEntry(
+      id: 'movie-root',
+      remotePath: '/影视/示例电影',
+      name: '示例电影',
+      size: 0,
+      modifiedAt: null,
+      isDirectory: true,
+    );
+    const work = CloudWorkIdentity(
+      sourceId: 'quark',
+      workKey: 'quark|movie|example',
+      root: root,
+      remoteName: '示例电影',
+      displayTitle: '示例电影',
+      titleCandidates: <String>['示例电影'],
+      seasons: <CloudSeasonIdentity>[],
+      standaloneVideos: <CloudFileEntry>[first, second],
+    );
+    final items = <CloudMediaIndexItem>[
+      for (final entry in <CloudFileEntry>[first, second])
+        CloudMediaIndexItem(
+          sourceId: 'quark',
+          remoteId: entry.id,
+          remotePath: entry.remotePath,
+          name: entry.name,
+          workKey: work.workKey,
+          workRootId: root.id,
+          workRootPath: root.remotePath,
+          size: entry.size,
+          modifiedAt: null,
+          seriesName: '示例电影',
+          mediaType: CloudMediaType.movie,
+          releaseTags: MediaReleaseTags(
+            resolution: entry.id == 'a4k' ? '2160p' : '1080p',
+          ),
+        ),
+    ];
+
+    final collection = CloudResourceCollectionGrouper().group(
+      items: items,
+      works: const <CloudWorkIdentity>[work],
+      query: '',
+    );
+
+    expect(collection.groups, hasLength(1));
+    final group = collection.groups.single;
+    expect(group.displayName, '示例电影');
+    expect(group.isSeries, isFalse);
+    expect(group.videos, hasLength(2));
+    expect(
+      group.videos.map((video) => video.variantLabel),
+      containsAll(<String>['2160p', '1080p']),
+    );
+  });
+
   test('同季同集多个版本使用发布规格区分虚拟名称', () {
     final work = _workIdentity();
     CloudMediaIndexItem version(

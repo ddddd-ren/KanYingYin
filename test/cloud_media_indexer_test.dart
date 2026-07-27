@@ -318,7 +318,7 @@ void main() {
       expect(item.tmdbTitle, '回魂计');
     });
 
-    test('真实扫描将 OVA 和 Special 归入主系列特殊篇', () async {
+    test('没有季集证据的 OVA 和 Special 作为独立电影作品', () async {
       final repository =
           CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());
       final client = _FakeCloudClient({
@@ -331,9 +331,64 @@ void main() {
           .scan(source: source, client: client);
       final items = await repository.getBySource(source.id);
       expect(items, hasLength(2));
-      expect(items.every((item) => item.mediaType == CloudMediaType.special),
+      expect(items.every((item) => item.mediaType == CloudMediaType.movie),
           isTrue);
-      expect(items.map((item) => item.seriesName).toSet(), {'Show'});
+      expect(
+        items.map((item) => item.seriesName).toSet(),
+        <String>{'Show OVA 01', 'Show Special'},
+      );
+      expect(items.map((item) => item.workKey).toSet(), hasLength(2));
+    });
+
+    test('剧场版版本写入同一电影键并保留发布标签', () async {
+      final repository =
+          CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());
+      const workPath = '/动漫/示例作品';
+      const moviesPath = '$workPath/剧场版';
+      final client = _FakeCloudClient(<String, List<CloudFileEntry>>{
+        '/动漫': <CloudFileEntry>[_dir('work', workPath)],
+        workPath: <CloudFileEntry>[_dir('movies', moviesPath)],
+        moviesPath: <CloudFileEntry>[
+          _file(
+            'a4k',
+            '$moviesPath/示例作品 剧场版 A 2160p.mkv',
+            size: _videoSize,
+          ),
+          _file(
+            'a1080',
+            '$moviesPath/示例作品 剧场版 A 1080p.mkv',
+            size: _videoSize,
+          ),
+          _file(
+            'b',
+            '$moviesPath/示例作品 剧场版 B.mkv',
+            size: _videoSize,
+          ),
+        ],
+      });
+
+      await CloudMediaIndexer(
+        repository: repository,
+        minRecognizedVideoSizeBytesProvider: () => 100,
+      ).scan(source: source, client: client);
+      final items = await repository.getBySource(source.id);
+      final movieA =
+          items.where((item) => item.seriesName == '示例作品 剧场版 A').toList();
+      final movieB =
+          items.where((item) => item.seriesName == '示例作品 剧场版 B').toList();
+
+      expect(movieA, hasLength(2));
+      expect(movieA.map((item) => item.workKey).toSet(), hasLength(1));
+      expect(
+        movieA.every((item) => item.mediaType == CloudMediaType.movie),
+        isTrue,
+      );
+      expect(
+        movieA.map((item) => item.releaseTags.resolution).toSet(),
+        <String?>{'2160p', '1080p'},
+      );
+      expect(movieB, hasLength(1));
+      expect(movieB.single.workKey, isNot(movieA.first.workKey));
     });
 
     test('使用队列递归扫描、去重、筛选视频并关联同名和集数字幕', () async {

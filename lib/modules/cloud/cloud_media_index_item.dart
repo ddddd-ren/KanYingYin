@@ -5,7 +5,7 @@ import 'package:path/path.dart' as p;
 enum CloudMediaType { movie, series, episode, special, unknown }
 
 class CloudMediaIndexItem {
-  static const int currentRecognitionVersion = 5;
+  static const int currentRecognitionVersion = 6;
 
   const CloudMediaIndexItem({
     required this.sourceId,

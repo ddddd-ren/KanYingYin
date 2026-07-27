@@ -219,7 +219,10 @@ class CloudResourceCollectionGrouper {
       final title =
           record?.effectiveTitle(work.displayTitle) ?? work.displayTitle;
       if (work.seasons.isEmpty) {
-        final videos = _virtualEntries(workItems);
+        final videos = _virtualEntries(
+          workItems,
+          labelMovieVariants: true,
+        );
         if (videos.isEmpty) continue;
         final group = CloudResourceMediaGroup(
           stableKey: work.workKey,
@@ -280,7 +283,10 @@ class CloudResourceCollectionGrouper {
     return CloudResourceCollection(groups: groups);
   }
 
-  List<CloudFileEntry> _virtualEntries(List<CloudMediaIndexItem> items) {
+  List<CloudFileEntry> _virtualEntries(
+    List<CloudMediaIndexItem> items, {
+    bool labelMovieVariants = false,
+  }) {
     final sorted = List<CloudMediaIndexItem>.from(items)
       ..sort((first, second) {
         final season = (first.seasonNumber ?? -1).compareTo(
@@ -301,6 +307,7 @@ class CloudResourceCollectionGrouper {
       }
     }
     final duplicateIndexes = <int, int>{};
+    var movieVariantIndex = 0;
     return sorted.map((item) {
       var displayName = item.displayName;
       final episode = item.episodeNumber;
@@ -310,6 +317,13 @@ class CloudResourceCollectionGrouper {
         duplicateIndexes[episode] = index;
         final summary = _releaseSummary(item);
         variantLabel = summary.isEmpty ? '版本 $index' : summary;
+        final extension = p.extension(displayName);
+        final base = p.basenameWithoutExtension(displayName);
+        displayName = '$base [$variantLabel]$extension';
+      } else if (episode == null && labelMovieVariants && sorted.length > 1) {
+        movieVariantIndex++;
+        final summary = _releaseSummary(item);
+        variantLabel = summary.isEmpty ? '版本 $movieVariantIndex' : summary;
         final extension = p.extension(displayName);
         final base = p.basenameWithoutExtension(displayName);
         displayName = '$base [$variantLabel]$extension';

@@ -246,6 +246,20 @@ void main() {
     expect(changes, contains('不会修改或删除'));
   });
 
+  test('二点一六十八说明清理流媒体平台和发布组后缀', () {
+    final entries = versionHistoryForCurrent('2.1.68');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    expect(changes, contains('DSNP'));
+    expect(changes, contains('HBOMax'));
+    expect(changes, contains('BlackTV'));
+    expect(changes, contains('TMDB 搜索词'));
+    expect(changes, contains('不会修改或删除'));
+  });
+
   test('二点一四十九说明 Anime4K 效率档使用官方快速组合', () {
     final entries = versionHistoryForCurrent('2.1.49');
 

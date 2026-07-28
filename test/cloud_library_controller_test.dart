@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/modules/cloud/cloud_hidden_video.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
@@ -8,6 +9,7 @@ import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_series_match_rule.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
+import 'package:kanyingyin/repositories/cloud_hidden_video_repository.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
@@ -868,6 +870,9 @@ void main() {
       mediaIndexRepository: CloudMediaIndexRepository(
         storage: MemoryCloudMediaIndexStorage(),
       ),
+      hiddenVideoRepository: CloudHiddenVideoRepository(
+        storage: MemoryCloudHiddenVideoStorage(),
+      ),
       posterCacheCleaner: (_) async {},
       subtitleCacheCleaner: (_) async {},
     );
@@ -937,7 +942,7 @@ void main() {
     expect(await ruleRepository.getBySource(source.id), hasLength(1));
   });
 
-  test('删除来源先清理目标索引和两类缓存且保留其他来源', () async {
+  test('删除来源清理目标索引缓存和隐藏记录且保留其他来源', () async {
     final credentialStore = MemoryCloudCredentialStore();
     final repository = CloudSourceRepository(
       storage: MemoryCloudSourceStorage(),
@@ -969,11 +974,37 @@ void main() {
     );
     await ruleRepository.upsert(_seriesRule(source.id));
     await ruleRepository.upsert(_seriesRule(other.id));
+    final hiddenVideoRepository = CloudHiddenVideoRepository(
+      storage: MemoryCloudHiddenVideoStorage(),
+    );
+    await hiddenVideoRepository.replaceSource(
+      source.id,
+      const <CloudHiddenVideo>[
+        CloudHiddenVideo(
+          sourceId: 'source-1',
+          remoteId: 'hidden-1',
+          remotePath: '/隐藏-1.mkv',
+          fileName: '隐藏-1.mkv',
+        ),
+      ],
+    );
+    await hiddenVideoRepository.replaceSource(
+      other.id,
+      const <CloudHiddenVideo>[
+        CloudHiddenVideo(
+          sourceId: 'source-2',
+          remoteId: 'hidden-2',
+          remotePath: '/隐藏-2.mkv',
+          fileName: '隐藏-2.mkv',
+        ),
+      ],
+    );
     final cleanups = <String>[];
     final controller = CloudLibraryController(
       repository: repository,
       credentialStore: credentialStore,
       mediaIndexRepository: indexRepository,
+      hiddenVideoRepository: hiddenVideoRepository,
       seriesMatchRuleRepository: ruleRepository,
       posterCacheCleaner: (sourceId) async {
         expect(await indexRepository.getBySource(sourceId), isEmpty);
@@ -991,9 +1022,11 @@ void main() {
     expect(await repository.getById(source.id), isNull);
     expect(await indexRepository.getBySource(source.id), isEmpty);
     expect(await ruleRepository.getBySource(source.id), isEmpty);
+    expect(await hiddenVideoRepository.getBySource(source.id), isEmpty);
     expect(await repository.getById(other.id), other);
     expect(await indexRepository.getBySource(other.id), hasLength(1));
     expect(await ruleRepository.getBySource(other.id), hasLength(1));
+    expect(await hiddenVideoRepository.getBySource(other.id), hasLength(1));
     expect(controller.errorMessage, isNull);
   });
 
@@ -1009,6 +1042,9 @@ void main() {
       mediaIndexRepository: CloudMediaIndexRepository(
         storage: MemoryCloudMediaIndexStorage(),
       ),
+      hiddenVideoRepository: CloudHiddenVideoRepository(
+        storage: MemoryCloudHiddenVideoStorage(),
+      ),
       posterCacheCleaner: (_) async => throw StateError('模拟海报清理失败'),
       subtitleCacheCleaner: (_) async => subtitleCleaned = true,
     );
@@ -1017,7 +1053,46 @@ void main() {
 
     expect(await repository.getById(source.id), isNull);
     expect(subtitleCleaned, isTrue);
-    expect(controller.errorMessage, '网盘数据源已删除，但部分本地缓存清理失败');
+    expect(controller.errorMessage, '网盘数据源已删除，但部分本地数据清理失败');
+  });
+
+  test('隐藏记录清理失败仍删除来源并提示部分本地数据清理失败', () async {
+    final repository = CloudSourceRepository(
+      storage: MemoryCloudSourceStorage(),
+      credentialStore: MemoryCloudCredentialStore(),
+    );
+    await repository.save(source);
+    final hiddenStorage = _FailingCloudHiddenVideoStorage();
+    final hiddenVideoRepository = CloudHiddenVideoRepository(
+      storage: hiddenStorage,
+    );
+    await hiddenVideoRepository.replaceSource(
+      source.id,
+      const <CloudHiddenVideo>[
+        CloudHiddenVideo(
+          sourceId: 'source-1',
+          remoteId: 'hidden-1',
+          remotePath: '/隐藏-1.mkv',
+          fileName: '隐藏-1.mkv',
+        ),
+      ],
+    );
+    hiddenStorage.failNextWrite = true;
+    final controller = CloudLibraryController(
+      repository: repository,
+      mediaIndexRepository: CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      ),
+      hiddenVideoRepository: hiddenVideoRepository,
+      posterCacheCleaner: (_) async {},
+      subtitleCacheCleaner: (_) async {},
+    );
+
+    await controller.delete(source.id);
+
+    expect(await repository.getById(source.id), isNull);
+    expect(await hiddenVideoRepository.getBySource(source.id), hasLength(1));
+    expect(controller.errorMessage, '网盘数据源已删除，但部分本地数据清理失败');
   });
 
   test('来源删除成功但列表刷新失败时不在内存中保留已删除来源', () async {
@@ -1027,6 +1102,9 @@ void main() {
       repository: repository,
       mediaIndexRepository: CloudMediaIndexRepository(
         storage: MemoryCloudMediaIndexStorage(),
+      ),
+      hiddenVideoRepository: CloudHiddenVideoRepository(
+        storage: MemoryCloudHiddenVideoStorage(),
       ),
       posterCacheCleaner: (_) async {},
       subtitleCacheCleaner: (_) async {},
@@ -1304,6 +1382,19 @@ class _FailingDeleteRepository extends CloudSourceRepository {
   @override
   Future<bool> delete(String sourceId) async {
     throw StateError('模拟删除失败');
+  }
+}
+
+class _FailingCloudHiddenVideoStorage extends MemoryCloudHiddenVideoStorage {
+  bool failNextWrite = false;
+
+  @override
+  Future<void> write(List<Object?> records) {
+    if (failNextWrite) {
+      failNextWrite = false;
+      throw StateError('模拟隐藏记录清理失败');
+    }
+    return super.write(records);
   }
 }
 

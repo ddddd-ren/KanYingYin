@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
+import 'package:kanyingyin/modules/cloud/cloud_hidden_video.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_hidden_video_dialogs.dart';
 
 void main() {
@@ -94,5 +95,63 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(result, const <CloudFileEntry>[versionB]);
+  });
+
+  testWidgets('管理已隐藏视频可逐个恢复和全部恢复', (tester) async {
+    final restoredIds = <String>[];
+    var restoredAll = false;
+    const hiddenA = CloudHiddenVideo(
+      sourceId: 'source',
+      remoteId: 'video-a',
+      remotePath: '/影视/示例电影/A.mkv',
+      fileName: '示例电影 A.mkv',
+    );
+    const hiddenB = CloudHiddenVideo(
+      sourceId: 'source',
+      remoteId: 'video-b',
+      remotePath: '/影视/示例电影/B.mkv',
+      fileName: '示例电影 B.mkv',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => unawaited(
+              showCloudHiddenVideoManagerDialog(
+                context: context,
+                records: const <CloudHiddenVideo>[hiddenA, hiddenB],
+                onRestore: (record) async => restoredIds.add(record.remoteId),
+                onRestoreAll: () async => restoredAll = true,
+              ),
+            ),
+            child: const Text('管理'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('管理'));
+    await tester.pumpAndSettle();
+    expect(find.text('管理已隐藏视频'), findsOneWidget);
+    expect(find.text('示例电影 A.mkv'), findsOneWidget);
+    expect(find.text('示例电影 B.mkv'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const ValueKey<String>('restore-hidden-video-video-b')),
+    );
+    await tester.pumpAndSettle();
+    expect(restoredIds, <String>['video-b']);
+    expect(find.text('示例电影 B.mkv'), findsNothing);
+
+    await tester.tap(
+      find.byKey(const ValueKey<String>('restore-all-hidden-videos')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey<String>('confirm-restore-all-hidden-videos')),
+    );
+    await tester.pumpAndSettle();
+    expect(restoredAll, isTrue);
+    expect(find.text('当前来源没有已隐藏视频'), findsOneWidget);
   });
 }

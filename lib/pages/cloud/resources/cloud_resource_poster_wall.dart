@@ -21,6 +21,7 @@ class CloudResourcePosterWall extends StatelessWidget {
     required this.collection,
     required this.scrapingKeys,
     this.subtitleVideoKeys = const <String>{},
+    this.hiddenVideoCount = 0,
     required this.onOpenGroup,
     required this.onEditTitle,
     required this.onScrape,
@@ -34,6 +35,7 @@ class CloudResourcePosterWall extends StatelessWidget {
   final CloudResourceCollection collection;
   final Set<String> scrapingKeys;
   final Set<String> subtitleVideoKeys;
+  final int hiddenVideoCount;
   final CloudResourceGroupAction onOpenGroup;
   final CloudResourceGroupAction onEditTitle;
   final CloudResourceGroupAction onScrape;
@@ -45,8 +47,10 @@ class CloudResourcePosterWall extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (collection.groups.isEmpty) {
-      return const Center(
-        child: Text('该来源暂时没有符合识别条件的视频'),
+      return Center(
+        child: Text(
+          hiddenVideoCount > 0 ? '视频已隐藏，可从更多网盘操作中恢复' : '该来源暂时没有符合识别条件的视频',
+        ),
       );
     }
     return _mediaGrid(context);

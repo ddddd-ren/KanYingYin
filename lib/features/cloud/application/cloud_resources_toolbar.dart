@@ -1,4 +1,9 @@
-enum CloudToolbarAction { autoOrganize, scrape, removeSource }
+enum CloudToolbarAction {
+  manageHiddenVideos,
+  autoOrganize,
+  scrape,
+  removeSource,
+}
 
 class CloudResourcesToolbarState {
   const CloudResourcesToolbarState({
@@ -6,6 +11,7 @@ class CloudResourcesToolbarState {
     required this.canRefresh,
     required this.canAutoOrganize,
     required this.canScrape,
+    required this.canManageHiddenVideos,
     required this.canRemoveSource,
   });
 
@@ -13,6 +19,7 @@ class CloudResourcesToolbarState {
   final bool canRefresh;
   final bool canAutoOrganize;
   final bool canScrape;
+  final bool canManageHiddenVideos;
   final bool canRemoveSource;
 }
 
@@ -35,6 +42,7 @@ class CloudResourcesToolbarPolicy {
       canAutoOrganize:
           sourceIdle && !batchScraping && !autoOrganizing && !tmdbBusy,
       canScrape: sourceIdle && !batchScraping && !autoOrganizing,
+      canManageHiddenVideos: hasSelectedSource && !loading,
       canRemoveSource: sourceIdle && !autoOrganizing,
     );
   }

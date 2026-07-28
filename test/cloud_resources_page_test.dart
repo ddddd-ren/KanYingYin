@@ -620,6 +620,45 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('顶部更多菜单提供管理已隐藏视频入口', (tester) async {
+    final controller = _HideVideoPageController();
+    await tester.pumpWidget(
+      MaterialApp(home: CloudResourcesPage(controller: controller)),
+    );
+    await tester.pumpAndSettle();
+
+    await _openCloudMoreActions(tester);
+
+    expect(find.text('管理已隐藏视频'), findsOneWidget);
+    controller.dispose();
+  });
+
+  testWidgets('全部视频隐藏时显示可恢复空状态', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CloudResourcePosterWall(
+            sourceId: 'source',
+            collection: CloudResourceCollection(
+              groups: const <CloudResourceMediaGroup>[],
+            ),
+            scrapingKeys: const <String>{},
+            hiddenVideoCount: 2,
+            onOpenGroup: (_) {},
+            onEditTitle: (_) {},
+            onScrape: (_) {},
+            onRematch: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.text('视频已隐藏，可从更多网盘操作中恢复'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('无来源时只显示夸克和百度添加入口', (tester) async {
     final fixture = await _PageFixture.create();
 

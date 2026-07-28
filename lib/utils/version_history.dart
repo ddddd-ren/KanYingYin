@@ -30,6 +30,17 @@ const List<VersionHistory> versionHistoryList = [
     ],
   ),
   VersionHistory(
+    version: '2.1.67',
+    date: '2026-07-28',
+    isPrerelease: true,
+    changes: [
+      '修复网盘资源文件夹名称含发布站网址时，文件夹内视频可能无法扫描的问题',
+      '含网址但确实包含视频的文件夹现在会作为资源容器继续扫描，作品标题从实际视频文件提取，不会把网址带入 TMDB 搜索',
+      '普通广告图片、文本和不含视频的推广文件夹仍会自动忽略',
+      '本次更新不会修改或删除网盘原始文件；TMDB 不可用或断网时，网盘扫描和播放仍可使用',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.66',
     date: '2026-07-28',
     isPrerelease: true,

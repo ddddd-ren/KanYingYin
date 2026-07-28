@@ -6,8 +6,8 @@ import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
   test('应用版本、MSIX 版本和更新日志保持一致', () {
-    const expectedVersion = '2.1.66';
-    const expectedBuildNumber = '20166';
+    const expectedVersion = '2.1.67';
+    const expectedBuildNumber = '20167';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
@@ -80,9 +80,9 @@ void main() {
     ]) {
       for (final text in <String>[
         'TMDB',
-        '视频编码',
-        '网盘资源页',
-        '手动刮削',
+        '发布站网址',
+        '资源容器',
+        '广告',
         '不会修改',
       ]) {
         expect(currentCopy, contains(text));

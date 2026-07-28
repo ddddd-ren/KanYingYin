@@ -232,6 +232,20 @@ void main() {
     expect(changes, contains('不会修改或删除'));
   });
 
+  test('二点一六十七说明含发布站网址的网盘目录仍扫描视频', () {
+    final entries = versionHistoryForCurrent('2.1.67');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    expect(changes, contains('发布站网址'));
+    expect(changes, contains('资源容器'));
+    expect(changes, contains('TMDB'));
+    expect(changes, contains('广告'));
+    expect(changes, contains('不会修改或删除'));
+  });
+
   test('二点一四十九说明 Anime4K 效率档使用官方快速组合', () {
     final entries = versionHistoryForCurrent('2.1.49');
 

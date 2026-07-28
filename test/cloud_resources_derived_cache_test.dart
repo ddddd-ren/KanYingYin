@@ -9,8 +9,10 @@ import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
+import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
+import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
 
 void main() {
   test('几百个资源只构建一次目录树并复用海报集合', () async {
@@ -69,12 +71,45 @@ void main() {
     expect(grouper.calls, 2);
     fixture.controller.dispose();
   });
+
+  test('TMDB 加载状态通知复用集合且资料修订后重算', () async {
+    final coordinator = _CacheTmdbCoordinator();
+    final grouper = _CountingCollectionGrouper();
+    final fixture = await _createCacheFixture(
+      itemCount: 500,
+      collectionGrouper: grouper,
+      tmdbCoordinator: coordinator,
+      directoryScopeTreeBuilder: ({
+        required rootPaths,
+        required mediaPaths,
+      }) =>
+          CloudDirectoryScopeTree.build(
+        rootPaths: rootPaths,
+        mediaPaths: mediaPaths,
+      ),
+    );
+    final first = fixture.controller.collection;
+
+    coordinator.emitStatusChange();
+    final statusOnly = fixture.controller.collection;
+
+    expect(identical(first, statusOnly), isTrue);
+    expect(grouper.calls, 1);
+
+    coordinator.emitRecordChange();
+    final recordsChanged = fixture.controller.collection;
+
+    expect(identical(first, recordsChanged), isFalse);
+    expect(grouper.calls, 2);
+    fixture.controller.dispose();
+  });
 }
 
 Future<_CacheFixture> _createCacheFixture({
   required int itemCount,
   required CloudResourceCollectionGrouper collectionGrouper,
   required CloudDirectoryScopeTreeBuilder directoryScopeTreeBuilder,
+  CloudResourceTmdbCoordinator? tmdbCoordinator,
 }) async {
   final credentials = MemoryCloudCredentialStore();
   final sourceRepository = CloudSourceRepository(
@@ -119,6 +154,7 @@ Future<_CacheFixture> _createCacheFixture({
     minRecognizedVideoSizeBytesProvider: () => 0,
     collectionGrouper: collectionGrouper,
     directoryScopeTreeBuilder: directoryScopeTreeBuilder,
+    tmdbCoordinator: tmdbCoordinator,
   );
   await controller.reloadSourcesAndSnapshot();
   return _CacheFixture(controller);
@@ -158,4 +194,30 @@ class _CountingCollectionGrouper extends CloudResourceCollectionGrouper {
       query: query,
     );
   }
+}
+
+class _CacheTmdbCoordinator extends CloudResourceTmdbCoordinator {
+  _CacheTmdbCoordinator()
+      : super(
+          repository: CloudResourceTmdbRepository(
+            storage: MemoryCloudResourceTmdbStorage(),
+          ),
+          serviceFactory: (_) => throw UnimplementedError(),
+          apiKeyProvider: () => '',
+        );
+
+  int _testRevision = 0;
+
+  @override
+  int get recordsRevision => _testRevision;
+
+  void emitStatusChange() => notifyListeners();
+
+  void emitRecordChange() {
+    _testRevision++;
+    notifyListeners();
+  }
+
+  @override
+  Future<void> loadAndSchedule(CloudResourceDirectoryContext context) async {}
 }

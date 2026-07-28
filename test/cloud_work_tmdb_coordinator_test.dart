@@ -194,6 +194,7 @@ void main() {
     await fixture.coordinator.loadAndSchedule(
       _tree(<CloudWorkIdentity>[first, second]),
     );
+    final loadedRevision = fixture.coordinator.recordsRevision;
 
     await fixture.coordinator.saveScrapeTitle(first, '修正标题');
 
@@ -201,6 +202,10 @@ void main() {
     expect(
       indexed.singleWhere((item) => item.workKey == first.workKey).seriesName,
       '修正标题',
+    );
+    expect(
+      fixture.coordinator.recordsRevision,
+      greaterThan(loadedRevision),
     );
     expect(
       indexed.singleWhere((item) => item.workKey == second.workKey).seriesName,

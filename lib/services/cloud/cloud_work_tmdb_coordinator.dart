@@ -54,11 +54,14 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
   int _generation = 0;
   int _completedCount = 0;
   int _totalCount = 0;
+  int _recordsRevision = 0;
   String? _serviceApiKey;
   Future<CloudWorkTmdbService>? _service;
 
   Map<String, CloudWorkTmdbRecord> get recordsByWorkKey =>
       UnmodifiableMapView<String, CloudWorkTmdbRecord>(_records);
+
+  int get recordsRevision => _recordsRevision;
 
   Set<String> get scrapingWorkKeys =>
       UnmodifiableSetView<String>(_scrapingWorkKeys);
@@ -94,6 +97,7 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
         _records[record.workKey] = record;
       }
     }
+    _markRecordsChanged();
     notifyListeners();
 
     final apiKey = _apiKeyProvider().trim();
@@ -153,6 +157,7 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
       (item) => item.withEffectiveWorkTitle(normalized),
     );
     _records[work.workKey] = updated;
+    _markRecordsChanged();
     notifyListeners();
     return updated;
   }
@@ -164,6 +169,7 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
     final updated = current.clearScrapeTitle();
     await _repository.upsert(updated);
     _records[work.workKey] = updated;
+    _markRecordsChanged();
     notifyListeners();
     return updated;
   }
@@ -235,6 +241,7 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
         options: options ?? _optionsProvider(),
       );
       _records[work.workKey] = outcome.record;
+      _markRecordsChanged();
       notifyListeners();
       return outcome;
     });
@@ -380,7 +387,10 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
         scrapeTitleOverride: _records[work.workKey]?.scrapeTitleOverride,
       );
       await _repository.upsert(failed);
-      if (generation == _generation) _records[work.workKey] = failed;
+      if (generation == _generation) {
+        _records[work.workKey] = failed;
+        _markRecordsChanged();
+      }
     } finally {
       _scrapingWorkKeys.remove(work.workKey);
       if (generation == _generation) {
@@ -406,7 +416,14 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
 
   Future<void> _refreshRecord(String workKey) async {
     final record = await _repository.get(workKey);
-    if (record != null) _records[workKey] = record;
+    if (record != null) {
+      _records[workKey] = record;
+      _markRecordsChanged();
+    }
+  }
+
+  void _markRecordsChanged() {
+    _recordsRevision++;
   }
 
   String _requiredApiKey() {

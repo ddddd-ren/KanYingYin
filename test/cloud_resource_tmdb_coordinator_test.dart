@@ -170,12 +170,15 @@ void main() {
   test('没有 TMDB Key 也能保存和恢复自定义剧名', () async {
     final fixture = _Fixture(apiKey: '');
     final target = _target();
+    final initialRevision = fixture.coordinator.recordsRevision;
 
     await fixture.coordinator.saveCustomTitle(target, '  新剧名  ');
+    final savedRevision = fixture.coordinator.recordsRevision;
     expect(
       fixture.coordinator.records[target.stableKey]?.effectiveTitle,
       '新剧名',
     );
+    expect(savedRevision, greaterThan(initialRevision));
     expect(fixture.client.searchCalls, 0);
 
     await fixture.coordinator.clearCustomTitle(target);
@@ -183,6 +186,7 @@ void main() {
       fixture.coordinator.records[target.stableKey]?.customTitle,
       isNull,
     );
+    expect(fixture.coordinator.recordsRevision, greaterThan(savedRevision));
     expect(fixture.client.searchCalls, 0);
   });
 

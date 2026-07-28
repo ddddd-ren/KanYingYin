@@ -1,0 +1,22 @@
+{
+  "kind": "drive#fileList",
+  "next_page_token": "page-2",
+  "files": [
+    {
+      "kind": "drive#folder",
+      "id": "folder-a",
+      "parent_id": "0",
+      "name": "影视",
+      "size": "0",
+      "modified_time": "2026-07-28T08:00:00Z"
+    },
+    {
+      "kind": "drive#file",
+      "id": "video-a",
+      "parent_id": "0",
+      "name": "示例.S01E01.mkv",
+      "size": "1024",
+      "modified_time": "2026-07-28T08:01:00Z"
+    }
+  ]
+}

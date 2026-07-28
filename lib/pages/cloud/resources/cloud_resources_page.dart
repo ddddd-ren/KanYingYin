@@ -34,6 +34,8 @@ class CloudResourcesPage extends StatefulWidget {
     this.controller,
     this.onAddQuark,
     this.onAddBaidu,
+    this.onAddXunlei,
+    this.onAddOpenList,
     this.onManageSources,
     this.onPlayRequest,
     this.onDeleteSource,
@@ -42,6 +44,8 @@ class CloudResourcesPage extends StatefulWidget {
   final CloudResourcesController? controller;
   final CloudSourceAddCallback? onAddQuark;
   final CloudSourceAddCallback? onAddBaidu;
+  final CloudSourceAddCallback? onAddXunlei;
+  final CloudSourceAddCallback? onAddOpenList;
   final VoidCallback? onManageSources;
   final FutureOr<void> Function(CloudResourcePlaybackRequest request)?
       onPlayRequest;
@@ -84,14 +88,15 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
   }
 
   Future<void> _addCloudSource(_CloudAddAction action) async {
-    final callback =
-        action == _CloudAddAction.quark ? widget.onAddQuark : widget.onAddBaidu;
-    final route = action == _CloudAddAction.quark
-        ? '/settings/cloud-sources/quark/edit'
-        : '/settings/cloud-sources/baidu/edit';
+    final callback = switch (action) {
+      _CloudAddAction.quark => widget.onAddQuark,
+      _CloudAddAction.baidu => widget.onAddBaidu,
+      _CloudAddAction.xunlei => widget.onAddXunlei,
+      _CloudAddAction.openList => widget.onAddOpenList,
+    };
     final sourceId = callback != null
         ? await callback()
-        : await Modular.to.pushNamed<String>(route);
+        : await Modular.to.pushNamed<String>(_routeFor(action));
     if (!mounted || sourceId == null || sourceId.isEmpty) return;
     await _controller.reloadSourcesAndSnapshot(
       preferredSourceId: sourceId,
@@ -99,6 +104,13 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     if (!mounted || _controller.errorMessage == null) return;
     _showMessage('网盘来源刷新失败，已保留当前媒体库，请重试');
   }
+
+  String _routeFor(_CloudAddAction action) => switch (action) {
+        _CloudAddAction.quark => '/settings/cloud-sources/quark/edit',
+        _CloudAddAction.baidu => '/settings/cloud-sources/baidu/edit',
+        _CloudAddAction.xunlei => '/settings/cloud-sources/xunlei/edit',
+        _CloudAddAction.openList => '/settings/cloud-sources/openlist/edit',
+      };
 
   void _manageSources() {
     final callback = widget.onManageSources;
@@ -720,6 +732,21 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
                 value: _CloudAddAction.baidu,
                 child: Text('添加百度网盘'),
               ),
+              PopupMenuItem(
+                value: _CloudAddAction.xunlei,
+                child: Text('添加迅雷网盘'),
+              ),
+              PopupMenuItem(
+                value: _CloudAddAction.openList,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('添加 OpenList'),
+                    SizedBox(width: 8),
+                    Text('调试中'),
+                  ],
+                ),
+              ),
             ],
           ),
           IconButton(
@@ -837,6 +864,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
             const SizedBox(height: 16),
             Wrap(
               spacing: 12,
+              runSpacing: 12,
               children: [
                 FilledButton.icon(
                   onPressed: () => unawaited(
@@ -851,6 +879,23 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
                   ),
                   icon: const Icon(Icons.cloud_outlined),
                   label: const Text('添加百度网盘'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => unawaited(
+                    _addCloudSource(_CloudAddAction.xunlei),
+                  ),
+                  icon: const Icon(Icons.bolt_outlined),
+                  label: const Text('添加迅雷网盘'),
+                ),
+                Tooltip(
+                  message: 'OpenList（调试中）',
+                  child: OutlinedButton.icon(
+                    onPressed: () => unawaited(
+                      _addCloudSource(_CloudAddAction.openList),
+                    ),
+                    icon: const Icon(Icons.cloud_outlined),
+                    label: const Text('添加 OpenList'),
+                  ),
                 ),
               ],
             ),
@@ -959,4 +1004,4 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
   }
 }
 
-enum _CloudAddAction { quark, baidu }
+enum _CloudAddAction { quark, baidu, xunlei, openList }

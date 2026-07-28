@@ -87,6 +87,7 @@ class SettingBoxKey {
       localSeriesTitleOverrides = 'localSeriesTitleOverrides',
       cloudSources = 'cloudSources',
       cloudMediaIndex = 'cloudMediaIndex',
+      cloudPosterHiddenVideos = 'cloudPosterHiddenVideos',
       cloudResourceTmdbRecords = 'cloudResourceTmdbRecords',
       cloudWorkTmdbRecords = 'cloudWorkTmdbRecords',
       cloudSeriesMatchRules = 'cloudSeriesMatchRules',

@@ -6,7 +6,7 @@ class CloudPlaybackCachePolicy {
   static const CloudPlaybackCachePolicy direct =
       CloudPlaybackCachePolicy._(<String, String>{});
 
-  static const CloudPlaybackCachePolicy quarkRelay =
+  static const CloudPlaybackCachePolicy cloudRangeRelay =
       CloudPlaybackCachePolicy._(<String, String>{
     'stream-buffer-size': '4MiB',
     'cache-pause-initial': 'yes',
@@ -23,7 +23,7 @@ class CloudPlaybackCachePolicy {
   ) =>
       switch (transport) {
         CloudPlaybackTransport.direct => direct,
-        CloudPlaybackTransport.rangeRelay => quarkRelay,
+        CloudPlaybackTransport.rangeRelay => cloudRangeRelay,
       };
 }
 

@@ -94,7 +94,7 @@ class _CloudSourcesSettingsPageState extends State<CloudSourcesSettingsPage> {
   Widget build(BuildContext context) {
     return KSettingsScaffold(
       title: '网盘数据源',
-      description: '管理个人夸克、百度与 OpenList 网盘媒体来源；OpenList 功能仍在调试。',
+      description: '管理个人夸克、百度、迅雷与 OpenList 网盘媒体来源；OpenList 功能仍在调试。',
       body: _controller.loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
@@ -176,6 +176,10 @@ class _CloudSourcesSettingsPageState extends State<CloudSourcesSettingsPage> {
                         value: CloudSourceType.baidu,
                         child: Text('添加百度网盘'),
                       ),
+                      PopupMenuItem(
+                        value: CloudSourceType.xunlei,
+                        child: Text('添加迅雷网盘'),
+                      ),
                     ],
                     child: const Padding(
                       padding:
@@ -210,6 +214,7 @@ class _CloudSourcesSettingsPageState extends State<CloudSourcesSettingsPage> {
         CloudSourceType.openList => '/settings/cloud-sources/openlist/edit',
         CloudSourceType.quark => '/settings/cloud-sources/quark/edit',
         CloudSourceType.baidu => '/settings/cloud-sources/baidu/edit',
+        CloudSourceType.xunlei => '/settings/cloud-sources/xunlei/edit',
       };
 }
 
@@ -240,6 +245,12 @@ class CloudSourceTypePickerPage extends StatelessWidget {
               title: const Text('添加百度网盘'),
               onTap: () =>
                   Modular.to.pushNamed('/settings/cloud-sources/baidu/edit'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.bolt_outlined),
+              title: const Text('添加迅雷网盘'),
+              onTap: () =>
+                  Modular.to.pushNamed('/settings/cloud-sources/xunlei/edit'),
             ),
           ],
         ),

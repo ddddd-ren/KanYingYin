@@ -15,6 +15,7 @@ import 'package:kanyingyin/pages/cloud/openlist_source_editor.dart';
 import 'package:kanyingyin/pages/cloud/quark/quark_source_editor.dart';
 import 'package:kanyingyin/pages/cloud/quark/quark_share_import_page.dart';
 import 'package:kanyingyin/pages/cloud/baidu/baidu_source_editor.dart';
+import 'package:kanyingyin/pages/cloud/xunlei/xunlei_source_editor.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
@@ -160,6 +161,17 @@ class SettingsModule extends Module {
       r,
       "/cloud-sources/baidu/edit",
       child: (_) => BaiduSourceEditorPage(
+        controller: Modular.get<CloudLibraryController>(),
+        credentialStore: Modular.get<CloudCredentialStore>(),
+        onRootSelectionChanged:
+            Modular.get<CloudSourceRootRefreshCoordinator>().refreshSource,
+        source: r.args.data is CloudSource ? r.args.data as CloudSource : null,
+      ),
+    );
+    _child(
+      r,
+      "/cloud-sources/xunlei/edit",
+      child: (_) => XunleiSourceEditorPage(
         controller: Modular.get<CloudLibraryController>(),
         credentialStore: Modular.get<CloudCredentialStore>(),
         onRootSelectionChanged:

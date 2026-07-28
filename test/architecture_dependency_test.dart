@@ -291,10 +291,11 @@ import 'package:flutter_modular/flutter_modular.dart';
     expect(forbidden, isEmpty, reason: _formatImports(forbidden));
   });
 
-  test('三种网盘目录选择入口复用统一页面', () {
+  test('四种网盘目录选择入口复用统一页面', () {
     for (final relativePath in const <String>[
       'pages/cloud/quark/quark_directory_picker.dart',
       'pages/cloud/baidu/baidu_directory_picker.dart',
+      'pages/cloud/xunlei/xunlei_directory_picker.dart',
       'pages/cloud/openlist_directory_picker.dart',
     ]) {
       final source = File(

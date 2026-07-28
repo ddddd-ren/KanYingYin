@@ -659,7 +659,7 @@ void main() {
     );
   });
 
-  testWidgets('无来源时只显示夸克和百度添加入口', (tester) async {
+  testWidgets('无来源时显示四种网盘添加入口', (tester) async {
     final fixture = await _PageFixture.create();
 
     await tester.pumpWidget(
@@ -673,11 +673,12 @@ void main() {
     expect(find.text('还没有可用的网盘来源'), findsOneWidget);
     expect(find.text('添加夸克网盘'), findsOneWidget);
     expect(find.text('添加百度网盘'), findsOneWidget);
-    expect(find.text('添加 OpenList'), findsNothing);
+    expect(find.text('添加迅雷网盘'), findsOneWidget);
+    expect(find.text('添加 OpenList'), findsOneWidget);
     fixture.controller.dispose();
   });
 
-  testWidgets('已有来源时常驻添加网盘菜单只提供夸克和百度', (tester) async {
+  testWidgets('已有来源时常驻添加网盘菜单提供四种入口', (tester) async {
     final fixture = await _PageFixture.create(source: _quarkSource);
 
     await tester.pumpWidget(
@@ -691,8 +692,58 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('添加夸克网盘'), findsOneWidget);
     expect(find.text('添加百度网盘'), findsOneWidget);
-    expect(find.textContaining('OpenList'), findsNothing);
+    expect(find.text('添加迅雷网盘'), findsOneWidget);
+    expect(find.text('添加 OpenList'), findsOneWidget);
     fixture.controller.dispose();
+  });
+
+  testWidgets('迅雷和 OpenList 快捷新增后刷新并选中新来源', (tester) async {
+    final xunleiFixture = await _PageFixture.create();
+    const xunlei = CloudSource(
+      id: 'xunlei-added',
+      type: CloudSourceType.xunlei,
+      name: '迅雷新来源',
+      baseUrl: 'https://pan.xunlei.com',
+      rootPaths: <String>[],
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: CloudResourcesPage(
+        controller: xunleiFixture.controller,
+        onAddXunlei: () async {
+          await xunleiFixture.repository.save(xunlei);
+          return xunlei.id;
+        },
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('添加迅雷网盘'));
+    await tester.pumpAndSettle();
+    expect(xunleiFixture.controller.selectedSource?.id, xunlei.id);
+    xunleiFixture.controller.dispose();
+    await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+
+    final openListFixture = await _PageFixture.create();
+    const openList = CloudSource(
+      id: 'openlist-added',
+      type: CloudSourceType.openList,
+      name: 'OpenList 新来源',
+      baseUrl: 'https://openlist.example.invalid',
+      rootPaths: <String>[],
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: CloudResourcesPage(
+        controller: openListFixture.controller,
+        onAddOpenList: () async {
+          await openListFixture.repository.save(openList);
+          return openList.id;
+        },
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('添加 OpenList'));
+    await tester.pumpAndSettle();
+    expect(openListFixture.controller.selectedSource?.id, openList.id);
+    openListFixture.controller.dispose();
   });
 
   testWidgets('显示来源和视频且隐藏文件夹与字幕文件', (tester) async {
@@ -1864,9 +1915,10 @@ class _HideVideoPageController extends CloudResourcesController {
 }
 
 class _PageFixture {
-  const _PageFixture(this.controller);
+  const _PageFixture(this.controller, this.repository);
 
   final CloudResourcesController controller;
+  final CloudSourceRepository repository;
 
   static Future<_PageFixture> create({
     CloudSource? source,
@@ -1900,6 +1952,7 @@ class _PageFixture {
       clientFactories: <CloudSourceType, CloudProviderClientFactory>{
         CloudSourceType.openList: (_, __, ___) => resolvedClient,
         CloudSourceType.quark: (_, __, ___) => resolvedClient,
+        CloudSourceType.xunlei: (_, __, ___) => resolvedClient,
       },
     );
     final indexRepository = CloudMediaIndexRepository(
@@ -1919,6 +1972,7 @@ class _PageFixture {
         tmdbCoordinator: tmdbCoordinator,
         minRecognizedVideoSizeBytesProvider: minSizeProvider,
       ),
+      repository,
     );
   }
 }

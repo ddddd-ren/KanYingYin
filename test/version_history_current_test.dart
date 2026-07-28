@@ -218,6 +218,20 @@ void main() {
     expect(changes, contains('不会修改或删除'));
   });
 
+  test('二点一六十六说明 TMDB 名称清理和网盘资源性能优化', () {
+    final entries = versionHistoryForCurrent('2.1.66');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    expect(changes, contains('TMDB'));
+    expect(changes, contains('视频编码'));
+    expect(changes, contains('网盘资源页'));
+    expect(changes, contains('手动刮削'));
+    expect(changes, contains('不会修改或删除'));
+  });
+
   test('二点一四十九说明 Anime4K 效率档使用官方快速组合', () {
     final entries = versionHistoryForCurrent('2.1.49');
 

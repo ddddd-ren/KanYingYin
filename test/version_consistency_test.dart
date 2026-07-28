@@ -6,8 +6,8 @@ import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
   test('应用版本、MSIX 版本和更新日志保持一致', () {
-    const expectedVersion = '1.0.2';
-    const expectedBuildNumber = '10002';
+    const expectedVersion = '2.1.66';
+    const expectedBuildNumber = '20166';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
@@ -48,11 +48,12 @@ void main() {
     expect(versionHistory, contains("version: '$version'"));
     expect(updateDialogCopy, contains('应用版本：$version'));
     expect(updateDialogCopy, contains('安装包版本：$version.0'));
-    expect(updateDialogCopy, contains('看影音 $version 正式版'));
+    expect(updateDialogCopy, contains('看影音 $version 测试版'));
     expect(
       versionHistory.indexOf("version: '$version'"),
-      lessThan(versionHistory.indexOf("version: '1.4.6'")),
+      lessThan(versionHistory.indexOf("version: '2.1.65'")),
     );
+    expect(versionHistory, contains("version: '1.0.2'"));
 
     final releaseNotesStart = releaseNotes.indexOf('## $version+$buildNumber');
     final releaseNotesEnd = releaseNotes.indexOf(
@@ -77,34 +78,19 @@ void main() {
       updateDialogCopy,
       currentVersionHistory,
     ]) {
-      for (final text in [
-        '夸克',
-        '百度',
-        'OpenList',
-        '清除',
-        '剧场版',
-        'OVA',
+      for (final text in <String>[
         'TMDB',
-        '连续集号',
-        '第 1 季',
-        '隐藏',
-        '恢复',
-        'TrueHD',
-        'PGS',
-        '硬件解码',
-        '零拷贝',
-        'Anime4K',
-        '本地与网盘',
-        '媒体库',
-        '播放器',
+        '视频编码',
+        '网盘资源页',
+        '手动刮削',
         '不会修改',
       ]) {
         expect(currentCopy, contains(text));
       }
     }
-    expect(currentReleaseNotes, contains('正式版'));
-    expect(updateDialogCopy, contains('正式版'));
-    expect(currentVersionHistory, isNot(contains('isPrerelease: true')));
+    expect(currentReleaseNotes, contains('测试版'));
+    expect(updateDialogCopy, contains('测试版'));
+    expect(currentVersionHistory, contains('isPrerelease: true'));
   });
 }
 

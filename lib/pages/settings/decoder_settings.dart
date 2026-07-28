@@ -29,6 +29,12 @@ class _DecoderSettingsState extends State<DecoderSettings> {
   }
 
   @override
+  void dispose() {
+    decoder.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;

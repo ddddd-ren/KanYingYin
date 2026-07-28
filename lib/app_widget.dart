@@ -13,6 +13,8 @@ import 'package:kanyingyin/providers/theme_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 import 'package:kanyingyin/services/windows_app_shell_service.dart';
+import 'package:kanyingyin/services/app_shutdown_coordinator.dart';
+import 'package:kanyingyin/pages/player/player_controller.dart';
 import 'package:kanyingyin/theme/app_theme.dart';
 
 const Color _fallbackThemeColor = AppTheme.brandBlue;
@@ -115,10 +117,12 @@ class AppWidget extends StatefulWidget {
     super.key,
     this.appShellService,
     this.appShellServiceOwnership = AppShellServiceOwnership.borrowed,
+    this.shutdownCoordinator,
   });
 
   final WindowsAppShellService? appShellService;
   final AppShellServiceOwnership appShellServiceOwnership;
+  final AppShutdownCoordinator? shutdownCoordinator;
 
   @override
   State<AppWidget> createState() => _AppWidgetState();
@@ -131,6 +135,7 @@ class _AppWidgetState extends State<AppWidget>
   final TrayManager trayManager = TrayManager.instance;
   late final WindowsAppShellService appShellService;
   late final AppShellServiceOwnership appShellServiceOwnership;
+  late final AppShutdownCoordinator shutdownCoordinator;
   bool showingExitDialog = false;
 
   @override
@@ -140,6 +145,19 @@ class _AppWidgetState extends State<AppWidget>
     appShellServiceOwnership = widget.appShellService == null
         ? AppShellServiceOwnership.owned
         : widget.appShellServiceOwnership;
+    shutdownCoordinator = widget.shutdownCoordinator ??
+        AppShutdownCoordinator(
+          disposePlayback: () => Modular.get<PlayerController>().dispose(),
+          flushLogs: AppLogOutput.sharedWriter.flush,
+          closeStorage: Hive.close,
+          terminateProcess: exit,
+          onError: (error, stackTrace) => AppLogger().e(
+            '应用退出清理失败',
+            error: error,
+            stackTrace: stackTrace,
+            forceLog: true,
+          ),
+        );
     WidgetsBinding.instance.addObserver(this);
     Modular.setObservers([AppDialog.observer]);
   }
@@ -179,7 +197,7 @@ class _AppWidgetState extends State<AppWidget>
       case 'show_window':
         windowManager.show();
       case 'exit':
-        exit(0);
+        unawaited(shutdownCoordinator.shutdown());
     }
   }
 
@@ -193,7 +211,7 @@ class _AppWidgetState extends State<AppWidget>
 
     switch (exitBehavior) {
       case 0:
-        exit(0);
+        unawaited(shutdownCoordinator.shutdown());
       case 1:
         AppDialog.dismiss<void>();
         windowManager.hide();
@@ -237,7 +255,7 @@ class _AppWidgetState extends State<AppWidget>
                     if (saveExitBehavior) {
                       await setting.put(SettingBoxKey.exitBehavior, 0);
                     }
-                    exit(0);
+                    await shutdownCoordinator.shutdown();
                   },
                   child: const Text('退出看影音')),
               TextButton(

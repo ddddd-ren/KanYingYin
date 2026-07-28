@@ -4,6 +4,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/services/local_subtitle_matcher.dart';
 
 void main() {
+  test('字幕目录枚举接口异步执行', () async {
+    final dir =
+        await Directory.systemTemp.createTemp('kanyingyin_subtitle_async_');
+    addTearDown(() async {
+      if (await dir.exists()) await dir.delete(recursive: true);
+    });
+    final video = File('${dir.path}${Platform.pathSeparator}Show S01E01.mkv');
+    await video.writeAsBytes([0]);
+
+    final result = LocalSubtitleMatcher().findAllForVideo(video.path);
+
+    expect(result, isA<Future<List<String>>>());
+  });
+
   test('LocalSubtitleMatcher returns empty list when no subtitle exists',
       () async {
     final dir =
@@ -17,8 +31,8 @@ void main() {
     final video = File('${dir.path}${Platform.pathSeparator}Show S01E01.mkv');
     await video.writeAsBytes([0]);
 
-    expect(LocalSubtitleMatcher().findAllForVideo(video.path), isEmpty);
-    expect(LocalSubtitleMatcher().findForVideo(video.path), isNull);
+    expect(await LocalSubtitleMatcher().findAllForVideo(video.path), isEmpty);
+    expect(await LocalSubtitleMatcher().findForVideo(video.path), isNull);
   });
 
   test('LocalSubtitleMatcher findAllForVideo sorts nearby subtitles', () async {
@@ -50,7 +64,7 @@ void main() {
         .writeAsString('1\n00:00:00,000 --> 00:00:01,000\nHi');
     await unrelated.writeAsString('1\n00:00:00,000 --> 00:00:01,000\nHi');
 
-    final result = LocalSubtitleMatcher().findAllForVideo(video.path);
+    final result = await LocalSubtitleMatcher().findAllForVideo(video.path);
 
     expect(result.first, sameName.path);
     expect(result[1], subtitleDirMatch.path);
@@ -75,8 +89,8 @@ void main() {
     await video.writeAsBytes([0]);
     await unrelated.writeAsString('1\n00:00:00,000 --> 00:00:01,000\nHi');
 
-    expect(
-        LocalSubtitleMatcher().findAllForVideo(video.path), [unrelated.path]);
-    expect(LocalSubtitleMatcher().findForVideo(video.path), isNull);
+    expect(await LocalSubtitleMatcher().findAllForVideo(video.path),
+        [unrelated.path]);
+    expect(await LocalSubtitleMatcher().findForVideo(video.path), isNull);
   });
 }

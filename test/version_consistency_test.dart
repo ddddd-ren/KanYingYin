@@ -6,8 +6,8 @@ import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
   test('应用版本、MSIX 版本和更新日志保持一致', () {
-    const expectedVersion = '2.1.62';
-    const expectedBuildNumber = '20162';
+    const expectedVersion = '2.1.63';
+    const expectedBuildNumber = '20163';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
@@ -89,9 +89,9 @@ void main() {
       currentVersionHistory,
       updateDialogCopy,
     ]) {
-      expect(copy, contains('单一第一季'));
-      expect(copy, contains('多季作品'));
-      expect(copy, contains('海报标题'));
+      expect(copy, contains('退出'));
+      expect(copy, contains('字幕'));
+      expect(copy, contains('刷新'));
       expect(copy, contains('不会修改或删除'));
       for (final feature in [
         '夸克',

@@ -24,7 +24,7 @@ void main() {
     expect(LocalMediaIndexMetadataRefresher().needsRefresh(item), isTrue);
   });
 
-  test('LocalMediaIndexMetadataRefresher repairs version 2 fansub parsing', () {
+  test('LocalMediaIndexMetadataRefresher repairs version 2 fansub parsing', () async {
     final path =
         r'D:\a TV\[SumiSora][Chu-2_Koi][BDRip]\[SumiSora][Chu-2_Koi][BDRip][01][x264_3flac](62A8611D).mkv';
     final item = LocalMediaIndexItem(
@@ -43,7 +43,7 @@ void main() {
     final refresher = LocalMediaIndexMetadataRefresher();
 
     expect(refresher.needsRefresh(item), isTrue);
-    final refreshed = refresher.refreshItem(item);
+    final refreshed = await refresher.refreshItem(item);
     expect(refreshed.seriesName, 'Chu 2 Koi');
     expect(refreshed.episodeNumber, 1);
   });

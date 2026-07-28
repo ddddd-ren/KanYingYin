@@ -9,6 +9,20 @@ import 'package:kanyingyin/services/cloud/baidu/baidu_oauth_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 
 void main() {
+  test('客户端统一配置连接、发送和接收超时', () {
+    final dio = Dio();
+
+    BaiduOAuthClient(
+      clientId: 'client-fixture',
+      clientSecret: 'secret-fixture',
+      dio: dio,
+    );
+
+    expect(dio.options.connectTimeout, const Duration(seconds: 10));
+    expect(dio.options.sendTimeout, const Duration(seconds: 15));
+    expect(dio.options.receiveTimeout, const Duration(seconds: 30));
+  });
+
   test('授权地址使用 oob、basic netdisk 和当前 state', () {
     final client = BaiduOAuthClient(
       clientId: 'client-fixture',

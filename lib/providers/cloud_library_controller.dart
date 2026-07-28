@@ -106,9 +106,10 @@ class CloudLibraryController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  Future<void> load() async {
+  Future<bool> load() async {
     loading = true;
     _notify();
+    var loaded = false;
     try {
       sources = await _repository.getAll();
       _usableQuarkSourceIds.clear();
@@ -124,12 +125,14 @@ class CloudLibraryController extends ChangeNotifier {
         }
       }
       errorMessage = null;
+      loaded = true;
     } catch (_) {
       errorMessage = '网盘数据源加载失败';
     } finally {
       loading = false;
       _notify();
     }
+    return loaded;
   }
 
   bool isQuarkSourceUsable(String sourceId) =>
@@ -303,9 +306,17 @@ class CloudLibraryController extends ChangeNotifier {
         cacheCleanupFailed = true;
       }
       await _repository.delete(sourceId);
-      await load();
+      final reloaded = await load();
+      if (!reloaded) {
+        sources = sources
+            .where((source) => source.id != sourceId)
+            .toList(growable: false);
+        errorMessage = '网盘数据源已删除，但列表刷新失败';
+      }
       if (cacheCleanupFailed) {
-        errorMessage = '网盘数据源已删除，但部分本地缓存清理失败';
+        errorMessage = reloaded
+            ? '网盘数据源已删除，但部分本地缓存清理失败'
+            : '网盘数据源已删除，但列表刷新和部分本地缓存清理失败';
       }
     } catch (_) {
       var tmdbRestored = true;

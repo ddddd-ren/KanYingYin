@@ -212,6 +212,13 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
 
   void cacheSvgIcons() {}
 
+  @override
+  void dispose() {
+    textController.dispose();
+    textFieldFocus.dispose();
+    super.dispose();
+  }
+
   Widget forwardIcon() {
     return Tooltip(
       message: '快进${playerController.buttonSkipTime}秒，长按修改时间',

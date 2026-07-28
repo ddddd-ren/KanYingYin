@@ -77,6 +77,13 @@ class _SmallestPlayerItemPanelState extends State<SmallestPlayerItemPanel> {
 
   // SVG Caches
   String? cachedSvgString;
+
+  @override
+  void dispose() {
+    textController.dispose();
+    super.dispose();
+  }
+
   void showForwardChange() {
     AppDialog.show<void>(builder: (context) {
       String input = "";

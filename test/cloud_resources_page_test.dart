@@ -565,6 +565,61 @@ void main() {
     expect(manualMatchCalls, 2);
   });
 
+  testWidgets('资源操作菜单把隐藏视频回调给当前卡片', (tester) async {
+    final group = _standaloneMediaGroup();
+    CloudResourceMediaGroup? hiddenGroup;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CloudResourcePosterWall(
+            sourceId: 'source',
+            collection: CloudResourceCollection(
+              groups: <CloudResourceMediaGroup>[group],
+            ),
+            scrapingKeys: const <String>{},
+            onOpenGroup: (_) {},
+            onEditTitle: (_) {},
+            onScrape: (_) {},
+            onRematch: (_) {},
+            onHide: (selected) => hiddenGroup = selected,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('资源操作'));
+    await tester.pumpAndSettle();
+    expect(find.text('隐藏视频'), findsOneWidget);
+    await tester.tap(find.text('隐藏视频'));
+    await tester.pumpAndSettle();
+
+    expect(hiddenGroup, same(group));
+  });
+
+  testWidgets('海报卡多版本隐藏操作可以只隐藏 B 版本', (tester) async {
+    final controller = _HideVideoPageController();
+    await tester.pumpWidget(
+      MaterialApp(home: CloudResourcesPage(controller: controller)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('资源操作'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('隐藏视频'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey<String>('hide-video-video-b')),
+    );
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, '隐藏所选'));
+    await tester.pumpAndSettle();
+
+    expect(controller.hiddenIds, <String>{'video-b'});
+    expect(find.text('已隐藏 1 个视频'), findsOneWidget);
+    expect(find.text('示例电影 [A 版本].mkv'), findsOneWidget);
+    controller.dispose();
+  });
+
   testWidgets('无来源时只显示夸克和百度添加入口', (tester) async {
     final fixture = await _PageFixture.create();
 
@@ -1693,6 +1748,81 @@ const _quarkSource = CloudSource(
     CloudRemoteRef(id: 'root-fid', path: '/影视'),
   ],
 );
+
+class _HideVideoPageController extends CloudResourcesController {
+  factory _HideVideoPageController() {
+    final credentials = MemoryCloudCredentialStore();
+    final repository = CloudSourceRepository(
+      storage: MemoryCloudSourceStorage(),
+      credentialStore: credentials,
+    );
+    return _HideVideoPageController._(repository, credentials);
+  }
+
+  _HideVideoPageController._(
+    CloudSourceRepository repository,
+    MemoryCloudCredentialStore credentials,
+  ) : super(repository: repository, credentialStore: credentials) {
+    sources = const <CloudSource>[_quarkSource];
+    selectedSource = _quarkSource;
+    entries = const <CloudFileEntry>[_versionA, _versionB];
+  }
+
+  static const _versionA = CloudFileEntry(
+    id: 'video-a',
+    remotePath: '/影视/示例电影/A.mkv',
+    name: '示例电影 [A 版本].mkv',
+    size: 2048,
+    modifiedAt: null,
+    isDirectory: false,
+    variantLabel: 'A 版本',
+  );
+  static const _versionB = CloudFileEntry(
+    id: 'video-b',
+    remotePath: '/影视/示例电影/B.mkv',
+    name: '示例电影 [B 版本].mkv',
+    size: 1024,
+    modifiedAt: null,
+    isDirectory: false,
+    variantLabel: 'B 版本',
+  );
+
+  final Set<String> hiddenIds = <String>{};
+
+  @override
+  Future<void> load() async {}
+
+  @override
+  CloudResourceCollection get collection {
+    final videos = const <CloudFileEntry>[_versionA, _versionB]
+        .where((video) => !hiddenIds.contains(video.id))
+        .toList(growable: false);
+    if (videos.isEmpty) {
+      return CloudResourceCollection(groups: const <CloudResourceMediaGroup>[]);
+    }
+    return CloudResourceCollection(
+      groups: <CloudResourceMediaGroup>[
+        CloudResourceMediaGroup(
+          stableKey: 'source|work|example',
+          workKey: 'source|work|example',
+          displayName: '示例电影',
+          seriesName: '示例电影',
+          isSeries: false,
+          videos: videos,
+          seasons: const <CloudResourceSeasonGroup>[],
+          record: null,
+          isWorkScoped: true,
+        ),
+      ],
+    );
+  }
+
+  @override
+  Future<void> hideVideos(Iterable<CloudFileEntry> videos) async {
+    hiddenIds.addAll(videos.map((video) => video.id));
+    notifyListeners();
+  }
+}
 
 class _PageFixture {
   const _PageFixture(this.controller);

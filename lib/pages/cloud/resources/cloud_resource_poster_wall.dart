@@ -27,6 +27,7 @@ class CloudResourcePosterWall extends StatelessWidget {
     required this.onRematch,
     this.onManualMatch,
     this.onDetails,
+    this.onHide,
   });
 
   final String sourceId;
@@ -39,6 +40,7 @@ class CloudResourcePosterWall extends StatelessWidget {
   final CloudResourceGroupAction onRematch;
   final CloudResourceGroupAction? onManualMatch;
   final CloudResourceGroupAction? onDetails;
+  final CloudResourceGroupAction? onHide;
 
   @override
   Widget build(BuildContext context) {
@@ -144,6 +146,9 @@ class CloudResourcePosterWall extends StatelessWidget {
             case _ResourceAction.details:
               onDetails?.call(group);
               return;
+            case _ResourceAction.hide:
+              onHide?.call(group);
+              return;
           }
         },
         itemBuilder: (context) => [
@@ -170,6 +175,13 @@ class CloudResourcePosterWall extends StatelessWidget {
             value: _ResourceAction.details,
             child: Text('媒体详情'),
           ),
+          if (onHide != null) ...[
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: _ResourceAction.hide,
+              child: Text('隐藏视频'),
+            ),
+          ],
         ],
       ),
     );
@@ -286,4 +298,4 @@ class CloudResourcePosterWall extends StatelessWidget {
       );
 }
 
-enum _ResourceAction { editTitle, scrape, rematch, manualMatch, details }
+enum _ResourceAction { editTitle, scrape, rematch, manualMatch, details, hide }

@@ -8,6 +8,7 @@ import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_episode_sheet.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_hidden_video_dialogs.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_playback_request.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_poster_wall.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_media_details_dialog.dart';
@@ -164,6 +165,20 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       subtitleVideoKeys: _subtitleVideoKeys(source.id),
     );
     if (selected != null && mounted) await _play(group, selected);
+  }
+
+  Future<void> _hideVideos(CloudResourceMediaGroup group) async {
+    final selected = await showCloudHideVideoDialog(
+      context: context,
+      videos: group.videos,
+    );
+    if (selected == null || selected.isEmpty || !mounted) return;
+    try {
+      await _controller.hideVideos(selected);
+      if (mounted) _showMessage('已隐藏 ${selected.length} 个视频');
+    } on Object {
+      if (mounted) _showMessage('隐藏设置保存失败，请重试');
+    }
   }
 
   CloudRemoteRef? _matchingSubtitle(CloudFileEntry video) =>
@@ -896,6 +911,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
               onRematch: _rematchEntry,
               onManualMatch: _manualMatchEntry,
               onDetails: _showMediaDetails,
+              onHide: _hideVideos,
             ),
           ),
         ],

@@ -5,6 +5,7 @@ import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_series_match_rule.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
+import 'package:kanyingyin/repositories/cloud_hidden_video_repository.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
@@ -44,6 +45,7 @@ class CloudLibraryController extends ChangeNotifier {
     CloudProviderRegistry? providerRegistry,
     CloudMediaIndexer? mediaIndexer,
     CloudMediaIndexRepository? mediaIndexRepository,
+    ICloudHiddenVideoRepository? hiddenVideoRepository,
     CloudResourceTmdbRepository? resourceTmdbRepository,
     CloudWorkTmdbRepository? workTmdbRepository,
     CloudSeriesMatchRuleRepository? seriesMatchRuleRepository,
@@ -54,6 +56,8 @@ class CloudLibraryController extends ChangeNotifier {
         _repository = repository ?? CloudSourceRepository(),
         _mediaIndexRepository =
             mediaIndexRepository ?? CloudMediaIndexRepository(),
+        _hiddenVideoRepository =
+            hiddenVideoRepository ?? CloudHiddenVideoRepository(),
         _resourceTmdbRepository = resourceTmdbRepository,
         _workTmdbRepository = workTmdbRepository,
         _seriesMatchRuleRepository = seriesMatchRuleRepository,
@@ -77,6 +81,7 @@ class CloudLibraryController extends ChangeNotifier {
   final CloudSourceRepository _repository;
   final CloudCredentialStore _credentialStore;
   final CloudMediaIndexRepository _mediaIndexRepository;
+  final ICloudHiddenVideoRepository _hiddenVideoRepository;
   final CloudResourceTmdbRepository? _resourceTmdbRepository;
   final CloudWorkTmdbRepository? _workTmdbRepository;
   final CloudSeriesMatchRuleRepository? _seriesMatchRuleRepository;
@@ -294,18 +299,23 @@ class CloudLibraryController extends ChangeNotifier {
           sourceId,
         );
       }
-      var cacheCleanupFailed = false;
+      var localDataCleanupFailed = false;
       try {
         await _clearPosterCache(sourceId);
       } on Object {
-        cacheCleanupFailed = true;
+        localDataCleanupFailed = true;
       }
       try {
         await _clearSubtitleCache(sourceId);
       } on Object {
-        cacheCleanupFailed = true;
+        localDataCleanupFailed = true;
       }
       await _repository.delete(sourceId);
+      try {
+        await _hiddenVideoRepository.clearSource(sourceId);
+      } on Object {
+        localDataCleanupFailed = true;
+      }
       final reloaded = await load();
       if (!reloaded) {
         sources = sources
@@ -313,10 +323,9 @@ class CloudLibraryController extends ChangeNotifier {
             .toList(growable: false);
         errorMessage = '网盘数据源已删除，但列表刷新失败';
       }
-      if (cacheCleanupFailed) {
-        errorMessage = reloaded
-            ? '网盘数据源已删除，但部分本地缓存清理失败'
-            : '网盘数据源已删除，但列表刷新和部分本地缓存清理失败';
+      if (localDataCleanupFailed) {
+        errorMessage =
+            reloaded ? '网盘数据源已删除，但部分本地数据清理失败' : '网盘数据源已删除，但列表刷新和部分本地数据清理失败';
       }
     } catch (_) {
       var tmdbRestored = true;

@@ -4,6 +4,7 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
+import 'package:kanyingyin/repositories/cloud_hidden_video_repository.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_series_match_rule_repository.dart';
@@ -25,6 +26,9 @@ import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
 /// 注册网盘媒体库、索引和 TMDB 协调依赖。
 void registerCloudBindings(Injector i) {
+  i.addSingleton<CloudHiddenVideoRepository>(
+    CloudHiddenVideoRepository.new,
+  );
   i.addSingleton<CloudMediaIndexRepository>(CloudMediaIndexRepository.new);
   i.addSingleton<CloudResourceTmdbRepository>(
     CloudResourceTmdbRepository.new,
@@ -61,6 +65,7 @@ void registerCloudBindings(Injector i) {
       repository: Modular.get<CloudSourceRepository>(),
       credentialStore: Modular.get<CloudCredentialStore>(),
       mediaIndexRepository: Modular.get<CloudMediaIndexRepository>(),
+      hiddenVideoRepository: Modular.get<CloudHiddenVideoRepository>(),
       resourceTmdbRepository: Modular.get<CloudResourceTmdbRepository>(),
       workTmdbRepository: Modular.get<CloudWorkTmdbRepository>(),
       seriesMatchRuleRepository: Modular.get<CloudSeriesMatchRuleRepository>(),
@@ -109,6 +114,7 @@ void registerCloudBindings(Injector i) {
       tmdbCoordinator: Modular.get<CloudResourceTmdbCoordinator>(),
       workTmdbCoordinator: Modular.get<CloudWorkTmdbCoordinator>(),
       mediaIndexRepository: Modular.get<CloudMediaIndexRepository>(),
+      hiddenVideoRepository: Modular.get<CloudHiddenVideoRepository>(),
       mediaIndexer: Modular.get<CloudMediaIndexer>(),
       minRecognizedVideoSizeBytesProvider: () =>
           Modular.get<MediaRecognitionSettings>().cloudMinSizeBytes,

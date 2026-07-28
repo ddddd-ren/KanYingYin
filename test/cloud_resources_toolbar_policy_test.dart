@@ -16,6 +16,7 @@ void main() {
     expect(state.canRefresh, isFalse);
     expect(state.canAutoOrganize, isFalse);
     expect(state.canScrape, isFalse);
+    expect(state.canManageHiddenVideos, isFalse);
     expect(state.canRemoveSource, isFalse);
   });
 
@@ -33,6 +34,7 @@ void main() {
     expect(state.canRefresh, isTrue);
     expect(state.canAutoOrganize, isTrue);
     expect(state.canScrape, isTrue);
+    expect(state.canManageHiddenVideos, isTrue);
     expect(state.canRemoveSource, isTrue);
   });
 
@@ -61,5 +63,15 @@ void main() {
     expect(batch.canAutoOrganize, isFalse);
     expect(batch.canScrape, isFalse);
     expect(batch.canRemoveSource, isTrue);
+
+    final scanning = policy.evaluate(
+      hasSelectedSource: true,
+      loading: false,
+      scanning: true,
+      batchScraping: false,
+      autoOrganizing: false,
+      tmdbBusy: false,
+    );
+    expect(scanning.canManageHiddenVideos, isTrue);
   });
 }

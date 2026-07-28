@@ -739,6 +739,14 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
             itemBuilder: (context) => [
               _cloudToolbarMenuItem(
                 context: context,
+                action: CloudToolbarAction.manageHiddenVideos,
+                icon: Icons.visibility_outlined,
+                label: '管理已隐藏视频',
+                enabled: toolbarState.canManageHiddenVideos,
+              ),
+              const PopupMenuDivider(),
+              _cloudToolbarMenuItem(
+                context: context,
                 action: CloudToolbarAction.autoOrganize,
                 icon: Icons.auto_awesome_motion,
                 label: '自动整理当前来源',
@@ -801,6 +809,8 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
 
   Future<void> _handleToolbarAction(CloudToolbarAction action) async {
     switch (action) {
+      case CloudToolbarAction.manageHiddenVideos:
+        await _manageHiddenVideos();
       case CloudToolbarAction.autoOrganize:
         await _confirmAutoOrganize();
       case CloudToolbarAction.scrape:
@@ -809,6 +819,13 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
         await _confirmRemoveSource();
     }
   }
+
+  Future<void> _manageHiddenVideos() => showCloudHiddenVideoManagerDialog(
+        context: context,
+        records: _controller.hiddenVideos,
+        onRestore: _controller.restoreHiddenVideo,
+        onRestoreAll: _controller.restoreAllHiddenVideos,
+      );
 
   Widget _emptyState() => Center(
         child: Column(
@@ -902,6 +919,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
               sourceId: _controller.selectedSource!.id,
               collection: _controller.collection,
               scrapingKeys: _controller.tmdbScrapingKeys,
+              hiddenVideoCount: _controller.hiddenVideos.length,
               subtitleVideoKeys: _subtitleVideoKeys(
                 _controller.selectedSource!.id,
               ),

@@ -1,0 +1,7 @@
+{
+  "token_type": "Bearer",
+  "access_token": "access-login-fixture",
+  "refresh_token": "refresh-login-fixture",
+  "expires_in": 3600,
+  "user_id": "user-fixture"
+}

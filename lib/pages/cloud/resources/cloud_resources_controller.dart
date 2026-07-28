@@ -36,6 +36,20 @@ import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 int _defaultCloudMinSizeBytes() =>
     LocalVideoFileTypes.minRecognizedVideoSizeBytes;
 
+typedef CloudDirectoryScopeTreeBuilder = CloudDirectoryScopeTree Function({
+  required Iterable<String> rootPaths,
+  required Iterable<String> mediaPaths,
+});
+
+CloudDirectoryScopeTree _buildDirectoryScopeTree({
+  required Iterable<String> rootPaths,
+  required Iterable<String> mediaPaths,
+}) =>
+    CloudDirectoryScopeTree.build(
+      rootPaths: rootPaths,
+      mediaPaths: mediaPaths,
+    );
+
 enum CloudResourceAutoOrganizePhase { scanning, scraping }
 
 class CloudResourceAutoOrganizeProgress {
@@ -84,6 +98,7 @@ class CloudResourcesController extends ChangeNotifier {
     ICloudHiddenVideoRepository? hiddenVideoRepository,
     CloudMediaIndexer? mediaIndexer,
     CloudMediaTreeResolver? mediaTreeResolver,
+    CloudDirectoryScopeTreeBuilder? directoryScopeTreeBuilder,
   })  : _repository = repository,
         _credentialStore = credentialStore,
         _mediaIndexRepository =
@@ -99,6 +114,8 @@ class CloudResourcesController extends ChangeNotifier {
             collectionGrouper ?? CloudResourceCollectionGrouper(),
         _mediaTreeResolver =
             mediaTreeResolver ?? const CloudMediaTreeResolver(),
+        _directoryScopeTreeBuilder =
+            directoryScopeTreeBuilder ?? _buildDirectoryScopeTree,
         _autoOrganizer = autoOrganizer ??
             CloudResourceAutoOrganizer(
               minRecognizedVideoSizeBytesProvider:
@@ -111,8 +128,8 @@ class CloudResourcesController extends ChangeNotifier {
           minRecognizedVideoSizeBytesProvider:
               _minRecognizedVideoSizeBytesProvider,
         );
-    _tmdbCoordinator?.addListener(_notify);
-    _workTmdbCoordinator?.addListener(_notify);
+    _tmdbCoordinator?.addListener(_handleTmdbChange);
+    _workTmdbCoordinator?.addListener(_handleTmdbChange);
   }
 
   final CloudSourceRepository _repository;
@@ -127,6 +144,7 @@ class CloudResourcesController extends ChangeNotifier {
   final int Function() _minRecognizedVideoSizeBytesProvider;
   final CloudResourceCollectionGrouper _collectionGrouper;
   final CloudMediaTreeResolver _mediaTreeResolver;
+  final CloudDirectoryScopeTreeBuilder _directoryScopeTreeBuilder;
   final CloudResourceTmdbFacade _tmdbFacade = const CloudResourceTmdbFacade();
   final Map<String, CloudMediaIndexItem> _indexedItems =
       <String, CloudMediaIndexItem>{};
@@ -154,6 +172,9 @@ class CloudResourcesController extends ChangeNotifier {
   bool _disposed = false;
   CloudScanCancellationToken? _scanToken;
   Future<void>? _scanFuture;
+  CloudDirectoryScopeTree? _directoryScopeTreeCache;
+  CloudResourceCollection? _collectionCache;
+  int? _collectionMinSizeBytes;
 
   bool get canGoBack => false;
   Future<void> get scanCompletion => _scanFuture ?? Future<void>.value();
@@ -192,7 +213,7 @@ class CloudResourcesController extends ChangeNotifier {
   CloudResourceTmdbRecord? get currentDirectoryTmdbRecord => null;
 
   CloudDirectoryScopeTree get _directoryScopeTree =>
-      CloudDirectoryScopeTree.build(
+      _directoryScopeTreeCache ??= _directoryScopeTreeBuilder(
         rootPaths: selectedSource?.remoteRoots.map((root) => root.path) ??
             const <String>[],
         mediaPaths: _indexedItems.values.map((item) => item.remotePath),
@@ -203,24 +224,28 @@ class CloudResourcesController extends ChangeNotifier {
 
   String get directoryScopeAddress => currentDirectoryScope ?? '/';
 
-  List<CloudMediaIndexItem> get visibleIndexedItems => _indexedItems.values
-      .where(
-        (item) =>
-            !_isHidden(
-              sourceId: item.sourceId,
-              remoteId: item.remoteId,
-              remotePath: item.remotePath,
-            ) &&
-            _directoryScopeTree.contains(
-              item.remotePath,
-              currentDirectoryScope,
-            ),
-      )
-      .toList(growable: false);
+  List<CloudMediaIndexItem> get visibleIndexedItems {
+    final scopeTree = _directoryScopeTree;
+    return _indexedItems.values
+        .where(
+          (item) =>
+              !_isHidden(
+                sourceId: item.sourceId,
+                remoteId: item.remoteId,
+                remotePath: item.remotePath,
+              ) &&
+              scopeTree.contains(
+                item.remotePath,
+                currentDirectoryScope,
+              ),
+        )
+        .toList(growable: false);
+  }
 
   List<CloudFileEntry> get visibleEntries {
     final keyword = query.trim().toLowerCase();
     final minSizeBytes = _minRecognizedVideoSizeBytesProvider();
+    final scopeTree = _directoryScopeTree;
     final filtered = entries
         .where(
           (entry) =>
@@ -230,7 +255,7 @@ class CloudResourcesController extends ChangeNotifier {
                 size: entry.size,
                 minSizeBytes: minSizeBytes,
               ) &&
-              _directoryScopeTree.contains(
+              scopeTree.contains(
                 entry.remotePath,
                 currentDirectoryScope,
               ) &&
@@ -245,11 +270,17 @@ class CloudResourcesController extends ChangeNotifier {
   }
 
   CloudResourceCollection get collection {
+    final minSizeBytes = _minRecognizedVideoSizeBytesProvider();
+    final cached = _collectionCache;
+    if (cached != null && _collectionMinSizeBytes == minSizeBytes)
+      return cached;
+    _collectionCache = null;
+    _collectionMinSizeBytes = minSizeBytes;
     final scopedItems = visibleIndexedItems;
     if (_workTmdbCoordinator != null && _works.isNotEmpty) {
       final visibleWorkKeys =
           scopedItems.map((item) => item.workKey).whereType<String>().toSet();
-      return _collectionGrouper.group(
+      return _collectionCache = _collectionGrouper.group(
         items: scopedItems,
         works: _works
             .where((work) => visibleWorkKeys.contains(work.workKey))
@@ -258,20 +289,21 @@ class CloudResourcesController extends ChangeNotifier {
         query: query,
       );
     }
-    return _collectionGrouper.group(
+    final scopeTree = _directoryScopeTree;
+    return _collectionCache = _collectionGrouper.group(
       sourceId: selectedSource?.id ?? '',
       entries: entries
           .where(
             (entry) =>
                 !_isHiddenEntry(entry) &&
-                _directoryScopeTree.contains(
+                scopeTree.contains(
                   entry.remotePath,
                   currentDirectoryScope,
                 ),
           )
           .toList(growable: false),
       records: tmdbRecords,
-      minSizeBytes: _minRecognizedVideoSizeBytesProvider(),
+      minSizeBytes: minSizeBytes,
       query: query,
     );
   }
@@ -317,6 +349,7 @@ class CloudResourcesController extends ChangeNotifier {
     await _hiddenVideoRepository.replaceSource(source.id, next);
     if (selectedSource?.id != source.id) return;
     _hiddenVideos = next;
+    _invalidateCollection();
     _notify();
   }
 
@@ -333,6 +366,7 @@ class CloudResourcesController extends ChangeNotifier {
     await _hiddenVideoRepository.replaceSource(source.id, next);
     if (selectedSource?.id != source.id) return;
     _hiddenVideos = next;
+    _invalidateCollection();
     _notify();
   }
 
@@ -343,6 +377,7 @@ class CloudResourcesController extends ChangeNotifier {
     await _hiddenVideoRepository.clearSource(source.id);
     if (selectedSource?.id != source.id) return;
     _hiddenVideos = <CloudHiddenVideo>[];
+    _invalidateCollection();
     _notify();
   }
 
@@ -382,6 +417,7 @@ class CloudResourcesController extends ChangeNotifier {
     _mediaTree = previousMediaTree;
     query = previousQuery;
     currentDirectoryScope = previousDirectoryScope;
+    _invalidateDirectoryScopeTree();
     loading = false;
     scanning = false;
     errorMessage = '网盘来源加载失败，请重试';
@@ -427,6 +463,7 @@ class CloudResourcesController extends ChangeNotifier {
       _works = <CloudWorkIdentity>[];
       _mediaTree = null;
       currentDirectoryScope = null;
+      _invalidateDirectoryScopeTree();
       loading = false;
       errorMessage = '网盘来源加载失败';
       _notify();
@@ -461,6 +498,7 @@ class CloudResourcesController extends ChangeNotifier {
     selectedSource = sourceId == null
         ? null
         : sources.where((source) => source.id == sourceId).firstOrNull;
+    _invalidateDirectoryScopeTree();
     final source = selectedSource;
     if (source == null) {
       loading = false;
@@ -536,6 +574,7 @@ class CloudResourcesController extends ChangeNotifier {
           ),
         )
         .toList(growable: false);
+    _invalidateDirectoryScopeTree();
     _reconcileDirectoryScope();
   }
 
@@ -615,6 +654,7 @@ class CloudResourcesController extends ChangeNotifier {
     }
     if (currentDirectoryScope == normalized) return;
     currentDirectoryScope = normalized;
+    _invalidateCollection();
     _notify();
   }
 
@@ -622,6 +662,7 @@ class CloudResourcesController extends ChangeNotifier {
     final current = currentDirectoryScope;
     if (current == null) return;
     currentDirectoryScope = _directoryScopeTree.parentOf(current);
+    _invalidateCollection();
     _notify();
   }
 
@@ -641,6 +682,7 @@ class CloudResourcesController extends ChangeNotifier {
   void clearDirectoryScope() {
     if (currentDirectoryScope == null) return;
     currentDirectoryScope = null;
+    _invalidateCollection();
     _notify();
   }
 
@@ -663,6 +705,7 @@ class CloudResourcesController extends ChangeNotifier {
   void setQuery(String value) {
     if (query == value) return;
     query = value;
+    _invalidateCollection();
     _notify();
   }
 
@@ -1075,6 +1118,21 @@ class CloudResourcesController extends ChangeNotifier {
 
   bool _isCurrent(int generation) => !_disposed && generation == _generation;
 
+  void _invalidateCollection() {
+    _collectionCache = null;
+    _collectionMinSizeBytes = null;
+  }
+
+  void _invalidateDirectoryScopeTree() {
+    _directoryScopeTreeCache = null;
+    _invalidateCollection();
+  }
+
+  void _handleTmdbChange() {
+    _invalidateCollection();
+    _notify();
+  }
+
   void _notify() {
     if (!_disposed) notifyListeners();
   }
@@ -1084,8 +1142,8 @@ class CloudResourcesController extends ChangeNotifier {
     _disposed = true;
     _generation++;
     _scanToken?.cancel();
-    _tmdbCoordinator?.removeListener(_notify);
-    _workTmdbCoordinator?.removeListener(_notify);
+    _tmdbCoordinator?.removeListener(_handleTmdbChange);
+    _workTmdbCoordinator?.removeListener(_handleTmdbChange);
     super.dispose();
   }
 }

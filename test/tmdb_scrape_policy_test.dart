@@ -48,6 +48,23 @@ void main() {
     expect(plan.mediaTypes, <TmdbMediaType>[TmdbMediaType.movie]);
   });
 
+  test('本地搜索计划清除与网盘相同的完整发布标签', () {
+    const subject = TmdbScrapeSubject(
+      stableKey: 'movie-release-name',
+      titleCandidates: <String>[
+        '流浪地球2.2160p.REMUX.DV.HDR10+.H.265.TrueHD.7.1.Atmos.mkv',
+      ],
+      mediaEvidence: TmdbMediaEvidence.movie,
+    );
+
+    final plan = policy.build(
+      subject,
+      const TmdbScrapeOptions.defaults(),
+    );
+
+    expect(plan.queries, <String>['流浪地球2']);
+  });
+
   test('显式媒体类型设置覆盖自动识别证据', () {
     const subject = TmdbScrapeSubject(
       stableKey: 'forced',

@@ -1,4 +1,5 @@
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_resource_name_cleaner.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
@@ -16,7 +17,11 @@ class TmdbSearchPlan {
 }
 
 class TmdbScrapePolicy {
-  const TmdbScrapePolicy();
+  const TmdbScrapePolicy({
+    TmdbResourceNameCleaner cleaner = const TmdbResourceNameCleaner(),
+  }) : _cleaner = cleaner;
+
+  final TmdbResourceNameCleaner _cleaner;
 
   static final RegExp _yearPattern = RegExp(r'(?<!\d)(19|20)\d{2}(?!\d)');
   static final RegExp _seasonEpisodePattern = RegExp(
@@ -31,11 +36,6 @@ class TmdbScrapePolicy {
     caseSensitive: false,
   );
   static final RegExp _chineseEpisodePattern = RegExp(r'第\s*\d{1,3}\s*集');
-  static final RegExp _releaseTokenPattern = RegExp(
-    r'字幕组|字幕|中字|内嵌|内封|国配|台剧|美剧|日剧|韩剧|web[ ._-]*dl|webrip|blu[ ._-]*ray|bdrip|x26[45]|h26[45]|hevc|av1|ddp?(?:[ ._-]*\d(?:\.\d)?)?|2160p|1080p|720p|4k|8k|uhd|hdr(?:10)?|dolby[ ._-]*vision',
-    caseSensitive: false,
-  );
-
   TmdbSearchPlan build(
     TmdbScrapeSubject subject,
     TmdbScrapeOptions options,
@@ -89,25 +89,17 @@ class TmdbScrapePolicy {
   }
 
   String _cleanTitle(String value) {
-    var result = value
-        .replaceFirst(RegExp(r'\.[a-z0-9]{2,5}$', caseSensitive: false), '')
-        .replaceAllMapped(RegExp(r'\[([^\]]+)\]|【([^】]+)】'), (match) {
-      final content = match.group(1) ?? match.group(2) ?? '';
-      return _releaseTokenPattern.hasMatch(content) ? ' ' : ' $content ';
-    });
-    result = result
+    return _cleaner
+        .clean(value)
         .replaceAll(_seasonEpisodePattern, ' ')
         .replaceAll(_chineseSeasonPattern, ' ')
         .replaceAll(_englishSeasonPattern, ' ')
         .replaceAll(_chineseEpisodePattern, ' ')
         .replaceAll(_yearPattern, ' ')
         .replaceAll(RegExp(r'[（(]\s*[)）]'), ' ')
-        .replaceAll(_releaseTokenPattern, ' ')
         .replaceAll(RegExp(r'全\s*\d+\s*集|全集|完结'), ' ')
-        .replaceAll(RegExp(r'[._]+'), ' ')
         .replaceAll(RegExp(r'\s+-\s+'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
-    return result;
   }
 }

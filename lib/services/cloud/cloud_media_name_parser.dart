@@ -2,10 +2,15 @@ export 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart'
     show TmdbMatchDraft;
 
 import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_resource_name_cleaner.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
 class CloudMediaNameParser {
-  const CloudMediaNameParser();
+  const CloudMediaNameParser({
+    TmdbResourceNameCleaner cleaner = const TmdbResourceNameCleaner(),
+  }) : _cleaner = cleaner;
+
+  final TmdbResourceNameCleaner _cleaner;
 
   static final RegExp _seasonEpisodePattern = RegExp(
     r'\bS(\d{1,2})(?:E(\d{1,3}))?\b',
@@ -24,11 +29,6 @@ class CloudMediaNameParser {
   static final RegExp _yearPattern = RegExp(
     r'(?:^|[\s._(（])((?:19|20)\d{2})(?=$|[\s._)）])',
   );
-  static final RegExp _releaseTokenPattern = RegExp(
-    r'字幕组|字幕|中字|国配|台剧|美剧|日剧|韩剧|web-?dl|bluray|x26[45]|h26[45]|hevc|ddp(?:[\s._-]*\d(?:\.\d)?)?|2160p|1080p|720p|4k|8k|uhd|hdr(?:10)?',
-    caseSensitive: false,
-  );
-
   TmdbMatchDraft parse({
     required String originalName,
     required bool isDirectory,
@@ -70,26 +70,17 @@ class CloudMediaNameParser {
   }
 
   String _cleanTitle(String value) {
-    var result = value.replaceAllMapped(
-      RegExp(r'\[([^\]]+)\]|【([^】]+)】'),
-      (match) {
-        final content = match.group(1) ?? match.group(2) ?? '';
-        return _releaseTokenPattern.hasMatch(content) ? ' ' : match.group(0)!;
-      },
-    );
-    result = result
+    return _cleaner
+        .clean(value)
         .replaceAll(_seasonEpisodePattern, ' ')
         .replaceAll(_chineseSeasonPattern, ' ')
         .replaceAll(_chineseNamedSeasonPattern, ' ')
         .replaceAll(_englishSeasonPattern, ' ')
         .replaceAll(_chineseEpisodePattern, ' ')
         .replaceAll(RegExp(r'[（(](?:19|20)\d{2}[)）]'), ' ')
-        .replaceAll(_releaseTokenPattern, ' ')
         .replaceAll(RegExp(r'全\s*\d+\s*集|全集|完结'), ' ')
-        .replaceAll(RegExp(r'[._]+'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
-    return result;
   }
 
   static int? _parseChineseNumber(String? value) {

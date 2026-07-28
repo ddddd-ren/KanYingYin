@@ -4,6 +4,35 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('一点零点二说明累积正式版更新', () {
+    final entries = versionHistoryForCurrent('1.0.2');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isFalse);
+    for (final text in [
+      '清除',
+      '剧场版',
+      'OVA',
+      'TMDB',
+      '连续集号',
+      '第 1 季',
+      '隐藏',
+      '恢复',
+      'TrueHD',
+      'PGS',
+      '硬件解码',
+      '零拷贝',
+      'Anime4K',
+      '本地与网盘',
+      '播放器',
+      '不会修改',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('一点零一点说明累积正式版更新', () {
     final entries = versionHistoryForCurrent('1.0.1');
 

@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_api_client.dart';
-import 'package:kanyingyin/services/cloud/xunlei/xunlei_models.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_request_policy.dart';
 
 enum XunleiAuthorizationState {

@@ -30,6 +30,18 @@ const List<VersionHistory> versionHistoryList = [
     ],
   ),
   VersionHistory(
+    version: '2.1.69',
+    date: '2026-07-28',
+    isPrerelease: true,
+    changes: [
+      '新增迅雷网盘测试能力，支持登录个人账号、多选媒体目录、扫描视频与字幕并进行 TMDB 刮削',
+      '迅雷登录的账号密码不保存；如需设备验证，会在系统浏览器打开迅雷 HTTPS 验证页',
+      '迅雷视频只使用原画播放，通过本机分段中转支持预读、拖动和过期地址刷新，不会自动降级到转码画质',
+      '网盘资源页的顶部菜单和空状态补齐迅雷网盘与 OpenList 入口，新增后会刷新并选中新来源',
+      '迅雷接入仅提供只读扫描和播放；移除来源只清理看影音内的凭据、索引与缓存，不会修改或删除网盘原始文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.68',
     date: '2026-07-28',
     isPrerelease: true,

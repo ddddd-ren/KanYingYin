@@ -53,10 +53,10 @@ void main() {
     expect(controller.session.currentEpisode.path, '02.mkv');
   });
 
-  test('本地控制器直接从文件组创建播放会话', () {
+  test('本地控制器直接从文件组创建播放会话', () async {
     final controller = LocalVideoController();
 
-    controller.openFilePlayback(
+    await controller.openFilePlayback(
       filePath: r'D:\Video\02.mkv',
       seriesTitle: '测试动画',
       directoryFiles: const [
@@ -72,10 +72,10 @@ void main() {
     expect(controller.session.currentEpisode.title, '第2集');
   });
 
-  test('重新打开本地视频始终从开头播放', () {
+  test('重新打开本地视频始终从开头播放', () async {
     final controller = LocalVideoController();
 
-    controller.openFilePlayback(
+    await controller.openFilePlayback(
       filePath: r'D:\Video\01.mkv',
       seriesTitle: '测试动画',
       autoLoadSubtitle: false,

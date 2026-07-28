@@ -32,7 +32,12 @@ class BaiduApiClient implements BaiduApi {
         assert(maxRateLimitRetries >= 0 && maxRateLimitRetries <= 3),
         _dio = dio ?? Dio(),
         _parser = parser,
-        _delay = delay ?? Future<void>.delayed;
+        _delay = delay ?? Future<void>.delayed {
+    _dio.options
+      ..connectTimeout = const Duration(seconds: 10)
+      ..sendTimeout = const Duration(seconds: 15)
+      ..receiveTimeout = const Duration(seconds: 30);
+  }
 
   static const List<Duration> _rateLimitDelays = <Duration>[
     Duration(milliseconds: 500),

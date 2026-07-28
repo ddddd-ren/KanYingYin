@@ -18,13 +18,13 @@ class LocalPlaybackRequestBuilder {
   final LocalSubtitleMatcher _subtitleMatcher;
   final LocalEpisodeParser _episodeParser;
 
-  LocalPlaybackSession buildSession({
+  Future<LocalPlaybackSession> buildSession({
     required String filePath,
     required String fileName,
     List<Map<String, String>>? directoryFiles,
     bool playlistAlreadyIsolated = false,
     bool autoLoadSubtitle = true,
-  }) {
+  }) async {
     final normalizedFiles = _normalizePlaylistFiles(
       filePath: filePath,
       fileName: fileName,
@@ -36,34 +36,37 @@ class LocalPlaybackRequestBuilder {
             filePath: filePath,
             files: normalizedFiles,
           );
-    final episodes = files.map((file) {
+    final episodes = <LocalEpisode>[];
+    for (final file in files) {
       final info = _episodeParser.parse(file.path);
-      return LocalEpisode(
+      episodes.add(LocalEpisode(
         id: _normalizePath(file.path),
         path: file.path,
         title: file.displayName,
         seasonNumber: info?.seasonNumber,
         episodeNumber: info?.episodeNumber,
-        subtitlePath: autoLoadSubtitle ? findSubtitlePath(file.path) : null,
-      );
-    }).toList(growable: false);
+        subtitlePath: autoLoadSubtitle
+            ? await findSubtitlePath(file.path)
+            : null,
+      ));
+    }
 
     return LocalPlaybackSession(
       seriesId: _normalizePath(p.dirname(filePath)),
       seriesTitle: fileName,
-      episodes: episodes,
+      episodes: List<LocalEpisode>.unmodifiable(episodes),
       currentEpisodeId: _normalizePath(filePath),
     );
   }
 
-  LocalPlaybackRequest build({
+  Future<LocalPlaybackRequest> build({
     required String filePath,
     required String fileName,
     String? sourceLabel,
     List<Map<String, String>>? directoryFiles,
     bool playlistAlreadyIsolated = false,
     bool autoLoadSubtitle = true,
-  }) {
+  }) async {
     final effectiveSourceLabel = sourceLabel ?? '本地文件';
     final dirPath = p.dirname(filePath);
     final normalizedFiles = _normalizePlaylistFiles(
@@ -100,11 +103,12 @@ class LocalPlaybackRequestBuilder {
         data: data,
         identifier: identifiers,
       ),
-      subtitlePath: autoLoadSubtitle ? findSubtitlePath(filePath) : null,
+      subtitlePath:
+          autoLoadSubtitle ? await findSubtitlePath(filePath) : null,
     );
   }
 
-  String? findSubtitlePath(String videoPath) {
+  Future<String?> findSubtitlePath(String videoPath) {
     return _subtitleMatcher.findForVideo(videoPath);
   }
 

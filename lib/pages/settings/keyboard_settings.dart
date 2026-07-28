@@ -146,18 +146,20 @@ class _KeyboardSettingsPageState extends State<KeyboardSettingsPage> {
                               style: const TextStyle(
                                   fontSize: 18, fontWeight: FontWeight.bold)),
                           Spacer(),
-                          IconButton(
-                            icon: Icon(Icons.add),
-                            onPressed: () {
-                              keys.removeWhere(
-                                  (key) => key.isEmpty || key == '...');
-                              setState(() => keys.add(''));
-                              setting.put('shortcut_$func', keys);
-                              startListening(func, keys.length - 1);
-                            },
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            focusNode: FocusNode(canRequestFocus: false),
+                          Focus(
+                            canRequestFocus: false,
+                            child: IconButton(
+                              icon: Icon(Icons.add),
+                              onPressed: () {
+                                keys.removeWhere(
+                                    (key) => key.isEmpty || key == '...');
+                                setState(() => keys.add(''));
+                                setting.put('shortcut_$func', keys);
+                                startListening(func, keys.length - 1);
+                              },
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
                           ),
                         ],
                       ),
@@ -167,27 +169,29 @@ class _KeyboardSettingsPageState extends State<KeyboardSettingsPage> {
                         runSpacing: 8,
                         children: [
                           for (int i = 0; i < keys.length; i++)
-                            ActionChip(
-                              label: Text(
-                                keyAliases[keys[i]] ?? keys[i],
+                            Focus(
+                              canRequestFocus: false,
+                              child: ActionChip(
+                                label: Text(
+                                  keyAliases[keys[i]] ?? keys[i],
+                                ),
+                                avatar: keys.length >= 2
+                                    ? Icon(Icons.cancel)
+                                    : Icon(Icons.edit),
+                                onPressed: (keys.length >= 2)
+                                    ? () {
+                                        setState(() {
+                                          keys.removeAt(i);
+                                          listeningIndex = null;
+                                          if (keys.length > 1) {
+                                            keys.removeWhere((key) =>
+                                                key.isEmpty || key == '...');
+                                          }
+                                          setting.put('shortcut_$func', keys);
+                                        });
+                                      }
+                                    : () => startListening(func, 0),
                               ),
-                              avatar: keys.length >= 2
-                                  ? Icon(Icons.cancel)
-                                  : Icon(Icons.edit),
-                              onPressed: (keys.length >= 2)
-                                  ? () {
-                                      setState(() {
-                                        keys.removeAt(i);
-                                        listeningIndex = null;
-                                        if (keys.length > 1) {
-                                          keys.removeWhere((key) =>
-                                              key.isEmpty || key == '...');
-                                        }
-                                        setting.put('shortcut_$func', keys);
-                                      });
-                                    }
-                                  : () => startListening(func, 0),
-                              focusNode: FocusNode(canRequestFocus: false),
                             ),
                         ],
                       ),

@@ -329,7 +329,7 @@ class LocalMediaIndexer implements ILocalMediaIndexer {
             previous.remove(LocalMediaIndexItem.normalizePath(file.path));
         if (oldItem != null && oldItem.isSameFile(stat)) {
           if (_metadataRefresher.needsRefresh(oldItem)) {
-            indexed.add(_metadataRefresher.refreshItem(
+            indexed.add(await _metadataRefresher.refreshItem(
               oldItem,
               indexedAt: DateTime.now(),
             ));
@@ -356,7 +356,7 @@ class LocalMediaIndexer implements ILocalMediaIndexer {
           stat: stat,
           sourcePath: sourcePath,
           cover: cover,
-          subtitlePath: _subtitleMatcher.findForVideo(file.path),
+          subtitlePath: await _subtitleMatcher.findForVideo(file.path),
           episodeInfo: oldItem?.manualOverride == true
               ? oldItem?.episodeInfo
               : episodeInfo,

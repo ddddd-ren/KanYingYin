@@ -16,6 +16,19 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.63',
+    date: '2026-07-28',
+    isPrerelease: true,
+    changes: [
+      '修复退出看影音时播放器资源、网盘分段缓存和诊断日志没有完成清理的问题',
+      '本地媒体库和播放器现在异步读取字幕目录，大型目录或网络路径不会长时间阻塞界面',
+      '百度网盘授权、目录和文件请求补齐连接超时，网络不可达时会更快显示失败原因',
+      '删除网盘数据源后列表刷新失败时，界面不会继续显示已删除来源，并会明确提示刷新状态',
+      '播放器控制面板、快捷键和解码设置页面补齐控制器释放；本次更新不会修改或删除本地或网盘中的原始视频、字幕或其他文件',
+      '本次修复覆盖夸克、百度和 OpenList 网盘媒体库及 TMDB 相关流程，断网时本地媒体库和播放器仍可继续使用',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.62',
     date: '2026-07-27',
     isPrerelease: true,

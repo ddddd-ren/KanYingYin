@@ -8,6 +8,16 @@ import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 
 void main() {
+  test('客户端统一配置连接、发送和接收超时', () {
+    final dio = Dio();
+
+    BaiduApiClient(accessToken: 'access-fixture', dio: dio);
+
+    expect(dio.options.connectTimeout, const Duration(seconds: 10));
+    expect(dio.options.sendTimeout, const Duration(seconds: 15));
+    expect(dio.options.receiveTimeout, const Duration(seconds: 30));
+  });
+
   test('账号请求使用官方 uinfo 接口和 Access Token', () async {
     final adapter = _QueueAdapter(<_FakeResponse>[
       _FakeResponse(200, await _fixture('account_success.json')),

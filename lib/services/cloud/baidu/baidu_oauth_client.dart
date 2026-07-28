@@ -19,7 +19,12 @@ class BaiduOAuthClient implements BaiduOAuthGateway {
     Dio? dio,
     DateTime Function()? now,
   })  : _dio = dio ?? Dio(),
-        _now = now ?? DateTime.now;
+        _now = now ?? DateTime.now {
+    _dio.options
+      ..connectTimeout = const Duration(seconds: 10)
+      ..sendTimeout = const Duration(seconds: 15)
+      ..receiveTimeout = const Duration(seconds: 30);
+  }
 
   static final Uri _authorizationEndpoint =
       Uri.https('openapi.baidu.com', '/oauth/2.0/authorize');

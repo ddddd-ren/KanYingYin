@@ -1020,6 +1020,28 @@ void main() {
     expect(controller.errorMessage, '网盘数据源已删除，但部分本地缓存清理失败');
   });
 
+  test('来源删除成功但列表刷新失败时不在内存中保留已删除来源', () async {
+    final repository = _ReloadFailingRepository();
+    await repository.seed(source);
+    final controller = CloudLibraryController(
+      repository: repository,
+      mediaIndexRepository: CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      ),
+      posterCacheCleaner: (_) async {},
+      subtitleCacheCleaner: (_) async {},
+    );
+    await controller.load();
+
+    await controller.delete(source.id);
+
+    expect(controller.sources, isEmpty);
+    expect(
+      controller.errorMessage,
+      '网盘数据源已删除，但列表刷新失败',
+    );
+  });
+
   test('索引清理失败时不删除来源并提供明确反馈', () async {
     final repository = CloudSourceRepository(
       storage: MemoryCloudSourceStorage(),
@@ -1282,5 +1304,30 @@ class _FailingDeleteRepository extends CloudSourceRepository {
   @override
   Future<bool> delete(String sourceId) async {
     throw StateError('模拟删除失败');
+  }
+}
+
+class _ReloadFailingRepository extends CloudSourceRepository {
+  _ReloadFailingRepository()
+      : super(
+          storage: MemoryCloudSourceStorage(),
+          credentialStore: MemoryCloudCredentialStore(),
+        );
+
+  bool failReads = false;
+
+  Future<void> seed(CloudSource source) => super.save(source);
+
+  @override
+  Future<List<CloudSource>> getAll() async {
+    if (failReads) throw StateError('模拟删除后的列表刷新失败');
+    return super.getAll();
+  }
+
+  @override
+  Future<bool> delete(String sourceId) async {
+    final deleted = await super.delete(sourceId);
+    failReads = true;
+    return deleted;
   }
 }

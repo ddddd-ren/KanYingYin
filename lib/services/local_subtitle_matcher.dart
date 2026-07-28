@@ -30,8 +30,8 @@ class LocalSubtitleMatcher {
     return subtitleExtensions.contains(p.extension(path).toLowerCase());
   }
 
-  String? findForVideo(String videoPath) {
-    final scored = _scoredSubtitleCandidates(videoPath)
+  Future<String?> findForVideo(String videoPath) async {
+    final scored = (await _scoredSubtitleCandidates(videoPath))
         .where((candidate) => candidate.autoSelectable)
         .toList();
     if (scored.isEmpty) return null;
@@ -40,16 +40,16 @@ class LocalSubtitleMatcher {
     return scored.first.path;
   }
 
-  List<String> findAllForVideo(String videoPath) {
-    final scored = _scoredSubtitleCandidates(videoPath).toList();
+  Future<List<String>> findAllForVideo(String videoPath) async {
+    final scored = (await _scoredSubtitleCandidates(videoPath)).toList();
     scored.sort(_compareSubtitleScore);
     return scored.map((candidate) => candidate.path).toList(growable: false);
   }
 
-  List<_SubtitleScore> _scoredSubtitleCandidates(String videoPath) {
+  Future<List<_SubtitleScore>> _scoredSubtitleCandidates(String videoPath) async {
     final videoDir = p.dirname(videoPath);
     final videoBaseName = p.basenameWithoutExtension(videoPath);
-    final candidates = _subtitleCandidates(videoDir).toList();
+    final candidates = await _subtitleCandidates(videoDir);
     if (candidates.isEmpty) return <_SubtitleScore>[];
 
     final videoEpisode = _episodeParser.parse(videoPath);
@@ -132,27 +132,32 @@ class LocalSubtitleMatcher {
     return _subtitleDirectories.contains(parentName);
   }
 
-  Iterable<_SubtitleCandidate> _subtitleCandidates(String videoDir) sync* {
-    yield* _subtitleFilesIn(videoDir);
+  Future<List<_SubtitleCandidate>> _subtitleCandidates(String videoDir) async {
+    final candidates = <_SubtitleCandidate>[];
+    await _appendSubtitleFilesIn(videoDir, candidates);
 
     try {
-      for (final entry in Directory(videoDir).listSync(followLinks: false)) {
+      await for (final entry in Directory(videoDir).list(followLinks: false)) {
         if (entry is! Directory) continue;
         final name = p.basename(entry.path).toLowerCase();
         if (!_subtitleDirectories.contains(name)) continue;
-        yield* _subtitleFilesIn(entry.path);
+        await _appendSubtitleFilesIn(entry.path, candidates);
       }
     } catch (_) {
-      return;
+      return candidates;
     }
+    return candidates;
   }
 
-  Iterable<_SubtitleCandidate> _subtitleFilesIn(String dirPath) sync* {
+  Future<void> _appendSubtitleFilesIn(
+    String dirPath,
+    List<_SubtitleCandidate> candidates,
+  ) async {
     try {
-      for (final entry in Directory(dirPath).listSync(followLinks: false)) {
+      await for (final entry in Directory(dirPath).list(followLinks: false)) {
         if (entry is! File) continue;
         if (!isSupportedSubtitlePath(entry.path)) continue;
-        yield _SubtitleCandidate(path: entry.path);
+        candidates.add(_SubtitleCandidate(path: entry.path));
       }
     } catch (_) {
       return;

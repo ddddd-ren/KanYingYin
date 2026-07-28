@@ -846,6 +846,16 @@ mixin _$PlayerController on _PlayerController, Store {
         .run(() => super.confirmTrackLanguage(revision, fingerprint, choice));
   }
 
+  late final _$refreshSubtitleCandidatesAsyncAction = AsyncAction(
+      '_PlayerController.refreshSubtitleCandidates',
+      context: context);
+
+  @override
+  Future<void> refreshSubtitleCandidates() {
+    return _$refreshSubtitleCandidatesAsyncAction
+        .run(() => super.refreshSubtitleCandidates());
+  }
+
   late final _$selectSubtitleAsyncAction =
       AsyncAction('_PlayerController.selectSubtitle', context: context);
 
@@ -936,17 +946,6 @@ mixin _$PlayerController on _PlayerController, Store {
         name: '_PlayerController._updateEmbeddedTracks');
     try {
       return super._updateEmbeddedTracks(tracks);
-    } finally {
-      _$_PlayerControllerActionController.endAction(_$actionInfo);
-    }
-  }
-
-  @override
-  void refreshSubtitleCandidates() {
-    final _$actionInfo = _$_PlayerControllerActionController.startAction(
-        name: '_PlayerController.refreshSubtitleCandidates');
-    try {
-      return super.refreshSubtitleCandidates();
     } finally {
       _$_PlayerControllerActionController.endAction(_$actionInfo);
     }

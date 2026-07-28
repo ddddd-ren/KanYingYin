@@ -129,6 +129,8 @@ class _VideoPageState extends State<VideoPage>
           error: e);
     }
     tabController.dispose();
+    keyboardFocus.dispose();
+    scrollController.dispose();
     // Cancel timed shutdown when leaving anime page
     TimedShutdownService().cancel();
     _exitCoordinator.dispose();

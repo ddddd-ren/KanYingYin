@@ -565,7 +565,7 @@ abstract class _PlayerController with Store {
       episodeFromTitle = params.episode;
     }
     if (params.isLocalPlayback) {
-      refreshSubtitleCandidates();
+      await refreshSubtitleCandidates();
     }
     try {
       mediaPlayer ??= await createVideoController(
@@ -1307,12 +1307,13 @@ abstract class _PlayerController with Store {
   }
 
   @action
-  void refreshSubtitleCandidates() {
+  Future<void> refreshSubtitleCandidates() async {
     if (!isLocalPlayback || videoUrl.isEmpty) {
       subtitleCandidates.clear();
       return;
     }
-    final candidates = _localSubtitleMatcher.findAllForVideo(videoUrl);
+    final candidates =
+        await _localSubtitleMatcher.findAllForVideo(videoUrl);
     subtitleCandidates
       ..clear()
       ..addAll(candidates);
@@ -1322,7 +1323,7 @@ abstract class _PlayerController with Store {
   Future<bool> selectSubtitle(String subtitlePath) async {
     final loaded = await loadExternalSubtitle(subtitlePath);
     if (loaded && isLocalPlayback) {
-      refreshSubtitleCandidates();
+      await refreshSubtitleCandidates();
     }
     return loaded;
   }
@@ -1339,7 +1340,7 @@ abstract class _PlayerController with Store {
       subtitlePath: subtitlePath,
       target: target,
     );
-    refreshSubtitleCandidates();
+    await refreshSubtitleCandidates();
     await loadExternalSubtitle(result.targetPath);
     return result;
   }

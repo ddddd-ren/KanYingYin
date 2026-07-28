@@ -4,8 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/services/local_playback_request_builder.dart';
 
 void main() {
-  test('LocalPlaybackRequestBuilder builds playlist request', () {
-    final request = LocalPlaybackRequestBuilder().build(
+  test('LocalPlaybackRequestBuilder builds playlist request', () async {
+    final request = await LocalPlaybackRequestBuilder().build(
       filePath: r'D:\Anime\Show\02.mkv',
       fileName: '02.mkv',
       directoryFiles: [
@@ -28,8 +28,8 @@ void main() {
     expect(request.road.identifier, ['01.mkv', '02.mkv']);
   });
 
-  test('LocalPlaybackRequestBuilder falls back to single file playlist', () {
-    final request = LocalPlaybackRequestBuilder().build(
+  test('LocalPlaybackRequestBuilder falls back to single file playlist', () async {
+    final request = await LocalPlaybackRequestBuilder().build(
       filePath: r'D:\Anime\Show\01.mkv',
       fileName: '01.mkv',
       sourceLabel: '本地测试',
@@ -42,8 +42,8 @@ void main() {
     expect(request.road.identifier, ['01.mkv']);
   });
 
-  test('LocalPlaybackRequestBuilder ignores invalid playlist entries', () {
-    final request = LocalPlaybackRequestBuilder().build(
+  test('LocalPlaybackRequestBuilder ignores invalid playlist entries', () async {
+    final request = await LocalPlaybackRequestBuilder().build(
       filePath: r'D:\Anime\Show\02.mkv',
       fileName: '02.mkv',
       directoryFiles: [
@@ -60,8 +60,8 @@ void main() {
 
   test(
       'LocalPlaybackRequestBuilder inserts selected file when playlist misses it',
-      () {
-    final request = LocalPlaybackRequestBuilder().build(
+      () async {
+    final request = await LocalPlaybackRequestBuilder().build(
       filePath: r'D:\Anime\Show\02.mkv',
       fileName: '02.mkv',
       directoryFiles: [
@@ -77,8 +77,8 @@ void main() {
     expect(request.road.identifier, ['02.mkv', '01.mkv']);
   });
 
-  test('LocalPlaybackRequestBuilder removes duplicate playlist paths', () {
-    final request = LocalPlaybackRequestBuilder().build(
+  test('LocalPlaybackRequestBuilder removes duplicate playlist paths', () async {
+    final request = await LocalPlaybackRequestBuilder().build(
       filePath: r'D:\Anime\Show\02.mkv',
       fileName: '02.mkv',
       directoryFiles: [
@@ -98,8 +98,8 @@ void main() {
   });
 
   test('LocalPlaybackRequestBuilder uses full playlist titles when provided',
-      () {
-    final request = LocalPlaybackRequestBuilder().build(
+      () async {
+    final request = await LocalPlaybackRequestBuilder().build(
       filePath: r'D:\Anime\Show\02.mkv',
       fileName: '02.mkv',
       directoryFiles: [
@@ -124,8 +124,8 @@ void main() {
   });
 
   test('LocalPlaybackRequestBuilder isolates playlist by recognized series',
-      () {
-    final request = LocalPlaybackRequestBuilder().build(
+      () async {
+    final request = await LocalPlaybackRequestBuilder().build(
       filePath: r'D:\Anime\Root\ShowA\ShowA S01E02.mkv',
       fileName: 'ShowA S01E02.mkv',
       directoryFiles: [
@@ -154,8 +154,8 @@ void main() {
 
   test(
       'LocalPlaybackRequestBuilder preserves isolated sequel and movie playlist',
-      () {
-    final request = LocalPlaybackRequestBuilder().build(
+      () async {
+    final request = await LocalPlaybackRequestBuilder().build(
       filePath: r'D:\Anime\中二病也要谈恋爱\第2季\中二病也要谈恋爱 S02E01.mkv',
       fileName: '中二病也要谈恋爱',
       directoryFiles: [
@@ -182,8 +182,8 @@ void main() {
   });
 
   test('LocalPlaybackRequestBuilder falls back to parent directory grouping',
-      () {
-    final request = LocalPlaybackRequestBuilder().build(
+      () async {
+    final request = await LocalPlaybackRequestBuilder().build(
       filePath: r'D:\Anime\Root\ShowA\02.mkv',
       fileName: '02.mkv',
       directoryFiles: [
@@ -213,7 +213,7 @@ void main() {
     await video.writeAsBytes([0]);
     await subtitle.writeAsString('[Script Info]');
 
-    final request = LocalPlaybackRequestBuilder().build(
+    final request = await LocalPlaybackRequestBuilder().build(
       filePath: video.path,
       fileName: 'Episode 01.mkv',
     );
@@ -239,7 +239,7 @@ void main() {
     await video.writeAsBytes([0]);
     await subtitle.writeAsString('1\n00:00:00,000 --> 00:00:01,000\nHi');
 
-    final request = LocalPlaybackRequestBuilder().build(
+    final request = await LocalPlaybackRequestBuilder().build(
       filePath: video.path,
       fileName: 'Show S01E05.mkv',
     );
@@ -267,7 +267,7 @@ void main() {
     await sameName.writeAsString('[Script Info]');
     await episodeMatch.writeAsString('1\n00:00:00,000 --> 00:00:01,000\nHi');
 
-    final request = LocalPlaybackRequestBuilder().build(
+    final request = await LocalPlaybackRequestBuilder().build(
       filePath: video.path,
       fileName: 'Show S01E06.mkv',
     );
@@ -289,7 +289,7 @@ void main() {
     await video.writeAsBytes([0]);
     await subtitle.writeAsString('1\n00:00:00,000 --> 00:00:01,000\nHi');
 
-    final request = LocalPlaybackRequestBuilder().build(
+    final request = await LocalPlaybackRequestBuilder().build(
       filePath: video.path,
       fileName: 'Episode 02.mkv',
       autoLoadSubtitle: false,

@@ -86,7 +86,7 @@ class LocalMediaScanner implements ILocalMediaScanner {
             isDirectory: false,
             isVideo: true,
             cover: _coverFinder.findVideoCover(entry.path),
-            subtitlePath: _subtitleMatcher.findForVideo(entry.path),
+            subtitlePath: await _subtitleMatcher.findForVideo(entry.path),
             episodeInfo: _episodeParser.parse(entry.path),
           ));
         } catch (e) {

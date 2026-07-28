@@ -35,15 +35,15 @@ class LocalMediaIndexMetadataRefresher {
     return !item.hasCurrentDerivedMetadata;
   }
 
-  LocalMediaIndexItem refreshItem(
+  Future<LocalMediaIndexItem> refreshItem(
     LocalMediaIndexItem item, {
     DateTime? indexedAt,
-  }) {
+  }) async {
     if (!needsRefresh(item)) return item;
 
     final parsedInfo =
         item.manualOverride ? null : _episodeParser.parse(item.path);
-    final subtitlePath = _subtitleMatcher.findForVideo(item.path);
+    final subtitlePath = await _subtitleMatcher.findForVideo(item.path);
     return LocalMediaIndexItem(
       path: item.path,
       name: item.name,
@@ -106,7 +106,7 @@ class LocalMediaIndexMetadataRefresher {
           bySourcePath.putIfAbsent(item.sourcePath, () => []).add(item);
           continue;
         }
-        final refreshed = refreshItem(item, indexedAt: DateTime.now());
+        final refreshed = await refreshItem(item, indexedAt: DateTime.now());
         bySourcePath.putIfAbsent(refreshed.sourcePath, () => []).add(refreshed);
         refreshedCount++;
       } catch (e, stackTrace) {

@@ -79,13 +79,13 @@ class _LocalPageState extends State<LocalPage>
     super.dispose();
   }
 
-  void _playGroup(LocalVideoGroup group) {
+  Future<void> _playGroup(LocalVideoGroup group) async {
     final firstEpisode = group.firstEpisode;
     AppLogger().i(
       'LocalPage: playing local series: ${group.title} '
       '(${group.episodeCount} episodes)',
     );
-    localVideoController.openFilePlayback(
+    await localVideoController.openFilePlayback(
       filePath: firstEpisode.path,
       seriesTitle: group.title,
       directoryFiles: group.playlistFilesForPlayback,
@@ -98,10 +98,10 @@ class _LocalPageState extends State<LocalPage>
     Modular.to.pushNamed('/video/');
   }
 
-  void _playLibraryEpisode(
+  Future<void> _playLibraryEpisode(
     LocalMediaSeries series,
     LocalMediaIndexItem episode,
-  ) {
+  ) async {
     final directoryFiles = series.episodes
         .map((item) => {
               'path': item.path,
@@ -111,7 +111,7 @@ class _LocalPageState extends State<LocalPage>
         .toList(growable: false);
     AppLogger().i(
         'LocalPage: playing library episode: ${episode.path} (${directoryFiles.length} videos in series)');
-    localVideoController.openFilePlayback(
+    await localVideoController.openFilePlayback(
       filePath: episode.path,
       seriesTitle: series.displayTitle,
       directoryFiles: directoryFiles,

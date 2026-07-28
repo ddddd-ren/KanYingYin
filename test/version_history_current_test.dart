@@ -146,6 +146,20 @@ void main() {
     expect(changes, contains('不会修改或删除'));
   });
 
+  test('二点一六十三说明退出清理、异步字幕和网盘稳定性修复', () {
+    final entries = versionHistoryForCurrent('2.1.63');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    expect(changes, contains('退出'));
+    expect(changes, contains('字幕目录'));
+    expect(changes, contains('百度网盘'));
+    expect(changes, contains('刷新失败'));
+    expect(changes, contains('不会修改或删除'));
+  });
+
   test('二点一四十九说明 Anime4K 效率档使用官方快速组合', () {
     final entries = versionHistoryForCurrent('2.1.49');
 

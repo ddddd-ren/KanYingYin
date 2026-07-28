@@ -226,14 +226,14 @@ class LocalVideoController implements IVideoPageController {
     }
   }
 
-  void openFilePlayback({
+  Future<void> openFilePlayback({
     required String filePath,
     required String seriesTitle,
     List<Map<String, String>>? directoryFiles,
     bool playlistAlreadyIsolated = false,
     bool autoLoadSubtitle = true,
-  }) {
-    final session = LocalPlaybackRequestBuilder().buildSession(
+  }) async {
+    final session = await LocalPlaybackRequestBuilder().buildSession(
       filePath: filePath,
       fileName: seriesTitle,
       directoryFiles: directoryFiles,

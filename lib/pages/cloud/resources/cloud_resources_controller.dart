@@ -276,8 +276,9 @@ class CloudResourcesController extends ChangeNotifier {
   CloudResourceCollection get collection {
     final minSizeBytes = _minRecognizedVideoSizeBytesProvider();
     final cached = _collectionCache;
-    if (cached != null && _collectionMinSizeBytes == minSizeBytes)
+    if (cached != null && _collectionMinSizeBytes == minSizeBytes) {
       return cached;
+    }
     _collectionCache = null;
     _collectionMinSizeBytes = minSizeBytes;
     final scopedItems = visibleIndexedItems;

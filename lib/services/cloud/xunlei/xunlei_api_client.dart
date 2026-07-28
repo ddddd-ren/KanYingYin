@@ -1,0 +1,393 @@
+export 'package:kanyingyin/services/cloud/xunlei/xunlei_models.dart'
+    show XunleiVerificationRequired;
+
+import 'dart:convert';
+
+import 'package:dio/dio.dart';
+import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/xunlei/xunlei_models.dart';
+import 'package:kanyingyin/services/cloud/xunlei/xunlei_request_policy.dart';
+import 'package:kanyingyin/services/cloud/xunlei/xunlei_response_parser.dart';
+
+abstract interface class XunleiAuthGateway {
+  String? get captchaToken;
+
+  Future<XunleiSession> login({
+    required String identifier,
+    required String password,
+    required String deviceId,
+    String? captchaToken,
+    String? creditKey,
+  });
+
+  Future<XunleiSession> refresh({
+    required String refreshToken,
+    required String deviceId,
+    String? captchaToken,
+  });
+
+  Future<XunleiAccount> account(XunleiSession session);
+
+  Future<void> close();
+}
+
+abstract interface class XunleiApi implements XunleiAuthGateway {
+  bool get hasUsableSession;
+
+  Future<XunleiDirectoryPage> listDirectoryPage({
+    required String directoryId,
+    String? pageToken,
+    int size = 100,
+  });
+
+  Future<XunleiFileDetail> fileDetail(String fileId);
+}
+
+class XunleiApiClient implements XunleiApi {
+  XunleiApiClient({
+    required String deviceId,
+    String? captchaToken,
+    Dio? dio,
+    XunleiRequestPolicy policy = const XunleiRequestPolicy(),
+    DateTime Function()? now,
+  })  : _deviceId = deviceId,
+        _captchaToken = captchaToken?.trim(),
+        _dio = dio ?? Dio(),
+        _ownsDio = dio == null,
+        _policy = policy,
+        _parser = XunleiResponseParser(now: now ?? DateTime.now) {
+    _dio.options
+      ..connectTimeout = const Duration(seconds: 10)
+      ..sendTimeout = const Duration(seconds: 15)
+      ..receiveTimeout = const Duration(seconds: 30);
+  }
+
+  final String _deviceId;
+  String? _captchaToken;
+  final Dio _dio;
+  final bool _ownsDio;
+  final XunleiRequestPolicy _policy;
+  final XunleiResponseParser _parser;
+  XunleiSession? _session;
+
+  @override
+  String? get captchaToken => _captchaToken;
+
+  @override
+  bool get hasUsableSession {
+    final session = _session;
+    return session != null &&
+        session.expiresAt.isAfter(
+          DateTime.now().toUtc().add(const Duration(minutes: 1)),
+        );
+  }
+
+  @override
+  Future<XunleiSession> login({
+    required String identifier,
+    required String password,
+    required String deviceId,
+    String? captchaToken,
+    String? creditKey,
+  }) async {
+    if (deviceId != _deviceId ||
+        identifier.trim().isEmpty ||
+        password.isEmpty) {
+      throw const CloudDriveException(CloudDriveErrorType.authentication);
+    }
+    _captchaToken = captchaToken?.trim().isNotEmpty == true
+        ? captchaToken!.trim()
+        : _captchaToken;
+    final core = await _request(
+      'POST',
+      XunleiRequestPolicy.coreLoginUri,
+      data: <String, Object?>{
+        'protocolVersion': '301',
+        'sequenceNo': '1000012',
+        'platformVersion': '10',
+        'isCompressed': '0',
+        'appid': XunleiRequestPolicy.appId,
+        'clientVersion': XunleiRequestPolicy.clientVersion,
+        'peerID': '00000000000000000000000000000000',
+        'appName': 'ANDROID-${XunleiRequestPolicy.packageName}',
+        'sdkVersion': '512000',
+        'devicesign': _policy.deviceSign(_deviceId),
+        'netWorkType': 'WIFI',
+        'providerName': 'NONE',
+        'deviceModel': 'M2004J7AC',
+        'deviceName': 'Xiaomi_M2004j7ac',
+        'OSVersion': '12',
+        'creditkey': creditKey ?? '',
+        'hl': 'zh-CN',
+        'userName': identifier.trim(),
+        'passWord': password,
+        'verifyKey': '',
+        'verifyCode': '',
+        'isMd5Pwd': '0',
+      },
+      headers: const <String, String>{
+        'user-agent': 'android-ok-http-client/xl-acc-sdk/version-5.0.12.512000',
+      },
+    );
+    final sessionId = _requiredString(core, 'sessionID');
+    await _refreshCaptchaToken(identifier);
+    final tokenJson = await _request(
+      'POST',
+      XunleiRequestPolicy.signInUri,
+      data: <String, Object?>{
+        'client_id': XunleiRequestPolicy.clientId,
+        'client_secret': XunleiRequestPolicy.clientSecret,
+        'provider': 'access_end_point_token',
+        'signin_token': sessionId,
+      },
+    );
+    return _session = _parser.parseSession(tokenJson);
+  }
+
+  @override
+  Future<XunleiSession> refresh({
+    required String refreshToken,
+    required String deviceId,
+    String? captchaToken,
+  }) async {
+    if (deviceId != _deviceId || refreshToken.trim().isEmpty) {
+      throw const CloudDriveException(CloudDriveErrorType.authentication);
+    }
+    _captchaToken = captchaToken?.trim().isNotEmpty == true
+        ? captchaToken!.trim()
+        : _captchaToken;
+    final json = await _request(
+      'POST',
+      XunleiRequestPolicy.refreshUri,
+      data: <String, Object?>{
+        'grant_type': 'refresh_token',
+        'refresh_token': refreshToken.trim(),
+        'client_id': XunleiRequestPolicy.clientId,
+        'client_secret': XunleiRequestPolicy.clientSecret,
+      },
+    );
+    return _session = _parser.parseSession(json);
+  }
+
+  @override
+  Future<XunleiAccount> account(XunleiSession session) async {
+    final json = await _authorizedRequest(
+      'GET',
+      XunleiRequestPolicy.accountUri,
+      session,
+    );
+    return _parser.parseAccount(json);
+  }
+
+  @override
+  Future<XunleiDirectoryPage> listDirectoryPage({
+    required String directoryId,
+    String? pageToken,
+    int size = 100,
+  }) async {
+    final session = _requiredSession();
+    final uri = XunleiRequestPolicy.filesUri.replace(
+      queryParameters: <String, String>{
+        'parent_id': directoryId,
+        'page_token': pageToken ?? '',
+        'limit': '$size',
+        '__type': 'drive',
+        'refresh': 'true',
+        '__sync': 'true',
+        'with_audit': 'true',
+        'filters':
+            '{"phase":{"eq":"PHASE_TYPE_COMPLETE"},"trashed":{"eq":false}}',
+      },
+    );
+    return _parser.parseDirectoryPage(
+      await _authorizedRequest('GET', uri, session),
+    );
+  }
+
+  @override
+  Future<XunleiFileDetail> fileDetail(String fileId) async {
+    final session = _requiredSession();
+    final normalizedId = fileId.trim();
+    if (normalizedId.isEmpty || normalizedId.contains('/')) {
+      throw const CloudDriveException(CloudDriveErrorType.incompatible);
+    }
+    final uri = XunleiRequestPolicy.filesUri.replace(
+      path: '${XunleiRequestPolicy.filesUri.path}/$normalizedId',
+    );
+    return _parser.parseFileDetail(
+      await _authorizedRequest('GET', uri, session),
+    );
+  }
+
+  Future<void> _refreshCaptchaToken(String identifier) async {
+    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+    final metaKey = identifier.contains('@')
+        ? 'email'
+        : RegExp(r'^\d{11,18}$').hasMatch(identifier)
+            ? 'phone_number'
+            : 'username';
+    final json = await _request(
+      'POST',
+      XunleiRequestPolicy.captchaInitUri,
+      data: <String, Object?>{
+        'action': 'POST:/v1/auth/signin/token',
+        'captcha_token': _captchaToken ?? '',
+        'client_id': XunleiRequestPolicy.clientId,
+        'device_id': _deviceId,
+        'meta': <String, String>{
+          metaKey: identifier,
+          'timestamp': timestamp,
+          'captcha_sign': _policy.captchaSign(
+            deviceId: _deviceId,
+            timestamp: timestamp,
+          ),
+        },
+        'redirect_uri': 'xlaccsdk01://xunlei.com/callback?state=kanyingyin',
+      },
+    );
+    final verificationUrl = _optionalString(json['url']);
+    if (verificationUrl != null) {
+      final uri = Uri.tryParse(verificationUrl);
+      if (uri == null || !_policy.isTrustedVerificationUri(uri)) {
+        throw const CloudDriveException(CloudDriveErrorType.incompatible);
+      }
+      throw XunleiVerificationRequired(uri: uri, creditKey: '');
+    }
+    final token = _requiredString(json, 'captcha_token');
+    _captchaToken = token;
+  }
+
+  Future<Map<String, Object?>> _authorizedRequest(
+    String method,
+    Uri uri,
+    XunleiSession session,
+  ) =>
+      _request(
+        method,
+        uri,
+        headers: <String, String>{
+          'Authorization': session.authorization,
+          if (_captchaToken?.isNotEmpty == true)
+            'X-Captcha-Token': _captchaToken!,
+        },
+      );
+
+  Future<Map<String, Object?>> _request(
+    String method,
+    Uri uri, {
+    Object? data,
+    Map<String, String> headers = const <String, String>{},
+  }) async {
+    try {
+      final response = await _dio.requestUri<Object?>(
+        uri,
+        data: data,
+        options: Options(
+          method: method,
+          headers: <String, String>{
+            ..._policy.apiHeaders(deviceId: _deviceId),
+            ...headers,
+          },
+          validateStatus: (_) => true,
+        ),
+      );
+      final json = _asMap(response.data);
+      if (_optionalString(json['error']) == 'review_panel') {
+        final challenge = _parser.parseVerificationRequired(json);
+        if (!_policy.isTrustedVerificationUri(challenge.uri)) {
+          throw const CloudDriveException(CloudDriveErrorType.incompatible);
+        }
+        throw challenge;
+      }
+      if ((response.statusCode ?? 0) < 200 ||
+          (response.statusCode ?? 0) >= 300 ||
+          _hasApiError(json)) {
+        throw CloudDriveException(_errorType(response.statusCode, json));
+      }
+      return json;
+    } on XunleiVerificationRequired {
+      rethrow;
+    } on CloudDriveException {
+      rethrow;
+    } on DioException catch (error) {
+      throw CloudDriveException(
+        error.type == DioExceptionType.connectionTimeout ||
+                error.type == DioExceptionType.sendTimeout ||
+                error.type == DioExceptionType.receiveTimeout
+            ? CloudDriveErrorType.timeout
+            : CloudDriveErrorType.network,
+      );
+    } on Object {
+      throw const CloudDriveException(CloudDriveErrorType.incompatible);
+    }
+  }
+
+  Map<String, Object?> _asMap(Object? value) {
+    final decoded = value is String ? jsonDecode(value) : value;
+    if (decoded is! Map) {
+      throw const CloudDriveException(CloudDriveErrorType.incompatible);
+    }
+    return Map<String, Object?>.from(decoded);
+  }
+
+  bool _hasApiError(Map<String, Object?> json) {
+    final code = json['error_code'];
+    final numericCode = code is num ? code.toInt() : int.tryParse('$code');
+    final error = _optionalString(json['error']);
+    return (numericCode != null && numericCode != 0) ||
+        (error != null && error != 'success');
+  }
+
+  CloudDriveErrorType _errorType(
+    int? statusCode,
+    Map<String, Object?> json,
+  ) {
+    if (statusCode == 401 || statusCode == 403) {
+      return CloudDriveErrorType.authentication;
+    }
+    if (statusCode == 404) return CloudDriveErrorType.notFound;
+    if (statusCode == 429) return CloudDriveErrorType.rateLimited;
+    if (statusCode != null && statusCode >= 500) {
+      return CloudDriveErrorType.network;
+    }
+    final code = json['error_code'];
+    final numericCode = code is num ? code.toInt() : int.tryParse('$code');
+    return switch (numericCode) {
+      9 => CloudDriveErrorType.verificationRequired,
+      10 || 16 || 4121 || 4122 => CloudDriveErrorType.authentication,
+      _ => CloudDriveErrorType.incompatible,
+    };
+  }
+
+  XunleiSession _requiredSession() {
+    final session = _session;
+    if (session == null) {
+      throw const CloudDriveException(CloudDriveErrorType.authentication);
+    }
+    return session;
+  }
+
+  String _requiredString(Map<String, Object?> json, String key) {
+    final value = _optionalString(json[key]);
+    if (value == null) {
+      throw const CloudDriveException(CloudDriveErrorType.incompatible);
+    }
+    return value;
+  }
+
+  String? _optionalString(Object? value) {
+    if (value is! String) return null;
+    final normalized = value.trim();
+    return normalized.isEmpty ? null : normalized;
+  }
+
+  @override
+  Future<void> close() async {
+    _session = null;
+    _captchaToken = null;
+    if (_ownsDio) _dio.close(force: true);
+  }
+
+  @override
+  String toString() => 'XunleiApiClient(<redacted>)';
+}

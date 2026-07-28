@@ -38,6 +38,15 @@ void main() {
     expect(draft.searchTitle, '流浪地球2');
   });
 
+  test('完整发布标签不会进入网盘 TMDB 搜索词', () {
+    final draft = parser.parse(
+      originalName: '流浪地球2.2160p.REMUX.DV.HDR10+.H.265.TrueHD.7.1.Atmos.mkv',
+      isDirectory: false,
+    );
+
+    expect(draft.searchTitle, '流浪地球2');
+  });
+
   test('自定义剧名优先但季集仍从原名称识别', () {
     final draft = parser.parse(
       originalName: 'Alice.in.Borderland.S02E03.1080p.mkv',

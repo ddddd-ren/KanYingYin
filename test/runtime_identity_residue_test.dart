@@ -30,4 +30,25 @@ void main() {
     expect(pubspec, isNot(contains('certificate_' 'password:')));
     expect(pubspec, contains('publisher: CN=' 'KanYingYin'));
   });
+
+  test('迅雷活动源码不输出账号秘密和远程响应', () {
+    final sources = Directory('lib/services/cloud/xunlei')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'))
+        .map((file) => file.readAsStringSync())
+        .join('\n');
+
+    for (final forbidden in <String>[
+      'AppLogger(',
+      'debugPrint(',
+      'print(',
+      'response.data.toString()',
+      r'$password',
+      r'$creditKey',
+      r'$captchaToken',
+    ]) {
+      expect(sources, isNot(contains(forbidden)), reason: forbidden);
+    }
+  });
 }

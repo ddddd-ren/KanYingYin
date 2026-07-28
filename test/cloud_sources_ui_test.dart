@@ -43,6 +43,7 @@ void main() {
     expect(find.text('添加 OpenList（调试中）'), findsOneWidget);
     expect(find.text('添加夸克网盘'), findsOneWidget);
     expect(find.text('添加百度网盘'), findsOneWidget);
+    expect(find.text('添加迅雷网盘'), findsOneWidget);
   });
 
   testWidgets('只有存在可用夸克来源时显示分享导入操作', (tester) async {
@@ -163,6 +164,7 @@ void main() {
     expect(source, contains('"/cloud-sources/quark/edit"'));
     expect(source, contains('"/cloud-sources/quark/import"'));
     expect(source, contains('"/cloud-sources/baidu/edit"'));
+    expect(source, contains('"/cloud-sources/xunlei/edit"'));
     expect(source, contains('"/cloud-sources/edit"'));
     expect(
       source,
@@ -183,7 +185,7 @@ void main() {
         r'onRootSelectionChanged:\s*Modular\.get<'
         r'CloudSourceRootRefreshCoordinator>\(\)\.refreshSource',
       ).allMatches(source),
-      hasLength(4),
+      hasLength(5),
     );
   });
 

@@ -30,6 +30,17 @@ const List<VersionHistory> versionHistoryList = [
     ],
   ),
   VersionHistory(
+    version: '2.1.66',
+    date: '2026-07-28',
+    isPrerelease: true,
+    changes: [
+      '扩充本地与网盘 TMDB 名称清理规则，常见视频编码、片源、HDR、音频编码和声道信息不再干扰影片搜索',
+      '优化几百个资源的网盘媒体库载入，进入网盘资源页时不再反复重建目录和海报集合',
+      '优化网盘手动刮削的 TMDB 流程，搜索和应用候选时不再因加载状态反复整理全部资源',
+      '本次更新只调整看影音内部的名称识别和展示缓存，不会修改或删除本地与网盘原始文件；TMDB 不可用时扫描和播放仍可使用',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.65',
     date: '2026-07-28',
     isPrerelease: true,

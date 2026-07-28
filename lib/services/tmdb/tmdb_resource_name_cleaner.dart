@@ -9,6 +9,7 @@ class TmdbResourceNameCleaner {
     r'(?<![A-Za-z0-9])(?:'
     r'x26[45]|h[ ._-]*26[45]|avc|hevc|av1|vp9|vc[ ._-]*1|mpeg[ ._-]*2|xvid|divx|'
     r'web[ ._-]*dl|webrip|blu[ ._-]*ray|bdrip|remux|hdtv|dvdrip|bd|'
+    r'dsnp|hbo[ ._-]*max|black[ ._-]*tv|'
     r'2160p|1440p|1080[pi]|720p|480p|4k|8k|uhd|'
     r'dolby[ ._-]*vision|hdr(?:10\+?)?|dv|hlg|sdr|'
     r'字幕组|字幕|中字|内嵌|内封|国配|台剧|美剧|日剧|韩剧|'

@@ -19,6 +19,17 @@ void main() {
     }
   });
 
+  test('清除 DSNP 和 HBOMax 平台及 BlackTV 发布后缀', () {
+    final cases = <String, String>{
+      '示例剧.1080p.DSNP.WEB-DL.AAC.2.0.H.264-BlackTV.mkv': '示例剧',
+      '示例剧.1080p.HBOMax.WEB-DL.DDP2.0.H.264-BlackTV.mkv': '示例剧',
+    };
+
+    for (final entry in cases.entries) {
+      expect(cleaner.clean(entry.key), entry.value, reason: entry.key);
+    }
+  });
+
   test('只清除名称末尾的已知视频和音频扩展名', () {
     for (final name in <String>[
       '电影.mp4',

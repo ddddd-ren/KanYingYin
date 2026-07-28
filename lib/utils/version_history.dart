@@ -30,6 +30,17 @@ const List<VersionHistory> versionHistoryList = [
     ],
   ),
   VersionHistory(
+    version: '2.1.68',
+    date: '2026-07-28',
+    isPrerelease: true,
+    changes: [
+      'TMDB 名称清理新增 `DSNP` 和 `HBOMax` 流媒体平台标记',
+      '支持清理 `1080p.DSNP.WEB-DL.AAC.2.0.H.264-BlackTV` 和 `1080p.HBOMax.WEB-DL.DDP2.0.H.264-BlackTV` 等完整发布后缀',
+      '`BlackTV` 发布组以及画质、片源、音频和编码信息不再进入 TMDB 搜索词，作品标题保持干净',
+      '本次更新只调整名称识别，不会修改或删除本地与网盘原始文件；TMDB 不可用或断网时，扫描和播放仍可使用',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.67',
     date: '2026-07-28',
     isPrerelease: true,

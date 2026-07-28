@@ -44,22 +44,29 @@ void main() {
     );
     final openList = _cloud('openlist', '/Show/Show S01E01.mkv');
     final quark = _cloud('quark', '/Show/Show S01E01.mkv');
+    final xunlei = _cloud('xunlei', '/Show/Show S01E01.mkv');
     final sources = <CloudSource>[
       _source('openlist', '家庭网盘', enabled: true),
       _source('quark', '夸克归档', enabled: false, type: CloudSourceType.quark),
+      _source(
+        'xunlei',
+        '迅雷归档',
+        enabled: true,
+        type: CloudSourceType.xunlei,
+      ),
     ];
 
-    test('聚合本地和两个远程来源且同名同路径不跨来源合并', () {
+    test('聚合本地和多个远程来源且同名同路径不跨来源合并', () {
       final library = const CloudMediaLibraryAggregator().build(
         localItems: [local],
-        cloudItems: [openList, quark],
+        cloudItems: [openList, quark, xunlei],
         cloudSources: sources,
       );
 
-      expect(library.series, hasLength(3));
+      expect(library.series, hasLength(4));
       expect(library.series.map((item) => item.sourceId).toSet(),
-          {'local', 'openlist', 'quark'});
-      expect(library.series.map((item) => item.key).toSet(), hasLength(3));
+          {'local', 'openlist', 'quark', 'xunlei'});
+      expect(library.series.map((item) => item.key).toSet(), hasLength(4));
       final remote = library.series
           .firstWhere((item) => item.sourceId == 'openlist')
           .episodes
@@ -78,12 +85,12 @@ void main() {
     test('来源筛选保留全部、本地和启用网盘来源', () {
       final library = const CloudMediaLibraryAggregator().build(
         localItems: [local],
-        cloudItems: [openList, quark],
+        cloudItems: [openList, quark, xunlei],
         cloudSources: sources,
       );
 
-      expect(
-          library.filters.map((item) => item.id), ['all', 'local', 'openlist']);
+      expect(library.filters.map((item) => item.id),
+          ['all', 'local', 'openlist', 'xunlei']);
       expect(library.filterBySource('openlist'), hasLength(1));
       expect(library.filterBySource('local').single.sourceKind,
           MediaSourceKind.local);

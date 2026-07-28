@@ -246,6 +246,95 @@ void main() {
     expect(client.closed, isTrue);
   });
 
+  test('迅雷原画通过 Range Relay 建立可释放租约并可刷新地址', () async {
+    const xunleiSource = CloudSource(
+      id: 'xunlei-home',
+      name: '迅雷网盘',
+      type: CloudSourceType.xunlei,
+      baseUrl: 'https://pan.xunlei.com',
+      rootPaths: <String>['/'],
+    );
+    await repository.save(xunleiSource);
+    final clients = <_FakeClient>[
+      _FakeClient(
+        resource: CloudPlaybackResource(
+          uri: Uri.parse(
+            'https://download.xunlei.com/original?token=secret-old',
+          ),
+          headers: const <String, String>{'User-Agent': 'fixture'},
+          networkRoute: PlaybackNetworkRoute.direct,
+          transport: CloudPlaybackTransport.rangeRelay,
+        ),
+      ),
+      _FakeClient(
+        resource: CloudPlaybackResource(
+          uri: Uri.parse(
+            'https://download.xunlei.com/original?token=secret-new',
+          ),
+          headers: const <String, String>{'User-Agent': 'fixture'},
+          networkRoute: PlaybackNetworkRoute.direct,
+          transport: CloudPlaybackTransport.rangeRelay,
+        ),
+      ),
+    ];
+    var clientIndex = 0;
+    Future<CloudPlaybackResource> Function()? capturedRefresh;
+    final fakeReader = _FakeRangeReader();
+    final registry = CloudProviderRegistry(
+      clientFactories: <CloudSourceType, CloudProviderClientFactory>{
+        CloudSourceType.xunlei: (_, __, ___) => clients[clientIndex++],
+      },
+      rangeReaderFactories: <CloudSourceType, CloudProviderRangeReaderFactory>{
+        CloudSourceType.xunlei: ({
+          required source,
+          required resource,
+          required refreshResource,
+          required credentialStore,
+        }) {
+          expect(resource.uri.host, 'download.xunlei.com');
+          capturedRefresh = refreshResource;
+          return fakeReader;
+        },
+      },
+    );
+    final resolver = CloudPlaybackResolver(
+      sourceRepository: repository,
+      credentialStore: MemoryCloudCredentialStore(),
+      providerRegistry: registry,
+      relayStarter: ({
+        required reader,
+        required providerKey,
+        required providerName,
+      }) async {
+        expect(reader, same(fakeReader));
+        expect(providerKey, xunleiSource.id);
+        expect(providerName, '迅雷网盘');
+        return CloudRangeRelayPlayback(
+          uri: Uri.parse('http://127.0.0.1:32100/xunlei-token'),
+          lease: _ReaderClosingLease(reader),
+          totalLength: 8192,
+        );
+      },
+    );
+
+    final result = await resolver.resolve(const CloudPlaybackTarget(
+      sourceId: 'xunlei-home',
+      remoteId: 'video-fixture',
+      remotePath: '/影视/示例.mkv',
+      stableId: 'xunlei-episode-1',
+      title: '第 1 集',
+    ));
+
+    expect(result.videoUrl, 'http://127.0.0.1:32100/xunlei-token');
+    expect(result.httpHeaders, isEmpty);
+    expect(result.transport, CloudPlaybackTransport.rangeRelay);
+    expect(result.cloudProviderName, '迅雷网盘');
+    final refreshed = await capturedRefresh!();
+    expect(refreshed.uri.queryParameters['token'], 'secret-new');
+    await result.lease!.close();
+    expect(fakeReader.closeCalls, 1);
+  });
+
   test('中转启动失败时回退现有夸克直连', () async {
     const quarkSource = CloudSource(
       id: 'quark-fallback',
@@ -1086,6 +1175,8 @@ class _FakePlaybackLease implements CloudPlaybackLease {
 }
 
 class _FakeRangeReader implements CloudRangeRemoteReader {
+  var closeCalls = 0;
+
   @override
   String get contentType => 'video/mp4';
 
@@ -1097,7 +1188,7 @@ class _FakeRangeReader implements CloudRangeRemoteReader {
   int? get totalLength => 1024;
 
   @override
-  Future<void> close() async {}
+  Future<void> close() async => closeCalls++;
 
   @override
   Future<CloudRangeRemoteMetadata> probe() async =>
@@ -1113,4 +1204,23 @@ class _FakeRangeReader implements CloudRangeRemoteReader {
 
   @override
   Future<void> streamAll(IOSink destination) => throw UnimplementedError();
+}
+
+class _ReaderClosingLease implements CloudPlaybackLease {
+  _ReaderClosingLease(this.reader);
+
+  final CloudRangeRemoteReader reader;
+
+  @override
+  CloudRangeRelayStatus get currentStatus => const CloudRangeRelayStatus(
+        providerName: '迅雷网盘',
+        phase: CloudRangeRelayPhase.ready,
+      );
+
+  @override
+  Stream<CloudRangeRelayStatus> get statuses =>
+      const Stream<CloudRangeRelayStatus>.empty();
+
+  @override
+  Future<void> close() => reader.close();
 }

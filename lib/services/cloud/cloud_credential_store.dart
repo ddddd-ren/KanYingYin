@@ -13,6 +13,10 @@ class CloudCredential {
     this.accessToken,
     this.refreshToken,
     this.accessTokenExpiresAt,
+    this.deviceId,
+    this.captchaToken,
+    this.userId,
+    this.accountLabel,
   });
 
   final String? username;
@@ -24,6 +28,10 @@ class CloudCredential {
   final String? accessToken;
   final String? refreshToken;
   final DateTime? accessTokenExpiresAt;
+  final String? deviceId;
+  final String? captchaToken;
+  final String? userId;
+  final String? accountLabel;
 
   bool get isEmpty =>
       (username?.isEmpty ?? true) &&
@@ -34,7 +42,11 @@ class CloudCredential {
       (clientSecret?.isEmpty ?? true) &&
       (accessToken?.isEmpty ?? true) &&
       (refreshToken?.isEmpty ?? true) &&
-      accessTokenExpiresAt == null;
+      accessTokenExpiresAt == null &&
+      (deviceId?.isEmpty ?? true) &&
+      (captchaToken?.isEmpty ?? true) &&
+      (userId?.isEmpty ?? true) &&
+      (accountLabel?.isEmpty ?? true);
 
   Map<String, String> toJson() => <String, String>{
         if (username != null) 'username': username!,
@@ -47,6 +59,10 @@ class CloudCredential {
         if (refreshToken != null) 'refreshToken': refreshToken!,
         if (accessTokenExpiresAt != null)
           'accessTokenExpiresAt': accessTokenExpiresAt!.toIso8601String(),
+        if (deviceId != null) 'deviceId': deviceId!,
+        if (captchaToken != null) 'captchaToken': captchaToken!,
+        if (userId != null) 'userId': userId!,
+        if (accountLabel != null) 'accountLabel': accountLabel!,
       };
 
   factory CloudCredential.fromJson(Map<String, dynamic> json) =>
@@ -70,6 +86,15 @@ class CloudCredential {
             : null,
         accessTokenExpiresAt: json['accessTokenExpiresAt'] is String
             ? DateTime.tryParse(json['accessTokenExpiresAt'] as String)?.toUtc()
+            : null,
+        deviceId:
+            json['deviceId'] is String ? json['deviceId'] as String : null,
+        captchaToken: json['captchaToken'] is String
+            ? json['captchaToken'] as String
+            : null,
+        userId: json['userId'] is String ? json['userId'] as String : null,
+        accountLabel: json['accountLabel'] is String
+            ? json['accountLabel'] as String
             : null,
       );
 

@@ -1,6 +1,6 @@
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 
-enum CloudSourceType { openList, quark, baidu }
+enum CloudSourceType { openList, quark, baidu, xunlei }
 
 enum CloudScanStatus { never, scanning, completed, failed }
 

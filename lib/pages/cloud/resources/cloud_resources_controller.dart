@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:kanyingyin/features/cloud/application/cloud_directory_scope_tree.dart';
 import 'package:kanyingyin/features/cloud/application/cloud_resource_tmdb_facade.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
+import 'package:kanyingyin/modules/cloud/cloud_hidden_video.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
@@ -11,6 +12,7 @@ import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
+import 'package:kanyingyin/repositories/cloud_hidden_video_repository.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
@@ -79,12 +81,15 @@ class CloudResourcesController extends ChangeNotifier {
     int Function()? minRecognizedVideoSizeBytesProvider,
     CloudResourceCollectionGrouper? collectionGrouper,
     CloudMediaIndexRepository? mediaIndexRepository,
+    ICloudHiddenVideoRepository? hiddenVideoRepository,
     CloudMediaIndexer? mediaIndexer,
     CloudMediaTreeResolver? mediaTreeResolver,
   })  : _repository = repository,
         _credentialStore = credentialStore,
         _mediaIndexRepository =
             mediaIndexRepository ?? CloudMediaIndexRepository(),
+        _hiddenVideoRepository =
+            hiddenVideoRepository ?? CloudHiddenVideoRepository(),
         _providerRegistry = providerRegistry ?? CloudProviderRegistry(),
         _tmdbCoordinator = tmdbCoordinator,
         _workTmdbCoordinator = workTmdbCoordinator,
@@ -113,6 +118,7 @@ class CloudResourcesController extends ChangeNotifier {
   final CloudSourceRepository _repository;
   final CloudCredentialStore _credentialStore;
   final CloudMediaIndexRepository _mediaIndexRepository;
+  final ICloudHiddenVideoRepository _hiddenVideoRepository;
   late final CloudMediaIndexer _mediaIndexer;
   final CloudProviderRegistry _providerRegistry;
   final CloudResourceTmdbCoordinator? _tmdbCoordinator;
@@ -124,6 +130,7 @@ class CloudResourcesController extends ChangeNotifier {
   final CloudResourceTmdbFacade _tmdbFacade = const CloudResourceTmdbFacade();
   final Map<String, CloudMediaIndexItem> _indexedItems =
       <String, CloudMediaIndexItem>{};
+  List<CloudHiddenVideo> _hiddenVideos = <CloudHiddenVideo>[];
   List<CloudWorkIdentity> _works = <CloudWorkIdentity>[];
   CloudMediaTree? _mediaTree;
 
@@ -161,6 +168,9 @@ class CloudResourcesController extends ChangeNotifier {
   List<CloudWorkIdentity> get works =>
       List<CloudWorkIdentity>.unmodifiable(_works);
 
+  List<CloudHiddenVideo> get hiddenVideos =>
+      List<CloudHiddenVideo>.unmodifiable(_hiddenVideos);
+
   Set<String> get tmdbScrapingKeys =>
       _workTmdbCoordinator?.scrapingWorkKeys ??
       _tmdbCoordinator?.scrapingKeys ??
@@ -195,10 +205,16 @@ class CloudResourcesController extends ChangeNotifier {
 
   List<CloudMediaIndexItem> get visibleIndexedItems => _indexedItems.values
       .where(
-        (item) => _directoryScopeTree.contains(
-          item.remotePath,
-          currentDirectoryScope,
-        ),
+        (item) =>
+            !_isHidden(
+              sourceId: item.sourceId,
+              remoteId: item.remoteId,
+              remotePath: item.remotePath,
+            ) &&
+            _directoryScopeTree.contains(
+              item.remotePath,
+              currentDirectoryScope,
+            ),
       )
       .toList(growable: false);
 
@@ -208,6 +224,7 @@ class CloudResourcesController extends ChangeNotifier {
     final filtered = entries
         .where(
           (entry) =>
+              !_isHiddenEntry(entry) &&
               LocalVideoFileTypes.isRecognizedVideo(
                 entry.name,
                 size: entry.size,
@@ -245,10 +262,12 @@ class CloudResourcesController extends ChangeNotifier {
       sourceId: selectedSource?.id ?? '',
       entries: entries
           .where(
-            (entry) => _directoryScopeTree.contains(
-              entry.remotePath,
-              currentDirectoryScope,
-            ),
+            (entry) =>
+                !_isHiddenEntry(entry) &&
+                _directoryScopeTree.contains(
+                  entry.remotePath,
+                  currentDirectoryScope,
+                ),
           )
           .toList(growable: false),
       records: tmdbRecords,
@@ -280,6 +299,53 @@ class CloudResourcesController extends ChangeNotifier {
   bool hasSubtitle(CloudFileEntry video) =>
       _indexedItemFor(video)?.subtitleRefs.isNotEmpty == true;
 
+  Future<void> hideVideos(Iterable<CloudFileEntry> videos) async {
+    final source = selectedSource;
+    if (source == null) throw StateError('尚未选择网盘来源');
+    final nextByIdentity = <String, CloudHiddenVideo>{
+      for (final record in _hiddenVideos) record.identityKey: record,
+    };
+    for (final video in videos) {
+      final record = CloudHiddenVideo.fromEntry(
+        sourceId: source.id,
+        entry: video,
+      );
+      nextByIdentity[record.identityKey] = record;
+    }
+    final next = nextByIdentity.values.toList(growable: false);
+    if (_sameHiddenVideos(_hiddenVideos, next)) return;
+    await _hiddenVideoRepository.replaceSource(source.id, next);
+    if (selectedSource?.id != source.id) return;
+    _hiddenVideos = next;
+    _notify();
+  }
+
+  Future<void> restoreHiddenVideo(CloudHiddenVideo record) async {
+    final source = selectedSource;
+    if (source == null) throw StateError('尚未选择网盘来源');
+    if (record.sourceId != source.id) {
+      throw ArgumentError.value(record, 'record', '隐藏视频不属于当前网盘来源');
+    }
+    final next = _hiddenVideos
+        .where((candidate) => candidate.identityKey != record.identityKey)
+        .toList(growable: false);
+    if (next.length == _hiddenVideos.length) return;
+    await _hiddenVideoRepository.replaceSource(source.id, next);
+    if (selectedSource?.id != source.id) return;
+    _hiddenVideos = next;
+    _notify();
+  }
+
+  Future<void> restoreAllHiddenVideos() async {
+    final source = selectedSource;
+    if (source == null) throw StateError('尚未选择网盘来源');
+    if (_hiddenVideos.isEmpty) return;
+    await _hiddenVideoRepository.clearSource(source.id);
+    if (selectedSource?.id != source.id) return;
+    _hiddenVideos = <CloudHiddenVideo>[];
+    _notify();
+  }
+
   Future<void> load() => _loadSources(startScan: true);
 
   Future<void> reloadSourcesAndSnapshot({String? preferredSourceId}) async {
@@ -293,6 +359,7 @@ class CloudResourcesController extends ChangeNotifier {
     final previousIndexedItems = Map<String, CloudMediaIndexItem>.from(
       _indexedItems,
     );
+    final previousHiddenVideos = List<CloudHiddenVideo>.from(_hiddenVideos);
     final previousWorks = List<CloudWorkIdentity>.from(_works);
     final previousMediaTree = _mediaTree;
     final previousQuery = query;
@@ -310,6 +377,7 @@ class CloudResourcesController extends ChangeNotifier {
     _indexedItems
       ..clear()
       ..addAll(previousIndexedItems);
+    _hiddenVideos = previousHiddenVideos;
     _works = previousWorks;
     _mediaTree = previousMediaTree;
     query = previousQuery;
@@ -355,6 +423,7 @@ class CloudResourcesController extends ChangeNotifier {
       currentDirectory = null;
       entries = <CloudFileEntry>[];
       _indexedItems.clear();
+      _hiddenVideos = <CloudHiddenVideo>[];
       _works = <CloudWorkIdentity>[];
       _mediaTree = null;
       currentDirectoryScope = null;
@@ -382,6 +451,7 @@ class CloudResourcesController extends ChangeNotifier {
     query = '';
     entries = <CloudFileEntry>[];
     _indexedItems.clear();
+    _hiddenVideos = <CloudHiddenVideo>[];
     _works = <CloudWorkIdentity>[];
     _mediaTree = null;
     currentDirectoryScope = null;
@@ -406,9 +476,20 @@ class CloudResourcesController extends ChangeNotifier {
     }
     loading = true;
     _notify();
+    String? hiddenVideoWarning;
+    try {
+      final hiddenVideos = await _hiddenVideoRepository.getBySource(source.id);
+      if (!_isCurrent(generation) || selectedSource?.id != source.id) return;
+      _hiddenVideos = hiddenVideos;
+    } on Object {
+      if (!_isCurrent(generation) || selectedSource?.id != source.id) return;
+      _hiddenVideos = <CloudHiddenVideo>[];
+      hiddenVideoWarning = '隐藏视频设置读取失败，已显示全部视频';
+    }
     await _loadSnapshot(source, generation);
     if (!_isCurrent(generation)) return;
     loading = false;
+    errorMessage ??= hiddenVideoWarning;
     _notify();
     _scheduleTmdb(source, entries);
     if (startScan) {
@@ -936,6 +1017,42 @@ class CloudResourcesController extends ChangeNotifier {
             ),
           )
           .catchError((_) {}),
+    );
+  }
+
+  bool _isHiddenEntry(CloudFileEntry entry) {
+    final source = selectedSource;
+    if (source == null) return false;
+    return _isHidden(
+      sourceId: source.id,
+      remoteId: entry.id,
+      remotePath: entry.remotePath,
+    );
+  }
+
+  bool _isHidden({
+    required String sourceId,
+    required String remoteId,
+    required String remotePath,
+  }) =>
+      _hiddenVideos.any(
+        (record) => record.matches(
+          sourceId: sourceId,
+          remoteId: remoteId,
+          remotePath: remotePath,
+        ),
+      );
+
+  static bool _sameHiddenVideos(
+    List<CloudHiddenVideo> current,
+    List<CloudHiddenVideo> next,
+  ) {
+    if (current.length != next.length) return false;
+    final currentByIdentity = <String, CloudHiddenVideo>{
+      for (final record in current) record.identityKey: record,
+    };
+    return next.every(
+      (record) => currentByIdentity[record.identityKey] == record,
     );
   }
 

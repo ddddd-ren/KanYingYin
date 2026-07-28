@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
+import 'package:kanyingyin/modules/cloud/cloud_hidden_video.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
@@ -9,6 +10,7 @@ import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
 import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
+import 'package:kanyingyin/repositories/cloud_hidden_video_repository.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
@@ -16,6 +18,7 @@ import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_indexer.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_tree_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_auto_organizer.dart';
@@ -29,6 +32,80 @@ import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
 void main() {
   group('CloudResourcesController', () {
+    test('隐藏 B 版本后海报集合保留 A 且底层索引完整', () async {
+      final fixture = await _HiddenVideoFixture.create();
+      await fixture.controller.reloadSourcesAndSnapshot();
+      final originalGroup = fixture.controller.collection.groups.single;
+      final versionB = originalGroup.videos.singleWhere(
+        (entry) => entry.id == 'video-b',
+      );
+
+      await fixture.controller.hideVideos(<CloudFileEntry>[versionB]);
+
+      final visibleGroup = fixture.controller.collection.groups.single;
+      expect(visibleGroup.videos, hasLength(1));
+      expect(visibleGroup.videos.single.id, 'video-a');
+      expect(
+        await fixture.indexRepository.getBySource(fixture.source.id),
+        hasLength(2),
+      );
+      fixture.controller.dispose();
+    });
+
+    test('隐藏最后一个可见版本后卡片消失且恢复后立即出现', () async {
+      final fixture = await _HiddenVideoFixture.create();
+      await fixture.controller.reloadSourcesAndSnapshot();
+
+      await fixture.controller.hideVideos(
+        fixture.controller.collection.groups.single.videos,
+      );
+
+      expect(fixture.controller.collection.groups, isEmpty);
+      expect(fixture.controller.hiddenVideos, hasLength(2));
+      await fixture.controller.restoreHiddenVideo(
+        fixture.controller.hiddenVideos.first,
+      );
+      expect(fixture.controller.collection.groups, hasLength(1));
+      expect(fixture.controller.collection.groups.single.videos, hasLength(1));
+      fixture.controller.dispose();
+    });
+
+    test('重新加载控制器后仍按持久化记录隐藏版本', () async {
+      final fixture = await _HiddenVideoFixture.create();
+      await fixture.controller.reloadSourcesAndSnapshot();
+      final versionB = fixture.controller.collection.groups.single.videos
+          .singleWhere((entry) => entry.id == 'video-b');
+      await fixture.controller.hideVideos(<CloudFileEntry>[versionB]);
+      fixture.controller.dispose();
+
+      final reloaded = fixture.createController();
+      await reloaded.reloadSourcesAndSnapshot();
+
+      expect(reloaded.hiddenVideos.single.remoteId, 'video-b');
+      expect(reloaded.collection.groups.single.videos.single.id, 'video-a');
+      reloaded.dispose();
+    });
+
+    test('隐藏记录写入失败时不改变控制器和海报集合', () async {
+      final storage = _FailingCloudHiddenVideoStorage();
+      final fixture = await _HiddenVideoFixture.create(
+        hiddenVideoRepository: CloudHiddenVideoRepository(storage: storage),
+      );
+      await fixture.controller.reloadSourcesAndSnapshot();
+      final versionB = fixture.controller.collection.groups.single.videos
+          .singleWhere((entry) => entry.id == 'video-b');
+      storage.failNextWrite = true;
+
+      await expectLater(
+        fixture.controller.hideVideos(<CloudFileEntry>[versionB]),
+        throwsStateError,
+      );
+
+      expect(fixture.controller.hiddenVideos, isEmpty);
+      expect(fixture.controller.collection.groups.single.videos, hasLength(2));
+      fixture.controller.dispose();
+    });
+
     test('选择网盘目录后仅聚合该目录子树并可返回全部根目录', () async {
       final credentials = MemoryCloudCredentialStore();
       final sourceRepository = CloudSourceRepository(
@@ -1389,6 +1466,151 @@ CloudMediaIndexItem _scopedCloudEpisode(
       episodeNumber: 1,
       mediaType: CloudMediaType.episode,
     );
+
+class _HiddenVideoFixture {
+  const _HiddenVideoFixture({
+    required this.source,
+    required this.sourceRepository,
+    required this.credentials,
+    required this.indexRepository,
+    required this.hiddenVideoRepository,
+    required this.controller,
+  });
+
+  final CloudSource source;
+  final CloudSourceRepository sourceRepository;
+  final MemoryCloudCredentialStore credentials;
+  final CloudMediaIndexRepository indexRepository;
+  final ICloudHiddenVideoRepository hiddenVideoRepository;
+  final CloudResourcesController controller;
+
+  static Future<_HiddenVideoFixture> create({
+    ICloudHiddenVideoRepository? hiddenVideoRepository,
+  }) async {
+    final credentials = MemoryCloudCredentialStore();
+    final sourceRepository = CloudSourceRepository(
+      storage: MemoryCloudSourceStorage(),
+      credentialStore: credentials,
+    );
+    const source = CloudSource(
+      id: 'hidden-video-source',
+      type: CloudSourceType.openList,
+      name: '版本媒体库',
+      baseUrl: 'https://drive.example.com',
+      rootPaths: <String>['/影视'],
+    );
+    await sourceRepository.save(source);
+    const versionA = CloudFileEntry(
+      id: 'video-a',
+      remotePath: '/影视/示例电影/示例电影.2160p.mkv',
+      name: '示例电影.2160p.mkv',
+      size: 2048,
+      modifiedAt: null,
+      isDirectory: false,
+    );
+    const versionB = CloudFileEntry(
+      id: 'video-b',
+      remotePath: '/影视/示例电影/示例电影.1080p.mkv',
+      name: '示例电影.1080p.mkv',
+      size: 1024,
+      modifiedAt: null,
+      isDirectory: false,
+    );
+    const directoryEntries = <String, List<CloudFileEntry>>{
+      '/影视': <CloudFileEntry>[
+        CloudFileEntry(
+          id: 'movie-root',
+          remotePath: '/影视/示例电影',
+          name: '示例电影',
+          size: 0,
+          modifiedAt: null,
+          isDirectory: true,
+        ),
+      ],
+      '/影视/示例电影': <CloudFileEntry>[versionA, versionB],
+    };
+    final work = const CloudMediaTreeResolver()
+        .resolve(
+          sourceId: source.id,
+          configuredRoots: const <String>['/影视'],
+          directoryEntries: directoryEntries,
+          minSizeBytes: 0,
+        )
+        .works
+        .single;
+    final indexRepository = CloudMediaIndexRepository(
+      storage: MemoryCloudMediaIndexStorage(),
+    );
+    await indexRepository.replaceSource(
+      source.id,
+      <CloudMediaIndexItem>[
+        for (final entry in const <CloudFileEntry>[versionA, versionB])
+          CloudMediaIndexItem(
+            sourceId: source.id,
+            remoteId: entry.id,
+            remotePath: entry.remotePath,
+            name: entry.name,
+            remoteName: entry.name,
+            displayName: entry.name,
+            workKey: work.workKey,
+            workRootId: work.root.id,
+            workRootPath: work.root.remotePath,
+            size: entry.size,
+            modifiedAt: entry.modifiedAt,
+            seriesName: work.displayTitle,
+            mediaType: CloudMediaType.movie,
+          ),
+      ],
+      const <String, String>{},
+      directoryEntries,
+      const <String>['/影视'],
+    );
+    final effectiveHiddenRepository = hiddenVideoRepository ??
+        CloudHiddenVideoRepository(
+          storage: MemoryCloudHiddenVideoStorage(),
+        );
+    late final _HiddenVideoFixture fixture;
+    final controller = CloudResourcesController(
+      repository: sourceRepository,
+      credentialStore: credentials,
+      mediaIndexRepository: indexRepository,
+      hiddenVideoRepository: effectiveHiddenRepository,
+      workTmdbCoordinator: _RecordingWorkTmdbCoordinator(),
+      minRecognizedVideoSizeBytesProvider: () => 0,
+    );
+    fixture = _HiddenVideoFixture(
+      source: source,
+      sourceRepository: sourceRepository,
+      credentials: credentials,
+      indexRepository: indexRepository,
+      hiddenVideoRepository: effectiveHiddenRepository,
+      controller: controller,
+    );
+    return fixture;
+  }
+
+  CloudResourcesController createController() => CloudResourcesController(
+        repository: sourceRepository,
+        credentialStore: credentials,
+        mediaIndexRepository: indexRepository,
+        hiddenVideoRepository: hiddenVideoRepository,
+        workTmdbCoordinator: _RecordingWorkTmdbCoordinator(),
+        minRecognizedVideoSizeBytesProvider: () => 0,
+      );
+}
+
+class _FailingCloudHiddenVideoStorage extends MemoryCloudHiddenVideoStorage {
+  bool failNextWrite = false;
+
+  @override
+  Future<void> write(List<Object?> records) {
+    if (failNextWrite) {
+      failNextWrite = false;
+      throw StateError('模拟隐藏记录写入失败');
+    }
+    return super.write(records);
+  }
+}
 
 class _Fixture {
   const _Fixture({required this.controller, required this.clients});

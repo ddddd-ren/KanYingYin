@@ -82,7 +82,7 @@ class XunleiResponseParser {
     final isDirectory = switch (kind) {
       'drive#folder' => true,
       'drive#file' => false,
-      _ => _incompatible<bool>(),
+      _ => _incompatible(),
     };
     final size = _nonNegativeInt(json['size']);
     if (size == null) _incompatible();
@@ -142,7 +142,7 @@ class XunleiResponseParser {
     return '${value.substring(0, 3)}****${value.substring(value.length - 4)}';
   }
 
-  Never _incompatible<T>() => throw const CloudDriveException(
+  Never _incompatible() => throw const CloudDriveException(
         CloudDriveErrorType.incompatible,
       );
 

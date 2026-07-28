@@ -4,6 +4,24 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一六十九说明迅雷网盘与 OpenList 快捷入口', () {
+    final entries = versionHistoryForCurrent('2.1.69');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    for (final text in <String>[
+      '迅雷网盘',
+      '账号密码不保存',
+      '原画播放',
+      'OpenList 入口',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('一点零点二说明累积正式版更新', () {
     final entries = versionHistoryForCurrent('1.0.2');
 

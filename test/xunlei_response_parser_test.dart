@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
-import 'package:kanyingyin/services/cloud/xunlei/xunlei_models.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_response_parser.dart';
 
 void main() {

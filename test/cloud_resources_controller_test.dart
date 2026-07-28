@@ -1689,9 +1689,13 @@ class _RecordingWorkTmdbCoordinator extends CloudWorkTmdbCoordinator {
 
   final Map<String, CloudWorkTmdbRecord> testRecords =
       <String, CloudWorkTmdbRecord>{};
+  int _testRecordsRevision = 0;
 
   @override
   Map<String, CloudWorkTmdbRecord> get recordsByWorkKey => testRecords;
+
+  @override
+  int get recordsRevision => _testRecordsRevision;
 
   @override
   Future<void> loadAndSchedule(CloudMediaTree tree) async {
@@ -1704,6 +1708,7 @@ class _RecordingWorkTmdbCoordinator extends CloudWorkTmdbCoordinator {
         ),
       );
     }
+    _testRecordsRevision++;
     notifyListeners();
   }
 
@@ -1714,6 +1719,7 @@ class _RecordingWorkTmdbCoordinator extends CloudWorkTmdbCoordinator {
   ) async {
     final updated = testRecords[work.workKey]!.copyWithScrapeTitle(title);
     testRecords[work.workKey] = updated;
+    _testRecordsRevision++;
     notifyListeners();
     return updated;
   }

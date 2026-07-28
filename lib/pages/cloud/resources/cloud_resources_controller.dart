@@ -128,6 +128,8 @@ class CloudResourcesController extends ChangeNotifier {
           minRecognizedVideoSizeBytesProvider:
               _minRecognizedVideoSizeBytesProvider,
         );
+    _resourceTmdbRecordsRevision = _tmdbCoordinator?.recordsRevision ?? 0;
+    _workTmdbRecordsRevision = _workTmdbCoordinator?.recordsRevision ?? 0;
     _tmdbCoordinator?.addListener(_handleTmdbChange);
     _workTmdbCoordinator?.addListener(_handleTmdbChange);
   }
@@ -175,6 +177,8 @@ class CloudResourcesController extends ChangeNotifier {
   CloudDirectoryScopeTree? _directoryScopeTreeCache;
   CloudResourceCollection? _collectionCache;
   int? _collectionMinSizeBytes;
+  int _resourceTmdbRecordsRevision = 0;
+  int _workTmdbRecordsRevision = 0;
 
   bool get canGoBack => false;
   Future<void> get scanCompletion => _scanFuture ?? Future<void>.value();
@@ -1129,7 +1133,14 @@ class CloudResourcesController extends ChangeNotifier {
   }
 
   void _handleTmdbChange() {
-    _invalidateCollection();
+    final resourceRevision = _tmdbCoordinator?.recordsRevision ?? 0;
+    final workRevision = _workTmdbCoordinator?.recordsRevision ?? 0;
+    if (resourceRevision != _resourceTmdbRecordsRevision ||
+        workRevision != _workTmdbRecordsRevision) {
+      _resourceTmdbRecordsRevision = resourceRevision;
+      _workTmdbRecordsRevision = workRevision;
+      _invalidateCollection();
+    }
     _notify();
   }
 

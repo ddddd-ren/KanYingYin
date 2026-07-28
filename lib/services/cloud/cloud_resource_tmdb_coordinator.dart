@@ -70,11 +70,14 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
   int _generation = 0;
   int _completedCount = 0;
   int _totalCount = 0;
+  int _recordsRevision = 0;
   String? _serviceApiKey;
   Future<CloudResourceTmdbService>? _service;
 
   Map<String, CloudResourceTmdbRecord> get records =>
       UnmodifiableMapView<String, CloudResourceTmdbRecord>(_records);
+
+  int get recordsRevision => _recordsRevision;
 
   Set<String> get scrapingKeys => UnmodifiableSetView<String>(_scrapingKeys);
 
@@ -91,6 +94,7 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
     _records
       ..clear()
       ..addEntries(stored.map((record) => MapEntry(record.stableKey, record)));
+    _markRecordsChanged();
     _scrapingKeys.clear();
     _completedCount = 0;
     _totalCount = 0;
@@ -163,6 +167,7 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
     );
     if (application == null) return null;
     _records[application.record.stableKey] = application.record;
+    _markRecordsChanged();
     if (application.indexSynced) {
       _pendingIndexSyncTargets.remove(target.stableKey);
     } else {
@@ -254,6 +259,7 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
     required String language,
   }) async {
     _records[outcome.record.stableKey] = outcome.record;
+    _markRecordsChanged();
     if (outcome.indexSynced) {
       _pendingIndexSyncTargets.remove(target.stableKey);
     } else {
@@ -369,6 +375,7 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
     );
     await _repository.upsert(record);
     _records[record.stableKey] = record;
+    _markRecordsChanged();
     notifyListeners();
     return record;
   }
@@ -380,6 +387,7 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
     final record = (existing ?? _uncheckedRecord(target)).clearCustomTitle();
     await _repository.upsert(record);
     _records[record.stableKey] = record;
+    _markRecordsChanged();
     notifyListeners();
     return record;
   }
@@ -470,6 +478,7 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
       await _repository.upsert(failed);
       if (generation == _generation) {
         _records[failed.stableKey] = failed;
+        _markRecordsChanged();
       }
     } finally {
       _scrapingKeys.remove(target.stableKey);
@@ -496,7 +505,14 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
 
   Future<void> _refreshRecord(CloudResourceTmdbTarget target) async {
     final record = await _repository.get(target.stableKey);
-    if (record != null) _records[record.stableKey] = record;
+    if (record != null) {
+      _records[record.stableKey] = record;
+      _markRecordsChanged();
+    }
+  }
+
+  void _markRecordsChanged() {
+    _recordsRevision++;
   }
 
   CloudResourceTmdbRecord _uncheckedRecord(

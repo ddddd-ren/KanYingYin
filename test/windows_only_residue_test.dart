@@ -83,4 +83,15 @@ void main() {
       expect(generated, isNot(contains(token)), reason: token);
     }
   });
+
+  test('迅雷设备验证只使用系统浏览器', () {
+    final editor = File(
+      'lib/pages/cloud/xunlei/xunlei_source_editor.dart',
+    ).readAsStringSync();
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+
+    expect(editor, contains('LaunchMode.externalApplication'));
+    expect(editor, isNot(contains('WebView')));
+    expect(pubspec, isNot(contains('webview_flutter')));
+  });
 }

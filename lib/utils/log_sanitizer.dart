@@ -16,7 +16,7 @@ class LogSanitizer {
   ];
 
   static final RegExp _keyValuePattern = RegExp(
-    r'\b((?:access[_-]?token|refresh[_-]?token|token|api[_-]?key|signature|password|passwd|secret)\s*[:=]\s*)[^\s,;&]+',
+    r'\b((?:access[_-]?token|refresh[_-]?token|captcha[_-]?token|credit[_-]?key|creditkey|token|api[_-]?key|signature|password|passwd|secret)\s*[:=]\s*)[^\s,;&]+',
     caseSensitive: false,
   );
 

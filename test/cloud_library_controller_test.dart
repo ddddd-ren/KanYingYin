@@ -1030,6 +1030,54 @@ void main() {
     expect(controller.errorMessage, isNull);
   });
 
+  test('删除迅雷来源清理安全凭据与索引但不执行远程写操作', () async {
+    const xunlei = CloudSource(
+      id: 'xunlei-delete',
+      type: CloudSourceType.xunlei,
+      name: '迅雷归档',
+      baseUrl: 'https://pan.xunlei.com',
+      rootPaths: <String>['/影视'],
+    );
+    final credentials = MemoryCloudCredentialStore();
+    final repository = CloudSourceRepository(
+      storage: MemoryCloudSourceStorage(),
+      credentialStore: credentials,
+    );
+    await repository.save(xunlei);
+    await credentials.write(
+      xunlei.id,
+      const CloudCredential(
+        refreshToken: 'refresh-fixture',
+        deviceId: '0123456789abcdef0123456789abcdef',
+      ),
+    );
+    final indexRepository = CloudMediaIndexRepository(
+      storage: MemoryCloudMediaIndexStorage(),
+    );
+    await indexRepository.replaceSource(
+      xunlei.id,
+      <CloudMediaIndexItem>[_indexItem(xunlei.id)],
+      const <String, String>{'/影视': 'fingerprint'},
+      const <String, List<CloudFileEntry>>{'/影视': <CloudFileEntry>[]},
+      const <String>['/影视'],
+    );
+    final controller = CloudLibraryController(
+      repository: repository,
+      credentialStore: credentials,
+      mediaIndexRepository: indexRepository,
+      posterCacheCleaner: (_) async {},
+      subtitleCacheCleaner: (_) async {},
+      clientFactory: (_, __, ___) => throw StateError('删除不应创建远程客户端'),
+    );
+
+    await controller.delete(xunlei.id);
+
+    expect(await repository.getById(xunlei.id), isNull);
+    expect(await credentials.read(xunlei.id), isNull);
+    expect(await indexRepository.getBySource(xunlei.id), isEmpty);
+    controller.dispose();
+  });
+
   test('缓存清理部分失败仍删除来源并提供明确反馈', () async {
     final repository = CloudSourceRepository(
       storage: MemoryCloudSourceStorage(),

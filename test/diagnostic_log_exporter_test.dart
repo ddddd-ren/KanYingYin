@@ -22,6 +22,14 @@ void main() {
       'Cookie: session=diagnostic-one; user=diagnostic user; '
       '__puus=diagnostic-three',
     );
+    await writer.write(
+      'provider=xunlei password=password-fixture '
+      'refresh_token=refresh-token-fixture '
+      'access_token=access-token-fixture '
+      'creditkey=credit-key-fixture '
+      'captcha_token=captcha-token-fixture '
+      'url=https://download.xunlei.com/private-fixture?token=download-secret',
+    );
     final original = File(
       '${tempDir.path}${Platform.pathSeparator}${RotatingLogWriter.activeFileName}',
     );
@@ -46,6 +54,16 @@ void main() {
     expect(content, isNot(contains('diagnostic-one')));
     expect(content, isNot(contains('diagnostic user')));
     expect(content, isNot(contains('diagnostic-three')));
+    for (final forbidden in <String>[
+      'password-fixture',
+      'refresh-token-fixture',
+      'access-token-fixture',
+      'credit-key-fixture',
+      'captcha-token-fixture',
+      'https://download.xunlei.com/private-fixture',
+    ]) {
+      expect(content, isNot(contains(forbidden)), reason: forbidden);
+    }
     expect(await original.exists(), isTrue);
   });
 }

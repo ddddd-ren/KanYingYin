@@ -18,6 +18,7 @@ import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/baidu/baidu_range_remote_reader.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_range_remote_reader.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resources_page.dart';
 import 'package:kanyingyin/pages/player/player_controller.dart';
 import 'package:kanyingyin/modules/local/local_episode.dart';
 import 'package:kanyingyin/modules/video/local_playback_session.dart';
@@ -333,6 +334,28 @@ void main() {
     expect(refreshed.uri.queryParameters['token'], 'secret-new');
     await result.lease!.close();
     expect(fakeReader.closeCalls, 1);
+  });
+
+  test('迅雷播放诊断只保留来源和错误类型', () {
+    const source = CloudSource(
+      id: 'xunlei-diagnostic',
+      type: CloudSourceType.xunlei,
+      name: '迅雷网盘',
+      baseUrl: 'https://pan.xunlei.com',
+      rootPaths: <String>['/'],
+    );
+    final diagnostic = cloudPlaybackFailureDiagnostic(
+      source,
+      HttpException(
+        'https://download.xunlei.com/private-fixture?token=secret',
+      ),
+    );
+
+    expect(diagnostic, contains('provider=xunlei'));
+    expect(diagnostic, contains('sourceId=xunlei-diagnostic'));
+    expect(diagnostic, contains('errorType=HttpException'));
+    expect(diagnostic, isNot(contains('download.xunlei.com')));
+    expect(diagnostic, isNot(contains('secret')));
   });
 
   test('中转启动失败时回退现有夸克直连', () async {

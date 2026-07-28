@@ -930,14 +930,21 @@ void main() {
         '/动漫/Bad'
       });
 
+      const xunleiSource = CloudSource(
+        id: 'xunlei-partial-failure',
+        type: CloudSourceType.xunlei,
+        name: '迅雷归档',
+        baseUrl: 'https://pan.xunlei.com',
+        rootPaths: <String>['/动漫'],
+      );
       final result = await CloudMediaIndexer(repository: repository).scan(
-        source: source,
+        source: xunleiSource,
         client: client,
       );
 
       expect(result.failures, 1);
       expect(result.failedPaths, <String>['/动漫/Bad']);
-      expect(await repository.getBySource(source.id), hasLength(1));
+      expect(await repository.getBySource(xunleiSource.id), hasLength(1));
     });
 
     test('取消保留旧完整索引且同来源并发扫描被拒绝', () async {

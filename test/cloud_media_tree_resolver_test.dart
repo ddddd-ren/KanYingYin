@@ -9,6 +9,62 @@ void main() {
   group('CloudMediaTreeResolver', () {
     const resolver = CloudMediaTreeResolver();
 
+    test('名称含发布站网址的剧集目录仍扫描其中分集', () {
+      const releaseName =
+          '[高清剧集发布 www.BBHDTV.com] 财阀家的小儿子[全16集][中文字幕].Reborn.Rich.S01.2160p.TVING.WEB-DL.H265.AAC-ColorTV';
+      const workPath = '/剧集/$releaseName';
+      final directoryEntries = <String, List<CloudFileEntry>>{
+        '/剧集': <CloudFileEntry>[
+          _dir('reborn-rich', workPath, releaseName),
+        ],
+        workPath: <CloudFileEntry>[
+          _video(
+            'reborn-rich-1',
+            '$workPath/Reborn.Rich.S01E01.2160p.WEB-DL.H265.AAC.mkv',
+            'Reborn.Rich.S01E01.2160p.WEB-DL.H265.AAC.mkv',
+          ),
+          _video(
+            'reborn-rich-2',
+            '$workPath/Reborn.Rich.S01E02.2160p.WEB-DL.H265.AAC.mkv',
+            'Reborn.Rich.S01E02.2160p.WEB-DL.H265.AAC.mkv',
+          ),
+        ],
+      };
+
+      for (final configuredRoot in <String>['/剧集', workPath]) {
+        final tree = resolver.resolve(
+          sourceId: 'quark-a',
+          configuredRoots: <String>[configuredRoot],
+          directoryEntries: directoryEntries,
+          minSizeBytes: 100,
+        );
+
+        expect(tree.works, hasLength(1), reason: configuredRoot);
+        final work = tree.works.single;
+        expect(work.seasons, hasLength(1), reason: configuredRoot);
+        expect(
+          work.seasons.single.episodes.map(
+            (episode) => episode.episodeNumber,
+          ),
+          <int>[1, 2],
+          reason: configuredRoot,
+        );
+        expect(
+          work.titleCandidates.any((title) => title.contains('BBHDTV.com')),
+          isFalse,
+          reason: configuredRoot,
+        );
+        expect(
+          tree.ignored.any(
+            (entry) =>
+                entry.id == 'reborn-rich-1' || entry.id == 'reborn-rich-2',
+          ),
+          isFalse,
+          reason: configuredRoot,
+        );
+      }
+    });
+
     test('同目录方括号发布名按共同剧名合并分集', () {
       const workPath = '/动漫/假面骑士OOO';
       final hashes = <String>['9F632FDD', '5A8A1BD9', 'B3F01416'];

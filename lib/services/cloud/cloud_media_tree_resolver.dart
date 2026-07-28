@@ -81,6 +81,8 @@ class _ResolutionContext {
       directoryName,
       isDirectory: true,
     );
+    final excludesConfiguredRootTitle =
+        directoryAnalysis.role == MediaNodeRole.advertisement;
     final isStructuralRoot =
         nameAnalyzer.isTransparentDirectoryName(directoryName) ||
             directoryAnalysis.role == MediaNodeRole.season;
@@ -110,6 +112,7 @@ class _ResolutionContext {
           configuredReleaseTags: directoryAnalysis.releaseTags,
           configuredYear: directoryAnalysis.year,
           configuredDirectoryName: directoryName,
+          includeRootTitleCandidates: !excludesConfiguredRootTitle,
         );
         return;
       }
@@ -197,14 +200,18 @@ class _ResolutionContext {
         entry.name,
         isDirectory: entry.isDirectory,
       );
-      if (analysis.role == MediaNodeRole.advertisement) {
+      if (_shouldIgnoreAdvertisement(entry, analysis)) {
         _ignoreTree(entry);
         continue;
       }
       if (entry.isDirectory) {
         final path = _pathOf(entry);
         if (_isWorkRoot(path)) {
-          _resolveDirectoryWork(entry);
+          _resolveDirectoryWork(
+            entry,
+            includeRootTitleCandidates:
+                analysis.role != MediaNodeRole.advertisement,
+          );
         } else {
           discover(path);
         }
@@ -238,7 +245,7 @@ class _ResolutionContext {
         entry.name,
         isDirectory: entry.isDirectory,
       );
-      if (analysis.role == MediaNodeRole.advertisement) continue;
+      if (_shouldIgnoreAdvertisement(entry, analysis)) continue;
       if (!entry.isDirectory && _isRecognizedVideo(entry)) return true;
       if (entry.isDirectory &&
           analysis.role == MediaNodeRole.season &&
@@ -263,7 +270,9 @@ class _ResolutionContext {
         entry.name,
         isDirectory: entry.isDirectory,
       );
-      if (analysis.role == MediaNodeRole.advertisement) continue;
+      if (analysis.role == MediaNodeRole.advertisement && !entry.isDirectory) {
+        continue;
+      }
       if (!entry.isDirectory && _isRecognizedVideo(entry)) return true;
       if (entry.isDirectory &&
           _containsRecognizedVideo(_pathOf(entry), visited)) {
@@ -279,6 +288,7 @@ class _ResolutionContext {
     MediaReleaseTags configuredReleaseTags = const MediaReleaseTags(),
     int? configuredYear,
     String? configuredDirectoryName,
+    bool includeRootTitleCandidates = true,
   }) {
     final rootPath = _pathOf(root);
     if (!_resolvedWorkRoots.add(rootPath)) return;
@@ -320,7 +330,7 @@ class _ResolutionContext {
           entry.name,
           isDirectory: entry.isDirectory,
         );
-        if (analysis.role == MediaNodeRole.advertisement) {
+        if (_shouldIgnoreAdvertisement(entry, analysis)) {
           _ignoreTree(entry);
           continue;
         }
@@ -376,6 +386,7 @@ class _ResolutionContext {
       rootAnalysis,
       seasonNumbers,
       aliases,
+      includeRootTitleCandidates: includeRootTitleCandidates,
     );
     final displayTitle = titleCandidates.first;
     final seasons = <CloudSeasonIdentity>[];
@@ -509,7 +520,7 @@ class _ResolutionContext {
         entry.name,
         isDirectory: entry.isDirectory,
       );
-      if (analysis.role == MediaNodeRole.advertisement) {
+      if (_shouldIgnoreAdvertisement(entry, analysis)) {
         _ignoreTree(entry);
       } else if (entry.isDirectory) {
         _collectStandaloneVideos(
@@ -603,7 +614,7 @@ class _ResolutionContext {
         entry.name,
         isDirectory: entry.isDirectory,
       );
-      if (analysis.role == MediaNodeRole.advertisement) {
+      if (_shouldIgnoreAdvertisement(entry, analysis)) {
         _ignoreTree(entry);
         continue;
       }
@@ -689,15 +700,18 @@ class _ResolutionContext {
     CloudFileEntry root,
     MediaNameAnalysis rootAnalysis,
     List<int> seasonNumbers,
-    List<String> aliases,
-  ) {
+    List<String> aliases, {
+    required bool includeRootTitleCandidates,
+  }) {
     final result = <String>[];
     for (final alias in aliases) {
       _addUnique(result, alias);
     }
-    final sourceCandidates = rootAnalysis.titleCandidates.isEmpty
-        ? <String>[root.name.trim()]
-        : rootAnalysis.titleCandidates;
+    final sourceCandidates = includeRootTitleCandidates
+        ? (rootAnalysis.titleCandidates.isEmpty
+            ? <String>[root.name.trim()]
+            : rootAnalysis.titleCandidates)
+        : const <String>[];
     final highestSeason = seasonNumbers.isEmpty ? null : seasonNumbers.last;
     for (final candidate in sourceCandidates) {
       final normalized = _withoutCollectionSeasonSuffix(
@@ -710,6 +724,15 @@ class _ResolutionContext {
     }
     if (result.isEmpty) _addUnique(result, root.name.trim());
     return result;
+  }
+
+  bool _shouldIgnoreAdvertisement(
+    CloudFileEntry entry,
+    MediaNameAnalysis analysis,
+  ) {
+    if (analysis.role != MediaNodeRole.advertisement) return false;
+    if (!entry.isDirectory) return true;
+    return !_containsRecognizedVideo(_pathOf(entry), <String>{});
   }
 
   String _withoutCollectionSeasonSuffix(

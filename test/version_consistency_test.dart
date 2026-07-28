@@ -6,8 +6,8 @@ import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
   test('应用版本、MSIX 版本和更新日志保持一致', () {
-    const expectedVersion = '2.1.64';
-    const expectedBuildNumber = '20164';
+    const expectedVersion = '2.1.65';
+    const expectedBuildNumber = '20165';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
@@ -89,20 +89,12 @@ void main() {
       currentVersionHistory,
       updateDialogCopy,
     ]) {
-      expect(copy, contains('隐藏'));
-      expect(copy, contains('恢复'));
-      expect(copy, contains('重新扫描'));
+      expect(copy, contains('TrueHD'));
+      expect(copy, contains('PGS'));
+      expect(copy, contains('硬件解码'));
+      expect(copy, contains('零拷贝'));
+      expect(copy, contains('Anime4K'));
       expect(copy, contains('不会修改或删除'));
-      for (final feature in [
-        '夸克',
-        '百度',
-        'OpenList',
-        '媒体库',
-        '播放器',
-        'TMDB',
-      ]) {
-        expect(copy, contains(feature));
-      }
     }
   });
 }

@@ -174,6 +174,21 @@ void main() {
     expect(changes, contains('不会修改或删除网盘文件'));
   });
 
+  test('二点一六十五说明 TrueHD 与 PGS 解码修复并保留零拷贝', () {
+    final entries = versionHistoryForCurrent('2.1.65');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    expect(changes, contains('TrueHD'));
+    expect(changes, contains('PGS'));
+    expect(changes, contains('硬件解码'));
+    expect(changes, contains('零拷贝'));
+    expect(changes, contains('Anime4K'));
+    expect(changes, contains('不会修改或删除'));
+  });
+
   test('二点一四十九说明 Anime4K 效率档使用官方快速组合', () {
     final entries = versionHistoryForCurrent('2.1.49');
 

@@ -16,6 +16,17 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.65',
+    date: '2026-07-28',
+    isPrerelease: true,
+    changes: [
+      '修复只有 TrueHD 音轨的视频能够识别音轨却没有声音的问题',
+      '修复蓝光 PGS 内嵌字幕能够识别字幕轨却无法显示的问题',
+      '保留现有 Windows 硬件解码、4K 零拷贝渲染和 Anime4K 行为，不改变音轨与字幕选择方式',
+      '本次更新只替换播放器解码组件，不会修改或删除，也不会转码本地与网盘媒体库中的原始视频和字幕文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.64',
     date: '2026-07-28',
     isPrerelease: true,

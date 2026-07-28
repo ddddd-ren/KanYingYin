@@ -24,12 +24,12 @@ void main() {
     );
   });
 
-  test('通用 Range 中转沿用夸克已验证的缓存参数', () {
+  test('通用 Range 中转使用统一缓存参数', () {
     expect(
       CloudPlaybackCachePolicy.forTransport(
         CloudPlaybackTransport.rangeRelay,
       ).mpvProperties,
-      CloudPlaybackCachePolicy.quarkRelay.mpvProperties,
+      CloudPlaybackCachePolicy.cloudRangeRelay.mpvProperties,
     );
   });
 

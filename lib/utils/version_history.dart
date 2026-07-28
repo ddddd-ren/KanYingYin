@@ -16,6 +16,18 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.64',
+    date: '2026-07-28',
+    isPrerelease: true,
+    changes: [
+      '网盘海报卡的资源操作菜单新增“隐藏视频”；同一影片有多个具体版本时，可以只隐藏不喜欢的版本，其他版本继续显示和播放',
+      '隐藏记录会在重启和重新扫描后保留；网盘媒体库顶部“更多网盘操作”可逐个或全部恢复已隐藏视频',
+      '隐藏只影响看影音海报墙，不会从索引中移除视频；字幕、TMDB 资料和实际播放地址继续保留',
+      '移除网盘来源时会同步清理该来源的隐藏记录，清理失败会明确提示；不会修改或删除网盘文件',
+      '功能适用于夸克、百度和 OpenList；本地媒体库与播放器保持原有行为，TMDB 不可用或断网时仍可使用已有媒体',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.63',
     date: '2026-07-28',
     isPrerelease: true,

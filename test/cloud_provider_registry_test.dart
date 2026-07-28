@@ -6,6 +6,8 @@ import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/openlist/openlist_client.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_drive_client.dart';
+import 'package:kanyingyin/services/cloud/xunlei/xunlei_drive_client.dart';
+import 'package:kanyingyin/services/cloud/xunlei/xunlei_range_remote_reader.dart';
 
 void main() {
   group('CloudProviderRegistry', () {
@@ -177,6 +179,89 @@ void main() {
 
       expect(client, isA<BaiduDriveClient>());
       await client.close();
+    });
+
+    test('迅雷注册客户端、读取器、名称和官方地址', () async {
+      const source = CloudSource(
+        id: 'xunlei-fixture',
+        type: CloudSourceType.xunlei,
+        name: '迅雷网盘',
+        baseUrl: 'https://example.invalid',
+        rootPaths: <String>[],
+        allowSelfSignedCertificate: true,
+      );
+      final credentials = MemoryCloudCredentialStore();
+
+      final normalized = registry.normalizeSource(source);
+      final client = registry.createClient(normalized, credentials);
+      final reader = registry.createRangeReader(
+        source: normalized,
+        resource: CloudPlaybackResource(
+          uri: Uri.parse('https://download.xunlei.com/original'),
+          headers: const <String, String>{'User-Agent': 'fixture'},
+        ),
+        refreshResource: () => throw StateError('不应刷新'),
+        credentialStore: credentials,
+      );
+
+      expect(client, isA<XunleiDriveClient>());
+      expect(reader, isA<XunleiRangeRemoteReader>());
+      expect(registry.providerName(CloudSourceType.xunlei), '迅雷网盘');
+      expect(normalized.baseUrl, 'https://pan.xunlei.com');
+      expect(normalized.allowSelfSignedCertificate, isFalse);
+      expect(
+        registry.supportsSelfSignedCertificate(CloudSourceType.xunlei),
+        isFalse,
+      );
+      expect(registry.supportsShareTransfer(CloudSourceType.xunlei), isFalse);
+      await reader.close();
+      await client.close();
+    });
+
+    test('迅雷凭据留空保留现有授权且不混入其他秘密', () {
+      const source = CloudSource(
+        id: 'xunlei-fixture',
+        type: CloudSourceType.xunlei,
+        name: '迅雷网盘',
+        baseUrl: 'https://pan.xunlei.com',
+        rootPaths: <String>[],
+      );
+      const existing = CloudCredential(
+        refreshToken: 'refresh-old',
+        deviceId: '0123456789abcdef0123456789abcdef',
+        captchaToken: 'captcha-old',
+        userId: 'user-old',
+        accountLabel: '138****0000',
+        accessToken: 'must-not-copy',
+        password: 'must-not-copy',
+      );
+
+      final merged = registry.mergeCredential(
+        source: source,
+        form: const CloudCredential(),
+        existing: existing,
+        endpointUnchanged: true,
+      );
+
+      expect(merged.refreshToken, 'refresh-old');
+      expect(merged.deviceId, existing.deviceId);
+      expect(merged.captchaToken, 'captcha-old');
+      expect(merged.userId, 'user-old');
+      expect(merged.accountLabel, '138****0000');
+      expect(merged.accessToken, isNull);
+      expect(merged.password, isNull);
+    });
+
+    test('迅雷错误文案区分登录、验证、兼容和原画失效', () {
+      String message(CloudDriveErrorType type) => registry.errorMessage(
+            CloudSourceType.xunlei,
+            CloudDriveException(type),
+          );
+
+      expect(message(CloudDriveErrorType.authentication), '迅雷登录已失效，请重新登录');
+      expect(message(CloudDriveErrorType.verificationRequired), '迅雷需要完成设备验证');
+      expect(message(CloudDriveErrorType.incompatible), '当前版本暂不兼容迅雷接口');
+      expect(message(CloudDriveErrorType.expiredLink), '迅雷原画地址已失效');
     });
   });
 }

@@ -7,6 +7,8 @@ import 'package:kanyingyin/services/cloud/range/cloud_range_remote_reader.dart';
 import 'package:kanyingyin/services/cloud/openlist/openlist_client.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_drive_client.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_range_remote_reader.dart';
+import 'package:kanyingyin/services/cloud/xunlei/xunlei_drive_client.dart';
+import 'package:kanyingyin/services/cloud/xunlei/xunlei_range_remote_reader.dart';
 
 typedef CloudProviderClientFactory = CloudDriveClient Function(
   CloudSource source,
@@ -31,12 +33,14 @@ class CloudProviderRegistry {
           CloudSourceType.openList: _createOpenListClient,
           CloudSourceType.quark: _createQuarkClient,
           CloudSourceType.baidu: _createBaiduClient,
+          CloudSourceType.xunlei: _createXunleiClient,
           ...clientFactories,
         },
         _rangeReaderFactories =
             <CloudSourceType, CloudProviderRangeReaderFactory>{
           CloudSourceType.quark: _createQuarkRangeReader,
           CloudSourceType.baidu: _createBaiduRangeReader,
+          CloudSourceType.xunlei: _createXunleiRangeReader,
           ...rangeReaderFactories,
         };
 
@@ -82,6 +86,7 @@ class CloudProviderRegistry {
         CloudSourceType.openList => 'OpenList',
         CloudSourceType.quark => '夸克网盘',
         CloudSourceType.baidu => '百度网盘',
+        CloudSourceType.xunlei => '迅雷网盘',
       };
 
   bool supportsSelfSignedCertificate(CloudSourceType type) =>
@@ -100,6 +105,10 @@ class CloudProviderRegistry {
           ),
         CloudSourceType.baidu => source.copyWith(
             baseUrl: 'https://pan.baidu.com',
+            allowSelfSignedCertificate: false,
+          ),
+        CloudSourceType.xunlei => source.copyWith(
+            baseUrl: 'https://pan.xunlei.com',
             allowSelfSignedCertificate: false,
           ),
       };
@@ -132,6 +141,10 @@ class CloudProviderRegistry {
             form: form,
             existing: existing,
           ),
+        CloudSourceType.xunlei => _mergeXunleiCredential(
+            form: form,
+            existing: existing,
+          ),
       };
 
   String errorMessage(
@@ -145,6 +158,10 @@ class CloudProviderRegistry {
           '夸克 Cookie 无效或已失效',
         (CloudSourceType.baidu, CloudDriveErrorType.authentication) =>
           '百度网盘授权无效或已失效',
+        (CloudSourceType.xunlei, CloudDriveErrorType.authentication) =>
+          '迅雷登录已失效，请重新登录',
+        (CloudSourceType.xunlei, CloudDriveErrorType.verificationRequired) =>
+          '迅雷需要完成设备验证',
         (_, CloudDriveErrorType.permission) => '当前账号没有访问权限',
         (_, CloudDriveErrorType.network) => '连接失败，请检查网络',
         (CloudSourceType.openList, CloudDriveErrorType.notFound) =>
@@ -165,6 +182,10 @@ class CloudProviderRegistry {
           '当前版本暂不兼容夸克接口',
         (CloudSourceType.baidu, CloudDriveErrorType.incompatible) =>
           '当前版本暂不兼容百度网盘接口',
+        (CloudSourceType.xunlei, CloudDriveErrorType.incompatible) =>
+          '当前版本暂不兼容迅雷接口',
+        (CloudSourceType.xunlei, CloudDriveErrorType.expiredLink) =>
+          '迅雷原画地址已失效',
         _ => '服务响应不兼容',
       };
 
@@ -232,6 +253,23 @@ class CloudProviderRegistry {
     );
   }
 
+  static CloudCredential _mergeXunleiCredential({
+    required CloudCredential form,
+    required CloudCredential? existing,
+  }) =>
+      CloudCredential(
+        refreshToken: _nonEmpty(form.refreshToken) ?? existing?.refreshToken,
+        deviceId: _nonEmpty(form.deviceId) ?? existing?.deviceId,
+        captchaToken: _nonEmpty(form.captchaToken) ?? existing?.captchaToken,
+        userId: _nonEmpty(form.userId) ?? existing?.userId,
+        accountLabel: _nonEmpty(form.accountLabel) ?? existing?.accountLabel,
+      );
+
+  static String? _nonEmpty(String? value) {
+    final normalized = value?.trim();
+    return normalized == null || normalized.isEmpty ? null : normalized;
+  }
+
   static CloudDriveClient _createOpenListClient(
     CloudSource source,
     CloudCredentialStore credentialStore,
@@ -259,6 +297,16 @@ class CloudProviderRegistry {
     bool allowSelfSignedCertificate,
   ) =>
       BaiduDriveClient(
+        source: source,
+        credentialStore: credentialStore,
+      );
+
+  static CloudDriveClient _createXunleiClient(
+    CloudSource source,
+    CloudCredentialStore credentialStore,
+    bool allowSelfSignedCertificate,
+  ) =>
+      XunleiDriveClient(
         source: source,
         credentialStore: credentialStore,
       );
@@ -295,6 +343,18 @@ class CloudProviderRegistry {
             _toCloudRangeResource(await refreshResource()),
       );
 
+  static CloudRangeRemoteReader _createXunleiRangeReader({
+    required CloudSource source,
+    required CloudPlaybackResource resource,
+    required Future<CloudPlaybackResource> Function() refreshResource,
+    required CloudCredentialStore credentialStore,
+  }) =>
+      XunleiRangeRemoteReader(
+        resource: _toCloudRangeResource(resource),
+        refreshResource: () async =>
+            _toCloudRangeResource(await refreshResource()),
+      );
+
   static QuarkRemoteResource _toQuarkRemoteResource(
     CloudPlaybackResource resource,
   ) =>
@@ -306,5 +366,8 @@ class CloudProviderRegistry {
   static CloudRangeRemoteResource _toCloudRangeResource(
     CloudPlaybackResource resource,
   ) =>
-      CloudRangeRemoteResource(uri: resource.uri);
+      CloudRangeRemoteResource(
+        uri: resource.uri,
+        headers: resource.headers,
+      );
 }

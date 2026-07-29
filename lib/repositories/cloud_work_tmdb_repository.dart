@@ -66,6 +66,8 @@ class CloudWorkTmdbRepository {
   final CloudWorkTmdbStorage _storage;
   late final Lock _mutationLock;
 
+  Future<List<CloudWorkTmdbRecord>> getAll() => _getAll();
+
   Future<List<CloudWorkTmdbRecord>> getBySource(String sourceId) async {
     return (await _getAll())
         .where((record) => record.sourceId == sourceId)
@@ -103,6 +105,12 @@ class CloudWorkTmdbRepository {
       };
       await _write(byKey.values.toList(growable: false));
     });
+  }
+
+  Future<void> replaceAll(Iterable<CloudWorkTmdbRecord> replacements) {
+    return _mutationLock.synchronized(
+      () => _write(replacements.toList(growable: false)),
+    );
   }
 
   Future<void> replaceSource(

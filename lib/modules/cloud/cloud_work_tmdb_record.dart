@@ -250,6 +250,30 @@ class CloudWorkTmdbRecord {
     );
   }
 
+  CloudWorkTmdbRecord rebindForTransfer({
+    required String sourceId,
+    required String workKey,
+    required String workRootId,
+    required String workRootPath,
+    required String? posterCachePath,
+    required TmdbMetadata metadata,
+  }) {
+    return CloudWorkTmdbRecord(
+      sourceId: sourceId,
+      workKey: workKey,
+      workRootId: workRootId,
+      workRootPath: workRootPath,
+      remoteName: remoteName,
+      status: status,
+      checkedAt: checkedAt,
+      scrapeTitleOverride: scrapeTitleOverride,
+      metadata: metadata,
+      posterCachePath: posterCachePath,
+      tmdbMatchOrigin: tmdbMatchOrigin,
+      tmdbRuleVersion: tmdbRuleVersion,
+    );
+  }
+
   Map<String, Object?> toJson() => <String, Object?>{
         'sourceId': sourceId,
         'workKey': workKey,

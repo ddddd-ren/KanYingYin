@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_api_client.dart';
+import 'package:kanyingyin/services/cloud/xunlei/xunlei_request_policy.dart';
 
 void main() {
   const deviceId = '0123456789abcdef0123456789abcdef';
@@ -332,6 +333,7 @@ void main() {
   });
 
   test('安卓令牌目录请求遇到 Captcha 失效时按当前客户端刷新并重试', () async {
+    final now = DateTime.utc(2026, 7, 30, 4, 50);
     final adapter = _QueueAdapter(<_FakeResponse>[
       const _FakeResponse(
         200,
@@ -348,6 +350,7 @@ void main() {
     final client = XunleiApiClient(
       deviceId: deviceId,
       dio: Dio()..httpClientAdapter = adapter,
+      now: () => now,
     );
 
     final session = await client.refresh(
@@ -363,10 +366,16 @@ void main() {
     expect(shieldRequest.headers['x-client-id'], 'Xp6vsxz_7IYVw2BB');
     expect(shieldBody['client_id'], 'Xp6vsxz_7IYVw2BB');
     expect(shieldBody['action'], 'GET:/drive/v1/files');
+    final timestamp = '${now.millisecondsSinceEpoch}';
     expect(shieldBody['meta'], <String, String>{
-      'username': '',
-      'phone_number': '',
-      'email': '',
+      'client_version': XunleiRequestPolicy.clientVersion,
+      'package_name': XunleiRequestPolicy.packageName,
+      'user_id': 'user-android',
+      'timestamp': timestamp,
+      'captcha_sign': const XunleiRequestPolicy().captchaSign(
+        deviceId: deviceId,
+        timestamp: timestamp,
+      ),
     });
     expect(
       adapter.requests[4].headers['x-captcha-token'],

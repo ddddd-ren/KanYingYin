@@ -71,6 +71,7 @@ class XunleiApiClient implements XunleiApi {
         _dio = dio ?? Dio(),
         _ownsDio = dio == null,
         _policy = policy,
+        _now = now ?? DateTime.now,
         _requestLog = requestLog ?? writeCloudRequestDiagnostic,
         _parser = XunleiResponseParser(now: now ?? DateTime.now) {
     _dio.options
@@ -84,6 +85,7 @@ class XunleiApiClient implements XunleiApi {
   final Dio _dio;
   final bool _ownsDio;
   final XunleiRequestPolicy _policy;
+  final DateTime Function() _now;
   final XunleiRequestLog _requestLog;
   final XunleiResponseParser _parser;
   XunleiSession? _session;
@@ -366,6 +368,14 @@ class XunleiApiClient implements XunleiApi {
     required Uri uri,
     required XunleiClientProfile profile,
   }) async {
+    final meta = switch (profile) {
+      XunleiClientProfile.android => _authorizedAndroidCaptchaMeta(),
+      XunleiClientProfile.web => const <String, String>{
+          'username': '',
+          'phone_number': '',
+          'email': '',
+        },
+    };
     final json = await _request(
       'POST',
       XunleiRequestPolicy.captchaInitUri,
@@ -380,14 +390,24 @@ class XunleiApiClient implements XunleiApi {
         'action': '${method.toUpperCase()}:${uri.path}',
         'device_id': _deviceId,
         'captcha_token': _captchaToken ?? '',
-        'meta': const <String, String>{
-          'username': '',
-          'phone_number': '',
-          'email': '',
-        },
+        'meta': meta,
       },
     );
     _captchaToken = _requiredString(json, 'captcha_token');
+  }
+
+  Map<String, String> _authorizedAndroidCaptchaMeta() {
+    final timestamp = '${_now().millisecondsSinceEpoch}';
+    return <String, String>{
+      'client_version': XunleiRequestPolicy.clientVersion,
+      'package_name': XunleiRequestPolicy.packageName,
+      'user_id': _requiredSession().userId,
+      'timestamp': timestamp,
+      'captcha_sign': _policy.captchaSign(
+        deviceId: _deviceId,
+        timestamp: timestamp,
+      ),
+    };
   }
 
   Future<Map<String, Object?>> _request(

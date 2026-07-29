@@ -253,11 +253,17 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
           source: source,
           controller: _controller,
           credential: credential,
+          onCredentialRefreshed: _acceptRefreshedCredential,
           initialSelection: _rootRefs,
         ),
       ),
     );
     if (mounted && selected != null) setState(() => _rootRefs = selected);
+  }
+
+  void _acceptRefreshedCredential(CloudCredential credential) {
+    if (!mounted || !_isCompleteCredential(credential)) return;
+    setState(() => _authorizedCredential = credential);
   }
 
   void _clearRoots() {
@@ -387,7 +393,8 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
                   labelText: 'Refresh Token',
                   helperText: _isAuthorized
                       ? '已授权；如需更换账号，请粘贴新的 Token'
-                      : '支持从 pan.xunlei.com 网页端获取的 Token；仅保存到 Windows 安全凭据',
+                      : '网页 Refresh Token 可能绑定原浏览器设备；'
+                          '目录读取失败时请改用下方账号密码登录',
                   suffixIcon: IconButton(
                     onPressed: _busy
                         ? null
@@ -435,7 +442,9 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
                 tilePadding: EdgeInsets.zero,
                 childrenPadding: const EdgeInsets.only(bottom: 16),
                 title: const Text('账号密码兼容登录'),
-                subtitle: const Text('旧协议可能失效，建议优先使用 Refresh Token'),
+                subtitle: const Text(
+                  '推荐使用账号密码登录，以当前设备身份读取迅雷目录',
+                ),
                 children: _buildCompatibleLogin(),
               ),
               const SizedBox(height: 8),

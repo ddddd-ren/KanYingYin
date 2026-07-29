@@ -4,6 +4,25 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一八十五修复 Android 字幕并兼容 TrueHD 音轨', () {
+    final entries = versionHistoryForCurrent('2.1.85');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      'Android',
+      '内嵌字幕',
+      '外部字幕',
+      '配音/音轨',
+      'TrueHD',
+      '手机和平板',
+      '真机验收尚未完成',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一八十四修复 Android 黑屏、返回和图片连接错误', () {
     final entries = versionHistoryForCurrent('2.1.84');
 

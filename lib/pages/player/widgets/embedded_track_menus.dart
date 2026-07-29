@@ -88,10 +88,13 @@ class EmbeddedTrackMenus extends StatelessWidget {
         consumeOutsideTap: true,
         onOpen: onMenuOpen,
         onClose: onMenuClose,
-        builder: (_, controller, __) => TextButton(
-          onPressed: () =>
-              controller.isOpen ? controller.close() : controller.open(),
-          child: const Text('语言', style: TextStyle(color: Colors.white)),
+        builder: (_, controller, __) => Tooltip(
+          message: '选择影片配音语言和音轨',
+          child: TextButton(
+            onPressed: () =>
+                controller.isOpen ? controller.close() : controller.open(),
+            child: const Text('配音/音轨', style: TextStyle(color: Colors.white)),
+          ),
         ),
         menuChildren: playerController.availableAudioTracks.isEmpty
             ? [

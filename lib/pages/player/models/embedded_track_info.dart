@@ -87,7 +87,7 @@ class EmbeddedTrackInfo {
         type: EmbeddedTrackType.audio,
         title: track.title,
         language: track.language,
-        codec: track.codec,
+        codec: track.codec ?? track.decoder,
         channels: track.channels,
         channelsCount: track.channelscount ?? track.audiochannels,
       );
@@ -97,7 +97,7 @@ class EmbeddedTrackInfo {
         type: EmbeddedTrackType.subtitle,
         title: track.title,
         language: track.language,
-        codec: track.codec,
+        codec: track.codec ?? track.decoder,
       );
 
   static EmbeddedTrackInfo _fromTrack({

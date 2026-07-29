@@ -29,6 +29,8 @@ import 'package:kanyingyin/features/player/application/player_subtitle_coordinat
 import 'package:kanyingyin/features/player/application/subtitle_preferences.dart';
 import 'package:kanyingyin/features/player/application/truehd_fallback_policy.dart';
 import 'package:kanyingyin/pages/player/models/embedded_track_info.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/utils/external_player.dart';
 import 'package:kanyingyin/utils/media_uri_utils.dart';
 import 'package:path/path.dart' as p;
@@ -204,6 +206,7 @@ abstract class _PlayerController with Store {
     SubtitlePreferences? subtitlePreferences,
     EmbeddedTrackLanguagePreferences? trackLanguagePreferences,
     TrueHdFallbackPolicy? trueHdFallbackPolicy,
+    AppPlatformCapabilities? capabilities,
     ShadersController? shadersController,
     Future<void> Function()? clearLocalPlaybackCache,
     required PlayerRuntimePreferences runtimePreferences,
@@ -212,6 +215,7 @@ abstract class _PlayerController with Store {
             trackLanguagePreferences ?? EmbeddedTrackLanguagePreferences(),
         _trueHdFallbackPolicy =
             trueHdFallbackPolicy ?? const TrueHdFallbackPolicy(),
+        _capabilities = capabilities ?? detectAppPlatform(),
         _clearLocalPlaybackCache = clearLocalPlaybackCache,
         _runtimePreferences = runtimePreferences,
         shadersController =
@@ -222,6 +226,7 @@ abstract class _PlayerController with Store {
   final SubtitlePreferences _subtitlePreferences;
   final EmbeddedTrackLanguagePreferences _trackLanguagePreferences;
   final TrueHdFallbackPolicy _trueHdFallbackPolicy;
+  final AppPlatformCapabilities _capabilities;
   final Future<void> Function()? _clearLocalPlaybackCache;
   final PlayerRuntimePreferences _runtimePreferences;
   late final PlayerSubtitleCoordinator _subtitleCoordinator =
@@ -721,6 +726,8 @@ abstract class _PlayerController with Store {
                 : 1500 * 1024 * 1024,
         osc: false,
         libass: true,
+        libassAndroidFont: 'assets/fonts/MiSans-Regular.ttf',
+        libassAndroidFontName: 'MiSans',
         logLevel: MPVLogLevel.v,
       ),
     );
@@ -743,6 +750,7 @@ abstract class _PlayerController with Store {
     // 该设置可以在所有平台上正确启用双重缓存
     await pp.setProperty("demuxer-cache-dir", await Utils.getPlayerTempPath());
     await pp.setProperty("af", "scaletempo2=max-speed=8");
+    await _prepareAndroidAudioOutput(pp, trueHd: true);
     for (final property in cachePolicy.mpvProperties.entries) {
       await pp.setProperty(property.key, property.value);
     }
@@ -780,6 +788,7 @@ abstract class _PlayerController with Store {
     playerErrorSubscription = mediaPlayer!.stream.error.listen((event) async {
       if (!_isMediaOperationActive(mediaToken, lifecycleToken)) return;
       final errorStr = event.toString();
+      final safeError = sanitizePlayerDiagnostic(errorStr);
       if (await _refreshExpiredCloudLink(
         errorStr,
         mediaToken,
@@ -820,7 +829,8 @@ abstract class _PlayerController with Store {
       }
       AppLogger().e(
         'PlayerController: player error for '
-        '${sanitizeMediaDescription(initParams.videoUrl, isLocalPlayback: initParams.isLocalPlayback)}',
+        '${sanitizeMediaDescription(initParams.videoUrl, isLocalPlayback: initParams.isLocalPlayback)} '
+        'error=$safeError',
       );
     });
 
@@ -850,9 +860,7 @@ abstract class _PlayerController with Store {
       await _disposePlayerResources();
       throw const _PlayerInitializationCancelled();
     }
-    if (subtitlePath == null || subtitlePath.isEmpty) {
-      await _disableSubtitleTrack(clearCurrentPath: true);
-    } else {
+    if (subtitlePath != null && subtitlePath.isNotEmpty) {
       await loadExternalSubtitle(subtitlePath);
     }
     await applySubtitleStyle(save: false);
@@ -916,6 +924,7 @@ abstract class _PlayerController with Store {
     }
 
     try {
+      await _prepareAudioTrackOutput(player, fallbackTrack);
       await player.setAudioTrack(fallbackTrack);
       AppLogger().w(
           'PlayerController: switched from TrueHD to audio track ${fallbackTrack.id}');
@@ -1001,6 +1010,33 @@ abstract class _PlayerController with Store {
     await _setFlutterSubtitleMode(player);
   }
 
+  Future<void> _prepareAndroidAudioOutput(
+    NativePlayer player, {
+    required bool trueHd,
+  }) async {
+    if (!_capabilities.isAndroid) return;
+    await player.setProperty(
+      'audio-channels',
+      trueHd ? 'stereo' : 'auto-safe',
+    );
+    await player.setProperty(
+      'ad-lavc-downmix',
+      trueHd ? 'yes' : 'no',
+    );
+  }
+
+  Future<void> _prepareAudioTrackOutput(
+    Player player,
+    AudioTrack track,
+  ) async {
+    final platform = player.platform;
+    if (platform is! NativePlayer) return;
+    await _prepareAndroidAudioOutput(
+      platform,
+      trueHd: _trueHdFallbackPolicy.isTrueHd(track),
+    );
+  }
+
   @action
   Future<bool> selectAudioTrack(String trackId, {bool manual = true}) async {
     final player = mediaPlayer;
@@ -1011,6 +1047,7 @@ abstract class _PlayerController with Store {
     if (track == null) return false;
     final previousId = selectedAudioTrackId;
     try {
+      await _prepareAudioTrackOutput(player, track);
       await player.setAudioTrack(track);
       selectedAudioTrackId = track.id;
       if (manual) _embeddedTrackSelection.markAudioSelectedManually();
@@ -1254,11 +1291,9 @@ abstract class _PlayerController with Store {
   }
 
   Future<void> _selectDefaultEmbeddedTracks() async {
-    if (!_embeddedTrackSelection.beginAutomaticSelection(
+    final shouldSelectAudio = _embeddedTrackSelection.beginAutomaticSelection(
       hasAudioTracks: availableAudioTracks.isNotEmpty,
-    )) {
-      return;
-    }
+    );
     final automaticSubtitleSelection =
         _subtitleTrackSelection.beginAutomaticSelection();
     final current = mediaPlayer?.state.track;
@@ -1271,7 +1306,9 @@ abstract class _PlayerController with Store {
           defaultTrackId: current?.subtitle.id,
         ) ??
         availableEmbeddedSubtitleTracks.firstOrNull;
-    if (audio != null && _embeddedTrackSelection.canAutomaticallySelectAudio) {
+    if (shouldSelectAudio &&
+        audio != null &&
+        _embeddedTrackSelection.canAutomaticallySelectAudio) {
       await selectAudioTrack(audio.id, manual: false);
     }
     if (!_subtitleTrackSelection.canApplyAutomaticSelection(

@@ -114,6 +114,21 @@ void main() {
       expect(audio.detailLabel, contains('TrueHD'));
       expect(audio.detailLabel, contains('5.1'));
     });
+
+    test('音轨编码缺失时使用解码器识别 TrueHD', () {
+      final audio = EmbeddedTrackInfo.fromAudio(
+        const AudioTrack(
+          '2',
+          'Dolby Atmos',
+          'eng',
+          decoder: 'fftruehd',
+          channelscount: 8,
+        ),
+      );
+
+      expect(audio.detailLabel, contains('TrueHD'));
+      expect(audio.detailLabel, contains('7.1'));
+    });
   });
 
   test('音轨优先级为国语粤语台配默认轨第一条', () {

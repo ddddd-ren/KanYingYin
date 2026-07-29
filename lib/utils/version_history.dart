@@ -16,6 +16,21 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.85',
+    date: '2026-07-30',
+    isPrerelease: true,
+    changes: [
+      '修复 Android 内嵌字幕和外部字幕不显示的问题，播放器现在加载应用内中文字体，并避免打开视频后误关闭已选择的字幕轨',
+      '增加清晰可见的“配音/音轨”入口，可按影片切换配音语言和音轨，并显示语言、编码及声道信息',
+      '改进 Android 手机和平板的 TrueHD/MLP 兼容播放，使用立体声 PCM 下混输出；解码失败时仍会尝试切换已有兼容音轨',
+      '播放器错误日志会记录脱敏后的原始错误原因，后续排查不再只有本地回环地址',
+      '账号设备验证继续在应用内完成：Windows 使用 WebView2，Android 使用系统 WebView；阻止下载、新窗口、不安全页面和权限请求，验证成功后自动继续登录',
+      '本次签名包尚待手机和平板真机复验，因此真机验收尚未完成',
+      'Windows 播放器、窗口、托盘和快捷方式行为保持不变',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.84',
     date: '2026-07-30',
     isPrerelease: true,

@@ -16,23 +16,39 @@ void main() {
     ).readAsStringSync(encoding: utf8);
   });
 
-  test('PR 工作流提供 Windows 单作业质量门禁', () {
+  test('PR 工作流提供 Windows 与 Android 双作业质量门禁', () {
     expect(prWorkflow, contains('pull_request:'));
     expect(prWorkflow, contains('workflow_dispatch:'));
-    expect(prWorkflow, contains('runs-on: windows-latest'));
     expect(prWorkflow, contains('contents: read'));
-    expect(prWorkflow, contains('flutter-version-file: pubspec.yaml'));
-    expect(prWorkflow, contains('flutter pub get'));
-    expect(prWorkflow,
-        contains('dart format --output=none --set-exit-if-changed .'));
-    expect(prWorkflow, contains('flutter analyze --no-pub'));
-    expect(prWorkflow, contains('flutter test --no-pub'));
+
+    final jobs = _topLevelJobNames(prWorkflow);
+    expect(jobs, containsAll(<String>['windows-quality', 'android-quality']));
+    expect(jobs, hasLength(2));
+
+    final windows = _jobBlock(prWorkflow, 'windows-quality');
+    expect(windows, contains('runs-on: windows-latest'));
+    expect(windows, contains('flutter-version-file: pubspec.yaml'));
+    expect(windows, contains('flutter pub get'));
     expect(
-      prWorkflow,
+      windows,
+      contains('dart format --output=none --set-exit-if-changed .'),
+    );
+    expect(windows, contains('flutter analyze --no-pub'));
+    expect(windows, contains('flutter test --no-pub'));
+    expect(
+      windows,
       contains('flutter build windows --release --no-pub'),
     );
-    expect(prWorkflow, contains('uses: actions/upload-artifact@'));
-    expect(_topLevelJobNames(prWorkflow), hasLength(1));
+    expect(windows, contains('uses: actions/upload-artifact@'));
+
+    final android = _jobBlock(prWorkflow, 'android-quality');
+    expect(android, contains('runs-on: ubuntu-latest'));
+    expect(android, contains('flutter-version-file: pubspec.yaml'));
+    expect(android, contains('flutter pub get'));
+    expect(android, contains('flutter analyze --no-pub'));
+    expect(android, contains('flutter test --no-pub'));
+    expect(android, contains('flutter build apk --debug --no-pub'));
+    expect(android, isNot(contains('KANYINGYIN_ANDROID_')));
   });
 
   test('发布工作流仅构建并发布版本一致的 Windows MSIX', () {
@@ -230,6 +246,17 @@ List<String> _topLevelJobNames(String workflow) {
       .where((line) => RegExp(r'^  [A-Za-z0-9_-]+:\s*$').hasMatch(line))
       .map((line) => line.trim().replaceFirst(RegExp(r':$'), ''))
       .toList(growable: false);
+}
+
+String _jobBlock(String workflow, String jobName) {
+  final lines = const LineSplitter().convert(workflow);
+  final start = lines.indexOf('  $jobName:');
+  if (start < 0) return '';
+  final end = lines.indexWhere(
+    (line) => RegExp(r'^  [A-Za-z0-9_-]+:\s*$').hasMatch(line),
+    start + 1,
+  );
+  return lines.sublist(start, end < 0 ? lines.length : end).join('\n');
 }
 
 String _stepBlock(String workflow, String name) {

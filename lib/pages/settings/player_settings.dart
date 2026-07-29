@@ -4,6 +4,7 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/features/player/application/player_platform_policy.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/platform/android/android_system_service.dart';
 import 'package:kanyingyin/utils/constants.dart';
@@ -11,17 +12,26 @@ import 'package:kanyingyin/utils/diagnostic_log_exporter.dart';
 // ignore_for_file: avoid_print
 
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
-import 'package:kanyingyin/utils/utils.dart';
 
 class PlayerSettingsPage extends StatefulWidget {
-  const PlayerSettingsPage({super.key});
+  const PlayerSettingsPage({
+    super.key,
+    this.settings,
+    this.capabilities,
+  });
+
+  final TypedSettings? settings;
+  final AppPlatformCapabilities? capabilities;
 
   @override
   State<PlayerSettingsPage> createState() => _PlayerSettingsPageState();
 }
 
 class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
-  final TypedSettings setting = Modular.get<TypedSettings>();
+  late final TypedSettings setting =
+      widget.settings ?? Modular.get<TypedSettings>();
+  late final AppPlatformCapabilities platform =
+      widget.capabilities ?? detectAppPlatform();
   late double defaultPlaySpeed;
   late double defaultShortcutForwardPlaySpeed;
   late int defaultAspectRatioType;
@@ -33,6 +43,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
   late bool autoPlayNext;
   late bool localAutoLoadSubtitle;
   late bool backgroundPlayback;
+  late bool androidAutoEnterPip;
   late bool brightnessVolumeGesture;
   late int playerButtonSkipTime;
   late int playerArrowKeySkipTime;
@@ -73,6 +84,10 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
     );
     backgroundPlayback = setting.getTyped<bool>(
       SettingBoxKey.backgroundPlayback,
+      defaultValue: false,
+    );
+    androidAutoEnterPip = setting.getTyped<bool>(
+      SettingBoxKey.androidAutoEnterPip,
       defaultValue: false,
     );
     playerDisableAnimations = setting.getTyped<bool>(
@@ -192,7 +207,6 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final fontFamily = Theme.of(context).textTheme.bodyMedium?.fontFamily;
-    final platform = detectAppPlatform();
     final playerPolicy = PlayerPlatformPolicy(platform);
     return PopScope(
       canPop: true,
@@ -248,7 +262,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                       ))}',
                       style: TextStyle(fontFamily: fontFamily)),
                 ),
-                if (detectAppPlatform().isAndroid)
+                if (platform.isAndroid)
                   KSettingsTile<void>.navigation(
                     onPressed: (_) async {
                       await Modular.to.pushNamed('/settings/player/renderer');
@@ -290,7 +304,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                 KSettingsTile<bool>.switchTile(
                   onToggle: (value) async {
                     final nextValue = value ?? !backgroundPlayback;
-                    if (nextValue && detectAppPlatform().isAndroid) {
+                    if (nextValue && platform.isAndroid) {
                       final granted = await const AndroidSystemService()
                           .requestNotificationPermission();
                       if (!granted) {
@@ -318,6 +332,24 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                       style: TextStyle(fontFamily: fontFamily)),
                   initialValue: backgroundPlayback,
                 ),
+                if (platform.systemPictureInPicture)
+                  KSettingsTile<bool>.switchTile(
+                    onToggle: (value) async {
+                      androidAutoEnterPip = value ?? !androidAutoEnterPip;
+                      await setting.put(
+                        SettingBoxKey.androidAutoEnterPip,
+                        androidAutoEnterPip,
+                      );
+                      setState(() {});
+                    },
+                    title:
+                        Text('自动画中画', style: TextStyle(fontFamily: fontFamily)),
+                    description: Text(
+                      '播放视频时切到后台自动进入系统画中画',
+                      style: TextStyle(fontFamily: fontFamily),
+                    ),
+                    initialValue: androidAutoEnterPip,
+                  ),
                 KSettingsTile<bool>.switchTile(
                   onToggle: (value) async {
                     playResume = value ?? !playResume;
@@ -364,7 +396,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                       style: TextStyle(fontFamily: fontFamily)),
                   initialValue: playerDisableAnimations,
                 ),
-                if (!Utils.isDesktop())
+                if (platform.isAndroid)
                   KSettingsTile<bool>.switchTile(
                     onToggle: (value) async {
                       brightnessVolumeGesture =
@@ -395,7 +427,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                       style: TextStyle(fontFamily: fontFamily)),
                   initialValue: showPlayerError,
                 ),
-                if (detectAppPlatform().desktopShell)
+                if (platform.desktopShell)
                   KSettingsTile<void>.navigation(
                     onPressed: (_) async {
                       try {

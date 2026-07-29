@@ -1,8 +1,27 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_ce/hive.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
+import 'package:kanyingyin/pages/settings/player_settings.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
 
 void main() {
+  late Directory hiveDirectory;
+  late Box<Object?> settingBox;
+
+  setUpAll(() async {
+    hiveDirectory = await Directory.systemTemp.createTemp('player-settings');
+    Hive.init(hiveDirectory.path);
+    settingBox = await Hive.openBox<Object?>('player-settings');
+  });
+
+  tearDownAll(() async {
+    await Hive.close();
+    await hiveDirectory.delete(recursive: true);
+  });
+
   test('设置区域不再依赖 card_settings_ui', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     expect(pubspec, isNot(contains('card_settings_ui:')));
@@ -82,11 +101,44 @@ void main() {
     );
     final playerSettings =
         File('lib/pages/settings/player_settings.dart').readAsStringSync();
-    expect(playerSettings, contains('detectAppPlatform().isAndroid'));
+    expect(playerSettings, contains('widget.capabilities'));
     expect(playerSettings, contains("'/settings/player/renderer'"));
     expect(
       File('lib/pages/settings/renderer_settings.dart').existsSync(),
       isTrue,
     );
+  });
+
+  testWidgets('播放设置按注入能力显示 Windows 或 Android 选项', (tester) async {
+    tester.view.physicalSize = const Size(1280, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    Widget page(AppPlatformCapabilities capabilities) => PlayerSettingsPage(
+          key: ValueKey<AppPlatformKind>(capabilities.kind),
+          settings: TypedSettings(settingBox),
+          capabilities: capabilities,
+        );
+
+    await tester.pumpWidget(
+      MaterialApp(home: page(AppPlatformCapabilities.windows)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('视频渲染器'), findsNothing);
+    expect(find.text('滑动手势'), findsNothing);
+    expect(find.text('自动画中画'), findsNothing);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: page(AppPlatformCapabilities.android),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('视频渲染器'), findsOneWidget);
+    expect(find.text('滑动手势'), findsOneWidget);
+    expect(find.text('自动画中画'), findsOneWidget);
   });
 }

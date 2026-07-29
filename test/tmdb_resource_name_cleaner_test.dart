@@ -48,4 +48,28 @@ void main() {
     expect(cleaner.clean('The 100.mkv'), 'The 100');
     expect(cleaner.clean('作品【导演收藏】.mkv'), '作品【导演收藏】');
   });
+
+  test('清除发布站括号资源说明和系列编号前缀', () {
+    final cases = <String, String>{
+      '作品【高清剧集网发布 www.DDHDTV.com】[全46集][国语配音+中文字幕]':
+          '作品',
+      '作品【高清影视之家发布 www.SSDDSE.com】[高码版][国粤多音轨+中文字幕]':
+          '作品',
+      '034201_（系列）作品': '作品',
+      '作品 全集4K日语中字': '作品',
+      '作品 剧场版11部': '作品',
+      '作品 1-2部合集 4K原盘 中文字幕': '作品',
+    };
+
+    for (final entry in cases.entries) {
+      expect(cleaner.clean(entry.key), entry.value, reason: entry.key);
+    }
+  });
+
+  test('新增发布规则不删除正式括号标题或数字作品名', () {
+    expect(cleaner.clean('[REC] (2007).mkv'), '[REC] (2007)');
+    expect(cleaner.clean('1923.mkv'), '1923');
+    expect(cleaner.clean('The 100.mkv'), 'The 100');
+    expect(cleaner.clean('作品【导演收藏】.mkv'), '作品【导演收藏】');
+  });
 }

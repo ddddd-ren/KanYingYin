@@ -4,6 +4,25 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一七十二说明迅雷设备验证空白页修复', () {
+    final entries = versionHistoryForCurrent('2.1.72');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    for (final text in <String>[
+      '设备验证',
+      '空白页',
+      '设备签名',
+      '系统浏览器',
+      '日志',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一七十一说明 TMDB 直连和迅雷 Token 授权', () {
     final entries = versionHistoryForCurrent('2.1.71');
 

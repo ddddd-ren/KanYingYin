@@ -282,7 +282,10 @@ class XunleiApiClient implements XunleiApi {
       if (uri == null || !_policy.isTrustedVerificationUri(uri)) {
         throw const CloudDriveException(CloudDriveErrorType.incompatible);
       }
-      throw XunleiVerificationRequired(uri: uri, creditKey: '');
+      throw XunleiVerificationRequired(
+        uri: _prepareVerificationUri(uri),
+        creditKey: '',
+      );
     }
     final token = _requiredString(json, 'captcha_token');
     _captchaToken = token;
@@ -338,7 +341,10 @@ class XunleiApiClient implements XunleiApi {
           '迅雷请求 stage=${stage.name} status=$statusCode '
           'error=${CloudDriveErrorType.verificationRequired.name}',
         );
-        throw challenge;
+        throw XunleiVerificationRequired(
+          uri: _prepareVerificationUri(challenge.uri),
+          creditKey: challenge.creditKey,
+        );
       }
       if (statusCode < 200 || statusCode >= 300 || _hasApiError(json)) {
         throw CloudDriveException(_errorType(statusCode, json));
@@ -438,6 +444,19 @@ class XunleiApiClient implements XunleiApi {
     if (value is! String) return null;
     final normalized = value.trim();
     return normalized.isEmpty ? null : normalized;
+  }
+
+  Uri _prepareVerificationUri(Uri uri) {
+    final path = uri.path == '/xlcaptcha/verifyPhone.html'
+        ? '/xlcaptcha/vertifyPhone.html'
+        : uri.path;
+    return uri.replace(
+      path: path,
+      queryParameters: <String, String>{
+        ...uri.queryParameters,
+        'deviceid': _policy.deviceSign(_deviceId),
+      },
+    );
   }
 
   @override

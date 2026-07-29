@@ -134,11 +134,11 @@ void main() {
     await client.close();
   });
 
-  test('核心登录验证响应转换为脱敏挑战', () async {
+  test('核心登录验证响应修复短信页地址并绑定当前设备', () async {
     final adapter = _QueueAdapter(<_FakeResponse>[
       const _FakeResponse(
         200,
-        '{"error":"review_panel","creditkey":"credit-secret","reviewurl":"https://i.xunlei.com/verify?ticket=secret"}',
+        '{"error":"review_panel","creditkey":"credit-secret","reviewurl":"https://i.xunlei.com/xlcaptcha/verifyPhone.html?mobile=138****0000&userID=user-fixture&creditkey=url-credit-fixture"}',
       ),
     ]);
     final client = XunleiApiClient(
@@ -146,19 +146,26 @@ void main() {
       dio: Dio()..httpClientAdapter = adapter,
     );
 
-    await expectLater(
-      client.login(
+    Object? captured;
+    try {
+      await client.login(
         identifier: 'user-fixture',
         password: 'password-fixture',
         deviceId: deviceId,
-      ),
-      throwsA(
-        isA<XunleiVerificationRequired>().having(
-          (challenge) => challenge.uri.host,
-          '验证主机',
-          'i.xunlei.com',
-        ),
-      ),
+      );
+    } on Object catch (error) {
+      captured = error;
+    }
+
+    expect(captured, isA<XunleiVerificationRequired>());
+    final challenge = captured! as XunleiVerificationRequired;
+    expect(challenge.uri.host, 'i.xunlei.com');
+    expect(challenge.uri.path, '/xlcaptcha/vertifyPhone.html');
+    expect(challenge.uri.queryParameters['mobile'], '138****0000');
+    expect(challenge.uri.queryParameters['userID'], 'user-fixture');
+    expect(
+      challenge.uri.queryParameters['deviceid'],
+      startsWith('div101.$deviceId'),
     );
     await client.close();
   });

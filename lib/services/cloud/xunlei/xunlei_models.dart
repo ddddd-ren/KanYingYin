@@ -81,3 +81,22 @@ class XunleiVerificationRequired implements Exception {
   @override
   String toString() => 'XunleiVerificationRequired(<redacted>)';
 }
+
+class XunleiVerificationChallenge {
+  const XunleiVerificationChallenge({
+    required this.reviewUri,
+    required this.creditKey,
+    required this.deviceId,
+    required this.deviceSign,
+    required this.startedAt,
+  });
+
+  final Uri reviewUri;
+  final String creditKey;
+  final String deviceId;
+  final String deviceSign;
+  final DateTime startedAt;
+
+  @override
+  String toString() => 'XunleiVerificationChallenge(<redacted>)';
+}

@@ -6,8 +6,8 @@ import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
   test('应用版本、MSIX 版本和更新日志保持一致', () {
-    const expectedVersion = '2.1.70';
-    const expectedBuildNumber = '20170';
+    const expectedVersion = '2.1.71';
+    const expectedBuildNumber = '20171';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
@@ -79,11 +79,11 @@ void main() {
       currentVersionHistory,
     ]) {
       for (final text in <String>[
-        '代理软件',
-        '重新探测',
-        '自动重试',
-        'API Key',
-        '播放器',
+        '官方备用端点',
+        'Refresh Token',
+        '名称清理',
+        '日志',
+        '本地扫描与播放',
         '不会修改或删除',
       ]) {
         expect(currentCopy, contains(text));

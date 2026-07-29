@@ -30,6 +30,18 @@ const List<VersionHistory> versionHistoryList = [
     ],
   ),
   VersionHistory(
+    version: '2.1.71',
+    date: '2026-07-29',
+    isPrerelease: true,
+    changes: [
+      'TMDB 主站在当前网络不可用时会自动切换到官方备用端点，不开 VPN 也能继续刮削',
+      '扩充发布站、语言、片源、音轨、季度和合集名称清理，年份与季号继续用于准确匹配',
+      '迅雷网盘默认改用 Refresh Token 授权，账号密码保留为兼容入口',
+      '迅雷旧登录协议失效时会给出明确提示，账号、密码和 Token 不会写入日志',
+      'TMDB 或迅雷暂时不可用时，本地扫描与播放继续使用；不会修改或删除原始媒体文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.70',
     date: '2026-07-29',
     isPrerelease: true,

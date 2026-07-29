@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:kanyingyin/features/scraped_metadata_transfer/application/scraped_metadata_archive_codec.dart';
 import 'package:kanyingyin/features/scraped_metadata_transfer/domain/scraped_metadata_transfer_models.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
@@ -18,6 +19,10 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 typedef TransferCacheRootProvider = Future<Directory> Function();
+typedef TransferNetworkImageInstaller = Future<void> Function({
+  required String url,
+  required File file,
+});
 
 final class ScrapedMetadataImportException implements Exception {
   const ScrapedMetadataImportException(this.cause);
@@ -35,17 +40,21 @@ final class ScrapedMetadataImporter {
     required CloudWorkTmdbRepository workRepository,
     required CloudSeriesMatchRuleRepository ruleRepository,
     TransferCacheRootProvider? cacheRootProvider,
+    TransferNetworkImageInstaller? networkImageInstaller,
   })  : _localIndexRepository = localIndexRepository,
         _resourceRepository = resourceRepository,
         _workRepository = workRepository,
         _ruleRepository = ruleRepository,
-        _cacheRootProvider = cacheRootProvider ?? _defaultCacheRoot;
+        _cacheRootProvider = cacheRootProvider ?? _defaultCacheRoot,
+        _networkImageInstaller =
+            networkImageInstaller ?? _defaultNetworkImageInstaller;
 
   final ILocalMediaIndexRepository _localIndexRepository;
   final CloudResourceTmdbRepository _resourceRepository;
   final CloudWorkTmdbRepository _workRepository;
   final CloudSeriesMatchRuleRepository _ruleRepository;
   final TransferCacheRootProvider _cacheRootProvider;
+  final TransferNetworkImageInstaller _networkImageInstaller;
 
   Future<ScrapedMetadataTransferResult> apply(
     ScrapedMetadataImportPlan plan,
@@ -75,6 +84,7 @@ final class ScrapedMetadataImporter {
         }
         installedImages[entry.key] = target.path;
       }
+      await _installNetworkImages(plan, installedImages);
 
       final localUpdates = <String, LocalMediaIndexItem>{};
       for (final match in plan.localMatches) {
@@ -267,6 +277,87 @@ final class ScrapedMetadataImporter {
     }
   }
 
+  Future<void> _installNetworkImages(
+    ScrapedMetadataImportPlan plan,
+    Map<String, String> installedImages,
+  ) async {
+    final installedUrls = <String>{};
+
+    Future<void> install(String? url, String? packagePath) async {
+      final normalizedUrl = url?.trim() ?? '';
+      final installedPath = _installedPath(packagePath, installedImages);
+      if (normalizedUrl.isEmpty ||
+          installedPath == null ||
+          !installedUrls.add(normalizedUrl)) {
+        return;
+      }
+      await _networkImageInstaller(
+        url: normalizedUrl,
+        file: File(installedPath),
+      );
+    }
+
+    Future<void> installMetadata(
+      TmdbMetadata metadata,
+      String? posterImage,
+      String? backdropImage,
+      Map<int, String> seasonImages,
+    ) async {
+      await install(metadata.posterUrl, posterImage);
+      await install(metadata.backdropUrl, backdropImage);
+      for (final season in metadata.seasons) {
+        await install(
+          season.posterUrl,
+          seasonImages[season.seasonNumber],
+        );
+      }
+    }
+
+    for (final match in plan.localMatches) {
+      await installMetadata(
+        TmdbMetadata.fromJson(
+          Map<String, dynamic>.from(match.portable.tmdb),
+        ),
+        match.portable.posterImage,
+        match.portable.backdropImage,
+        match.portable.seasonImages,
+      );
+    }
+    for (final match in plan.cloudResourceMatches) {
+      final record = CloudResourceTmdbRecord.fromJson(match.portable.record);
+      await install(record.posterUrl, match.portable.posterImage);
+      await install(record.backdropUrl, match.portable.backdropImage);
+      for (final season in record.seasons) {
+        await install(
+          season.posterUrl,
+          match.portable.seasonImages[season.seasonNumber],
+        );
+      }
+    }
+    for (final match in plan.cloudWorkMatches) {
+      final metadata =
+          CloudWorkTmdbRecord.fromJson(match.portable.record).metadata;
+      if (metadata != null) {
+        await installMetadata(
+          metadata,
+          match.portable.posterImage,
+          match.portable.backdropImage,
+          match.portable.seasonImages,
+        );
+      }
+    }
+    for (final match in plan.cloudSeriesRuleMatches) {
+      final metadata =
+          CloudSeriesMatchRule.fromJson(match.portable.record).metadata;
+      await installMetadata(
+        metadata,
+        match.portable.posterImage,
+        match.portable.backdropImage,
+        match.portable.seasonImages,
+      );
+    }
+  }
+
   static TmdbMetadata _metadataWithSeasonImages(
     TmdbMetadata metadata,
     Map<int, String> seasonImages,
@@ -316,5 +407,19 @@ final class ScrapedMetadataImporter {
   static Future<Directory> _defaultCacheRoot() async {
     final support = await getApplicationSupportDirectory();
     return Directory(p.join(support.path, AppIdentity.storageNamespace));
+  }
+
+  static Future<void> _defaultNetworkImageInstaller({
+    required String url,
+    required File file,
+  }) async {
+    final extension = p.extension(file.path).replaceFirst('.', '');
+    await DefaultCacheManager().putFile(
+      url,
+      await file.readAsBytes(),
+      key: url,
+      maxAge: const Duration(days: 3650),
+      fileExtension: extension.isEmpty ? 'image' : extension,
+    );
   }
 }

@@ -223,6 +223,34 @@ final class ScrapedMetadataImportPlanner {
           )
           .toList(growable: false);
       final candidates = byId.length == 1 ? byId : byPath;
+      if (candidates.length != 1 &&
+          portable.record['resourceKind'] == 'directory') {
+        final directoryTargets = <String, ({String id, String path})>{};
+        for (final item in items) {
+          final workRootId = item.workRootId?.trim() ?? '';
+          final workRootPath = item.workRootPath?.trim() ?? '';
+          if (workRootId.isEmpty ||
+              _normalizedRemotePath(workRootPath) !=
+                  _normalizedRemotePath(remotePath)) {
+            continue;
+          }
+          directoryTargets[
+                  '$workRootId|${_normalizedRemotePath(workRootPath)}'] =
+              (id: workRootId, path: workRootPath);
+        }
+        if (directoryTargets.length == 1) {
+          final target = directoryTargets.values.single;
+          resourceMatches.add(
+            CloudResourceImportMatch(
+              portable: portable,
+              targetSourceId: targetSourceId,
+              targetRemoteId: target.id,
+              targetRemotePath: target.path,
+            ),
+          );
+          continue;
+        }
+      }
       if (candidates.length != 1) {
         missing++;
         continue;

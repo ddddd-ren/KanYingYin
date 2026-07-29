@@ -1,10 +1,25 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/modules/local/media_location.dart';
+import 'package:kanyingyin/platform/android/android_document_provider.dart';
+import 'package:kanyingyin/platform/android/android_platform_channel.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:path/path.dart' as p;
 
 typedef LocalDriveRootsProvider = Future<List<String>> Function();
 typedef LocalDirectoryLoader = Future<List<String>> Function(String path);
+
+class LocalDirectorySelection {
+  const LocalDirectorySelection({
+    required this.location,
+    required this.name,
+  });
+
+  final MediaLocation location;
+  final String name;
+}
 
 String normalizeLocalDirectoryAddress(String value) {
   var normalized = value.trim();
@@ -28,14 +43,34 @@ class LocalDirectoryPickerPage extends StatefulWidget {
   final LocalDriveRootsProvider driveRootsProvider;
   final LocalDirectoryLoader directoryLoader;
 
-  static Future<String?> pick(
+  static Future<LocalDirectorySelection?> pick(
     BuildContext context, {
     String? initialPath,
-  }) {
-    return Navigator.of(context).push<String>(
+    AppPlatformCapabilities? capabilities,
+    AndroidDocumentProvider? androidProvider,
+  }) async {
+    final platform = capabilities ?? detectAppPlatform();
+    if (platform.storageAccessFramework) {
+      final provider = androidProvider ??
+          const MethodChannelAndroidDocumentProvider(
+            AndroidPlatformChannel(),
+          );
+      final selected = await provider.pickDirectory();
+      if (selected == null) return null;
+      return LocalDirectorySelection(
+        location: selected.location,
+        name: selected.name,
+      );
+    }
+    final path = await Navigator.of(context).push<String>(
       MaterialPageRoute(
         builder: (_) => LocalDirectoryPickerPage(initialPath: initialPath),
       ),
+    );
+    if (path == null || path.isEmpty) return null;
+    return LocalDirectorySelection(
+      location: MediaLocation.file(path),
+      name: p.basename(path).isEmpty ? path : p.basename(path),
     );
   }
 

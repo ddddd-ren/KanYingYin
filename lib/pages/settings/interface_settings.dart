@@ -4,6 +4,7 @@ import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/pages/local/local_directory_picker.dart';
 import 'package:kanyingyin/pages/navigation/navigation_config.dart';
+import 'package:kanyingyin/repositories/local_media_source_repository.dart';
 
 class InterfaceSettingsPage extends StatefulWidget {
   const InterfaceSettingsPage({super.key});
@@ -106,8 +107,22 @@ class _InterfaceSettingsPageState extends State<InterfaceSettingsPage> {
                       localDefaultPath.isEmpty ? null : localDefaultPath,
                 );
                 if (result != null) {
-                  await setting.put(SettingBoxKey.localDefaultPath, result);
-                  setState(() => localDefaultPath = result);
+                  if (result.location.isDocument) {
+                    await Modular.get<ILocalMediaSourceRepository>()
+                        .upsertLocation(
+                      result.location,
+                      displayName: result.name,
+                    );
+                    setState(() => localDefaultPath = '已授权：${result.name}');
+                  } else {
+                    await setting.put(
+                      SettingBoxKey.localDefaultPath,
+                      result.location.value,
+                    );
+                    setState(
+                      () => localDefaultPath = result.location.value,
+                    );
+                  }
                 }
               },
               title: Text('本地文件默认路径', style: TextStyle(fontFamily: fontFamily)),

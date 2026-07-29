@@ -200,10 +200,18 @@ class _LocalPageState extends State<LocalPage>
           ? null
           : localController.currentPath,
     );
-    if (result == null || result.isEmpty) {
+    if (result == null) {
       return;
     }
-    final selected = await localController.setRootDirectory(result);
+    if (result.location.isDocument) {
+      await localController.addMediaSourceLocation(
+        result.location,
+        displayName: result.name,
+      );
+      return;
+    }
+    final selected =
+        await localController.setRootDirectory(result.location.value);
     if (!selected) {
       return;
     }

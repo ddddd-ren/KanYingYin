@@ -1,10 +1,43 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/pages/local/local_directory_picker.dart';
+import 'package:kanyingyin/modules/local/media_location.dart';
+import 'package:kanyingyin/platform/android/android_document_provider.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
 
 void main() {
+  testWidgets('Android 目录选择直接使用系统 SAF provider', (tester) async {
+    LocalDirectorySelection? selected;
+    final provider = _FakeAndroidDocumentProvider();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(builder: (context) {
+          return FilledButton(
+            onPressed: () async {
+              selected = await LocalDirectoryPickerPage.pick(
+                context,
+                capabilities: AppPlatformCapabilities.android,
+                androidProvider: provider,
+              );
+            },
+            child: const Text('选择'),
+          );
+        }),
+      ),
+    );
+
+    await tester.tap(find.text('选择'));
+    await tester.pump();
+
+    expect(provider.pickCalls, 1);
+    expect(selected!.location.isDocument, isTrue);
+    expect(selected!.name, '视频');
+    expect(find.byType(LocalDirectoryPickerPage), findsNothing);
+  });
+
   test('本地目录地址去除空白和成对双引号', () {
     expect(normalizeLocalDirectoryAddress(r'  D:\a TV  '), r'D:\a TV');
     expect(normalizeLocalDirectoryAddress(r'"D:\a TV"'), r'D:\a TV');
@@ -197,4 +230,36 @@ void main() {
     expect(find.byIcon(Icons.keyboard_arrow_up_rounded), findsOneWidget);
     expect(find.byIcon(Icons.arrow_upward), findsNothing);
   });
+}
+
+class _FakeAndroidDocumentProvider implements AndroidDocumentProvider {
+  int pickCalls = 0;
+
+  @override
+  Future<({MediaLocation location, String name})?> pickDirectory() async {
+    pickCalls++;
+    return (
+      location: MediaLocation.document(
+        uri: 'content://provider/document/video',
+        treeUri: 'content://provider/tree/video',
+      ),
+      name: '视频',
+    );
+  }
+
+  @override
+  Future<bool> canAccess(MediaLocation location) async => true;
+
+  @override
+  Future<List<AndroidDocumentEntry>> listChildren(
+    MediaLocation parent,
+  ) async =>
+      const <AndroidDocumentEntry>[];
+
+  @override
+  Future<Uint8List> readSmallFile(
+    MediaLocation location, {
+    required int maxBytes,
+  }) async =>
+      Uint8List(0);
 }

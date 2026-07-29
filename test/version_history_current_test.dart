@@ -4,6 +4,24 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一九十补齐迅雷目录设备签名', () {
+    final entries = versionHistoryForCurrent('2.1.90');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      '迅雷',
+      '目录',
+      '设备签名',
+      '官方',
+      'Android',
+      '更新暂停',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一八十九修复迅雷登录后的目录读取', () {
     final entries = versionHistoryForCurrent('2.1.89');
 

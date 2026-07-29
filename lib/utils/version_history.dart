@@ -16,6 +16,19 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.90',
+    date: '2026-07-30',
+    isPrerelease: true,
+    changes: [
+      '针对迅雷登录成功但目录仍被风控拒绝的问题，补齐后续 API 请求的设备签名，使设备 ID 与设备签名保持绑定',
+      '设备身份请求头与迅雷官方网页当前实现保持一致，并同时覆盖安卓客户端 Token 与网页 Refresh Token 两种兼容链路',
+      '本次为 Windows 验证包，需以真实账号日志中目录接口返回成功作为最终验收；账号、令牌、设备签名和远程目录响应不会写入日志',
+      '本轮只迭代并交付 Windows MSIX；Android 更新暂停，未生成 APK/AAB，手机和平板真机验收尚未完成',
+      '账号设备验证继续在应用内完成：Windows 使用 WebView2；Android 更新暂停期间不改动系统 WebView 流程。验证窗口继续阻止下载、新窗口、不安全页面和权限请求，验证成功后自动继续登录',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.89',
     date: '2026-07-30',
     isPrerelease: true,

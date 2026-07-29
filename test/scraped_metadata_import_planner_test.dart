@@ -91,6 +91,38 @@ void main() {
       contains('old-cloud'),
     );
   });
+
+  test('网盘目录资料按已扫描媒体的作品根目录重新绑定', () async {
+    final fixture = await _fixture(
+      localPath: r'E:\媒体\影视\三体\S01E01.mkv',
+      localSize: 1024,
+      cloudSources: <CloudSource>[
+        _cloudSource(id: 'new-source-id', rootId: 'new-root-id'),
+      ],
+      cloudItems: <CloudMediaIndexItem>[
+        _cloudItem(
+          sourceId: 'new-source-id',
+          remoteId: 'episode-id',
+          remotePath: '/影视/三体/S01E01.mkv',
+          workKey: 'new-work',
+          workRootId: 'new-directory-id',
+          workRootPath: '/影视/三体',
+        ),
+      ],
+    );
+
+    final plan = await fixture.planner.plan(_directoryPayload());
+
+    expect(plan.cloudResourceMatches, hasLength(1));
+    expect(
+      plan.cloudResourceMatches.single.targetRemoteId,
+      'new-directory-id',
+    );
+    expect(
+      plan.cloudResourceMatches.single.targetRemotePath,
+      '/影视/三体',
+    );
+  });
 }
 
 ScrapedMetadataPayload _payload({bool withCloud = false}) =>
@@ -140,6 +172,39 @@ ScrapedMetadataPayload _payload({bool withCloud = false}) =>
             ]
           : const <PortableCloudSource>[],
     );
+
+ScrapedMetadataPayload _directoryPayload() {
+  final base = _payload();
+  return ScrapedMetadataPayload(
+    formatVersion: base.formatVersion,
+    exportedAt: base.exportedAt,
+    appVersion: base.appVersion,
+    localSources: base.localSources,
+    cloudSources: <PortableCloudSource>[
+      PortableCloudSource(
+        exportId: 'old-cloud',
+        type: CloudSourceType.quark,
+        name: '夸克',
+        sanitizedBaseUrl: '',
+        roots: const <PortableCloudRoot>[
+          PortableCloudRoot(id: 'old-root-id', path: '/影视'),
+        ],
+        resourceRecords: <PortableCloudRecord>[
+          PortableCloudRecord(
+            record: <String, Object?>{
+              'sourceId': 'old-cloud',
+              'remoteId': 'old-directory-id',
+              'remotePath': '/影视/三体',
+              'resourceKind': 'directory',
+            },
+          ),
+        ],
+        workRecords: const <PortableCloudRecord>[],
+        seriesRules: const <PortableCloudRecord>[],
+      ),
+    ],
+  );
+}
 
 Future<_Fixture> _fixture({
   required String localPath,
@@ -210,12 +275,18 @@ CloudMediaIndexItem _cloudItem({
   required String sourceId,
   required String remoteId,
   required String remotePath,
+  String? workKey,
+  String? workRootId,
+  String? workRootPath,
 }) =>
     CloudMediaIndexItem(
       sourceId: sourceId,
       remoteId: remoteId,
       remotePath: remotePath,
       name: '三体.mkv',
+      workKey: workKey,
+      workRootId: workRootId,
+      workRootPath: workRootPath,
       size: 1024,
       modifiedAt: DateTime.utc(2026, 7, 30),
       seriesName: '三体',

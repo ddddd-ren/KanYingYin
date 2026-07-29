@@ -33,7 +33,25 @@ void main() {
     expect(await File(restored.cover!).exists(), isTrue);
     expect(result.localCount, 1);
     expect(result.cloudCount, 2);
-    expect(result.imageCount, 1);
+    expect(result.imageCount, 2);
+  });
+
+  test('导入的海报和背景图按原地址注册到离线图片缓存', () async {
+    final cachedImages = <String, String>{};
+    final fixture = await _fixture(
+      networkImageInstaller: ({required url, required file}) async {
+        cachedImages[url] = file.path;
+      },
+    );
+
+    await fixture.importer.apply(fixture.plan, fixture.archive);
+
+    expect(cachedImages[_newMetadata.posterUrl], isNotNull);
+    expect(cachedImages[_newMetadata.backdropUrl], isNotNull);
+    expect(
+      await File(cachedImages[_newMetadata.backdropUrl]!).exists(),
+      isTrue,
+    );
   });
 
   test('网盘作品写入失败时恢复本地和全部网盘刮削快照', () async {
@@ -66,7 +84,10 @@ void main() {
   });
 }
 
-Future<_Fixture> _fixture({CloudWorkTmdbStorage? workStorage}) async {
+Future<_Fixture> _fixture({
+  CloudWorkTmdbStorage? workStorage,
+  TransferNetworkImageInstaller? networkImageInstaller,
+}) async {
   final temporary =
       await Directory.systemTemp.createTemp('kyymeta-import-test-');
   final archiveDirectory =
@@ -86,6 +107,10 @@ Future<_Fixture> _fixture({CloudWorkTmdbStorage? workStorage}) async {
     '${archiveDirectory.path}${Platform.pathSeparator}poster.jpg',
   );
   await image.writeAsBytes(<int>[1, 2, 3]);
+  final backdrop = File(
+    '${archiveDirectory.path}${Platform.pathSeparator}backdrop.jpg',
+  );
+  await backdrop.writeAsBytes(<int>[4, 5, 6]);
 
   final localRepository = LocalMediaIndexRepository(
     storage: _MemoryLocalIndexStorage(),
@@ -151,6 +176,7 @@ Future<_Fixture> _fixture({CloudWorkTmdbStorage? workStorage}) async {
     titleLocked: true,
     posterLocked: true,
     posterImage: 'images/poster.jpg',
+    backdropImage: 'images/backdrop.jpg',
   );
   final portableResourceJson = CloudResourceTmdbRecord.matched(
     sourceId: 'old-cloud',
@@ -232,11 +258,14 @@ Future<_Fixture> _fixture({CloudWorkTmdbStorage? workStorage}) async {
     unresolvedLocalSources: const <PortableLocalSource>[],
     unresolvedCloudSources: const <PortableCloudSource>[],
     missingMediaCount: 0,
-    recoverableImageCount: 1,
+    recoverableImageCount: 2,
   );
   final archive = DecodedScrapedMetadataArchive(
     payload: payload,
-    imageFiles: <String, File>{'images/poster.jpg': image},
+    imageFiles: <String, File>{
+      'images/poster.jpg': image,
+      'images/backdrop.jpg': backdrop,
+    },
     temporaryDirectory: archiveDirectory,
   );
   final importer = ScrapedMetadataImporter(
@@ -245,6 +274,8 @@ Future<_Fixture> _fixture({CloudWorkTmdbStorage? workStorage}) async {
     workRepository: workRepository,
     ruleRepository: ruleRepository,
     cacheRootProvider: () async => cacheRoot,
+    networkImageInstaller:
+        networkImageInstaller ?? ({required url, required file}) async {},
   );
   return _Fixture(
     localRepository: localRepository,
@@ -271,6 +302,8 @@ final TmdbMetadata _newMetadata = TmdbMetadata(
   id: 42,
   mediaType: TmdbMediaType.tv,
   title: '三体',
+  posterUrl: 'https://image.tmdb.org/t/p/w500/poster.jpg',
+  backdropUrl: 'https://image.tmdb.org/t/p/original/backdrop.jpg',
   language: 'zh-CN',
   matchedAt: DateTime.utc(2026, 7, 30),
   matchConfidence: 1,

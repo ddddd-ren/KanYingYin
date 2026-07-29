@@ -160,7 +160,6 @@ const Map<String, String> androidVideoRenderersList = {
   'auto': '自动选择',
   'gpu': '基于 OpenGL, 通用和稳健的选项',
   'gpu-next': '基于 Vulkan, 在新设备上表现最好',
-  'mediacodec_embed': '功耗最低，不支持超分辨率',
 };
 
 String androidVideoRendererLabel(String? value) {

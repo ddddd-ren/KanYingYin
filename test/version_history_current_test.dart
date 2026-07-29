@@ -4,6 +4,26 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一八十七修复 Windows 四K帧率和 Android PGS 字幕', () {
+    final entries = versionHistoryForCurrent('2.1.87');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      'Windows',
+      '4K',
+      'D3D11',
+      '硬件解码',
+      'Android',
+      'PGS',
+      'GPU',
+      '真机复验',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一八十六固定平板横屏并优化解码与网盘链路', () {
     final entries = versionHistoryForCurrent('2.1.86');
 

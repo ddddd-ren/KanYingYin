@@ -59,9 +59,22 @@ void main() {
     final value = preferences.load();
 
     expect(value.hardwareDecoder, 'no');
-    expect(value.videoRenderer, 'mediacodec_embed');
-    expect(value.anime4kSupported, isFalse);
+    expect(value.videoRenderer, 'gpu');
+    expect(value.anime4kSupported, isTrue);
     expect(value.androidAutoEnterPip, isTrue);
+  });
+
+  test('Windows 直通硬解附带对应拷贝模式作为自动回退', () async {
+    await box.put(SettingBoxKey.hardwareDecoder, 'd3d11va');
+    final preferences = PlayerRuntimePreferences(
+      TypedSettings(box),
+      capabilities: AppPlatformCapabilities.windows,
+    );
+
+    final value = preferences.load();
+
+    expect(value.hardwareDecoder, 'd3d11va,d3d11va-copy');
+    expect(value.hardwareAccelerationEnabled, isTrue);
   });
 
   test('Android 自动渲染器交由 media-kit 选择平台默认输出', () {

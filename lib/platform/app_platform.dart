@@ -37,7 +37,7 @@ class AppPlatformCapabilities {
     systemPictureInPicture: true,
     windowBrightness: true,
     hardwareDecoders: <String>['auto', 'no'],
-    videoRenderers: <String>['auto', 'gpu', 'gpu-next', 'mediacodec_embed'],
+    videoRenderers: <String>['auto', 'gpu', 'gpu-next'],
   );
 
   final AppPlatformKind kind;

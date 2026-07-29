@@ -53,7 +53,7 @@ class PlayerRuntimePreferences {
   final PlayerPlatformPolicy _policy;
 
   PlayerRuntimeSettings load() {
-    final decoder = _policy.normalizeDecoder(
+    final decoder = _policy.resolvePlaybackDecoder(
       _settings.getTyped<String>(
         _policy.decoderSettingKey,
         defaultValue: 'auto',

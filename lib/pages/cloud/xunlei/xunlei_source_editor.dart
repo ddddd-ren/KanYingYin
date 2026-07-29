@@ -2,15 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/pages/cloud/xunlei/xunlei_directory_picker.dart';
+import 'package:kanyingyin/pages/cloud/xunlei/xunlei_verification_dialog.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
+import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_source_path_scope.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_authorization_controller.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_models.dart';
-import 'package:url_launcher/url_launcher.dart';
-
-typedef XunleiVerificationUrlLauncher = Future<bool> Function(Uri uri);
 
 class XunleiSourceEditorPage extends StatefulWidget {
   const XunleiSourceEditorPage({
@@ -19,7 +18,7 @@ class XunleiSourceEditorPage extends StatefulWidget {
     this.controller,
     this.credentialStore,
     this.authorizationController,
-    this.launchVerificationUrl,
+    this.verificationDialogLauncher,
     this.onRootSelectionChanged,
   });
 
@@ -27,7 +26,7 @@ class XunleiSourceEditorPage extends StatefulWidget {
   final CloudLibraryController? controller;
   final CloudCredentialStore? credentialStore;
   final XunleiAuthorizationController? authorizationController;
-  final XunleiVerificationUrlLauncher? launchVerificationUrl;
+  final XunleiVerificationDialogLauncher? verificationDialogLauncher;
   final Future<void> Function(String sourceId)? onRootSelectionChanged;
 
   @override
@@ -40,10 +39,11 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
   late final TextEditingController _refreshTokenController;
   late final TextEditingController _identifierController;
   late final TextEditingController _passwordController;
+  late final FocusNode _passwordFocusNode;
   late final CloudLibraryController _controller;
   late final CloudCredentialStore _credentialStore;
   late final XunleiAuthorizationController _authorizationController;
-  late final XunleiVerificationUrlLauncher _launchVerificationUrl;
+  late final XunleiVerificationDialogLauncher _verificationDialogLauncher;
   late final bool _ownsController;
   late final bool _ownsAuthorizationController;
   late final String _sourceId;
@@ -53,6 +53,7 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
   bool _updatingLibrary = false;
   bool _enabled = true;
   bool _showRefreshToken = false;
+  String? _passwordErrorText;
 
   bool get _authorizationBusy =>
       _authorizationController.state == XunleiAuthorizationState.signingIn ||
@@ -76,8 +77,8 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
     _ownsAuthorizationController = widget.authorizationController == null;
     _authorizationController =
         widget.authorizationController ?? XunleiAuthorizationController();
-    _launchVerificationUrl =
-        widget.launchVerificationUrl ?? _launchInExternalBrowser;
+    _verificationDialogLauncher =
+        widget.verificationDialogLauncher ?? showXunleiVerificationDialog;
     _controller.addListener(_refresh);
     _authorizationController.addListener(_refresh);
     _sourceId =
@@ -88,6 +89,7 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
     _refreshTokenController = TextEditingController();
     _identifierController = TextEditingController();
     _passwordController = TextEditingController();
+    _passwordFocusNode = FocusNode();
     _rootRefs = List<CloudRemoteRef>.from(
       widget.source?.remoteRoots ?? const <CloudRemoteRef>[],
     );
@@ -122,6 +124,9 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
       _showMessage('请填写迅雷账号和密码');
       return;
     }
+    if (_passwordErrorText != null) {
+      setState(() => _passwordErrorText = null);
+    }
     try {
       await _authorizationController.login(
         identifier: identifier,
@@ -129,17 +134,17 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
       );
       _acceptAuthorizedCredential();
     } on XunleiVerificationRequired {
-      final uri = _authorizationController.verificationUri;
-      if (uri == null) {
-        _showMessage('迅雷验证地址无效');
-        return;
-      }
-      try {
-        if (!await _launchVerificationUrl(uri) && mounted) {
-          _showMessage('无法打开系统浏览器，请重试');
-        }
-      } on Object {
-        if (mounted) _showMessage('无法打开系统浏览器，请重试');
+      await _runVerification();
+    } on CloudDriveException catch (error) {
+      if (!mounted) return;
+      if (error.type == CloudDriveErrorType.invalidPassword) {
+        setState(() => _passwordErrorText = '迅雷密码错误，请重新输入');
+        _passwordController.clear();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _passwordFocusNode.requestFocus();
+        });
+      } else {
+        _showMessage(_authorizationController.errorMessage ?? '迅雷登录失败');
       }
     } on Object {
       if (mounted) {
@@ -147,6 +152,47 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
       }
     } finally {
       if (mounted) _passwordController.clear();
+    }
+  }
+
+  Future<void> _runVerification() async {
+    final challenge = _authorizationController.verificationChallenge;
+    if (!mounted) return;
+    if (challenge == null) {
+      _showMessage('迅雷设备验证失败，请重新登录');
+      return;
+    }
+    XunleiVerificationDialogResult result;
+    try {
+      result = await _verificationDialogLauncher(context, challenge);
+    } on Object {
+      if (!mounted) return;
+      const message = '迅雷设备验证失败，请重新登录';
+      _authorizationController.failVerification(message);
+      _showMessage(message);
+      return;
+    }
+    if (!mounted) return;
+    switch (result.outcome) {
+      case XunleiVerificationDialogOutcome.verified:
+        try {
+          await _authorizationController.completeVerification(
+            creditKey: result.creditKey ?? '',
+          );
+          _acceptAuthorizedCredential();
+        } on Object {
+          if (mounted) {
+            _showMessage(
+              _authorizationController.errorMessage ?? '迅雷设备验证失败，请重新登录',
+            );
+          }
+        }
+      case XunleiVerificationDialogOutcome.cancelled:
+        _authorizationController.cancelVerification();
+      case XunleiVerificationDialogOutcome.failed:
+        final message = result.errorMessage ?? '迅雷设备验证失败，请重新登录';
+        _authorizationController.failVerification(message);
+        _showMessage(message);
     }
   }
 
@@ -169,38 +215,6 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
     } finally {
       if (mounted) _refreshTokenController.clear();
     }
-  }
-
-  Future<void> _openVerification() async {
-    final uri = _authorizationController.verificationUri;
-    if (uri == null) return;
-    try {
-      if (!await _launchVerificationUrl(uri) && mounted) {
-        _showMessage('无法打开系统浏览器，请重试');
-      }
-    } on Object {
-      if (mounted) _showMessage('无法打开系统浏览器，请重试');
-    }
-  }
-
-  Future<void> _completeVerification() async {
-    try {
-      await _authorizationController.completeVerification();
-      _acceptAuthorizedCredential();
-    } on Object {
-      if (mounted) {
-        _showMessage(
-          _authorizationController.errorMessage ?? '迅雷设备验证失败',
-        );
-      }
-    } finally {
-      if (mounted) _passwordController.clear();
-    }
-  }
-
-  void _cancelVerification() {
-    _authorizationController.cancelVerification();
-    _passwordController.clear();
   }
 
   void _acceptAuthorizedCredential() {
@@ -298,11 +312,12 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
     _nameController.dispose();
     _refreshTokenController.dispose();
     _identifierController.dispose();
+    _passwordFocusNode.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  List<Widget> _buildCompatibleLogin(bool verifying) => <Widget>[
+  List<Widget> _buildCompatibleLogin() => <Widget>[
         TextFormField(
           key: const ValueKey<String>('xunlei-identifier'),
           controller: _identifierController,
@@ -317,13 +332,20 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
         TextFormField(
           key: const ValueKey<String>('xunlei-password'),
           controller: _passwordController,
+          focusNode: _passwordFocusNode,
           obscureText: true,
           autocorrect: false,
           enableSuggestions: false,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: '迅雷密码',
             helperText: '密码仅用于本次兼容登录，不会保存',
+            errorText: _passwordErrorText,
           ),
+          onChanged: (_) {
+            if (_passwordErrorText != null) {
+              setState(() => _passwordErrorText = null);
+            }
+          },
           onFieldSubmitted: (_) => _busy ? null : _login(),
         ),
         const SizedBox(height: 16),
@@ -335,47 +357,10 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
             label: Text(_authorizationBusy ? '正在登录' : '兼容登录'),
           ),
         ),
-        if (verifying) ...<Widget>[
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  const Text('请在系统浏览器中完成迅雷设备验证'),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: <Widget>[
-                      OutlinedButton.icon(
-                        onPressed: _busy ? null : _openVerification,
-                        icon: const Icon(Icons.open_in_browser_outlined),
-                        label: const Text('打开验证页面'),
-                      ),
-                      FilledButton.icon(
-                        onPressed: _busy ? null : _completeVerification,
-                        icon: const Icon(Icons.verified_user_outlined),
-                        label: const Text('完成验证'),
-                      ),
-                      TextButton(
-                        onPressed: _busy ? null : _cancelVerification,
-                        child: const Text('取消验证'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
       ];
 
   @override
   Widget build(BuildContext context) {
-    final verifying = _authorizationController.state ==
-        XunleiAuthorizationState.verificationRequired;
     final accountLabel = _authorizedCredential?.accountLabel?.trim();
     return KSettingsScaffold(
       title: '迅雷网盘数据源',
@@ -451,7 +436,7 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
                 childrenPadding: const EdgeInsets.only(bottom: 16),
                 title: const Text('账号密码兼容登录'),
                 subtitle: const Text('旧协议可能失效，建议优先使用 Refresh Token'),
-                children: _buildCompatibleLogin(verifying),
+                children: _buildCompatibleLogin(),
               ),
               const SizedBox(height: 8),
               SwitchListTile(
@@ -517,9 +502,4 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
     return refreshToken.isNotEmpty &&
         RegExp(r'^[0-9a-f]{32}$').hasMatch(deviceId);
   }
-
-  static Future<bool> _launchInExternalBrowser(Uri uri) => launchUrl(
-        uri,
-        mode: LaunchMode.externalApplication,
-      );
 }

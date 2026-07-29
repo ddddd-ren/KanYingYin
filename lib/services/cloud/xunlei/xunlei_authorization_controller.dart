@@ -55,7 +55,6 @@ class XunleiAuthorizationController extends ChangeNotifier {
   XunleiVerificationChallenge? get verificationChallenge =>
       _verificationChallenge;
 
-  Uri? get verificationUri => _verificationChallenge?.reviewUri;
   String? get errorMessage => _errorMessage;
 
   Future<void> login({
@@ -131,7 +130,7 @@ class XunleiAuthorizationController extends ChangeNotifier {
     }
   }
 
-  Future<void> completeVerification({String? creditKey}) async {
+  Future<void> completeVerification({required String creditKey}) async {
     final challenge = _verificationChallenge;
     if (_state != XunleiAuthorizationState.verificationRequired ||
         challenge == null ||
@@ -150,7 +149,7 @@ class XunleiAuthorizationController extends ChangeNotifier {
         CloudDriveErrorType.verificationRequired,
       );
     }
-    final normalizedCreditKey = creditKey?.trim() ?? '';
+    final normalizedCreditKey = creditKey.trim();
     if (normalizedCreditKey.isEmpty ||
         normalizedCreditKey == challenge.creditKey) {
       _clearPendingSecrets();

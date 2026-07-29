@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/pages/cloud/xunlei/xunlei_source_editor.dart';
+import 'package:kanyingyin/pages/cloud/xunlei/xunlei_verification_dialog.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
@@ -101,18 +102,18 @@ void main() {
     expect(authorization.lastPassword, 'password-fixture');
   });
 
-  testWidgets('需要设备验证时用外部浏览器打开并可完成', (tester) async {
+  testWidgets('需要设备验证时打开应用内窗口并用新密钥自动续登', (tester) async {
     final authorization = _FakeXunleiAuthorizationController(
       challengeOnLogin: true,
     );
-    Uri? opened;
+    XunleiVerificationChallenge? openedChallenge;
     await tester.pumpWidget(MaterialApp(
       home: XunleiSourceEditorPage(
         authorizationController: authorization,
         credentialStore: MemoryCloudCredentialStore(),
-        launchVerificationUrl: (uri) async {
-          opened = uri;
-          return true;
+        verificationDialogLauncher: (context, challenge) async {
+          openedChallenge = challenge;
+          return const XunleiVerificationDialogResult.verified('credit-new');
         },
       ),
     ));
@@ -130,15 +131,149 @@ void main() {
     await tester.tap(find.text('兼容登录'));
     await tester.pumpAndSettle();
 
-    expect(opened, Uri.parse('https://i.xunlei.com/verify?id=fixture'));
-    expect(find.text('完成验证'), findsOneWidget);
-    expect(find.text('取消验证'), findsOneWidget);
-    await tester.ensureVisible(find.text('完成验证'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('完成验证'));
-    await tester.pumpAndSettle();
-    expect(find.text('登录成功'), findsOneWidget);
+    expect(openedChallenge?.reviewUri.host, 'i.xunlei.com');
+    expect(authorization.completeCreditKey, 'credit-new');
     expect(authorization.completeCalls, 1);
+    expect(find.text('登录成功'), findsOneWidget);
+    expect(find.textContaining('系统浏览器'), findsNothing);
+    expect(find.text('完成验证'), findsNothing);
+  });
+
+  testWidgets('明确密码错误清空密码保留账号并恢复焦点', (tester) async {
+    final authorization = _FakeXunleiAuthorizationController(
+      loginErrorType: CloudDriveErrorType.invalidPassword,
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: XunleiSourceEditorPage(
+        authorizationController: authorization,
+        credentialStore: MemoryCloudCredentialStore(),
+      ),
+    ));
+    await tester.tap(find.text('账号密码兼容登录'));
+    await tester.pumpAndSettle();
+    final account = find.byKey(const ValueKey<String>('xunlei-identifier'));
+    final password = find.byKey(const ValueKey<String>('xunlei-password'));
+    await tester.enterText(account, 'account-fixture');
+    await tester.enterText(password, 'wrong-password');
+    await tester.tap(find.text('兼容登录'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('迅雷密码错误，请重新输入'), findsOneWidget);
+    expect(
+      tester.widget<TextFormField>(account).controller?.text,
+      'account-fixture',
+    );
+    expect(tester.widget<TextFormField>(password).controller?.text, isEmpty);
+    expect(
+      tester
+          .widget<EditableText>(
+            find.descendant(of: password, matching: find.byType(EditableText)),
+          )
+          .focusNode
+          .hasFocus,
+      isTrue,
+    );
+  });
+
+  testWidgets('非密码错误不误报密码错误并保留对应提示', (tester) async {
+    const cases = <CloudDriveErrorType, String>{
+      CloudDriveErrorType.network: '网络连接失败，请检查网络后重试',
+      CloudDriveErrorType.verificationRequired: '迅雷需要完成设备验证',
+      CloudDriveErrorType.protocolUpdated: '迅雷登录协议已更新，请改用 Refresh Token',
+      CloudDriveErrorType.authentication: '迅雷账号登录失败，请检查账号或重新登录',
+    };
+
+    for (final entry in cases.entries) {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      final authorization = _FakeXunleiAuthorizationController(
+        loginErrorType: entry.key,
+      );
+      await tester.pumpWidget(MaterialApp(
+        home: XunleiSourceEditorPage(
+          authorizationController: authorization,
+          credentialStore: MemoryCloudCredentialStore(),
+        ),
+      ));
+      await tester.tap(find.text('账号密码兼容登录'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey<String>('xunlei-identifier')),
+        'account-fixture',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey<String>('xunlei-password')),
+        'password-fixture',
+      );
+      await tester.tap(find.text('兼容登录'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('迅雷密码错误，请重新输入'), findsNothing);
+      expect(find.text(entry.value), findsOneWidget);
+    }
+  });
+
+  testWidgets('取消应用内设备验证会清除挑战且不显示登录失败', (tester) async {
+    final authorization = _FakeXunleiAuthorizationController(
+      challengeOnLogin: true,
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: XunleiSourceEditorPage(
+        authorizationController: authorization,
+        credentialStore: MemoryCloudCredentialStore(),
+        verificationDialogLauncher: (context, challenge) async =>
+            const XunleiVerificationDialogResult.cancelled(),
+      ),
+    ));
+    await tester.tap(find.text('账号密码兼容登录'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('xunlei-identifier')),
+      'account-fixture',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('xunlei-password')),
+      'password-fixture',
+    );
+    await tester.tap(find.text('兼容登录'));
+    await tester.pumpAndSettle();
+
+    expect(authorization.cancelCalls, 1);
+    expect(authorization.completeCalls, 0);
+    expect(authorization.verificationChallenge, isNull);
+    expect(find.textContaining('登录失败'), findsNothing);
+  });
+
+  testWidgets('应用内验证组件失败会清除挑战并显示精确提示', (tester) async {
+    const message = '迅雷验证组件不可用，请安装或修复 Microsoft Edge WebView2 Runtime';
+    final authorization = _FakeXunleiAuthorizationController(
+      challengeOnLogin: true,
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: XunleiSourceEditorPage(
+        authorizationController: authorization,
+        credentialStore: MemoryCloudCredentialStore(),
+        verificationDialogLauncher: (context, challenge) async =>
+            const XunleiVerificationDialogResult.failed(message),
+      ),
+    ));
+    await tester.tap(find.text('账号密码兼容登录'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('xunlei-identifier')),
+      'account-fixture',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('xunlei-password')),
+      'password-fixture',
+    );
+    await tester.tap(find.text('兼容登录'));
+    await tester.pumpAndSettle();
+
+    expect(authorization.failCalls, 1);
+    expect(authorization.completeCalls, 0);
+    expect(authorization.verificationChallenge, isNull);
+    expect(find.text(message), findsOneWidget);
   });
 
   testWidgets('Token 授权失败不覆盖已保存的迅雷凭据', (tester) async {
@@ -306,18 +441,23 @@ class _FakeXunleiAuthorizationController extends XunleiAuthorizationController {
   _FakeXunleiAuthorizationController({
     this.challengeOnLogin = false,
     this.failLogin = false,
+    this.loginErrorType,
   });
 
   final bool challengeOnLogin;
   final bool failLogin;
+  final CloudDriveErrorType? loginErrorType;
   CloudCredential? _credential;
   XunleiAuthorizationState _fakeState = XunleiAuthorizationState.idle;
-  Uri? _verificationUri;
+  XunleiVerificationChallenge? _verificationChallenge;
   String? _error;
   String? lastIdentifier;
   String? lastPassword;
   String? lastRefreshToken;
+  String? completeCreditKey;
   int completeCalls = 0;
+  int cancelCalls = 0;
+  int failCalls = 0;
 
   @override
   CloudCredential? get authorizedCredential => _credential;
@@ -326,7 +466,8 @@ class _FakeXunleiAuthorizationController extends XunleiAuthorizationController {
   XunleiAuthorizationState get state => _fakeState;
 
   @override
-  Uri? get verificationUri => _verificationUri;
+  XunleiVerificationChallenge? get verificationChallenge =>
+      _verificationChallenge;
 
   @override
   String? get errorMessage => _error;
@@ -338,6 +479,20 @@ class _FakeXunleiAuthorizationController extends XunleiAuthorizationController {
   }) async {
     lastIdentifier = identifier;
     lastPassword = password;
+    final errorType = loginErrorType;
+    if (errorType != null) {
+      _fakeState = XunleiAuthorizationState.failed;
+      _error = switch (errorType) {
+        CloudDriveErrorType.invalidPassword => '迅雷密码错误，请重新输入',
+        CloudDriveErrorType.network => '网络连接失败，请检查网络后重试',
+        CloudDriveErrorType.verificationRequired => '迅雷需要完成设备验证',
+        CloudDriveErrorType.protocolUpdated => '迅雷登录协议已更新，请改用 Refresh Token',
+        CloudDriveErrorType.authentication => '迅雷账号登录失败，请检查账号或重新登录',
+        _ => '迅雷登录失败',
+      };
+      notifyListeners();
+      throw CloudDriveException(errorType);
+    }
     if (failLogin) {
       _fakeState = XunleiAuthorizationState.failed;
       _error = '迅雷登录失败';
@@ -346,11 +501,20 @@ class _FakeXunleiAuthorizationController extends XunleiAuthorizationController {
     }
     if (challengeOnLogin) {
       _fakeState = XunleiAuthorizationState.verificationRequired;
-      _verificationUri = Uri.parse('https://i.xunlei.com/verify?id=fixture');
+      final reviewUri = Uri.parse(
+        'https://i.xunlei.com/xlcaptcha/vertifyPhone.html?ticket=fixture',
+      );
+      _verificationChallenge = XunleiVerificationChallenge(
+        reviewUri: reviewUri,
+        creditKey: 'credit-initial',
+        deviceId: '0123456789abcdef0123456789abcdef',
+        deviceSign: 'div101.0123456789abcdef0123456789abcdef-signature-fixture',
+        startedAt: DateTime.now().toUtc(),
+      );
       notifyListeners();
       throw XunleiVerificationRequired(
-        uri: _verificationUri!,
-        creditKey: 'credit-fixture',
+        uri: reviewUri,
+        creditKey: 'credit-initial',
       );
     }
     _authorize();
@@ -372,15 +536,26 @@ class _FakeXunleiAuthorizationController extends XunleiAuthorizationController {
   }
 
   @override
-  Future<void> completeVerification({String? creditKey}) async {
+  Future<void> completeVerification({required String creditKey}) async {
     completeCalls++;
+    completeCreditKey = creditKey;
     _authorize();
   }
 
   @override
   void cancelVerification() {
-    _verificationUri = null;
+    cancelCalls++;
+    _verificationChallenge = null;
     _fakeState = XunleiAuthorizationState.idle;
+    notifyListeners();
+  }
+
+  @override
+  void failVerification(String message) {
+    failCalls++;
+    _verificationChallenge = null;
+    _error = message;
+    _fakeState = XunleiAuthorizationState.failed;
     notifyListeners();
   }
 
@@ -391,7 +566,7 @@ class _FakeXunleiAuthorizationController extends XunleiAuthorizationController {
       userId: 'user-fixture',
       accountLabel: '138****0000',
     );
-    _verificationUri = null;
+    _verificationChallenge = null;
     _error = null;
     _fakeState = XunleiAuthorizationState.authorized;
     notifyListeners();

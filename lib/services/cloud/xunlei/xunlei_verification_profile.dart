@@ -3,7 +3,6 @@ import 'dart:math';
 
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
-import 'package:kanyingyin/utils/logger.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -94,9 +93,7 @@ class XunleiVerificationProfileFactory {
         try {
           await deleteSessionDirectory(root: root, session: session);
         } on Object {
-          AppLogger().w(
-            'XunleiVerificationProfile: initialization cleanup failed',
-          );
+          // 初始化仍按脱敏错误返回，不输出会话路径或底层异常正文。
         }
       }
       throw const XunleiVerificationProfileException(
@@ -164,16 +161,16 @@ class XunleiVerificationProfile {
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
-    await _cleanup('cookie', () async {
+    await _cleanup(() async {
       await CookieManager.instance(
         webViewEnvironment: environment,
       ).deleteAllCookies();
     });
-    await _cleanup('cache', () async {
+    await _cleanup(() async {
       await InAppWebViewController.clearAllCache(includeDiskFiles: true);
     });
-    await _cleanup('environment', environment.dispose);
-    await _cleanup('directory', () async {
+    await _cleanup(environment.dispose);
+    await _cleanup(() async {
       await XunleiVerificationProfileFactory.deleteSessionDirectory(
         root: rootDirectory,
         session: sessionDirectory,
@@ -181,14 +178,11 @@ class XunleiVerificationProfile {
     });
   }
 
-  Future<void> _cleanup(
-    String step,
-    Future<void> Function() action,
-  ) async {
+  Future<void> _cleanup(Future<void> Function() action) async {
     try {
       await action();
     } on Object {
-      AppLogger().w('XunleiVerificationProfile: $step cleanup failed');
+      // 关闭流程继续执行，不输出 WebView 会话或底层异常信息。
     }
   }
 

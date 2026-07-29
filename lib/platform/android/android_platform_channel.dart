@@ -40,6 +40,47 @@ class AndroidPlatformChannel {
     );
   }
 
+  Future<Map<Object?, Object?>?> pickDocumentDirectory() {
+    return _channel.invokeMapMethod<Object?, Object?>('pickDirectory');
+  }
+
+  Future<bool> canAccessDocument(String documentUri, String treeUri) {
+    return _invokeBool('canAccessDocument', <String, String>{
+      'documentUri': documentUri,
+      'treeUri': treeUri,
+    });
+  }
+
+  Future<List<Map<Object?, Object?>>> listDocumentChildren(
+    String documentUri,
+    String treeUri,
+  ) async {
+    final values = await _channel.invokeListMethod<Object?>(
+      'listDocumentChildren',
+      <String, String>{
+        'documentUri': documentUri,
+        'treeUri': treeUri,
+      },
+    );
+    return (values ?? const <Object?>[])
+        .whereType<Map<Object?, Object?>>()
+        .toList(growable: false);
+  }
+
+  Future<Uint8List> readSmallDocument(
+    String documentUri,
+    int maxBytes,
+  ) async {
+    return await _channel.invokeMethod<Uint8List>(
+          'readSmallDocument',
+          <String, Object>{
+            'documentUri': documentUri,
+            'maxBytes': maxBytes,
+          },
+        ) ??
+        Uint8List(0);
+  }
+
   Future<bool> _invokeBool(String method, [Object? arguments]) async {
     return await _channel.invokeMethod<bool>(method, arguments) ?? false;
   }

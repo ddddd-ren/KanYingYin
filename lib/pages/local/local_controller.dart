@@ -8,6 +8,7 @@ import 'package:kanyingyin/features/library/application/local_library_tmdb_coord
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/local_media_source.dart';
+import 'package:kanyingyin/modules/local/media_location.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/modules/local/poster_scrape.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
@@ -1407,6 +1408,17 @@ abstract class _LocalController with Store {
         error: e,
       );
     }
+  }
+
+  Future<void> addMediaSourceLocation(
+    MediaLocation location, {
+    required String displayName,
+  }) async {
+    await _mediaSourceRepository.upsertLocation(
+      location,
+      displayName: displayName,
+    );
+    _reloadMediaSourcesSafe();
   }
 
   Future<void> _tryUpdateMediaSourceScanSummary(

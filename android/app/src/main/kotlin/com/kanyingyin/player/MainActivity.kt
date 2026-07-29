@@ -1,6 +1,7 @@
 package com.kanyingyin.player
 
 import android.Manifest
+import android.app.Activity
 import android.app.PictureInPictureParams
 import android.content.ContentValues
 import android.content.Intent
@@ -9,6 +10,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.provider.DocumentsContract
 import android.util.Rational
 import android.view.View
 import android.view.WindowInsets
@@ -18,9 +20,12 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.io.ByteArrayOutputStream
 
 class MainActivity : AudioServiceActivity() {
     private val channelName = "com.kanyingyin.player/android"
+    private val directoryPickerRequestCode = 4201
+    private var pendingDirectoryPicker: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -32,9 +37,201 @@ class MainActivity : AudioServiceActivity() {
                     "setBrightness" -> handleSetBrightness(call.arguments, result)
                     "saveScreenshot" -> handleSaveScreenshot(call.arguments, result)
                     "openWithMime" -> handleOpenWithMime(call.arguments, result)
+                    "pickDirectory" -> handlePickDirectory(result)
+                    "canAccessDocument" -> handleCanAccessDocument(call, result)
+                    "listDocumentChildren" -> handleListDocumentChildren(call, result)
+                    "readSmallDocument" -> handleReadSmallDocument(call, result)
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    private fun handlePickDirectory(result: MethodChannel.Result) {
+        if (pendingDirectoryPicker != null) {
+            result.error("PickerBusy", "目录选择器正在使用", null)
+            return
+        }
+        pendingDirectoryPicker = result
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_PREFIX_URI_PERMISSION)
+        }
+        try {
+            startActivityForResult(intent, directoryPickerRequestCode)
+        } catch (_: Exception) {
+            pendingDirectoryPicker = null
+            result.error("PickerUnavailable", "无法打开系统目录选择器", null)
+        }
+    }
+
+    @Deprecated("Deprecated in Android")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != directoryPickerRequestCode) return
+        val result = pendingDirectoryPicker ?: return
+        pendingDirectoryPicker = null
+        val treeUri = data?.data
+        if (resultCode != Activity.RESULT_OK || treeUri == null) {
+            result.success(null)
+            return
+        }
+        try {
+            val takeFlags = data.flags and
+                (Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            contentResolver.takePersistableUriPermission(treeUri, takeFlags)
+            val documentUri = DocumentsContract.buildDocumentUriUsingTree(
+                treeUri,
+                DocumentsContract.getTreeDocumentId(treeUri),
+            )
+            val name = queryDocumentName(documentUri)
+            result.success(
+                mapOf(
+                    "treeUri" to treeUri.toString(),
+                    "documentUri" to documentUri.toString(),
+                    "name" to name,
+                ),
+            )
+        } catch (_: SecurityException) {
+            result.error("PermissionDenied", "无法保留目录访问权限", null)
+        } catch (_: Exception) {
+            result.error("InvalidDocument", "系统返回的目录无效", null)
+        }
+    }
+
+    override fun onDestroy() {
+        pendingDirectoryPicker?.error("ActivityDestroyed", "目录选择已取消", null)
+        pendingDirectoryPicker = null
+        super.onDestroy()
+    }
+
+    private fun handleCanAccessDocument(call: MethodCall, result: MethodChannel.Result) {
+        val documentUri = readContentUri(call, "documentUri", result) ?: return
+        if (readContentUri(call, "treeUri", result) == null) return
+        try {
+            contentResolver.query(
+                documentUri,
+                arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                result.success(cursor.moveToFirst())
+            } ?: result.success(false)
+        } catch (_: SecurityException) {
+            result.error("PermissionRevoked", "目录授权已失效", null)
+        } catch (_: Exception) {
+            result.success(false)
+        }
+    }
+
+    private fun handleListDocumentChildren(call: MethodCall, result: MethodChannel.Result) {
+        val documentUri = readContentUri(call, "documentUri", result) ?: return
+        val treeUri = readContentUri(call, "treeUri", result) ?: return
+        try {
+            val childUri = DocumentsContract.buildChildDocumentsUriUsingTree(
+                treeUri,
+                DocumentsContract.getDocumentId(documentUri),
+            )
+            val projection = arrayOf(
+                DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                DocumentsContract.Document.COLUMN_MIME_TYPE,
+                DocumentsContract.Document.COLUMN_SIZE,
+                DocumentsContract.Document.COLUMN_LAST_MODIFIED,
+            )
+            val children = mutableListOf<Map<String, Any>>()
+            contentResolver.query(childUri, projection, null, null, null)?.use { cursor ->
+                val idColumn = cursor.getColumnIndexOrThrow(projection[0])
+                val nameColumn = cursor.getColumnIndexOrThrow(projection[1])
+                val mimeColumn = cursor.getColumnIndexOrThrow(projection[2])
+                val sizeColumn = cursor.getColumnIndex(projection[3])
+                val modifiedColumn = cursor.getColumnIndex(projection[4])
+                while (cursor.moveToNext()) {
+                    val childDocumentUri = DocumentsContract.buildDocumentUriUsingTree(
+                        treeUri,
+                        cursor.getString(idColumn),
+                    )
+                    children.add(
+                        mapOf(
+                            "documentUri" to childDocumentUri.toString(),
+                            "name" to (cursor.getString(nameColumn) ?: "未命名"),
+                            "mimeType" to (cursor.getString(mimeColumn) ?: "application/octet-stream"),
+                            "size" to if (sizeColumn >= 0 && !cursor.isNull(sizeColumn)) cursor.getLong(sizeColumn) else 0L,
+                            "modified" to if (modifiedColumn >= 0 && !cursor.isNull(modifiedColumn)) cursor.getLong(modifiedColumn) else 0L,
+                        ),
+                    )
+                }
+            }
+            result.success(children)
+        } catch (_: SecurityException) {
+            result.error("PermissionRevoked", "目录授权已失效", null)
+        } catch (_: Exception) {
+            result.error("ReadFailed", "无法读取目录内容", null)
+        }
+    }
+
+    private fun handleReadSmallDocument(call: MethodCall, result: MethodChannel.Result) {
+        val documentUri = readContentUri(call, "documentUri", result) ?: return
+        val maxBytes = call.argument<Number>("maxBytes")?.toInt() ?: 0
+        if (maxBytes <= 0 || maxBytes > 20 * 1024 * 1024) {
+            result.error("InvalidInput", "小文件读取上限无效", null)
+            return
+        }
+        try {
+            val output = ByteArrayOutputStream()
+            contentResolver.openInputStream(documentUri)?.use { input ->
+                val buffer = ByteArray(64 * 1024)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    if (output.size() + count > maxBytes) {
+                        result.error("FileTooLarge", "文件超过允许的读取大小", null)
+                        return
+                    }
+                    output.write(buffer, 0, count)
+                }
+            } ?: run {
+                result.error("ReadFailed", "无法打开文档", null)
+                return
+            }
+            result.success(output.toByteArray())
+        } catch (_: SecurityException) {
+            result.error("PermissionRevoked", "文档授权已失效", null)
+        } catch (_: Exception) {
+            result.error("ReadFailed", "无法读取文档", null)
+        }
+    }
+
+    private fun readContentUri(
+        call: MethodCall,
+        key: String,
+        result: MethodChannel.Result,
+    ): Uri? {
+        val value = call.argument<String>(key)?.trim().orEmpty()
+        val uri = Uri.parse(value)
+        if (value.isEmpty() || uri.scheme != "content") {
+            result.error("InvalidInput", "文档参数无效", null)
+            return null
+        }
+        return uri
+    }
+
+    private fun queryDocumentName(documentUri: Uri): String {
+        contentResolver.query(
+            documentUri,
+            arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                return cursor.getString(0)?.takeIf { it.isNotBlank() } ?: "已选目录"
+            }
+        }
+        return "已选目录"
     }
 
     private fun handleEnterPictureInPicture(

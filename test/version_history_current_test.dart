@@ -4,8 +4,8 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一七十七修复短信验证后续登录和令牌错误提示', () {
-    final entries = versionHistoryForCurrent('2.1.77');
+  test('二点一七十九修复迅雷验证窗口原生闪退', () {
+    final entries = versionHistoryForCurrent('2.1.79');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
@@ -14,10 +14,12 @@ void main() {
     for (final text in <String>[
       '应用内',
       '设备验证',
-      '验证码签名',
+      '完成或关闭',
+      '偶发闪退',
+      '独立 WebView2 临时数据目录',
+      'Cookie',
       'Refresh Token',
-      'HTTP 400',
-      '无效或已过期',
+      'Windows 安全存储',
       'WebView2',
       '阻止下载',
       '自动继续登录',

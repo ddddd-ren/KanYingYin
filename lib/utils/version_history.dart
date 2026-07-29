@@ -30,6 +30,17 @@ const List<VersionHistory> versionHistoryList = [
     ],
   ),
   VersionHistory(
+    version: '2.1.79',
+    date: '2026-07-29',
+    isPrerelease: true,
+    changes: [
+      '修复应用内迅雷设备验证完成或关闭窗口时偶发闪退的问题',
+      '验证窗口继续使用独立 WebView2 临时数据目录，关闭后仍清除 Cookie、缓存和验证码等验证数据；登录所需 Refresh Token 仅保存在 Windows 安全存储',
+      '继续阻止下载、新窗口、不安全页面和权限请求，不改变验证码提交、验证成功后自动继续登录及 Refresh Token 错误提示',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.77',
     date: '2026-07-29',
     isPrerelease: true,

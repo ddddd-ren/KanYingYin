@@ -5,6 +5,7 @@ import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/features/player/application/player_platform_policy.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
+import 'package:kanyingyin/platform/android/android_system_service.dart';
 import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/utils/diagnostic_log_exporter.dart';
 // ignore_for_file: avoid_print
@@ -288,7 +289,26 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
               tiles: [
                 KSettingsTile<bool>.switchTile(
                   onToggle: (value) async {
-                    backgroundPlayback = value ?? !backgroundPlayback;
+                    final nextValue = value ?? !backgroundPlayback;
+                    if (nextValue && detectAppPlatform().isAndroid) {
+                      final granted = await const AndroidSystemService()
+                          .requestNotificationPermission();
+                      if (!granted) {
+                        backgroundPlayback = false;
+                        await setting.put(
+                          SettingBoxKey.backgroundPlayback,
+                          false,
+                        );
+                        if (mounted) {
+                          AppDialog.showToast(
+                            message: '未获得通知权限，后台播放保持关闭',
+                          );
+                          setState(() {});
+                        }
+                        return;
+                      }
+                    }
+                    backgroundPlayback = nextValue;
                     await setting.put(
                         SettingBoxKey.backgroundPlayback, backgroundPlayback);
                     setState(() {});

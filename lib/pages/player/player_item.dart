@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:audio_video_progress_bar/audio_video_progress_bar.dart';
 import 'package:kanyingyin/pages/player/player_item_panel.dart';
@@ -156,7 +155,22 @@ class _PlayerItemState extends State<PlayerItem>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) async {
     super.didChangeAppLifecycleState(state);
+    if (PipUtils.shouldAutoEnterPip(
+      lifecycleState: state,
+      enabled: playerController.androidAutoEnterPip,
+      playing: _canUsePlayer && playerController.playerPlaying,
+      videoWidth: playerController.playerWidth,
+      videoHeight: playerController.playerHeight,
+    )) {
+      final entered = await PipUtils.enterPIPWindow(
+        width: playerController.playerWidth,
+        height: playerController.playerHeight,
+      );
+      if (entered) videoPageController.isPip = true;
+      return;
+    }
     if (state == AppLifecycleState.paused &&
+        !videoPageController.isPip &&
         !backgroundPlayback &&
         _canUsePlayer &&
         playerController.playerPlaying) {
@@ -173,7 +187,7 @@ class _PlayerItemState extends State<PlayerItem>
       return;
     }
     if (videoPageController.isPip) {
-      await PipUtils.enterDesktopPIPWindow(
+      await PipUtils.enterPIPWindow(
         width: playerController.playerWidth,
         height: playerController.playerHeight,
       );
@@ -488,14 +502,8 @@ class _PlayerItemState extends State<PlayerItem>
         return;
       }
 
-      final target = await FilePicker.saveFile(
-        dialogTitle: '保存截图',
-        fileName: '看影音-${DateTime.now().millisecondsSinceEpoch}.png',
-        type: FileType.custom,
-        allowedExtensions: const <String>['png'],
-      );
+      final target = await PipUtils.saveScreenshot(screenshot);
       if (target == null || !_acceptingInput || !mounted) return;
-      await File(target).writeAsBytes(screenshot, flush: true);
       if (!_acceptingInput || !mounted) return;
       AppDialog.showToast(message: '截图已保存');
     } catch (e) {
@@ -1355,7 +1363,7 @@ class _PlayerItemState extends State<PlayerItem>
                       onSeek: (pos) {
                         if (_canUsePlayer) playerController.seek(pos);
                       },
-                      onSetBrightness: (_) async {},
+                      onSetBrightness: PipUtils.setBrightness,
                       startHideTimer: startHideTimer,
                     ),
                     if (_overlayCoordinator.visible ==

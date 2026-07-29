@@ -24,4 +24,7 @@ class AndroidSystemService {
 
   Future<bool> openWithMime(String uri, String mimeType) =>
       _channel.openWithMime(uri, mimeType);
+
+  Future<bool> requestNotificationPermission() =>
+      _channel.requestNotificationPermission();
 }

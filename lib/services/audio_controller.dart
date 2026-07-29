@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:audio_session/audio_session.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:kanyingyin/utils/logger.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 
 typedef AudioCallback = Future<void> Function();
 typedef AudioSeekCallback = Future<void> Function(Duration position);
@@ -18,6 +19,7 @@ class AudioController {
   String? _lastMediaItemCacheKey;
   AudioSession? _audioSession;
   StreamSubscription<AudioInterruptionEvent>? _interruptionSubscription;
+  StreamSubscription<void>? _becomingNoisySubscription;
   AudioCallback? _onPlay;
   AudioCallback? _onPause;
   bool _playInterrupted = false;
@@ -55,6 +57,13 @@ class AudioController {
       _interruptionSubscription = _audioSession!.interruptionEventStream.listen(
         _handleInterruptionEvent,
       );
+      _becomingNoisySubscription?.cancel();
+      if (detectAppPlatform().isAndroid) {
+        _becomingNoisySubscription =
+            _audioSession!.becomingNoisyEventStream.listen((_) {
+          unawaited(_safePause());
+        });
+      }
     } catch (e) {
       AppLogger().w('AudioController: audio_session init failed', error: e);
     }

@@ -79,4 +79,18 @@ void main() {
       'mimeType': 'video/mp4',
     });
   });
+
+  test('后台播放通知授权使用固定平台方法', () async {
+    MethodCall? received;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+      received = call;
+      return true;
+    });
+    const client = AndroidPlatformChannel(channel: channel);
+
+    expect(await client.requestNotificationPermission(), isTrue);
+    expect(received?.method, 'requestNotificationPermission');
+    expect(received?.arguments, isNull);
+  });
 }

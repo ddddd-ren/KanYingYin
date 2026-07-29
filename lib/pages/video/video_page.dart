@@ -298,7 +298,7 @@ class _VideoPageState extends State<VideoPage>
       return;
     }
     if (localVideoController.isPip && Utils.isDesktop()) {
-      PipUtils.exitDesktopPIPWindow();
+      PipUtils.exitPIPWindow();
       localVideoController.isPip = false;
       return;
     }

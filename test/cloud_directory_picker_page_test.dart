@@ -142,4 +142,22 @@ void main() {
     expect(find.text('影视'), findsOneWidget);
     expect(find.text('已选 1 个'), findsOneWidget);
   });
+
+  testWidgets('首次目录加载失败时不误报为空目录', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CloudDirectoryPickerPage<List<CloudRemoteRef>>(
+          title: '选择网盘目录',
+          root: const CloudRemoteRef(id: '0', path: '/'),
+          initialSelection: const <CloudRemoteRef>[],
+          loader: (_) async => throw StateError('目录接口拒绝请求'),
+          resultBuilder: (selected) => selected,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('目录加载失败，请重试'), findsOneWidget);
+    expect(find.text('当前目录没有子文件夹'), findsNothing);
+  });
 }

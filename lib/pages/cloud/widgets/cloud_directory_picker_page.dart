@@ -321,6 +321,9 @@ class _CloudDirectoryPickerPageState<T>
     if (_loading && _directories.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
+    if (_errorMessage != null && _directories.isEmpty) {
+      return const Center(child: Text('当前目录暂时无法显示'));
+    }
     if (_directories.isEmpty) {
       return const Center(child: Text('当前目录没有子文件夹'));
     }

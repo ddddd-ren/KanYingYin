@@ -4,6 +4,29 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一八十二修复网页令牌目录加载', () {
+    final entries = versionHistoryForCurrent('2.1.82');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    for (final text in <String>[
+      'Refresh Token',
+      'Shield Token',
+      '目录加载失败',
+      '授权成功',
+      '账号',
+      '目录请求',
+      '重试一次',
+      '当前目录没有子文件夹',
+      '不会写入日志',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一八十一支持网页端 Refresh Token', () {
     final entries = versionHistoryForCurrent('2.1.81');
 

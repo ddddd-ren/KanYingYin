@@ -18,6 +18,7 @@ enum _XunleiRequestStage {
   signIn,
   refreshAndroid,
   refreshWeb,
+  captchaInitWeb,
   account,
   listDirectory,
   fileDetail,
@@ -323,17 +324,55 @@ class XunleiApiClient implements XunleiApi {
     Uri uri,
     XunleiSession session, {
     required _XunleiRequestStage stage,
-  }) =>
-      _request(
-        method,
-        uri,
-        stage: stage,
-        headers: <String, String>{
-          'Authorization': session.authorization,
-          if (_captchaToken?.isNotEmpty == true)
-            'X-Captcha-Token': _captchaToken!,
-        },
-      );
+  }) async {
+    final profile = _clientProfile;
+    if (profile == XunleiClientProfile.web &&
+        _captchaToken?.isNotEmpty != true) {
+      await _refreshWebCaptchaToken(method: method, uri: uri);
+    }
+
+    Future<Map<String, Object?>> send() => _request(
+          method,
+          uri,
+          stage: stage,
+          headers: <String, String>{
+            'Authorization': session.authorization,
+            if (_captchaToken?.isNotEmpty == true)
+              'X-Captcha-Token': _captchaToken!,
+          },
+        );
+
+    try {
+      return await send();
+    } on CloudDriveException catch (error) {
+      if (profile != XunleiClientProfile.web ||
+          error.type != CloudDriveErrorType.verificationRequired) {
+        rethrow;
+      }
+      await _refreshWebCaptchaToken(method: method, uri: uri);
+      return send();
+    }
+  }
+
+  Future<void> _refreshWebCaptchaToken({
+    required String method,
+    required Uri uri,
+  }) async {
+    final json = await _request(
+      'POST',
+      XunleiRequestPolicy.captchaInitUri,
+      stage: _XunleiRequestStage.captchaInitWeb,
+      profile: XunleiClientProfile.web,
+      data: <String, Object?>{
+        'client_id': XunleiRequestPolicy.webClientId,
+        'action': '${method.toUpperCase()}:${uri.path}',
+        'device_id': _deviceId,
+        'captcha_token': _captchaToken ?? '',
+        'meta': const <String, String>{},
+      },
+    );
+    _captchaToken = _requiredString(json, 'captcha_token');
+  }
 
   Future<Map<String, Object?>> _request(
     String method,
@@ -450,6 +489,9 @@ class XunleiApiClient implements XunleiApi {
         statusCode == 400 &&
         (error == 'invalid_argument' || numericCode == 3)) {
       return CloudDriveErrorType.authentication;
+    }
+    if (error == 'captcha_required' || error == 'captcha_invalid') {
+      return CloudDriveErrorType.verificationRequired;
     }
     if (statusCode == 401 || statusCode == 403) {
       return CloudDriveErrorType.authentication;

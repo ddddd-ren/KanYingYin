@@ -176,6 +176,10 @@ void main() {
       ),
       const _FakeResponse(
         200,
+        '{"captcha_token":"captcha-web","expires_in":3600}',
+      ),
+      const _FakeResponse(
+        200,
         '{"user_id":"user-web","name":"网页账号"}',
       ),
     ]);
@@ -193,7 +197,7 @@ void main() {
 
     expect(session.refreshToken, 'refresh-web-next');
     expect(account.accountLabel, '网页账号');
-    expect(adapter.requests, hasLength(3));
+    expect(adapter.requests, hasLength(4));
     final androidBody = adapter.requests[0].data as Map<Object?, Object?>;
     final webBody = adapter.requests[1].data as Map<Object?, Object?>;
     expect(androidBody['client_id'], 'Xp6vsxz_7IYVw2BB');
@@ -206,7 +210,119 @@ void main() {
     expect(adapter.requests[1].headers['x-device-id'], deviceId);
     expect(adapter.requests[2].headers['x-client-id'], 'Xqp0kJBXWhwaTpB6');
     expect(adapter.requests[2].headers['x-sdk-version'], '3.4.20');
+    expect(adapter.requests[3].headers['x-client-id'], 'Xqp0kJBXWhwaTpB6');
+    expect(adapter.requests[3].headers['x-sdk-version'], '3.4.20');
+    expect(adapter.requests[3].headers['x-captcha-token'], 'captcha-web');
     expect(logs.join('\n'), isNot(contains('refresh-web-secret')));
+    await client.close();
+  });
+
+  test('网页 Refresh Token 授权后先获取 Shield Token 再请求账号', () async {
+    final adapter = _QueueAdapter(<_FakeResponse>[
+      const _FakeResponse(
+        400,
+        '{"error":"unauthorized_client","error_description":"client mismatch"}',
+      ),
+      const _FakeResponse(
+        200,
+        '{"token_type":"Bearer","access_token":"access-web","refresh_token":"refresh-web-next","expires_in":3600,"user_id":"user-web"}',
+      ),
+      const _FakeResponse(
+        200,
+        '{"captcha_token":"captcha-web","expires_in":3600}',
+      ),
+      const _FakeResponse(
+        200,
+        '{"user_id":"user-web","name":"网页账号"}',
+      ),
+    ]);
+    final client = XunleiApiClient(
+      deviceId: deviceId,
+      dio: Dio()..httpClientAdapter = adapter,
+    );
+
+    final session = await client.refresh(
+      refreshToken: 'refresh-web-secret',
+      deviceId: deviceId,
+    );
+    final account = await client.account(session);
+
+    expect(account.accountLabel, '网页账号');
+    expect(
+      adapter.requests.map((request) => request.uri.path),
+      <String>[
+        '/v1/auth/token',
+        '/v1/auth/token',
+        '/v1/shield/captcha/init',
+        '/v1/user/me',
+      ],
+    );
+    final shieldBody = adapter.requests[2].data as Map<Object?, Object?>;
+    expect(shieldBody['client_id'], 'Xqp0kJBXWhwaTpB6');
+    expect(shieldBody['device_id'], deviceId);
+    expect(shieldBody['action'], 'GET:/v1/user/me');
+    expect(shieldBody['captcha_token'], '');
+    expect(adapter.requests[2].headers['x-client-id'], 'Xqp0kJBXWhwaTpB6');
+    expect(adapter.requests[3].headers['x-captcha-token'], 'captcha-web');
+    expect(client.captchaToken, 'captcha-web');
+    await client.close();
+  });
+
+  test('网页目录请求遇到 Captcha 失效时刷新 Shield Token 并仅重试一次', () async {
+    final adapter = _QueueAdapter(<_FakeResponse>[
+      const _FakeResponse(
+        400,
+        '{"error":"unauthorized_client","error_description":"client mismatch"}',
+      ),
+      const _FakeResponse(
+        200,
+        '{"token_type":"Bearer","access_token":"access-web","refresh_token":"refresh-web-next","expires_in":3600,"user_id":"user-web"}',
+      ),
+      const _FakeResponse(
+        200,
+        '{"captcha_token":"captcha-old","expires_in":3600}',
+      ),
+      const _FakeResponse(200, '{"user_id":"user-web"}'),
+      const _FakeResponse(
+        400,
+        '{"error":"captcha_required"}',
+      ),
+      const _FakeResponse(
+        200,
+        '{"captcha_token":"captcha-new","expires_in":3600}',
+      ),
+      const _FakeResponse(200, '{"files":[],"next_page_token":""}'),
+    ]);
+    final client = XunleiApiClient(
+      deviceId: deviceId,
+      dio: Dio()..httpClientAdapter = adapter,
+    );
+
+    final session = await client.refresh(
+      refreshToken: 'refresh-web-secret',
+      deviceId: deviceId,
+    );
+    await client.account(session);
+    final page = await client.listDirectoryPage(directoryId: '0');
+
+    expect(page.files, isEmpty);
+    expect(
+      adapter.requests.map((request) => request.uri.path),
+      <String>[
+        '/v1/auth/token',
+        '/v1/auth/token',
+        '/v1/shield/captcha/init',
+        '/v1/user/me',
+        '/drive/v1/files',
+        '/v1/shield/captcha/init',
+        '/drive/v1/files',
+      ],
+    );
+    final renewedShieldBody = adapter.requests[5].data as Map<Object?, Object?>;
+    expect(renewedShieldBody['action'], 'GET:/drive/v1/files');
+    expect(renewedShieldBody['captcha_token'], 'captcha-old');
+    expect(adapter.requests[6].headers['x-captcha-token'], 'captcha-new');
+    expect(client.captchaToken, 'captcha-new');
     await client.close();
   });
 

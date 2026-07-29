@@ -10,7 +10,7 @@ void main() {
     reviewUri: Uri.parse(
       'https://i.xunlei.com/xlcaptcha/vertifyPhone.html?ticket=fixture',
     ),
-    creditKey: 'credit-\"\\\n雪-fixture',
+    creditKey: 'credit-"\\\n雪-fixture',
     deviceId: deviceId,
     deviceSign: 'div101.$deviceId-signature',
     startedAt: DateTime.utc(2026, 7, 29, 10),

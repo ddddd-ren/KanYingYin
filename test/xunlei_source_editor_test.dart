@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/pages/cloud/xunlei/xunlei_source_editor.dart';
 import 'package:kanyingyin/pages/cloud/xunlei/xunlei_verification_dialog.dart';
@@ -9,6 +10,7 @@ import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_authorization_controller.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_models.dart';
 
@@ -37,12 +39,18 @@ void main() {
     );
     expect(find.text('验证并登录'), findsOneWidget);
     expect(
-      find.text('支持从 pan.xunlei.com 网页端获取的 Token；仅保存到 Windows 安全凭据'),
+      find.text(
+        '网页 Refresh Token 可能绑定原浏览器设备；目录读取失败时请改用下方账号密码登录',
+      ),
       findsOneWidget,
     );
     expect(
         find.byKey(const ValueKey<String>('xunlei-identifier')), findsNothing);
     expect(find.text('账号密码兼容登录'), findsOneWidget);
+    expect(
+      find.text('推荐使用账号密码登录，以当前设备身份读取迅雷目录'),
+      findsOneWidget,
+    );
     expect(
       tester
           .widget<OutlinedButton>(
@@ -418,6 +426,71 @@ void main() {
     saveController.dispose();
   });
 
+  testWidgets('目录加载失败后保存仍使用浏览期间刷新的迅雷凭据', (tester) async {
+    const source = CloudSource(
+      id: 'xunlei-rotated-during-browse',
+      type: CloudSourceType.xunlei,
+      name: '迅雷网盘',
+      baseUrl: 'https://pan.xunlei.com',
+      rootPaths: <String>['/影视'],
+    );
+    const originalCredential = CloudCredential(
+      accessToken: 'access-old',
+      refreshToken: 'refresh-old',
+      deviceId: '0123456789abcdef0123456789abcdef',
+      captchaToken: 'captcha-old',
+      userId: 'user-fixture',
+      accountLabel: '138****0000',
+    );
+    const rotatedCredential = CloudCredential(
+      accessToken: 'access-new',
+      refreshToken: 'refresh-new',
+      deviceId: '0123456789abcdef0123456789abcdef',
+      captchaToken: 'captcha-new',
+      userId: 'user-fixture',
+      accountLabel: '138****0000',
+    );
+    final store = MemoryCloudCredentialStore();
+    final repository = CloudSourceRepository(
+      storage: MemoryCloudSourceStorage(),
+      credentialStore: store,
+    );
+    await repository.save(source);
+    await store.write(source.id, originalCredential);
+    final controller = CloudLibraryController(
+      repository: repository,
+      credentialStore: store,
+      clientFactory: (_, temporaryStore, __) => _RotatingFailingBrowseClient(
+        sourceId: source.id,
+        credentialStore: temporaryStore,
+        rotatedCredential: rotatedCredential,
+      ),
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: XunleiSourceEditorPage(
+        source: source,
+        controller: controller,
+        credentialStore: store,
+        authorizationController: _FakeXunleiAuthorizationController(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('选择媒体目录'));
+    await tester.pumpAndSettle();
+    expect(find.text('选择迅雷媒体目录'), findsOneWidget);
+    Navigator.of(tester.element(find.text('选择迅雷媒体目录'))).pop();
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '保存'));
+    await tester.pumpAndSettle();
+
+    final savedCredential = await store.read(source.id);
+    expect(savedCredential?.refreshToken, rotatedCredential.refreshToken);
+    expect(savedCredential?.captchaToken, rotatedCredential.captchaToken);
+    controller.dispose();
+  });
+
   testWidgets('登录请求未完成时退出页面不访问已销毁输入框', (tester) async {
     final authorization = _BlockingXunleiAuthorizationController();
     await tester.pumpWidget(MaterialApp(
@@ -604,4 +677,41 @@ class _BlockingXunleiAuthorizationController
 
   @override
   String? get errorMessage => '操作已取消';
+}
+
+class _RotatingFailingBrowseClient implements CloudDriveClient {
+  const _RotatingFailingBrowseClient({
+    required this.sourceId,
+    required this.credentialStore,
+    required this.rotatedCredential,
+  });
+
+  final String sourceId;
+  final CloudCredentialStore credentialStore;
+  final CloudCredential rotatedCredential;
+
+  @override
+  Future<void> authenticate(
+    CloudSource source,
+    CloudCredential credential,
+  ) async {}
+
+  @override
+  Future<void> close() async {}
+
+  @override
+  Future<CloudFileEntry> getFile(CloudRemoteRef file) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<CloudFileEntry>> listDirectory(
+    CloudRemoteRef directory,
+  ) async {
+    await credentialStore.write(sourceId, rotatedCredential);
+    throw const CloudDriveException(CloudDriveErrorType.verificationRequired);
+  }
+
+  @override
+  Future<CloudPlaybackResource> resolvePlayback(CloudRemoteRef file) =>
+      throw UnimplementedError();
 }

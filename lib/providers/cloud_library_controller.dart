@@ -210,14 +210,17 @@ class CloudLibraryController extends ChangeNotifier {
     CloudSource source,
     CloudRemoteRef directory, {
     CloudCredential? credential,
+    ValueChanged<CloudCredential>? onCredentialRefreshed,
   }) async {
     browsing = true;
     errorMessage = null;
     _notify();
     CloudDriveClient? client;
+    MemoryCloudCredentialStore? temporaryCredentialStore;
     try {
-      final credentialStore =
-          credential == null ? _credentialStore : MemoryCloudCredentialStore();
+      temporaryCredentialStore =
+          credential == null ? null : MemoryCloudCredentialStore();
+      final credentialStore = temporaryCredentialStore ?? _credentialStore;
       if (credential != null) {
         await credentialStore.write(source.id, credential);
       }
@@ -233,8 +236,16 @@ class CloudLibraryController extends ChangeNotifier {
       try {
         await client?.close();
       } finally {
-        browsing = false;
-        _notify();
+        try {
+          final refreshedCredential =
+              await temporaryCredentialStore?.read(source.id);
+          if (refreshedCredential != null) {
+            onCredentialRefreshed?.call(refreshedCredential);
+          }
+        } finally {
+          browsing = false;
+          _notify();
+        }
       }
     }
   }

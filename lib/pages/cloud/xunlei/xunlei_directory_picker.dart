@@ -11,12 +11,14 @@ class XunleiDirectoryPickerPage extends StatelessWidget {
     required this.source,
     required this.controller,
     required this.credential,
+    this.onCredentialRefreshed,
     this.initialSelection = const <CloudRemoteRef>[],
   });
 
   final CloudSource source;
   final CloudLibraryController controller;
   final CloudCredential credential;
+  final ValueChanged<CloudCredential>? onCredentialRefreshed;
   final List<CloudRemoteRef> initialSelection;
 
   @override
@@ -29,6 +31,7 @@ class XunleiDirectoryPickerPage extends StatelessWidget {
           source,
           directory,
           credential: credential,
+          onCredentialRefreshed: onCredentialRefreshed,
         ),
         resultBuilder: (selected) => selected,
       );

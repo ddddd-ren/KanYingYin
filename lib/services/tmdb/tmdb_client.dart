@@ -1,7 +1,12 @@
 import 'package:dio/dio.dart';
 import 'package:kanyingyin/core/network/dio_factory.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/utils/network_settings_config_factory.dart';
+import 'package:kanyingyin/utils/proxy_manager.dart';
+
+typedef TmdbDioFactory = Dio Function();
+typedef TmdbProxyRecovery = Future<bool> Function();
 
 abstract class ITmdbClient {
   Future<List<TmdbMetadata>> search(
@@ -19,10 +24,20 @@ abstract class ITmdbClient {
 
 class TmdbClient implements ITmdbClient {
   final String apiKey;
-  final Dio _dio;
+  Dio _dio;
+  final TmdbDioFactory? _dioFactory;
+  final TmdbProxyRecovery? _recoverProxy;
+  Future<bool>? _rebuildingDio;
 
-  TmdbClient({required this.apiKey, Dio? dio})
-      : _dio = dio ?? _createDefaultDio();
+  TmdbClient({
+    required this.apiKey,
+    Dio? dio,
+    TmdbDioFactory? dioFactory,
+    TmdbProxyRecovery? recoverProxy,
+  })  : _dioFactory = dioFactory ?? (dio == null ? _createDefaultDio : null),
+        _recoverProxy = recoverProxy ??
+            (dio == null ? ProxyManager.recoverOnlineResourceProxy : null),
+        _dio = dio ?? (dioFactory ?? _createDefaultDio)();
 
   static Dio _createDefaultDio() {
     final config = NetworkSettingsConfigFactory.create(
@@ -44,15 +59,17 @@ class TmdbClient implements ITmdbClient {
     String language = 'zh-CN',
   }) async {
     _validateKey();
-    final response = await _dio.get<Map<String, dynamic>>(
-      '/search/${mediaType == TmdbMediaType.movie ? 'movie' : 'tv'}',
-      queryParameters: {
-        ..._authenticationQuery,
-        'query': query,
-        'language': language,
-        'include_adult': false,
-      },
-      options: _authenticationOptions,
+    final response = await _withProxyRecovery(
+      (dio) => dio.get<Map<String, dynamic>>(
+        '/search/${mediaType == TmdbMediaType.movie ? 'movie' : 'tv'}',
+        queryParameters: {
+          ..._authenticationQuery,
+          'query': query,
+          'language': language,
+          'include_adult': false,
+        },
+        options: _authenticationOptions,
+      ),
     );
     final results = response.data?['results'];
     if (results is! List) return const [];
@@ -99,10 +116,12 @@ class TmdbClient implements ITmdbClient {
     String language,
   ) async {
     _validateKey();
-    final response = await _dio.get<Map<String, dynamic>>(
-      '/${mediaType == TmdbMediaType.movie ? 'movie' : 'tv'}/$id',
-      queryParameters: {..._authenticationQuery, 'language': language},
-      options: _authenticationOptions,
+    final response = await _withProxyRecovery(
+      (dio) => dio.get<Map<String, dynamic>>(
+        '/${mediaType == TmdbMediaType.movie ? 'movie' : 'tv'}/$id',
+        queryParameters: {..._authenticationQuery, 'language': language},
+        options: _authenticationOptions,
+      ),
     );
     return _fromJson(response.data ?? const {}, mediaType, language);
   }
@@ -193,6 +212,76 @@ class TmdbClient implements ITmdbClient {
             : fallbackSeason.posterUrl,
       );
     }).toList(growable: false);
+  }
+
+  Future<T> _withProxyRecovery<T>(
+    Future<T> Function(Dio dio) request,
+  ) async {
+    try {
+      return await request(_dio);
+    } on DioException catch (error, stackTrace) {
+      final recoverProxy = _recoverProxy;
+      final dioFactory = _dioFactory;
+      if (!_isRecoverableNetworkError(error) ||
+          recoverProxy == null ||
+          dioFactory == null) {
+        rethrow;
+      }
+
+      bool recovered;
+      try {
+        recovered = await _recoverAndRebuild(recoverProxy, dioFactory);
+      } catch (recoveryError, recoveryStackTrace) {
+        AppLogger().w(
+          'TMDB: 代理恢复失败',
+          error: recoveryError,
+          stackTrace: recoveryStackTrace,
+        );
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+      if (!recovered) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+      return request(_dio);
+    }
+  }
+
+  Future<bool> _recoverAndRebuild(
+    TmdbProxyRecovery recoverProxy,
+    TmdbDioFactory dioFactory,
+  ) {
+    final rebuildingDio = _rebuildingDio;
+    if (rebuildingDio != null) return rebuildingDio;
+
+    final task = _recoverAndRebuildOnce(recoverProxy, dioFactory);
+    _rebuildingDio = task;
+    return task.whenComplete(() {
+      if (identical(_rebuildingDio, task)) {
+        _rebuildingDio = null;
+      }
+    });
+  }
+
+  Future<bool> _recoverAndRebuildOnce(
+    TmdbProxyRecovery recoverProxy,
+    TmdbDioFactory dioFactory,
+  ) async {
+    if (!await recoverProxy()) return false;
+
+    final previousDio = _dio;
+    final replacementDio = dioFactory();
+    _dio = replacementDio;
+    if (!identical(previousDio, replacementDio)) {
+      previousDio.close(force: true);
+    }
+    return true;
+  }
+
+  bool _isRecoverableNetworkError(DioException error) {
+    return error.type == DioExceptionType.connectionTimeout ||
+        error.type == DioExceptionType.sendTimeout ||
+        error.type == DioExceptionType.receiveTimeout ||
+        error.type == DioExceptionType.connectionError;
   }
 
   void _validateKey() {

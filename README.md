@@ -93,7 +93,7 @@ OpenList、夸克、百度和迅雷网盘在本项目中仅作为用户自有媒
 | --- | --- |
 | 操作系统 | Windows 10 / Windows 11，64 位 |
 | 安装格式 | MSIX |
-| 当前版本 | 2.1.73 |
+| 当前版本 | 2.1.75 |
 | Dart 包名 | `kanyingyin` |
 | Windows 包标识 | `com.kanyingyin.player` |
 | Flutter | 3.41.9 |

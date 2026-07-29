@@ -32,9 +32,10 @@ set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE}")
 # Use Unicode for all projects.
 add_definitions(-DUNICODE -D_UNICODE)
 
-# 统一按 UTF-8 解析应用与插件源码，避免本机代码页导致构建失败。
+# 统一按 UTF-8 解析源码，并允许并行编译器安全写入同一个调试符号文件。
 if(MSVC)
   add_compile_options(/utf-8)
+  add_compile_options(/FS)
 endif()
 
 # Compilation settings that should be applied to most targets.

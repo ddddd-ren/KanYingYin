@@ -30,6 +30,18 @@ const List<VersionHistory> versionHistoryList = [
     ],
   ),
   VersionHistory(
+    version: '2.1.75',
+    date: '2026-07-29',
+    isPrerelease: true,
+    changes: [
+      '修复迅雷官方设备验证页被误判为“不安全页面”，导致应用内验证窗口无法登录的问题',
+      '验证页面现在通过 WebView2 原生事件阻止下载，不再调用当前 Windows WebView2 不支持的下载控制命令；版本过低时会在打开页面前提示更新',
+      '迅雷短信或图形设备验证可以在应用内继续完成，成功后会自动继续登录并关闭验证窗口',
+      '继续只允许迅雷官方 HTTPS 页面，拒绝新窗口、下载和权限请求；账号、密码、Token 与验证参数不会写入日志',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.73',
     date: '2026-07-29',
     isPrerelease: true,

@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 
 enum XunleiVerificationProfileError {
   runtimeUnavailable,
+  runtimeOutdated,
   initializationFailed,
 }
 
@@ -27,6 +28,13 @@ typedef XunleiEnvironmentLoader = Future<WebViewEnvironment> Function(
 );
 
 class XunleiVerificationProfileFactory {
+  static const List<int> _minimumDownloadStartingVersion = <int>[
+    92,
+    0,
+    902,
+    49,
+  ];
+
   XunleiVerificationProfileFactory({
     XunleiAvailableVersionLoader? availableVersionLoader,
     XunleiSupportDirectoryLoader? supportDirectoryLoader,
@@ -56,6 +64,11 @@ class XunleiVerificationProfileFactory {
     if (version == null || version.trim().isEmpty) {
       throw const XunleiVerificationProfileException(
         XunleiVerificationProfileError.runtimeUnavailable,
+      );
+    }
+    if (!supportsDownloadStarting(version)) {
+      throw const XunleiVerificationProfileException(
+        XunleiVerificationProfileError.runtimeOutdated,
       );
     }
 
@@ -106,6 +119,22 @@ class XunleiVerificationProfileFactory {
       WebViewEnvironment.create(
         settings: WebViewEnvironmentSettings(userDataFolder: path),
       );
+
+  static bool supportsDownloadStarting(String version) {
+    final match = RegExp(
+      r'^\s*(\d+)\.(\d+)\.(\d+)\.(\d+)(?:\s|$)',
+    ).firstMatch(version);
+    if (match == null) return false;
+    for (var index = 0;
+        index < _minimumDownloadStartingVersion.length;
+        index++) {
+      final component = int.tryParse(match.group(index + 1)!);
+      if (component == null) return false;
+      final minimum = _minimumDownloadStartingVersion[index];
+      if (component != minimum) return component > minimum;
+    }
+    return true;
+  }
 
   static String _generateSessionId() {
     final random = Random.secure();

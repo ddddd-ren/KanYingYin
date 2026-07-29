@@ -6,6 +6,64 @@ import 'package:kanyingyin/utils/app_identity.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
+  test('WebView2 Runtime 版本必须支持原生下载取消事件', () {
+    for (final version in <String>[
+      '91.0.864.71',
+      '92.0.902.48',
+      'invalid-version',
+    ]) {
+      expect(
+        XunleiVerificationProfileFactory.supportsDownloadStarting(version),
+        isFalse,
+        reason: version,
+      );
+    }
+    for (final version in <String>[
+      '92.0.902.49',
+      '92.0.902.49 dev',
+      '138.0.3351.95',
+    ]) {
+      expect(
+        XunleiVerificationProfileFactory.supportsDownloadStarting(version),
+        isTrue,
+        reason: version,
+      );
+    }
+  });
+
+  test('过旧 WebView2 Runtime 在创建验证数据目录前被拒绝', () async {
+    final support = await Directory.systemTemp.createTemp(
+      'xunlei-profile-outdated-',
+    );
+    addTearDown(() async {
+      if (await support.exists()) await support.delete(recursive: true);
+    });
+    final factory = XunleiVerificationProfileFactory(
+      availableVersionLoader: () async => '92.0.902.48',
+      supportDirectoryLoader: () async => support,
+    );
+
+    await expectLater(
+      factory.create(),
+      throwsA(
+        isA<XunleiVerificationProfileException>().having(
+          (error) => error.type,
+          'type',
+          XunleiVerificationProfileError.runtimeOutdated,
+        ),
+      ),
+    );
+    expect(
+      await Directory(p.join(
+        support.path,
+        AppIdentity.storageNamespace,
+        'webview',
+        'xunlei',
+      )).exists(),
+      isFalse,
+    );
+  });
+
   test('WebView2 Runtime 缺失返回脱敏错误且不创建目录', () async {
     final support = await Directory.systemTemp.createTemp(
       'xunlei-profile-missing-',
@@ -50,7 +108,7 @@ void main() {
       if (await support.exists()) await support.delete(recursive: true);
     });
     final factory = XunleiVerificationProfileFactory(
-      availableVersionLoader: () async => 'fixture-version',
+      availableVersionLoader: () async => '138.0.3351.95',
       supportDirectoryLoader: () async => support,
       environmentLoader: (_) async => throw StateError('secret-runtime-body'),
       sessionIdGenerator: () => '0123456789abcdef0123456789abcdef',

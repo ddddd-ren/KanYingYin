@@ -311,7 +311,36 @@ void main() {
     );
   });
 
-  test('验证 WebView 关闭插件调试日志并从浏览器层拒绝下载', () {
+  testWidgets('WebView2 Runtime 过旧时提示更新且不打开验证页面', (tester) async {
+    XunleiVerificationDialogResult? result;
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(builder: (context) {
+        return FilledButton(
+          onPressed: () async {
+            result = await showXunleiVerificationDialog(
+              context,
+              challenge(),
+              profileFactory: XunleiVerificationProfileFactory(
+                availableVersionLoader: () async => '92.0.902.48',
+              ),
+            );
+          },
+          child: const Text('打开验证'),
+        );
+      }),
+    ));
+
+    await tester.tap(find.text('打开验证'));
+    await pumpOpenedDialog(tester);
+    const message = '迅雷验证组件版本过低，请更新 Microsoft Edge WebView2 Runtime';
+    expect(find.text(message), findsOneWidget);
+    await tester.tap(find.text('关闭'));
+    await tester.pumpAndSettle();
+    expect(result?.outcome, XunleiVerificationDialogOutcome.failed);
+    expect(result?.errorMessage, message);
+  });
+
+  test('验证 WebView 关闭插件调试日志并通过原生事件取消下载', () {
     final source = File(
       'lib/pages/cloud/xunlei/xunlei_verification_dialog.dart',
     ).readAsStringSync();
@@ -321,8 +350,12 @@ void main() {
       contains('PlatformInAppWebViewController.debugLoggingSettings'),
     );
     expect(source, contains('DebugLoggingSettings(enabled: false)'));
-    expect(source, contains("methodName: 'Browser.setDownloadBehavior'"));
-    expect(source, contains("'behavior': 'deny'"));
+    expect(source, contains('onDownloadStarting:'));
+    expect(source, contains('DownloadStartResponse('));
+    expect(source, contains('DownloadStartResponseAction.CANCEL'));
+    expect(source, contains('handled: true'));
+    expect(source, isNot(contains('Browser.setDownloadBehavior')));
+    expect(source, isNot(contains('Page.setDownloadBehavior')));
     expect(source, isNot(contains('onConsoleMessage:')));
   });
 }

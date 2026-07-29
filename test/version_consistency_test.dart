@@ -6,8 +6,8 @@ import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
   test('应用版本、MSIX 版本和更新日志保持一致', () {
-    const expectedVersion = '2.1.73';
-    const expectedBuildNumber = '20173';
+    const expectedVersion = '2.1.75';
+    const expectedBuildNumber = '20175';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
@@ -82,9 +82,9 @@ void main() {
         '应用内',
         '设备验证',
         '自动继续登录',
-        '密码错误',
+        '不安全',
         'WebView2',
-        '临时数据',
+        '下载',
         '不会修改或删除',
       ]) {
         expect(currentCopy, contains(text));

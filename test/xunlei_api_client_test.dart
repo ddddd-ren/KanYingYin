@@ -262,6 +262,11 @@ void main() {
     expect(shieldBody['device_id'], deviceId);
     expect(shieldBody['action'], 'GET:/v1/user/me');
     expect(shieldBody['captcha_token'], '');
+    expect(shieldBody['meta'], <String, String>{
+      'username': '',
+      'phone_number': '',
+      'email': '',
+    });
     expect(adapter.requests[2].headers['x-client-id'], 'Xqp0kJBXWhwaTpB6');
     expect(adapter.requests[3].headers['x-captcha-token'], 'captcha-web');
     expect(client.captchaToken, 'captcha-web');
@@ -323,6 +328,50 @@ void main() {
     expect(renewedShieldBody['captcha_token'], 'captcha-old');
     expect(adapter.requests[6].headers['x-captcha-token'], 'captcha-new');
     expect(client.captchaToken, 'captcha-new');
+    await client.close();
+  });
+
+  test('安卓令牌目录请求遇到 Captcha 失效时按当前客户端刷新并重试', () async {
+    final adapter = _QueueAdapter(<_FakeResponse>[
+      const _FakeResponse(
+        200,
+        '{"token_type":"Bearer","access_token":"access-android","refresh_token":"refresh-android-next","expires_in":3600,"user_id":"user-android"}',
+      ),
+      const _FakeResponse(200, '{"user_id":"user-android"}'),
+      const _FakeResponse(400, '{"error":"captcha_required"}'),
+      const _FakeResponse(
+        200,
+        '{"captcha_token":"captcha-android","expires_in":3600}',
+      ),
+      const _FakeResponse(200, '{"files":[],"next_page_token":""}'),
+    ]);
+    final client = XunleiApiClient(
+      deviceId: deviceId,
+      dio: Dio()..httpClientAdapter = adapter,
+    );
+
+    final session = await client.refresh(
+      refreshToken: 'refresh-android-secret',
+      deviceId: deviceId,
+    );
+    await client.account(session);
+    final page = await client.listDirectoryPage(directoryId: '0');
+
+    expect(page.files, isEmpty);
+    final shieldRequest = adapter.requests[3];
+    final shieldBody = shieldRequest.data as Map<Object?, Object?>;
+    expect(shieldRequest.headers['x-client-id'], 'Xp6vsxz_7IYVw2BB');
+    expect(shieldBody['client_id'], 'Xp6vsxz_7IYVw2BB');
+    expect(shieldBody['action'], 'GET:/drive/v1/files');
+    expect(shieldBody['meta'], <String, String>{
+      'username': '',
+      'phone_number': '',
+      'email': '',
+    });
+    expect(
+      adapter.requests[4].headers['x-captcha-token'],
+      'captcha-android',
+    );
     await client.close();
   });
 

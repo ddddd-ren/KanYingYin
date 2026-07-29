@@ -205,12 +205,14 @@ abstract class _PlayerController with Store {
     EmbeddedTrackLanguagePreferences? trackLanguagePreferences,
     TrueHdFallbackPolicy? trueHdFallbackPolicy,
     ShadersController? shadersController,
+    Future<void> Function()? clearLocalPlaybackCache,
     required PlayerRuntimePreferences runtimePreferences,
   })  : _subtitlePreferences = subtitlePreferences ?? SubtitlePreferences(),
         _trackLanguagePreferences =
             trackLanguagePreferences ?? EmbeddedTrackLanguagePreferences(),
         _trueHdFallbackPolicy =
             trueHdFallbackPolicy ?? const TrueHdFallbackPolicy(),
+        _clearLocalPlaybackCache = clearLocalPlaybackCache,
         _runtimePreferences = runtimePreferences,
         shadersController =
             shadersController ?? Modular.get<ShadersController>();
@@ -220,6 +222,7 @@ abstract class _PlayerController with Store {
   final SubtitlePreferences _subtitlePreferences;
   final EmbeddedTrackLanguagePreferences _trackLanguagePreferences;
   final TrueHdFallbackPolicy _trueHdFallbackPolicy;
+  final Future<void> Function()? _clearLocalPlaybackCache;
   final PlayerRuntimePreferences _runtimePreferences;
   late final PlayerSubtitleCoordinator _subtitleCoordinator =
       PlayerSubtitleCoordinator(_subtitlePreferences);
@@ -405,6 +408,9 @@ abstract class _PlayerController with Store {
   bool isLocalPlayback = false;
   final LocalSubtitleMatcher _localSubtitleMatcher = LocalSubtitleMatcher();
   final LocalSubtitleImporter _localSubtitleImporter = LocalSubtitleImporter();
+  bool get canImportSubtitleToVideoDirectory =>
+      isLocalPlayback &&
+      _localSubtitleImporter.supportsVideoDirectory(videoPath: videoUrl);
   @observable
   String currentSubtitlePath = '';
   @observable
@@ -1752,6 +1758,18 @@ abstract class _PlayerController with Store {
     AppLogger().i('PlayerController: resource disposal started');
     final future = _playerInitLock.synchronized(() async {
       await _disposePlayerResources();
+      final clearLocalPlaybackCache = _clearLocalPlaybackCache;
+      if (clearLocalPlaybackCache != null) {
+        try {
+          await clearLocalPlaybackCache();
+        } on Object catch (error, stackTrace) {
+          AppLogger().w(
+            'PlayerController: failed to clear local playback cache',
+            error: error,
+            stackTrace: stackTrace,
+          );
+        }
+      }
       await _playbackLeaseCoordinator.close();
       _lastInitParams = null;
       AppLogger().i('PlayerController: resource disposal completed');

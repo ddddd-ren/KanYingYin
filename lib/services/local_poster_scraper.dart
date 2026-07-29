@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/poster_scrape.dart';
@@ -10,6 +12,7 @@ import 'package:kanyingyin/utils/logger.dart';
 /// Optional callback to provide a fallback cover URL for an item
 /// when TMDB search fails. Returns a remote URL or null.
 typedef FallbackCoverProvider = FutureOr<String?> Function(LocalFileItem item);
+typedef LocalPosterApplicationRootProvider = Future<Directory> Function();
 
 abstract class ILocalPosterScraper {
   Future<PosterScrapeResult> scrapeMissingPosters(
@@ -20,10 +23,15 @@ abstract class ILocalPosterScraper {
 }
 
 class LocalPosterScraper implements ILocalPosterScraper {
-  LocalPosterScraper({PosterService? posterService})
-      : _posterService = posterService ?? PosterService();
+  LocalPosterScraper({
+    PosterService? posterService,
+    LocalPosterApplicationRootProvider? applicationRootProvider,
+  })  : _posterService = posterService ?? PosterService(),
+        _applicationRootProvider =
+            applicationRootProvider ?? getApplicationSupportDirectory;
 
   final PosterService _posterService;
+  final LocalPosterApplicationRootProvider _applicationRootProvider;
   final LocalSeriesGrouper _seriesGrouper = const LocalSeriesGrouper();
 
   @override
@@ -60,6 +68,7 @@ class LocalPosterScraper implements ILocalPosterScraper {
     var success = 0;
     var failed = 0;
     var processed = 0;
+    final coversByLocationId = <String, String>{};
     final totalGroups = targetGroups.length;
 
     for (final entry in targetGroups) {
@@ -114,7 +123,8 @@ class LocalPosterScraper implements ILocalPosterScraper {
         current: processed,
         total: totalGroups,
       );
-      if (downloaded) {
+      coversByLocationId.addAll(downloaded.coversByLocationId);
+      if (downloaded.success) {
         success++;
       } else {
         failed++;
@@ -134,6 +144,9 @@ class LocalPosterScraper implements ILocalPosterScraper {
       failed: failed,
       skipped: skipped,
       total: groups.length,
+      coversByLocationId: Map<String, String>.unmodifiable(
+        coversByLocationId,
+      ),
     );
   }
 
@@ -163,7 +176,7 @@ class LocalPosterScraper implements ILocalPosterScraper {
     }
   }
 
-  Future<bool> _downloadGroupCover(
+  Future<_PosterDownloadResult> _downloadGroupCover(
     String posterUrl,
     List<LocalFileItem> items, {
     required String displayName,
@@ -182,29 +195,47 @@ class LocalPosterScraper implements ILocalPosterScraper {
 
     try {
       var hasFailure = false;
+      final coversByLocationId = <String, String>{};
       for (final item in _itemsNeedingDirectoryCover(items)) {
-        final savedPath = await _posterService.downloadPoster(
-          posterUrl,
-          item.path,
-        );
+        final savedPath = item.location.isDocument
+            ? await _posterService.downloadPosterTo(
+                posterUrl,
+                await documentPosterPath(item.location.stableId),
+              )
+            : await _posterService.downloadPoster(
+                posterUrl,
+                item.path,
+              );
         if (savedPath == null) {
           hasFailure = true;
+        } else if (item.location.isDocument) {
+          for (final documentItem in items.where(
+            (candidate) => candidate.location.isDocument,
+          )) {
+            coversByLocationId[documentItem.location.stableId] = savedPath;
+          }
         }
       }
-      return !hasFailure;
+      return _PosterDownloadResult(
+        success: !hasFailure,
+        coversByLocationId: coversByLocationId,
+      );
     } catch (e) {
       AppLogger().w(
         'LocalPosterScraper: failed to download for "${firstItem.name}"',
         error: e,
       );
-      return false;
+      return const _PosterDownloadResult(success: false);
     }
   }
 
   List<LocalFileItem> _itemsNeedingDirectoryCover(List<LocalFileItem> items) {
     final byDirectory = <String, List<LocalFileItem>>{};
     for (final item in items) {
-      (byDirectory[p.dirname(item.path)] ??= <LocalFileItem>[]).add(item);
+      final groupKey = item.location.isDocument
+          ? 'document:${item.episodeInfo?.seriesName ?? item.name}'
+          : p.dirname(item.path);
+      (byDirectory[groupKey] ??= <LocalFileItem>[]).add(item);
     }
 
     return byDirectory.values
@@ -213,4 +244,32 @@ class LocalPosterScraper implements ILocalPosterScraper {
         .map((itemsInDirectory) => itemsInDirectory.first)
         .toList(growable: false);
   }
+
+  Future<String> documentPosterPath(String stableId) async {
+    final root = await _applicationRootProvider();
+    return p.join(
+      root.path,
+      'local_document_posters',
+      '${_stableHash(stableId)}.jpg',
+    );
+  }
+
+  String _stableHash(String value) {
+    var hash = 0x811c9dc5;
+    for (final unit in value.codeUnits) {
+      hash ^= unit;
+      hash = (hash * 0x01000193) & 0x7fffffff;
+    }
+    return hash.toRadixString(16).padLeft(8, '0');
+  }
+}
+
+class _PosterDownloadResult {
+  const _PosterDownloadResult({
+    required this.success,
+    this.coversByLocationId = const <String, String>{},
+  });
+
+  final bool success;
+  final Map<String, String> coversByLocationId;
 }

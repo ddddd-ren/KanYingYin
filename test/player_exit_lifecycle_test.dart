@@ -67,6 +67,25 @@ void main() {
     await first;
   });
 
+  test('播放器释放时只清理一次本地文档临时缓存', () async {
+    var cleanupCount = 0;
+    final controller = PlayerController(
+      shadersController: ShadersController(),
+      runtimePreferences:
+          PlayerRuntimePreferences(TypedSettings(GStorage.setting)),
+      clearLocalPlaybackCache: () async {
+        cleanupCount++;
+      },
+    );
+
+    await Future.wait(<Future<void>>[
+      controller.dispose(),
+      controller.dispose(),
+    ]);
+
+    expect(cleanupCount, 1);
+  });
+
   test('播放页在弹出路由前同步发出退出信号', () {
     final source = File('lib/pages/video/video_page.dart').readAsStringSync();
     final beginExit = source.indexOf('_exitCoordinator.beginExit()');

@@ -1,9 +1,15 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/media_location.dart';
 import 'package:kanyingyin/repositories/local_media_index_repository.dart';
+import 'package:kanyingyin/platform/android/android_document_provider.dart';
+import 'package:kanyingyin/services/android_document_cache.dart';
 import 'package:kanyingyin/services/local_media_entry_provider.dart';
 import 'package:kanyingyin/services/local_media_indexer.dart';
+import 'package:kanyingyin/services/local_media_probe.dart';
 import 'package:kanyingyin/services/local_media_scanner.dart';
 
 void main() {
@@ -68,6 +74,10 @@ void main() {
   });
 
   test('Android 文档授权失效时保留已有索引', () async {
+    final cacheRoot = await Directory.systemTemp.createTemp(
+      'kanyingyin-index-document-cache-',
+    );
+    addTearDown(() => cacheRoot.delete(recursive: true));
     final storage = _MemoryIndexStorage();
     final repository = LocalMediaIndexRepository(storage: storage);
     final provider = _DocumentEntryProvider(
@@ -77,22 +87,63 @@ void main() {
         ],
         season: <LocalMediaEntry>[
           _entry(video, 'Show S01E02.mkv'),
+          _entry(
+            MediaLocation.document(
+              uri: 'content://media/document/show-s01e02-subtitle',
+              treeUri: root.treeUri!,
+            ),
+            'Show S01E02.ass',
+            mimeType: 'text/x-ssa',
+          ),
+          _entry(
+            MediaLocation.document(
+              uri: 'content://media/document/tmdb-poster',
+              treeUri: root.treeUri!,
+            ),
+            'tmdb-poster.jpg',
+            mimeType: 'image/jpeg',
+          ),
         ],
       },
     );
+    final mediaProbe = _RecordingDocumentMediaProbe();
     final indexer = LocalMediaIndexer(
       repository: repository,
       entryProviders: <LocalMediaEntryProvider>[provider],
+      mediaProbe: mediaProbe,
+      documentCache: AndroidDocumentCache(
+        _DocumentBytesProvider(),
+        cacheRootProvider: () async => cacheRoot,
+      ),
       minRecognizedVideoSizeBytes: 0,
     );
 
-    final first = await indexer.indexSourceLocation(root);
+    final first = await indexer.indexSourceLocation(
+      root,
+      enrichMediaInfo: true,
+      generateThumbnails: true,
+    );
     provider.accessible = false;
     final second = await indexer.indexSourceLocation(root);
 
     expect(first.addedCount, 1);
     expect(repository.getBySourceLocation(root), hasLength(1));
     expect(repository.getBySourceLocation(root).single.location, video);
+    expect(mediaProbe.probedPaths, <String>[video.value]);
+    expect(
+      repository.getBySourceLocation(root).single.durationMillis,
+      const Duration(minutes: 2).inMilliseconds,
+    );
+    expect(
+      File(
+        repository.getBySourceLocation(root).single.subtitlePath!,
+      ).existsSync(),
+      isTrue,
+    );
+    expect(
+      File(repository.getBySourceLocation(root).single.cover!).existsSync(),
+      isTrue,
+    );
     expect(second.items, hasLength(1));
     expect(second.removedCount, 0);
     expect(second.failures, isNotEmpty);
@@ -148,4 +199,43 @@ class _MemoryIndexStorage implements LocalMediaIndexStorage {
   Future<void> delete(String key) async {
     _values.remove(key);
   }
+}
+
+class _DocumentBytesProvider implements AndroidDocumentProvider {
+  @override
+  Future<bool> canAccess(MediaLocation location) async => true;
+
+  @override
+  Future<List<AndroidDocumentEntry>> listChildren(
+    MediaLocation parent,
+  ) async =>
+      const <AndroidDocumentEntry>[];
+
+  @override
+  Future<({MediaLocation location, String name})?> pickDirectory() async =>
+      null;
+
+  @override
+  Future<Uint8List> readSmallFile(
+    MediaLocation location, {
+    required int maxBytes,
+  }) async =>
+      Uint8List.fromList(<int>[1, 2, 3]);
+}
+
+class _RecordingDocumentMediaProbe implements ILocalMediaProbe {
+  final List<String> probedPaths = <String>[];
+
+  @override
+  Future<LocalMediaInfo> probe(String filePath) async {
+    probedPaths.add(filePath);
+    return const LocalMediaInfo(duration: Duration(minutes: 2));
+  }
+
+  @override
+  Future<String?> captureThumbnail(
+    String filePath,
+    String outputPath,
+  ) async =>
+      null;
 }

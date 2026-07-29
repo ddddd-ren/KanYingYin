@@ -13,6 +13,7 @@ import 'package:kanyingyin/repositories/local_media_source_repository.dart';
 import 'package:kanyingyin/services/local_media_indexer.dart';
 import 'package:kanyingyin/services/local_media_scanner.dart';
 import 'package:kanyingyin/services/android_media_entry_provider.dart';
+import 'package:kanyingyin/services/android_document_cache.dart';
 import 'package:kanyingyin/services/file_system_media_entry_provider.dart';
 import 'package:kanyingyin/services/local_media_entry_provider.dart';
 import 'package:kanyingyin/services/media_recognition_settings.dart';
@@ -32,6 +33,9 @@ void registerLibraryBindings(Injector i) {
   i.addSingleton<AndroidMediaEntryProvider>(
     () => AndroidMediaEntryProvider(Modular.get<AndroidDocumentProvider>()),
   );
+  i.addSingleton<AndroidDocumentCache>(
+    () => AndroidDocumentCache(Modular.get<AndroidDocumentProvider>()),
+  );
   i.addSingleton<ILocalMediaIndexRepository>(LocalMediaIndexRepository.new);
   i.addSingleton<ILocalMediaSourceRepository>(LocalMediaSourceRepository.new);
   i.addSingleton<ILocalLibraryPreferences>(LocalLibraryPreferences.new);
@@ -47,6 +51,7 @@ void registerLibraryBindings(Injector i) {
         Modular.get<FileSystemMediaEntryProvider>(),
         Modular.get<AndroidMediaEntryProvider>(),
       ],
+      documentCache: Modular.get<AndroidDocumentCache>(),
       minRecognizedVideoSizeBytesProvider: () =>
           Modular.get<MediaRecognitionSettings>().localMinSizeBytes,
     ),

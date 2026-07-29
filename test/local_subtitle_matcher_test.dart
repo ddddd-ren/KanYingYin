@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/modules/local/media_location.dart';
+import 'package:kanyingyin/services/local_media_entry_provider.dart';
 import 'package:kanyingyin/services/local_subtitle_matcher.dart';
 
 void main() {
@@ -93,4 +95,49 @@ void main() {
         [unrelated.path]);
     expect(await LocalSubtitleMatcher().findForVideo(video.path), isNull);
   });
+
+  test('LocalSubtitleMatcher 按显示名称匹配 Android 文档字幕', () {
+    final treeUri = 'content://provider/tree/root';
+    final video = _documentEntry(
+      treeUri: treeUri,
+      uri: 'content://provider/document/video',
+      name: 'Show S01E03.mkv',
+      mimeType: 'video/x-matroska',
+    );
+    final subtitle = _documentEntry(
+      treeUri: treeUri,
+      uri: 'content://provider/document/subtitle',
+      name: 'Show S01E03.ass',
+      mimeType: 'text/x-ssa',
+    );
+    final unrelated = _documentEntry(
+      treeUri: treeUri,
+      uri: 'content://provider/document/unrelated',
+      name: 'Other S01E01.srt',
+      mimeType: 'application/x-subrip',
+    );
+
+    final matched = LocalSubtitleMatcher().findForEntry(
+      video: video,
+      siblings: <LocalMediaEntry>[video, unrelated, subtitle],
+    );
+
+    expect(matched?.location, subtitle.location);
+  });
+}
+
+LocalMediaEntry _documentEntry({
+  required String treeUri,
+  required String uri,
+  required String name,
+  required String mimeType,
+}) {
+  return LocalMediaEntry(
+    location: MediaLocation.document(uri: uri, treeUri: treeUri),
+    name: name,
+    isDirectory: false,
+    size: 1024,
+    modified: DateTime(2026, 7, 29),
+    mimeType: mimeType,
+  );
 }

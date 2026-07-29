@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:kanyingyin/utils/logger.dart';
+import 'package:kanyingyin/utils/media_uri_utils.dart';
 import 'package:media_kit/media_kit.dart';
 
 class LocalMediaInfo {
@@ -70,7 +71,12 @@ class MediaKitLocalMediaProbe implements ILocalMediaProbe {
         }
       }));
       await player.setVolume(0);
-      await player.open(Media(File(filePath).uri.toString()), play: false);
+      await player.open(
+        Media(
+          MediaUriUtils.toPlayableUri(filePath, isLocalPlayback: true),
+        ),
+        play: false,
+      );
 
       final result = await completer.future.timeout(
         timeout,
@@ -115,7 +121,12 @@ class MediaKitLocalMediaProbe implements ILocalMediaProbe {
         }
       }));
       await player.setVolume(0);
-      await player.open(Media(File(filePath).uri.toString()), play: false);
+      await player.open(
+        Media(
+          MediaUriUtils.toPlayableUri(filePath, isLocalPlayback: true),
+        ),
+        play: false,
+      );
 
       final duration = await durationCompleter.future.timeout(
         timeout,

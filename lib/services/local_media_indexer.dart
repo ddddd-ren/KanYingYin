@@ -5,6 +5,7 @@ import 'package:kanyingyin/modules/local/local_episode_info.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/media_location.dart';
 import 'package:kanyingyin/repositories/local_media_index_repository.dart';
+import 'package:kanyingyin/services/android_document_cache.dart';
 import 'package:kanyingyin/services/file_system_media_entry_provider.dart';
 import 'package:kanyingyin/services/local_episode_parser.dart';
 import 'package:kanyingyin/services/local_media_entry_provider.dart';
@@ -128,6 +129,7 @@ class LocalMediaIndexer
     LocalCoverFinder? coverFinder,
     LocalMediaIndexMetadataRefresher? metadataRefresher,
     List<LocalMediaEntryProvider>? entryProviders,
+    AndroidDocumentCache? documentCache,
     int minRecognizedVideoSizeBytes =
         LocalVideoFileTypes.minRecognizedVideoSizeBytes,
     int Function()? minRecognizedVideoSizeBytesProvider,
@@ -140,6 +142,7 @@ class LocalMediaIndexer
             const <LocalMediaEntryProvider>[
               FileSystemMediaEntryProvider(),
             ],
+        _documentCache = documentCache,
         _metadataRefresher = metadataRefresher ??
             LocalMediaIndexMetadataRefresher(
               episodeParser: episodeParser,
@@ -155,6 +158,7 @@ class LocalMediaIndexer
   final ILocalMediaProbe _mediaProbe;
   final LocalCoverFinder _coverFinder;
   final List<LocalMediaEntryProvider> _entryProviders;
+  final AndroidDocumentCache? _documentCache;
   final LocalMediaIndexMetadataRefresher _metadataRefresher;
   final int Function() _minRecognizedVideoSizeBytesProvider;
 
@@ -321,6 +325,49 @@ class LocalMediaIndexer
             skippedCount++;
             continue;
           }
+          String? subtitlePath;
+          String? coverPath;
+          final documentCache = _documentCache;
+          if (entry.location.isDocument && documentCache != null) {
+            final subtitle = _subtitleMatcher.findForEntry(
+              video: entry,
+              siblings: entries,
+            );
+            if (subtitle != null) {
+              try {
+                subtitlePath = await documentCache.cacheSubtitle(subtitle);
+              } on Object catch (error, stackTrace) {
+                failures.add(LocalMediaIndexFailure(
+                  path: subtitle.location.value,
+                  message: error.toString(),
+                ));
+                AppLogger().w(
+                  'LocalMediaIndexer: failed to cache document subtitle',
+                  error: error,
+                  stackTrace: stackTrace,
+                );
+              }
+            }
+            final cover = _coverFinder.findForEntry(
+              video: entry,
+              siblings: entries,
+            );
+            if (cover != null) {
+              try {
+                coverPath = await documentCache.cacheCover(cover);
+              } on Object catch (error, stackTrace) {
+                failures.add(LocalMediaIndexFailure(
+                  path: cover.location.value,
+                  message: error.toString(),
+                ));
+                AppLogger().w(
+                  'LocalMediaIndexer: failed to cache document cover',
+                  error: error,
+                  stackTrace: stackTrace,
+                );
+              }
+            }
+          }
           files.add(_LocatedMediaEntry(
             entry: entry,
             parentLocation: directory,
@@ -328,6 +375,8 @@ class LocalMediaIndexer
                 ? entry.location.value
                 : p.join(logicalDirectory, name),
             logicalParentPath: logicalDirectory,
+            subtitlePath: subtitlePath,
+            coverPath: coverPath,
           ));
         } on Object catch (error, stackTrace) {
           skippedCount++;
@@ -414,13 +463,38 @@ class LocalMediaIndexer
             ));
             updatedCount++;
           } else {
-            indexed.add(oldItem.copyWith(indexedAt: DateTime.now()));
-            reusedCount++;
+            final companionChanged = entry.location.isDocument &&
+                ((located.subtitlePath != null &&
+                        located.subtitlePath != oldItem.subtitlePath) ||
+                    (located.coverPath != null &&
+                        located.coverPath != oldItem.cover));
+            indexed.add(oldItem.copyWith(
+              subtitlePath: located.subtitlePath,
+              cover: located.coverPath,
+              indexedAt: DateTime.now(),
+            ));
+            if (companionChanged) {
+              updatedCount++;
+            } else {
+              reusedCount++;
+            }
           }
           continue;
         }
 
         final episodeInfo = _episodeParser.parse(located.logicalPath);
+        final documentMediaInfo = entry.location.isDocument && enrichMediaInfo
+            ? await _mediaProbe.probe(entry.location.value)
+            : null;
+        var documentCover = located.coverPath ?? oldItem?.cover;
+        if (entry.location.isDocument &&
+            documentCover == null &&
+            generateThumbnails) {
+          documentCover = await _mediaProbe.captureThumbnail(
+            entry.location.value,
+            await LocalThumbnailCache.pathForLocation(entry.location),
+          );
+        }
         final item = entry.location.isFile
             ? await _buildFileItem(
                 entry,
@@ -446,9 +520,12 @@ class LocalMediaIndexer
                 resolution: episodeInfo?.resolution,
                 source: episodeInfo?.source,
                 codec: episodeInfo?.codec,
-                durationMillis: oldItem?.durationMillis,
-                videoWidth: oldItem?.videoWidth,
-                videoHeight: oldItem?.videoHeight,
+                cover: documentCover,
+                subtitlePath: located.subtitlePath ?? oldItem?.subtitlePath,
+                durationMillis: documentMediaInfo?.duration?.inMilliseconds ??
+                    oldItem?.durationMillis,
+                videoWidth: documentMediaInfo?.width ?? oldItem?.videoWidth,
+                videoHeight: documentMediaInfo?.height ?? oldItem?.videoHeight,
                 pathFingerprint: _entryFingerprint(entry),
                 indexedAt: DateTime.now(),
               );
@@ -667,10 +744,14 @@ class _LocatedMediaEntry {
     required this.parentLocation,
     required this.logicalPath,
     required this.logicalParentPath,
+    this.subtitlePath,
+    this.coverPath,
   });
 
   final LocalMediaEntry entry;
   final MediaLocation parentLocation;
   final String logicalPath;
   final String logicalParentPath;
+  final String? subtitlePath;
+  final String? coverPath;
 }

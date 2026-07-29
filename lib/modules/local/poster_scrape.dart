@@ -38,12 +38,14 @@ class PosterScrapeResult {
   final int failed;
   final int skipped;
   final int total;
+  final Map<String, String> coversByLocationId;
 
   const PosterScrapeResult({
     required this.success,
     required this.failed,
     required this.skipped,
     required this.total,
+    this.coversByLocationId = const <String, String>{},
   });
 
   static const empty = PosterScrapeResult(

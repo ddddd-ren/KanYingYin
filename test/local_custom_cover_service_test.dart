@@ -53,4 +53,33 @@ void main() {
     expect(result, cover.path);
     expect(await cover.readAsBytes(), [4, 5, 6]);
   });
+
+  test('LocalCustomCoverService 将 content URI 封面复制到应用目录', () async {
+    final appRoot = await Directory.systemTemp.createTemp(
+      'kanyingyin-document-cover-',
+    );
+    final sourceRoot = await Directory.systemTemp.createTemp(
+      'kanyingyin-document-cover-source-',
+    );
+    addTearDown(() async {
+      await appRoot.delete(recursive: true);
+      await sourceRoot.delete(recursive: true);
+    });
+    final image = File(p.join(sourceRoot.path, 'custom.png'));
+    await image.writeAsBytes(<int>[1, 2, 3]);
+    final service = LocalCustomCoverService(
+      applicationRootProvider: () async => appRoot,
+    );
+
+    final saved = await service.saveForVideo(
+      videoPath: 'content://provider/document/video%3A42',
+      imagePath: image.path,
+    );
+
+    expect(saved, isNotNull);
+    expect(saved, startsWith(appRoot.path));
+    expect(saved, contains('local_document_custom_covers'));
+    expect(await File(saved!).readAsBytes(), <int>[1, 2, 3]);
+    expect(await image.exists(), isTrue);
+  });
 }

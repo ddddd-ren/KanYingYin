@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:kanyingyin/services/local_media_entry_provider.dart';
 import 'package:kanyingyin/services/local_thumbnail_cache.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:path/path.dart' as p;
@@ -8,10 +9,40 @@ import 'package:path/path.dart' as p;
 /// [LocalMediaScanner] and [LocalMediaIndexer].
 class LocalCoverFinder {
   static const posterExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
+  static const int maxDocumentCoverBytes = 20 * 1024 * 1024;
   static const commonPosterNames = ['cover', 'poster', 'folder'];
   static const preferredDirectoryCoverName = 'cover';
 
   final Map<String, Map<String, String>> _posterFileCache = {};
+
+  LocalMediaEntry? findForEntry({
+    required LocalMediaEntry video,
+    required List<LocalMediaEntry> siblings,
+  }) {
+    final byLowerName = <String, LocalMediaEntry>{};
+    for (final entry in siblings) {
+      if (entry.isDirectory || entry.size < 0) continue;
+      if (entry.size > maxDocumentCoverBytes) continue;
+      if (!posterExtensions.contains(p.extension(entry.name).toLowerCase())) {
+        continue;
+      }
+      byLowerName[entry.name.toLowerCase()] = entry;
+    }
+
+    LocalMediaEntry? find(Iterable<String> baseNames) {
+      for (final baseName in baseNames) {
+        for (final extension in posterExtensions) {
+          final entry = byLowerName['${baseName.toLowerCase()}$extension'];
+          if (entry != null) return entry;
+        }
+      }
+      return null;
+    }
+
+    return find(const <String>['tmdb-poster']) ??
+        find(<String>[p.basenameWithoutExtension(video.name)]) ??
+        find(commonPosterNames);
+  }
 
   /// Find a cover image for a video file.
   String? findVideoCover(String videoPath) {

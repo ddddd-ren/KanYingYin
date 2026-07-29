@@ -230,6 +230,7 @@ class LocalVideoController implements IVideoPageController {
     required String filePath,
     required String seriesTitle,
     List<Map<String, String>>? directoryFiles,
+    List<LocalPlaybackEntry>? playbackEntries,
     bool playlistAlreadyIsolated = false,
     bool autoLoadSubtitle = true,
   }) async {
@@ -237,6 +238,7 @@ class LocalVideoController implements IVideoPageController {
       filePath: filePath,
       fileName: seriesTitle,
       directoryFiles: directoryFiles,
+      playbackEntries: playbackEntries,
       playlistAlreadyIsolated: playlistAlreadyIsolated,
       autoLoadSubtitle: autoLoadSubtitle,
     );

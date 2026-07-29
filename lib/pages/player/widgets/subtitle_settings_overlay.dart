@@ -215,17 +215,18 @@ class SubtitleSettingsOverlay extends StatelessWidget {
                       LocalSubtitleImportTarget.subtitleDirectory,
                     ),
                   ),
-                  ListTile(
-                    leading: const Icon(Icons.create_new_folder_outlined),
-                    title: const Text('导入到视频目录'),
-                    subtitle: const Text(
-                      '适合希望字幕与视频放在一起的目录',
-                      style: TextStyle(color: Colors.white70),
+                  if (playerController.canImportSubtitleToVideoDirectory)
+                    ListTile(
+                      leading: const Icon(Icons.create_new_folder_outlined),
+                      title: const Text('导入到视频目录'),
+                      subtitle: const Text(
+                        '适合希望字幕与视频放在一起的目录',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                      onTap: () => onImportSubtitle(
+                        LocalSubtitleImportTarget.videoDirectory,
+                      ),
                     ),
-                    onTap: () => onImportSubtitle(
-                      LocalSubtitleImportTarget.videoDirectory,
-                    ),
-                  ),
                   const Divider(),
                   _SubtitleSectionTitle(title: '附近字幕列表'),
                   if (playerController.subtitleCandidates.isEmpty)

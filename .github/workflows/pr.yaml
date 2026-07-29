@@ -1,4 +1,4 @@
-name: PR Windows 质量门禁
+name: PR 双平台质量门禁
 
 on:
   pull_request:
@@ -42,3 +42,28 @@ jobs:
           name: windows-release-${{ github.run_number }}
           path: build/windows/x64/runner/Release/
           if-no-files-found: error
+
+  android-quality:
+    name: Android 质量门禁
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: 配置 Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          flutter-version-file: pubspec.yaml
+
+      - name: 获取依赖
+        run: flutter pub get
+
+      - name: Flutter 静态分析
+        run: flutter analyze --no-pub
+
+      - name: Flutter 测试
+        run: flutter test --no-pub
+
+      - name: 构建 Android Debug APK
+        run: flutter build apk --debug --no-pub

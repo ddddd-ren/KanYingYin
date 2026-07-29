@@ -25,7 +25,11 @@ import java.io.ByteArrayOutputStream
 class MainActivity : AudioServiceActivity() {
     private val channelName = "com.kanyingyin.player/android"
     private val directoryPickerRequestCode = 4201
+    private val notificationPermissionRequestCode = 4202
+    private val screenshotPermissionRequestCode = 4203
     private var pendingDirectoryPicker: MethodChannel.Result? = null
+    private var pendingNotificationPermission: MethodChannel.Result? = null
+    private var pendingScreenshot: Pair<ByteArray, MethodChannel.Result>? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -37,6 +41,8 @@ class MainActivity : AudioServiceActivity() {
                     "setBrightness" -> handleSetBrightness(call.arguments, result)
                     "saveScreenshot" -> handleSaveScreenshot(call.arguments, result)
                     "openWithMime" -> handleOpenWithMime(call.arguments, result)
+                    "requestNotificationPermission" ->
+                        handleRequestNotificationPermission(result)
                     "pickDirectory" -> handlePickDirectory(result)
                     "canAccessDocument" -> handleCanAccessDocument(call, result)
                     "listDocumentChildren" -> handleListDocumentChildren(call, result)
@@ -104,7 +110,71 @@ class MainActivity : AudioServiceActivity() {
     override fun onDestroy() {
         pendingDirectoryPicker?.error("ActivityDestroyed", "目录选择已取消", null)
         pendingDirectoryPicker = null
+        pendingNotificationPermission?.error(
+            "ActivityDestroyed",
+            "通知授权请求已取消",
+            null,
+        )
+        pendingNotificationPermission = null
+        pendingScreenshot?.second?.error(
+            "ActivityDestroyed",
+            "截图保存请求已取消",
+            null,
+        )
+        pendingScreenshot = null
         super.onDestroy()
+    }
+
+    private fun handleRequestNotificationPermission(result: MethodChannel.Result) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            result.success(true)
+            return
+        }
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            result.success(true)
+            return
+        }
+        if (pendingNotificationPermission != null) {
+            result.error("PermissionRequestBusy", "通知授权请求正在进行", null)
+            return
+        }
+        pendingNotificationPermission = result
+        requestPermissions(
+            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+            notificationPermissionRequestCode,
+        )
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when (requestCode) {
+            notificationPermissionRequestCode -> {
+                val result = pendingNotificationPermission ?: return
+                pendingNotificationPermission = null
+                result.success(
+                    grantResults.isNotEmpty() &&
+                        grantResults[0] == PackageManager.PERMISSION_GRANTED,
+                )
+            }
+            screenshotPermissionRequestCode -> {
+                val pending = pendingScreenshot ?: return
+                pendingScreenshot = null
+                if (
+                    grantResults.isNotEmpty() &&
+                    grantResults[0] == PackageManager.PERMISSION_GRANTED
+                ) {
+                    saveScreenshotBytes(pending.first, pending.second)
+                } else {
+                    pending.second.error("PermissionDenied", "未获得图片保存权限", null)
+                }
+            }
+        }
     }
 
     private fun handleCanAccessDocument(call: MethodCall, result: MethodChannel.Result) {
@@ -306,10 +376,22 @@ class MainActivity : AudioServiceActivity() {
             checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
             PackageManager.PERMISSION_GRANTED
         ) {
-            result.error("PermissionDenied", "未获得图片保存权限", null)
+            if (pendingScreenshot != null) {
+                result.error("PermissionRequestBusy", "截图保存授权正在进行", null)
+                return
+            }
+            pendingScreenshot = Pair(bytes, result)
+            requestPermissions(
+                arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+                screenshotPermissionRequestCode,
+            )
             return
         }
 
+        saveScreenshotBytes(bytes, result)
+    }
+
+    private fun saveScreenshotBytes(bytes: ByteArray, result: MethodChannel.Result) {
         val resolver = contentResolver
         val displayName = "看影音-${System.currentTimeMillis()}.png"
         val values = ContentValues().apply {

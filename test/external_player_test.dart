@@ -98,4 +98,29 @@ void main() {
     );
     expect(warnings, <String>['LaunchFailed']);
   });
+
+  test('不支持请求头的平台在调用原生前拒绝 Referer', () async {
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      return true;
+    });
+    final warnings = <String>[];
+    final client = ExternalPlayerClient(
+      channel: channel,
+      warningReporter: warnings.add,
+      supportsHeaders: false,
+    );
+
+    expect(
+      await client.launchURLWithReferer(
+        'https://example.com/video?token=secret',
+        'https://example.com/private',
+      ),
+      isFalse,
+    );
+    expect(calls, isEmpty);
+    expect(warnings, <String>['UnsupportedHeaders']);
+  });
 }

@@ -406,6 +406,7 @@ abstract class _PlayerController with Store {
   StreamSubscription<String>? playerErrorSubscription;
 
   bool isLocalPlayback = false;
+  bool androidAutoEnterPip = false;
   final LocalSubtitleMatcher _localSubtitleMatcher = LocalSubtitleMatcher();
   final LocalSubtitleImporter _localSubtitleImporter = LocalSubtitleImporter();
   bool get canImportSubtitleToVideoDirectory =>
@@ -553,6 +554,7 @@ abstract class _PlayerController with Store {
     duration = Duration.zero;
     completed = false;
     final runtimeSettings = _runtimePreferences.load();
+    androidAutoEnterPip = runtimeSettings.androidAutoEnterPip;
     playerSpeed = runtimeSettings.playSpeed;
     aspectRatioType = runtimeSettings.aspectRatioType;
     buttonSkipTime = runtimeSettings.buttonSkipTime;

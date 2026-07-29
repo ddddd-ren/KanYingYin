@@ -879,9 +879,9 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
                   IconButton(
                     onPressed: () async {
                       if (videoPageController.isPip) {
-                        await PipUtils.exitDesktopPIPWindow();
+                        await PipUtils.exitPIPWindow();
                       } else {
-                        await PipUtils.enterDesktopPIPWindow(
+                        await PipUtils.enterPIPWindow(
                           width: playerController.playerWidth,
                           height: playerController.playerHeight,
                         );

@@ -40,6 +40,10 @@ class AndroidPlatformChannel {
     );
   }
 
+  Future<bool> requestNotificationPermission() {
+    return _invokeBool('requestNotificationPermission');
+  }
+
   Future<Map<Object?, Object?>?> pickDocumentDirectory() {
     return _channel.invokeMapMethod<Object?, Object?>('pickDirectory');
   }

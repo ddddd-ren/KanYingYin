@@ -518,10 +518,10 @@ class _SmallestPlayerItemPanelState extends State<SmallestPlayerItemPanel> {
             IconButton(
                 onPressed: () async {
                   if (videoPageController.isPip) {
-                    await PipUtils.exitDesktopPIPWindow();
+                    await PipUtils.exitPIPWindow();
                   } else {
                     // 进入画中画时使用播放源比例，避免窗口比例与视频比例不一致产生黑边
-                    await PipUtils.enterDesktopPIPWindow(
+                    await PipUtils.enterPIPWindow(
                       width: playerController.playerWidth,
                       height: playerController.playerHeight,
                     );

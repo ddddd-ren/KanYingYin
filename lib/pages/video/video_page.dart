@@ -291,7 +291,7 @@ class _VideoPageState extends State<VideoPage>
   void onBackPressed(BuildContext context) async {
     final action = PlayerBackPolicy.decide(
       overlayVisible: AppDialog.observer.hasAppDialog,
-      fullscreen: localVideoController.isFullscreen,
+      fullscreen: localVideoController.isFullscreen && Utils.isDesktop(),
     );
     if (action == PlayerBackAction.closeOverlay) {
       AppDialog.dismiss<void>();
@@ -311,6 +311,11 @@ class _VideoPageState extends State<VideoPage>
       localVideoController.isFullscreen = false;
       return;
     }
+    if (!Utils.isDesktop() && localVideoController.isFullscreen) {
+      await Utils.exitFullScreen();
+      localVideoController.isFullscreen = false;
+    }
+    if (!context.mounted) return;
     if (!_exitCoordinator.beginExit()) return;
     AppLogger().i('VideoPage: route exit requested');
     Navigator.of(context).pop();

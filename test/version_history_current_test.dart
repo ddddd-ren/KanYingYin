@@ -4,6 +4,23 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一八十四修复 Android 黑屏、返回和图片连接错误', () {
+    final entries = versionHistoryForCurrent('2.1.84');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      '有声音无画面',
+      '手机和平板',
+      '海报墙',
+      'TMDB',
+      '字幕',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一八十三交付 Android 测试版安装包', () {
     final entries = versionHistoryForCurrent('2.1.83');
 

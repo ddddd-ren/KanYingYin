@@ -60,11 +60,12 @@ class PlayerRuntimePreferences {
       ),
     );
     final rendererKey = _policy.rendererSettingKey;
-    final renderer = _policy.normalizeRenderer(
+    final rendererSetting = _policy.normalizeRenderer(
       rendererKey == null
           ? null
           : _settings.getTyped<String>(rendererKey, defaultValue: 'auto'),
     );
+    final renderer = rendererSetting == 'auto' ? null : rendererSetting;
     final accelerationEnabled = _settings.getTyped<bool>(
           SettingBoxKey.hAenable,
           defaultValue: true,
@@ -98,7 +99,7 @@ class PlayerRuntimePreferences {
       hardwareAccelerationEnabled: accelerationEnabled,
       hardwareDecoder: decoder,
       videoRenderer: renderer,
-      anime4kSupported: _policy.supportsAnime4k(renderer),
+      anime4kSupported: _policy.supportsAnime4k(rendererSetting),
       androidAutoEnterPip: _policy.capabilities.isAndroid &&
           _settings.getTyped<bool>(
             SettingBoxKey.androidAutoEnterPip,

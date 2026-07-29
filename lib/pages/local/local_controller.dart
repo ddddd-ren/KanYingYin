@@ -1115,7 +1115,7 @@ abstract class _LocalController with Store {
           if (response.statusCode < 200 || response.statusCode >= 300) {
             throw HttpException('海报下载失败：${response.statusCode}');
           }
-          return response.fold<List<int>>(<int>[], (bytes, chunk) {
+          return await response.fold<List<int>>(<int>[], (bytes, chunk) {
             bytes.addAll(chunk);
             return bytes;
           });

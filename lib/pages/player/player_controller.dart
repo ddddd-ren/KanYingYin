@@ -770,8 +770,6 @@ abstract class _PlayerController with Store {
         vo: videoRenderer,
         enableHardwareAcceleration: hAenable,
         hwdec: hAenable ? hardwareDecoder : 'no',
-        androidAttachSurfaceAfterVideoParameters:
-            videoRenderer == 'mediacodec_embed',
       ),
     );
     mediaPlayer!.setPlaylistMode(PlaylistMode.none);

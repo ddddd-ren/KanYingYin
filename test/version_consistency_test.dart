@@ -6,8 +6,8 @@ import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
   test('应用版本、MSIX 版本和更新日志保持一致', () {
-    const expectedVersion = '2.1.69';
-    const expectedBuildNumber = '20169';
+    const expectedVersion = '2.1.70';
+    const expectedBuildNumber = '20170';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
@@ -79,12 +79,12 @@ void main() {
       currentVersionHistory,
     ]) {
       for (final text in <String>[
-        '迅雷网盘',
-        '账号密码不保存',
-        '原画播放',
-        'OpenList 入口',
-        '不会修改',
-        '删除',
+        '代理软件',
+        '重新探测',
+        '自动重试',
+        'API Key',
+        '播放器',
+        '不会修改或删除',
       ]) {
         expect(currentCopy, contains(text));
       }

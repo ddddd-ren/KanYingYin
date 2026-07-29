@@ -371,6 +371,20 @@ final class ScrapedMetadataImportPlan {
       cloudSeriesRuleMatches.length;
 }
 
+final class ScrapedMetadataTransferResult {
+  const ScrapedMetadataTransferResult({
+    required this.localCount,
+    required this.cloudCount,
+    required this.imageCount,
+    required this.skippedCount,
+  });
+
+  final int localCount;
+  final int cloudCount;
+  final int imageCount;
+  final int skippedCount;
+}
+
 List<T> _mapList<T>(
   Object? value,
   T Function(Map<String, Object?> json) fromJson,

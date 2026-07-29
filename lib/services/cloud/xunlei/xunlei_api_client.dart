@@ -8,6 +8,19 @@ import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_models.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_request_policy.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_response_parser.dart';
+import 'package:kanyingyin/utils/logger.dart';
+
+typedef XunleiRequestLog = void Function(String message);
+
+enum _XunleiRequestStage {
+  coreLogin,
+  captchaInit,
+  signIn,
+  refresh,
+  account,
+  listDirectory,
+  fileDetail,
+}
 
 abstract interface class XunleiAuthGateway {
   String? get captchaToken;
@@ -50,11 +63,13 @@ class XunleiApiClient implements XunleiApi {
     Dio? dio,
     XunleiRequestPolicy policy = const XunleiRequestPolicy(),
     DateTime Function()? now,
+    XunleiRequestLog? requestLog,
   })  : _deviceId = deviceId,
         _captchaToken = captchaToken?.trim(),
         _dio = dio ?? Dio(),
         _ownsDio = dio == null,
         _policy = policy,
+        _requestLog = requestLog ?? ((message) => AppLogger().i(message)),
         _parser = XunleiResponseParser(now: now ?? DateTime.now) {
     _dio.options
       ..connectTimeout = const Duration(seconds: 10)
@@ -67,6 +82,7 @@ class XunleiApiClient implements XunleiApi {
   final Dio _dio;
   final bool _ownsDio;
   final XunleiRequestPolicy _policy;
+  final XunleiRequestLog _requestLog;
   final XunleiResponseParser _parser;
   XunleiSession? _session;
 
@@ -101,6 +117,7 @@ class XunleiApiClient implements XunleiApi {
     final core = await _request(
       'POST',
       XunleiRequestPolicy.coreLoginUri,
+      stage: _XunleiRequestStage.coreLogin,
       data: <String, Object?>{
         'protocolVersion': '301',
         'sequenceNo': '1000012',
@@ -134,6 +151,7 @@ class XunleiApiClient implements XunleiApi {
     final tokenJson = await _request(
       'POST',
       XunleiRequestPolicy.signInUri,
+      stage: _XunleiRequestStage.signIn,
       data: <String, Object?>{
         'client_id': XunleiRequestPolicy.clientId,
         'client_secret': XunleiRequestPolicy.clientSecret,
@@ -159,6 +177,7 @@ class XunleiApiClient implements XunleiApi {
     final json = await _request(
       'POST',
       XunleiRequestPolicy.refreshUri,
+      stage: _XunleiRequestStage.refresh,
       data: <String, Object?>{
         'grant_type': 'refresh_token',
         'refresh_token': refreshToken.trim(),
@@ -175,6 +194,7 @@ class XunleiApiClient implements XunleiApi {
       'GET',
       XunleiRequestPolicy.accountUri,
       session,
+      stage: _XunleiRequestStage.account,
     );
     return _parser.parseAccount(json);
   }
@@ -200,7 +220,12 @@ class XunleiApiClient implements XunleiApi {
       },
     );
     return _parser.parseDirectoryPage(
-      await _authorizedRequest('GET', uri, session),
+      await _authorizedRequest(
+        'GET',
+        uri,
+        session,
+        stage: _XunleiRequestStage.listDirectory,
+      ),
     );
   }
 
@@ -215,7 +240,12 @@ class XunleiApiClient implements XunleiApi {
       path: '${XunleiRequestPolicy.filesUri.path}/$normalizedId',
     );
     return _parser.parseFileDetail(
-      await _authorizedRequest('GET', uri, session),
+      await _authorizedRequest(
+        'GET',
+        uri,
+        session,
+        stage: _XunleiRequestStage.fileDetail,
+      ),
     );
   }
 
@@ -229,6 +259,7 @@ class XunleiApiClient implements XunleiApi {
     final json = await _request(
       'POST',
       XunleiRequestPolicy.captchaInitUri,
+      stage: _XunleiRequestStage.captchaInit,
       data: <String, Object?>{
         'action': 'POST:/v1/auth/signin/token',
         'captcha_token': _captchaToken ?? '',
@@ -260,11 +291,13 @@ class XunleiApiClient implements XunleiApi {
   Future<Map<String, Object?>> _authorizedRequest(
     String method,
     Uri uri,
-    XunleiSession session,
-  ) =>
+    XunleiSession session, {
+    required _XunleiRequestStage stage,
+  }) =>
       _request(
         method,
         uri,
+        stage: stage,
         headers: <String, String>{
           'Authorization': session.authorization,
           if (_captchaToken?.isNotEmpty == true)
@@ -275,9 +308,12 @@ class XunleiApiClient implements XunleiApi {
   Future<Map<String, Object?>> _request(
     String method,
     Uri uri, {
+    required _XunleiRequestStage stage,
     Object? data,
     Map<String, String> headers = const <String, String>{},
   }) async {
+    var statusCode = 0;
+    _requestLog('迅雷请求 stage=${stage.name} started');
     try {
       final response = await _dio.requestUri<Object?>(
         uri,
@@ -291,33 +327,49 @@ class XunleiApiClient implements XunleiApi {
           validateStatus: (_) => true,
         ),
       );
+      statusCode = response.statusCode ?? 0;
       final json = _asMap(response.data);
       if (_optionalString(json['error']) == 'review_panel') {
         final challenge = _parser.parseVerificationRequired(json);
         if (!_policy.isTrustedVerificationUri(challenge.uri)) {
           throw const CloudDriveException(CloudDriveErrorType.incompatible);
         }
+        _requestLog(
+          '迅雷请求 stage=${stage.name} status=$statusCode '
+          'error=${CloudDriveErrorType.verificationRequired.name}',
+        );
         throw challenge;
       }
-      if ((response.statusCode ?? 0) < 200 ||
-          (response.statusCode ?? 0) >= 300 ||
-          _hasApiError(json)) {
-        throw CloudDriveException(_errorType(response.statusCode, json));
+      if (statusCode < 200 || statusCode >= 300 || _hasApiError(json)) {
+        throw CloudDriveException(_errorType(statusCode, json));
       }
+      _requestLog(
+        '迅雷请求 stage=${stage.name} status=$statusCode success',
+      );
       return json;
     } on XunleiVerificationRequired {
       rethrow;
-    } on CloudDriveException {
+    } on CloudDriveException catch (error) {
+      _requestLog(
+        '迅雷请求 stage=${stage.name} status=$statusCode '
+        'error=${error.type.name}',
+      );
       rethrow;
     } on DioException catch (error) {
-      throw CloudDriveException(
-        error.type == DioExceptionType.connectionTimeout ||
-                error.type == DioExceptionType.sendTimeout ||
-                error.type == DioExceptionType.receiveTimeout
-            ? CloudDriveErrorType.timeout
-            : CloudDriveErrorType.network,
+      final errorType = error.type == DioExceptionType.connectionTimeout ||
+              error.type == DioExceptionType.sendTimeout ||
+              error.type == DioExceptionType.receiveTimeout
+          ? CloudDriveErrorType.timeout
+          : CloudDriveErrorType.network;
+      _requestLog(
+        '迅雷请求 stage=${stage.name} status=0 error=${errorType.name}',
       );
+      throw CloudDriveException(errorType);
     } on Object {
+      _requestLog(
+        '迅雷请求 stage=${stage.name} status=$statusCode '
+        'error=${CloudDriveErrorType.incompatible.name}',
+      );
       throw const CloudDriveException(CloudDriveErrorType.incompatible);
     }
   }
@@ -342,6 +394,13 @@ class XunleiApiClient implements XunleiApi {
     int? statusCode,
     Map<String, Object?> json,
   ) {
+    final error = _optionalString(json['error'])?.toLowerCase();
+    final description =
+        _optionalString(json['error_description'])?.toLowerCase();
+    if (error == 'invalid_argument' &&
+        description?.contains('invalid captcha_sign') == true) {
+      return CloudDriveErrorType.protocolUpdated;
+    }
     if (statusCode == 401 || statusCode == 403) {
       return CloudDriveErrorType.authentication;
     }

@@ -34,6 +34,7 @@ class XunleiAuthorizationController extends ChangeNotifier {
   static const Duration _verificationLifetime = Duration(minutes: 10);
 
   XunleiAuthGateway? _gateway;
+  String? _gatewayDeviceId;
   final XunleiGatewayFactory _gatewayFactory;
   final DateTime Function() _now;
   final String Function() _deviceIdGenerator;
@@ -77,6 +78,57 @@ class XunleiAuthorizationController extends ChangeNotifier {
     await _authorize(creditKey: null);
   }
 
+  Future<void> authorizeWithRefreshToken({
+    required String refreshToken,
+    String? deviceId,
+  }) async {
+    final normalizedToken = refreshToken.trim();
+    if (normalizedToken.isEmpty) {
+      _fail('请填写 Refresh Token');
+    }
+    final normalizedDeviceId = deviceId?.trim();
+    final resolvedDeviceId = normalizedDeviceId?.isNotEmpty == true
+        ? normalizedDeviceId!
+        : _deviceIdGenerator();
+    if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(resolvedDeviceId)) {
+      _fail('设备标识无效，请重新授权');
+    }
+
+    _clearPendingSecrets();
+    _state = XunleiAuthorizationState.signingIn;
+    _errorMessage = null;
+    _notify();
+    try {
+      final gateway = await _gatewayForDevice(resolvedDeviceId);
+      final session = await gateway.refresh(
+        refreshToken: normalizedToken,
+        deviceId: resolvedDeviceId,
+        captchaToken: gateway.captchaToken,
+      );
+      final account = await gateway.account(session);
+      _authorizedCredential = CloudCredential(
+        refreshToken: session.refreshToken,
+        deviceId: resolvedDeviceId,
+        captchaToken: gateway.captchaToken,
+        userId: account.userId,
+        accountLabel: account.accountLabel,
+      );
+      _state = XunleiAuthorizationState.authorized;
+      _errorMessage = null;
+      _notify();
+    } on CloudDriveException catch (error) {
+      _state = XunleiAuthorizationState.failed;
+      _errorMessage = _messageForRefresh(error.type);
+      _notify();
+      rethrow;
+    } on Object {
+      _state = XunleiAuthorizationState.failed;
+      _errorMessage = '迅雷授权失败，请稍后重试';
+      _notify();
+      throw const CloudDriveException(CloudDriveErrorType.incompatible);
+    }
+  }
+
   Future<void> completeVerification() async {
     final startedAt = _verificationStartedAt;
     if (_state != XunleiAuthorizationState.verificationRequired ||
@@ -105,8 +157,8 @@ class XunleiAuthorizationController extends ChangeNotifier {
     final identifier = _pendingIdentifier!;
     final password = _pendingPassword!;
     final deviceId = _pendingDeviceId!;
-    final gateway = _gateway ??= _gatewayFactory(deviceId);
     try {
+      final gateway = await _gatewayForDevice(deviceId);
       final session = await gateway.login(
         identifier: identifier,
         password: password,
@@ -163,6 +215,20 @@ class XunleiAuthorizationController extends ChangeNotifier {
     _notify();
   }
 
+  Future<XunleiAuthGateway> _gatewayForDevice(String deviceId) async {
+    final current = _gateway;
+    if (current != null &&
+        (_gatewayDeviceId == null || _gatewayDeviceId == deviceId)) {
+      _gatewayDeviceId ??= deviceId;
+      return current;
+    }
+    if (current != null) await current.close();
+    final replacement = _gatewayFactory(deviceId);
+    _gateway = replacement;
+    _gatewayDeviceId = deviceId;
+    return replacement;
+  }
+
   Never _fail(String message) {
     _clearPendingSecrets();
     _state = XunleiAuthorizationState.failed;
@@ -190,7 +256,17 @@ class XunleiAuthorizationController extends ChangeNotifier {
         CloudDriveErrorType.network => '网络连接失败，请检查网络后重试',
         CloudDriveErrorType.timeout => '迅雷登录请求超时，请稍后重试',
         CloudDriveErrorType.rateLimited => '迅雷请求过于频繁，请稍后再试',
+        CloudDriveErrorType.protocolUpdated => '迅雷登录协议已更新，请改用 Refresh Token',
         _ => '迅雷登录失败，请稍后重试',
+      };
+
+  static String _messageForRefresh(CloudDriveErrorType type) => switch (type) {
+        CloudDriveErrorType.authentication => 'Refresh Token 无效或已过期，请重新填写',
+        CloudDriveErrorType.network => '网络连接失败，请检查网络后重试',
+        CloudDriveErrorType.timeout => '迅雷授权请求超时，请稍后重试',
+        CloudDriveErrorType.rateLimited => '迅雷请求过于频繁，请稍后再试',
+        CloudDriveErrorType.protocolUpdated => '迅雷登录协议已更新，请重新获取 Refresh Token',
+        _ => '迅雷授权失败，请稍后重试',
       };
 
   static XunleiAuthGateway _createGateway(String deviceId) =>
@@ -212,6 +288,7 @@ class XunleiAuthorizationController extends ChangeNotifier {
     _clearPendingSecrets();
     final gateway = _gateway;
     _gateway = null;
+    _gatewayDeviceId = null;
     if (gateway != null) unawaited(gateway.close());
     super.dispose();
   }

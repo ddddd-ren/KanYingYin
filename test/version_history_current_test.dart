@@ -4,8 +4,8 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一八十修复验证成功后的账号展示字段兼容', () {
-    final entries = versionHistoryForCurrent('2.1.80');
+  test('二点一八十一支持网页端 Refresh Token', () {
+    final entries = versionHistoryForCurrent('2.1.81');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
@@ -14,12 +14,13 @@ void main() {
     for (final text in <String>[
       '应用内',
       '设备验证',
-      '账号接口',
-      '返回成功',
-      '展示字段',
-      '令牌会话',
-      '迅雷账号',
-      '选择媒体目录',
+      'pan.xunlei.com',
+      'Refresh Token',
+      '安卓客户端',
+      '客户端不匹配',
+      '网页端客户端参数',
+      '服务端轮换',
+      'Windows 安全凭据',
       'WebView2',
       '阻止下载',
       '自动继续登录',

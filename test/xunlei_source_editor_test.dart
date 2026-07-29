@@ -37,6 +37,10 @@ void main() {
     );
     expect(find.text('验证并登录'), findsOneWidget);
     expect(
+      find.text('支持从 pan.xunlei.com 网页端获取的 Token；仅保存到 Windows 安全凭据'),
+      findsOneWidget,
+    );
+    expect(
         find.byKey(const ValueKey<String>('xunlei-identifier')), findsNothing);
     expect(find.text('账号密码兼容登录'), findsOneWidget);
     expect(

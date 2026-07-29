@@ -30,6 +30,17 @@ const List<VersionHistory> versionHistoryList = [
     ],
   ),
   VersionHistory(
+    version: '2.1.81',
+    date: '2026-07-29',
+    isPrerelease: true,
+    changes: [
+      '支持直接使用从 pan.xunlei.com 网页端登录状态中取得的 Refresh Token，不再要求 Token 来自安卓客户端',
+      '应用会先兼容已有安卓 Token；遇到客户端不匹配时自动改用迅雷网页端客户端参数重试，成功后继续验证账号并保存服务端轮换的新 Token',
+      '不改变应用内账号密码与 WebView2 设备验证流程，仍阻止下载、新窗口、不安全页面和权限请求，并在验证成功后自动继续登录；Token 不会写入日志且仅保存到 Windows 安全凭据',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.80',
     date: '2026-07-29',
     isPrerelease: true,

@@ -16,7 +16,8 @@ enum _XunleiRequestStage {
   coreLogin,
   captchaInit,
   signIn,
-  refresh,
+  refreshAndroid,
+  refreshWeb,
   account,
   listDirectory,
   fileDetail,
@@ -85,6 +86,7 @@ class XunleiApiClient implements XunleiApi {
   final XunleiRequestLog _requestLog;
   final XunleiResponseParser _parser;
   XunleiSession? _session;
+  XunleiClientProfile _clientProfile = XunleiClientProfile.android;
 
   @override
   String? get captchaToken => _captchaToken;
@@ -114,6 +116,7 @@ class XunleiApiClient implements XunleiApi {
     _captchaToken = captchaToken?.trim().isNotEmpty == true
         ? captchaToken!.trim()
         : _captchaToken;
+    _clientProfile = XunleiClientProfile.android;
     final core = await _request(
       'POST',
       XunleiRequestPolicy.coreLoginUri,
@@ -174,19 +177,49 @@ class XunleiApiClient implements XunleiApi {
     _captchaToken = captchaToken?.trim().isNotEmpty == true
         ? captchaToken!.trim()
         : _captchaToken;
-    final json = await _request(
-      'POST',
-      XunleiRequestPolicy.refreshUri,
-      stage: _XunleiRequestStage.refresh,
-      data: <String, Object?>{
-        'grant_type': 'refresh_token',
-        'refresh_token': refreshToken.trim(),
-        'client_id': XunleiRequestPolicy.clientId,
-        'client_secret': XunleiRequestPolicy.clientSecret,
-      },
-    );
+    final normalizedToken = refreshToken.trim();
+    Map<String, Object?> json;
+    try {
+      json = await _refreshRequest(
+        refreshToken: normalizedToken,
+        profile: XunleiClientProfile.android,
+      );
+      _clientProfile = XunleiClientProfile.android;
+    } on CloudDriveException catch (error) {
+      if (error.type != CloudDriveErrorType.incompatible) rethrow;
+      json = await _refreshRequest(
+        refreshToken: normalizedToken,
+        profile: XunleiClientProfile.web,
+      );
+      _clientProfile = XunleiClientProfile.web;
+    }
     return _session = _parser.parseSession(json);
   }
+
+  Future<Map<String, Object?>> _refreshRequest({
+    required String refreshToken,
+    required XunleiClientProfile profile,
+  }) =>
+      _request(
+        'POST',
+        XunleiRequestPolicy.refreshUri,
+        stage: profile == XunleiClientProfile.web
+            ? _XunleiRequestStage.refreshWeb
+            : _XunleiRequestStage.refreshAndroid,
+        profile: profile,
+        headers: <String, String>{
+          if (profile == XunleiClientProfile.web) 'x-action': '401',
+        },
+        data: <String, Object?>{
+          'grant_type': 'refresh_token',
+          'refresh_token': refreshToken,
+          'client_id': profile == XunleiClientProfile.web
+              ? XunleiRequestPolicy.webClientId
+              : XunleiRequestPolicy.clientId,
+          if (profile == XunleiClientProfile.android)
+            'client_secret': XunleiRequestPolicy.clientSecret,
+        },
+      );
 
   @override
   Future<XunleiAccount> account(XunleiSession session) async {
@@ -308,6 +341,7 @@ class XunleiApiClient implements XunleiApi {
     required _XunleiRequestStage stage,
     Object? data,
     Map<String, String> headers = const <String, String>{},
+    XunleiClientProfile? profile,
   }) async {
     var statusCode = 0;
     _requestLog('迅雷请求 stage=${stage.name} started');
@@ -318,7 +352,10 @@ class XunleiApiClient implements XunleiApi {
         options: Options(
           method: method,
           headers: <String, String>{
-            ..._policy.apiHeaders(deviceId: _deviceId),
+            ..._policy.apiHeaders(
+              deviceId: _deviceId,
+              profile: profile ?? _clientProfile,
+            ),
             ...headers,
           },
           validateStatus: (_) => true,
@@ -408,7 +445,8 @@ class XunleiApiClient implements XunleiApi {
         _isExplicitPasswordError(error, description)) {
       return CloudDriveErrorType.invalidPassword;
     }
-    if (stage == _XunleiRequestStage.refresh &&
+    if ((stage == _XunleiRequestStage.refreshAndroid ||
+            stage == _XunleiRequestStage.refreshWeb) &&
         statusCode == 400 &&
         (error == 'invalid_argument' || numericCode == 3)) {
       return CloudDriveErrorType.authentication;
@@ -485,6 +523,7 @@ class XunleiApiClient implements XunleiApi {
   Future<void> close() async {
     _session = null;
     _captchaToken = null;
+    _clientProfile = XunleiClientProfile.android;
     if (_ownsDio) _dio.close(force: true);
   }
 

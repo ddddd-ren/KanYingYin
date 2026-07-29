@@ -163,6 +163,53 @@ void main() {
     await client.close();
   });
 
+  test('安卓参数拒绝网页 Refresh Token 后按网页客户端参数重试', () async {
+    final logs = <String>[];
+    final adapter = _QueueAdapter(<_FakeResponse>[
+      const _FakeResponse(
+        400,
+        '{"error":"unauthorized_client","error_description":"client mismatch"}',
+      ),
+      const _FakeResponse(
+        200,
+        '{"token_type":"Bearer","access_token":"access-web","refresh_token":"refresh-web-next","expires_in":3600,"user_id":"user-web"}',
+      ),
+      const _FakeResponse(
+        200,
+        '{"user_id":"user-web","name":"网页账号"}',
+      ),
+    ]);
+    final client = XunleiApiClient(
+      deviceId: deviceId,
+      dio: Dio()..httpClientAdapter = adapter,
+      requestLog: logs.add,
+    );
+
+    final session = await client.refresh(
+      refreshToken: 'refresh-web-secret',
+      deviceId: deviceId,
+    );
+    final account = await client.account(session);
+
+    expect(session.refreshToken, 'refresh-web-next');
+    expect(account.accountLabel, '网页账号');
+    expect(adapter.requests, hasLength(3));
+    final androidBody = adapter.requests[0].data as Map<Object?, Object?>;
+    final webBody = adapter.requests[1].data as Map<Object?, Object?>;
+    expect(androidBody['client_id'], 'Xp6vsxz_7IYVw2BB');
+    expect(androidBody, contains('client_secret'));
+    expect(webBody['client_id'], 'Xqp0kJBXWhwaTpB6');
+    expect(webBody, isNot(contains('client_secret')));
+    expect(adapter.requests[1].headers['x-client-id'], 'Xqp0kJBXWhwaTpB6');
+    expect(adapter.requests[1].headers['x-sdk-version'], '3.4.20');
+    expect(adapter.requests[1].headers['x-action'], '401');
+    expect(adapter.requests[1].headers['x-device-id'], deviceId);
+    expect(adapter.requests[2].headers['x-client-id'], 'Xqp0kJBXWhwaTpB6');
+    expect(adapter.requests[2].headers['x-sdk-version'], '3.4.20');
+    expect(logs.join('\n'), isNot(contains('refresh-web-secret')));
+    await client.close();
+  });
+
   test('核心登录验证响应修复短信页地址并绑定当前设备', () async {
     final adapter = _QueueAdapter(<_FakeResponse>[
       const _FakeResponse(

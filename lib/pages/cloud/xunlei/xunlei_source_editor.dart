@@ -387,7 +387,7 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
                   labelText: 'Refresh Token',
                   helperText: _isAuthorized
                       ? '已授权；如需更换账号，请粘贴新的 Token'
-                      : '粘贴你本人已有的 Token；仅保存到 Windows 安全凭据',
+                      : '支持从 pan.xunlei.com 网页端获取的 Token；仅保存到 Windows 安全凭据',
                   suffixIcon: IconButton(
                     onPressed: _busy
                         ? null

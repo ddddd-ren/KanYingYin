@@ -1,4 +1,10 @@
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:kanyingyin/core/app_version.dart';
+import 'package:kanyingyin/features/scraped_metadata_transfer/application/scraped_metadata_archive_codec.dart';
+import 'package:kanyingyin/features/scraped_metadata_transfer/application/scraped_metadata_exporter.dart';
+import 'package:kanyingyin/features/scraped_metadata_transfer/application/scraped_metadata_import_planner.dart';
+import 'package:kanyingyin/features/scraped_metadata_transfer/application/scraped_metadata_importer.dart';
+import 'package:kanyingyin/features/scraped_metadata_transfer/application/scraped_metadata_transfer_service.dart';
 import 'package:kanyingyin/features/library/application/local_library_metadata_coordinator.dart';
 import 'package:kanyingyin/features/library/application/local_library_preferences.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
@@ -7,7 +13,10 @@ import 'package:kanyingyin/platform/android/android_document_provider.dart';
 import 'package:kanyingyin/platform/android/android_platform_channel.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
+import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
+import 'package:kanyingyin/repositories/cloud_series_match_rule_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
+import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/local_media_index_repository.dart';
 import 'package:kanyingyin/repositories/local_media_source_repository.dart';
 import 'package:kanyingyin/services/local_media_indexer.dart';
@@ -39,6 +48,38 @@ void registerLibraryBindings(Injector i) {
   i.addSingleton<ILocalMediaIndexRepository>(LocalMediaIndexRepository.new);
   i.addSingleton<ILocalMediaSourceRepository>(LocalMediaSourceRepository.new);
   i.addSingleton<ILocalLibraryPreferences>(LocalLibraryPreferences.new);
+  i.addSingleton<ScrapedMetadataTransferService>(() {
+    final codec = ScrapedMetadataArchiveCodec();
+    final exporter = ScrapedMetadataExporter(
+      localIndexRepository: Modular.get<ILocalMediaIndexRepository>(),
+      localSourceRepository: Modular.get<ILocalMediaSourceRepository>(),
+      cloudSourceRepository: Modular.get<CloudSourceRepository>(),
+      resourceRepository: Modular.get<CloudResourceTmdbRepository>(),
+      workRepository: Modular.get<CloudWorkTmdbRepository>(),
+      ruleRepository: Modular.get<CloudSeriesMatchRuleRepository>(),
+      appVersion: AppVersion.current,
+    );
+    final planner = ScrapedMetadataImportPlanner(
+      localSourceRepository: Modular.get<ILocalMediaSourceRepository>(),
+      localIndexRepository: Modular.get<ILocalMediaIndexRepository>(),
+      cloudSourceRepository: Modular.get<CloudSourceRepository>(),
+      cloudIndexRepository: Modular.get<CloudMediaIndexRepository>(),
+    );
+    final importer = ScrapedMetadataImporter(
+      localIndexRepository: Modular.get<ILocalMediaIndexRepository>(),
+      resourceRepository: Modular.get<CloudResourceTmdbRepository>(),
+      workRepository: Modular.get<CloudWorkTmdbRepository>(),
+      ruleRepository: Modular.get<CloudSeriesMatchRuleRepository>(),
+    );
+    return ScrapedMetadataTransferService(
+      buildExport: exporter.build,
+      writeArchive: codec.write,
+      readArchive: codec.read,
+      buildPlan: (payload, localOverrides) =>
+          planner.plan(payload, localOverrides: localOverrides),
+      importPlan: importer.apply,
+    );
+  });
   i.addSingleton<LocalLibraryMetadataCoordinator>(
     () => LocalLibraryMetadataCoordinator(
       mediaIndexRepository: Modular.get<ILocalMediaIndexRepository>(),

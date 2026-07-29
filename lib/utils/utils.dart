@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/utils/display_utils.dart';
 import 'package:kanyingyin/utils/encoding_utils.dart';
@@ -63,10 +64,15 @@ class Utils {
   static Future<bool> isLowResolution() => DisplayUtils.isLowResolution();
   static Future<Map<String, double>> getScreenInfo() =>
       DisplayUtils.getScreenInfo();
-  static bool isDesktop() => DisplayUtils.isDesktop();
+  static bool isDesktop() => detectAppPlatform().desktopShell;
   static bool isWideScreen() => DisplayUtils.isWideScreen();
-  static bool isTablet() => DisplayUtils.isTablet();
-  static bool isCompact() => DisplayUtils.isCompact();
+  static bool isTablet() {
+    if (isDesktop()) return false;
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    return view.physicalSize.shortestSide / view.devicePixelRatio >= 600;
+  }
+
+  static bool isCompact() => !isDesktop() && !isTablet();
   static Future<void> enterWindowsFullscreen() =>
       WindowUtils.enterWindowsFullscreen();
   static Future<void> exitWindowsFullscreen() =>

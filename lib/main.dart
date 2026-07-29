@@ -7,6 +7,9 @@ import 'package:kanyingyin/app_module.dart';
 import 'package:kanyingyin/app_widget.dart';
 import 'package:kanyingyin/core/app_version.dart';
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:kanyingyin/platform/app_bootstrap.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
+import 'package:kanyingyin/platform/windows/windows_desktop_window_port.dart';
 import 'package:kanyingyin/providers/theme_provider.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:kanyingyin/utils/storage.dart';
@@ -14,7 +17,6 @@ import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:kanyingyin/utils/proxy_manager.dart';
 import 'package:kanyingyin/utils/utils.dart';
 import 'package:media_kit/media_kit.dart';
-import 'package:window_manager/window_manager.dart';
 import 'package:kanyingyin/pages/error/storage_error_page.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -66,6 +68,11 @@ void _installGlobalErrorLogging() {
 
 Future<void> _startApplication() async {
   MediaKit.ensureInitialized();
+  final capabilities = detectAppPlatform();
+  final bootstrap = AppBootstrap(
+    capabilities: capabilities,
+    desktopWindow: const WindowsDesktopWindowPort(),
+  );
   late final TmdbCredentialManager tmdbCredentialManager;
   try {
     final hivePath =
@@ -83,12 +90,7 @@ Future<void> _startApplication() async {
     // Log the error for debugging (if logger is available)
     debugPrint('Storage initialization failed: $e');
 
-    await windowManager.ensureInitialized();
-    windowManager.waitUntilReadyToShow(null, () async {
-      // Windows 原生窗口默认禁止自动显示，等待 Flutter 首帧准备后再显示可避免闪烁。
-      await windowManager.show();
-      await windowManager.focus();
-    });
+    await bootstrap.prepareStorageFailureWindow();
     runApp(MaterialApp(
         title: '初始化失败',
         localizationsDelegates: GlobalMaterialLocalizations.delegates,
@@ -107,22 +109,12 @@ Future<void> _startApplication() async {
     SettingBoxKey.showWindowButton,
     defaultValue: false,
   );
-  await windowManager.ensureInitialized();
-  bool isLowResolution = await Utils.isLowResolution();
-  WindowOptions windowOptions = WindowOptions(
-    size: isLowResolution ? const Size(840, 600) : const Size(1280, 860),
-    center: true,
-    skipTaskbar: false,
-    titleBarStyle:
-        !showWindowButton ? TitleBarStyle.hidden : TitleBarStyle.normal,
-    windowButtonVisibility: showWindowButton,
-    title: AppIdentity.displayName,
+  final isLowResolution =
+      capabilities.desktopShell && await Utils.isLowResolution();
+  await bootstrap.prepareWindow(
+    showWindowButtons: showWindowButton,
+    lowResolution: isLowResolution,
   );
-  windowManager.waitUntilReadyToShow(windowOptions, () async {
-    // Windows 原生窗口默认禁止自动显示，等待 Flutter 首帧准备后再显示可避免闪烁。
-    await windowManager.show();
-    await windowManager.focus();
-  });
   await ProxyManager.initializeProxy();
   runApp(
     ChangeNotifierProvider(

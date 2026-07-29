@@ -175,6 +175,7 @@ abstract class _LocalController with Store {
   final CloudCacheRootProvider _cloudCacheRootProvider;
   final Future<void> Function(String sourceId)? _scanCloudSource;
   CloudTmdbMetadataService? _cloudTmdbMetadataService;
+  final ObservableMap<String, bool> _sourceAccessibility = ObservableMap();
   late final LocalLibrarySourceCoordinator _sourceCoordinator =
       LocalLibrarySourceCoordinator(
     sourceRepository: _mediaSourceRepository,
@@ -696,16 +697,19 @@ abstract class _LocalController with Store {
   }
 
   bool isMediaSourceAvailable(LocalMediaSource source) {
+    if (source.location.isDocument) {
+      return _sourceAccessibility[source.id] ?? true;
+    }
     return _sourceCoordinator.isAvailable(source);
   }
 
   int unavailableMediaSourceCount() =>
-      _sourceCoordinator.unavailableCount(mediaSources);
+      mediaSources.where((source) => !isMediaSourceAvailable(source)).length;
 
   @action
   Future<int> removeUnavailableMediaSources() async {
     final removedCount = await _sourceCoordinator.removeUnavailableSources(
-      mediaSources,
+      mediaSources.where((source) => source.location.isFile),
       scanInProgress: isIndexingLibrary,
     );
     if (isIndexingLibrary) return 0;
@@ -828,7 +832,10 @@ abstract class _LocalController with Store {
     }
 
     final availableSources = mediaSources
-        .where((source) => isMediaSourceAvailable(source))
+        .where(
+          (source) =>
+              source.location.isDocument || isMediaSourceAvailable(source),
+        )
         .toList(growable: false);
     if (availableSources.isEmpty) {
       libraryIndexSummary = '没有可扫描的媒体源';
@@ -866,19 +873,38 @@ abstract class _LocalController with Store {
           sourceIndex < availableSources.length;
           sourceIndex++) {
         final source = availableSources[sourceIndex];
-        final result = await _mediaIndexer.indexSource(
-          source.path,
-          enrichMediaInfo: true,
-          generateThumbnails: true,
-          isCancelled: () => cancelLibraryIndexRequested,
-          onProgress: (progress) {
-            _applyLibraryIndexProgress(
-              progress,
-              sourceIndex: sourceIndex,
-              sourceCount: availableSources.length,
-            );
-          },
-        );
+        void onProgress(LocalMediaIndexProgress progress) {
+          _applyLibraryIndexProgress(
+            progress,
+            sourceIndex: sourceIndex,
+            sourceCount: availableSources.length,
+          );
+        }
+
+        final typedIndexer = _mediaIndexer is ILocalMediaLocationIndexer
+            ? _mediaIndexer as ILocalMediaLocationIndexer
+            : null;
+        final LocalMediaIndexResult result;
+        if (typedIndexer != null) {
+          result = await typedIndexer.indexSourceLocation(
+            source.location,
+            enrichMediaInfo: true,
+            generateThumbnails: true,
+            isCancelled: () => cancelLibraryIndexRequested,
+            onProgress: onProgress,
+          );
+        } else if (source.location.isFile) {
+          result = await _mediaIndexer.indexSource(
+            source.path,
+            enrichMediaInfo: true,
+            generateThumbnails: true,
+            isCancelled: () => cancelLibraryIndexRequested,
+            onProgress: onProgress,
+          );
+        } else {
+          throw UnsupportedError('当前索引器不支持 Android 文档来源');
+        }
+        _sourceAccessibility[source.id] = result.sourceAccessible;
         totalCount += result.totalCount;
         addedCount += result.addedCount;
         updatedCount += result.updatedCount;
@@ -891,13 +917,15 @@ abstract class _LocalController with Store {
           libraryIndexSummary = '媒体库扫描已取消，已保留 $localLibraryVideoCount 个已索引视频';
           break;
         }
-        await _mediaSourceRepository.updateScanSummary(
-          path: source.path,
-          fileCount: result.totalCount,
-          videoCount: result.totalCount,
-          directoryCount: 0,
-          skippedCount: result.skippedCount,
-        );
+        if (result.sourceAccessible) {
+          await _mediaSourceRepository.updateScanSummaryForLocation(
+            location: source.location,
+            fileCount: result.totalCount,
+            videoCount: result.totalCount,
+            directoryCount: 0,
+            skippedCount: result.skippedCount,
+          );
+        }
       }
       _reloadMediaSourcesSafe();
       _reloadLocalLibraryIndexSafe();
@@ -1445,6 +1473,10 @@ abstract class _LocalController with Store {
   void _reloadMediaSourcesSafe() {
     try {
       mediaSources = ObservableList.of(_mediaSourceRepository.getAll());
+      final sourceIds = mediaSources.map((source) => source.id).toSet();
+      _sourceAccessibility.removeWhere(
+        (sourceId, _) => !sourceIds.contains(sourceId),
+      );
     } catch (e) {
       AppLogger()
           .w('LocalController: failed to load local media sources', error: e);

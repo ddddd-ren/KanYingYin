@@ -378,6 +378,19 @@ class LocalMediaIndexItem {
     return _fallbackFingerprint(path, stat.size, stat.modified);
   }
 
+  static String buildLocationFingerprint({
+    required MediaLocation location,
+    required String name,
+    required int size,
+    required DateTime modified,
+    String? mimeType,
+  }) {
+    if (location.isFile) {
+      return _fallbackFingerprint(location.value, size, modified);
+    }
+    return 'v$pathFingerprintVersion|${location.stableId}|${name.toLowerCase()}|$size|${modified.millisecondsSinceEpoch}|${mimeType ?? ''}';
+  }
+
   static String _fallbackFingerprint(String path, int size, DateTime modified) {
     return 'v$pathFingerprintVersion|${normalizePath(path)}|$size|${modified.millisecondsSinceEpoch}';
   }

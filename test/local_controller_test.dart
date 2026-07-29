@@ -9,6 +9,7 @@ import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/local_media_source.dart';
+import 'package:kanyingyin/modules/local/media_location.dart';
 import 'package:kanyingyin/modules/local/poster_scrape.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
@@ -668,6 +669,55 @@ void main() {
     expect(controller.libraryIndexSummary, contains('1 个视频'));
     expect(controller.isIndexingLibrary, isFalse);
     expect(sourceRepository.scanSummaries.last.videoCount, 1);
+  });
+
+  test('LocalController 使用强类型位置刷新 Android 文档来源', () async {
+    final sourceRepository = _MemoryMediaSourceRepository();
+    final location = MediaLocation.document(
+      uri: 'content://media/document/root',
+      treeUri: 'content://media/tree/root',
+    );
+    await sourceRepository.upsertLocation(location, displayName: '视频');
+    final indexer = _RecordingLocationMediaIndexer();
+    final controller = LocalController(
+      scanner: _ImmediateScanner(const []),
+      mediaIndexer: indexer,
+      mediaIndexRepository: _MemoryMediaIndexRepository(),
+      mediaSourceRepository: sourceRepository,
+      preferences: _preferences(),
+    );
+    controller.reloadMediaSources();
+
+    final result = await controller.refreshLocalLibraryIndex();
+
+    expect(result['sources'], 1);
+    expect(indexer.locations, <MediaLocation>[location]);
+    expect(controller.mediaSources, hasLength(1));
+  });
+
+  test('LocalController 在 Android 授权失效后保留来源并标记不可用', () async {
+    final sourceRepository = _MemoryMediaSourceRepository();
+    final location = MediaLocation.document(
+      uri: 'content://media/document/offline',
+      treeUri: 'content://media/tree/offline',
+    );
+    await sourceRepository.upsertLocation(location, displayName: '离线视频');
+    final indexer = _RecordingLocationMediaIndexer(sourceAccessible: false);
+    final controller = LocalController(
+      scanner: _ImmediateScanner(const []),
+      mediaIndexer: indexer,
+      mediaIndexRepository: _MemoryMediaIndexRepository(),
+      mediaSourceRepository: sourceRepository,
+      preferences: _preferences(),
+    );
+    controller.reloadMediaSources();
+
+    await controller.refreshLocalLibraryIndex();
+
+    expect(controller.mediaSources, hasLength(1));
+    expect(controller.isMediaSourceAvailable(controller.mediaSources.single),
+        isFalse);
+    expect(sourceRepository.scanSummaries, isEmpty);
   });
 
   test('严格刷新本地媒体库时拒绝复用正在进行的扫描', () async {
@@ -1433,9 +1483,39 @@ class _MemoryMediaSourceRepository extends ILocalMediaSourceRepository {
   }
 
   @override
+  LocalMediaSource? getByLocation(MediaLocation location) {
+    for (final source in _sources) {
+      if (source.location == location) return source;
+    }
+    return null;
+  }
+
+  @override
   Future<LocalMediaSource> upsertPath(String path) async {
     upsertedPaths.add(path);
     final source = LocalMediaSource.fromPath(path);
+    final index = _sources.indexWhere((item) => item.id == source.id);
+    if (index >= 0) {
+      _sources[index] = _sources[index].copyWith(
+        updatedAt: source.updatedAt,
+        enabled: true,
+      );
+      return _sources[index];
+    }
+    _sources.insert(0, source);
+    return source;
+  }
+
+  @override
+  Future<LocalMediaSource> upsertLocation(
+    MediaLocation location, {
+    required String displayName,
+  }) async {
+    if (location.isFile) return upsertPath(location.value);
+    final source = LocalMediaSource.fromLocation(
+      location,
+      displayName: displayName,
+    );
     final index = _sources.indexWhere((item) => item.id == source.id);
     if (index >= 0) {
       _sources[index] = _sources[index].copyWith(
@@ -1454,6 +1534,14 @@ class _MemoryMediaSourceRepository extends ILocalMediaSourceRepository {
     final before = _sources.length;
     _sources.removeWhere((source) => source.id == id);
     return _sources.length != before;
+  }
+
+  @override
+  Future<bool> removeLocation(MediaLocation location) async {
+    if (location.isFile) return removePath(location.value);
+    final before = _sources.length;
+    _sources.removeWhere((source) => source.location == location);
+    return before != _sources.length;
   }
 
   @override
@@ -1495,6 +1583,46 @@ class _MemoryMediaSourceRepository extends ILocalMediaSourceRepository {
       _sources[index] = source;
     } else {
       _sources.insert(0, source);
+    }
+  }
+
+  @override
+  Future<void> updateScanSummaryForLocation({
+    required MediaLocation location,
+    required int fileCount,
+    required int videoCount,
+    required int directoryCount,
+    required int skippedCount,
+  }) async {
+    if (location.isFile) {
+      return updateScanSummary(
+        path: location.value,
+        fileCount: fileCount,
+        videoCount: videoCount,
+        directoryCount: directoryCount,
+        skippedCount: skippedCount,
+      );
+    }
+    scanSummaries.add(_ScanSummaryCall(
+      path: location.value,
+      fileCount: fileCount,
+      videoCount: videoCount,
+      directoryCount: directoryCount,
+      skippedCount: skippedCount,
+    ));
+    final index = _sources.indexWhere(
+      (source) => source.location == location,
+    );
+    if (index >= 0) {
+      final now = DateTime.now();
+      _sources[index] = _sources[index].copyWith(
+        updatedAt: now,
+        lastScannedAt: now,
+        fileCount: fileCount,
+        videoCount: videoCount,
+        directoryCount: directoryCount,
+        skippedCount: skippedCount,
+      );
     }
   }
 }
@@ -1555,6 +1683,46 @@ class _FakeMediaIndexer implements ILocalMediaIndexer {
       reusedCount: 0,
       removedCount: 0,
       skippedCount: 0,
+    );
+  }
+}
+
+class _RecordingLocationMediaIndexer
+    implements ILocalMediaIndexer, ILocalMediaLocationIndexer {
+  _RecordingLocationMediaIndexer({this.sourceAccessible = true});
+
+  final bool sourceAccessible;
+  final List<MediaLocation> locations = <MediaLocation>[];
+
+  @override
+  Future<LocalMediaIndexResult> indexSource(
+    String sourcePath, {
+    LocalMediaIndexProgressCallback? onProgress,
+    bool enrichMediaInfo = false,
+    bool generateThumbnails = false,
+    LocalMediaIndexCancelChecker? isCancelled,
+  }) {
+    throw StateError('Android 文档来源不应降级为文件路径');
+  }
+
+  @override
+  Future<LocalMediaIndexResult> indexSourceLocation(
+    MediaLocation sourceLocation, {
+    LocalMediaIndexProgressCallback? onProgress,
+    bool enrichMediaInfo = false,
+    bool generateThumbnails = false,
+    LocalMediaIndexCancelChecker? isCancelled,
+  }) async {
+    locations.add(sourceLocation);
+    return LocalMediaIndexResult(
+      sourcePath: sourceLocation.value,
+      items: const <LocalMediaIndexItem>[],
+      addedCount: 0,
+      updatedCount: 0,
+      reusedCount: 0,
+      removedCount: 0,
+      skippedCount: 0,
+      sourceAccessible: sourceAccessible,
     );
   }
 }

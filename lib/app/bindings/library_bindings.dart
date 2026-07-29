@@ -3,6 +3,8 @@ import 'package:kanyingyin/features/library/application/local_library_metadata_c
 import 'package:kanyingyin/features/library/application/local_library_preferences.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
+import 'package:kanyingyin/platform/android/android_document_provider.dart';
+import 'package:kanyingyin/platform/android/android_platform_channel.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
@@ -10,12 +12,26 @@ import 'package:kanyingyin/repositories/local_media_index_repository.dart';
 import 'package:kanyingyin/repositories/local_media_source_repository.dart';
 import 'package:kanyingyin/services/local_media_indexer.dart';
 import 'package:kanyingyin/services/local_media_scanner.dart';
+import 'package:kanyingyin/services/android_media_entry_provider.dart';
+import 'package:kanyingyin/services/file_system_media_entry_provider.dart';
+import 'package:kanyingyin/services/local_media_entry_provider.dart';
 import 'package:kanyingyin/services/media_recognition_settings.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
 /// 注册本地媒体库及其与网盘媒体索引的集成依赖。
 void registerLibraryBindings(Injector i) {
+  i.addSingleton<FileSystemMediaEntryProvider>(
+    FileSystemMediaEntryProvider.new,
+  );
+  i.addSingleton<AndroidDocumentProvider>(
+    () => const MethodChannelAndroidDocumentProvider(
+      AndroidPlatformChannel(),
+    ),
+  );
+  i.addSingleton<AndroidMediaEntryProvider>(
+    () => AndroidMediaEntryProvider(Modular.get<AndroidDocumentProvider>()),
+  );
   i.addSingleton<ILocalMediaIndexRepository>(LocalMediaIndexRepository.new);
   i.addSingleton<ILocalMediaSourceRepository>(LocalMediaSourceRepository.new);
   i.addSingleton<ILocalLibraryPreferences>(LocalLibraryPreferences.new);
@@ -27,6 +43,10 @@ void registerLibraryBindings(Injector i) {
   i.addSingleton<ILocalMediaIndexer>(
     () => LocalMediaIndexer(
       repository: Modular.get<ILocalMediaIndexRepository>(),
+      entryProviders: <LocalMediaEntryProvider>[
+        Modular.get<FileSystemMediaEntryProvider>(),
+        Modular.get<AndroidMediaEntryProvider>(),
+      ],
       minRecognizedVideoSizeBytesProvider: () =>
           Modular.get<MediaRecognitionSettings>().localMinSizeBytes,
     ),
@@ -34,6 +54,10 @@ void registerLibraryBindings(Injector i) {
   i.addSingleton<LocalController>(
     () => LocalController(
       scanner: LocalMediaScanner(
+        entryProviders: <LocalMediaEntryProvider>[
+          Modular.get<FileSystemMediaEntryProvider>(),
+          Modular.get<AndroidMediaEntryProvider>(),
+        ],
         minRecognizedVideoSizeBytesProvider: () =>
             Modular.get<MediaRecognitionSettings>().localMinSizeBytes,
       ),

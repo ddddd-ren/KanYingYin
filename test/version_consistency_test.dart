@@ -6,8 +6,8 @@ import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
   test('应用版本、MSIX 版本和更新日志保持一致', () {
-    const expectedVersion = '2.1.87';
-    const expectedBuildNumber = '20187';
+    const expectedVersion = '2.1.88';
+    const expectedBuildNumber = '20188';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final androidGradle =
@@ -52,7 +52,7 @@ void main() {
     expect(releaseNotes, contains('MSIX 版本：$version.0'));
     expect(
       releaseNotes,
-      contains('APK/AAB 版本：$version ($buildNumber)'),
+      contains('APK/AAB 版本：未构建（Android 更新暂停）'),
     );
     expect(readme, contains('| 当前版本 | $version |'));
     expect(
@@ -90,6 +90,8 @@ void main() {
       versionHistoryEnd == -1 ? versionHistory.length : versionHistoryEnd,
     );
     expect(currentReleaseNotes, contains('Android'));
+    expect(currentReleaseNotes, contains('更新暂停'));
+    expect(currentReleaseNotes, contains('未生成 APK/AAB'));
     expect(currentReleaseNotes, contains('真机验收尚未完成'));
     expect(updateDialogCopy, contains('Android'));
     expect(currentVersionHistory, contains('Android'));

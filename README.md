@@ -93,7 +93,7 @@ OpenList、夸克、百度和迅雷网盘在本项目中仅作为用户自有媒
 | --- | --- |
 | 支持平台 | Windows 10/11 x64；Android 7.0+（API 24+） |
 | 安装格式 | MSIX / APK |
-| 当前版本 | 2.1.87 |
+| 当前版本 | 2.1.88 |
 | Dart 包名 | `kanyingyin` |
 | Windows 包标识 | `com.kanyingyin.player` |
 | Android 应用标识 | `com.kanyingyin.player` |
@@ -157,6 +157,23 @@ D:\flutter\bin\flutter.bat build windows --release --no-pub
 
 Android 发布脚本只从当前用户的 `KANYINGYIN_ANDROID_*` 环境变量读取本机
 签名信息，生成并验证 APK/AAB 后复制到桌面，不会把密钥或密码写入仓库。
+
+### Windows 播放器组件
+
+Windows Release 只接受看影音已经联合验证的播放器组件。首次在新环境构建前，
+需要用真实的 TrueHD 与 PGS 媒体完成命令行探测，并提供一次应用内 D3D11
+直通播放日志：
+
+```powershell
+.\tool\windows\prepare_compatible_libmpv.ps1 `
+  -SourceDirectory '<自定义 libmpv 与运行库目录>' `
+  -ProbeMediaPath '<TrueHD 与 PGS 测试影片>'
+```
+
+脚本验证通过后只把 libmpv/FFmpeg 运行依赖写入当前用户的
+`.kanyingyin\windows\libmpv`，不会复制 Flutter、WebView2 或应用插件 DLL。
+组件缺失、哈希变化或联合验证失败时，Windows 构建会直接停止，不会回退到
+未经验证的通用播放器。
 
 ```powershell
 .\tool\android\build_signed_release.ps1

@@ -332,7 +332,9 @@ class _PlayerItemState extends State<PlayerItem>
       videoPageController.isFullscreen = !videoPageController.isFullscreen;
     } else {
       playerController.pause();
-      windowManager.hide();
+      if (Utils.isDesktop()) {
+        windowManager.hide();
+      }
     }
   }
 
@@ -1108,7 +1110,9 @@ class _PlayerItemState extends State<PlayerItem>
     );
     unawaited(_bindAudioService());
     playerTimer = getPlayerTimer();
-    windowManager.addListener(this);
+    if (Utils.isDesktop()) {
+      windowManager.addListener(this);
+    }
     displayVideoController();
   }
 
@@ -1123,7 +1127,9 @@ class _PlayerItemState extends State<PlayerItem>
     _playerSizeListener();
     _anime4kStateReaction();
     WidgetsBinding.instance.removeObserver(this);
-    windowManager.removeListener(this);
+    if (Utils.isDesktop()) {
+      windowManager.removeListener(this);
+    }
     playerTimer?.cancel();
     hideTimer?.cancel();
     mouseScrollerTimer?.cancel();

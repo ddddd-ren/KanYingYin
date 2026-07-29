@@ -58,11 +58,15 @@ class AdaptiveNavigationShell extends StatelessWidget {
   Widget _bottomLayout(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: Column(
-        children: [
-          if (topBar != null) topBar!,
-          Expanded(child: content),
-        ],
+      body: SafeArea(
+        key: const ValueKey<String>('mobile-safe-content'),
+        bottom: false,
+        child: Column(
+          children: [
+            if (topBar != null) topBar!,
+            Expanded(child: content),
+          ],
+        ),
       ),
       bottomNavigationBar: NavigationBar(
         key: const ValueKey<String>('compact-bottom-navigation'),

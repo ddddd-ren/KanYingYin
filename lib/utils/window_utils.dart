@@ -1,8 +1,12 @@
 import 'package:flutter/services.dart';
+import 'package:kanyingyin/platform/android/android_system_service.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:window_manager/window_manager.dart';
 
 class WindowUtils {
+  static const AndroidSystemService _androidSystem = AndroidSystemService();
+
   static Future<void> enterWindowsFullscreen() async {
     const platform = MethodChannel('com.kanyingyin.player/intent');
     try {
@@ -21,9 +25,30 @@ class WindowUtils {
     }
   }
 
-  static Future<void> enterFullScreen({bool lockOrientation = true}) =>
-      windowManager.setFullScreen(true);
+  static Future<void> enterFullScreen({bool lockOrientation = true}) async {
+    if (detectAppPlatform().desktopShell) {
+      await windowManager.setFullScreen(true);
+      return;
+    }
+    if (lockOrientation) {
+      await SystemChrome.setPreferredOrientations(const [
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    }
+    await _androidSystem.setImmersive(true);
+  }
 
-  static Future<void> exitFullScreen({bool lockOrientation = true}) =>
-      windowManager.setFullScreen(false);
+  static Future<void> exitFullScreen({bool lockOrientation = true}) async {
+    if (detectAppPlatform().desktopShell) {
+      await windowManager.setFullScreen(false);
+      return;
+    }
+    await _androidSystem.setImmersive(false);
+    if (lockOrientation) {
+      await SystemChrome.setPreferredOrientations(const [
+        DeviceOrientation.portraitUp,
+      ]);
+    }
+  }
 }

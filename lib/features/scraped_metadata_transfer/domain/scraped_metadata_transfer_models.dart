@@ -1,4 +1,5 @@
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 
 const String scrapedMetadataFormat = 'kanyingyin-scraped-metadata';
 const int scrapedMetadataFormatVersion = 1;
@@ -66,10 +67,8 @@ final class ScrapedMetadataPayload {
         'formatVersion': formatVersion,
         'exportedAt': exportedAt.toUtc().toIso8601String(),
         'appVersion': appVersion,
-        'localSources':
-            localSources.map((source) => source.toJson()).toList(),
-        'cloudSources':
-            cloudSources.map((source) => source.toJson()).toList(),
+        'localSources': localSources.map((source) => source.toJson()).toList(),
+        'cloudSources': cloudSources.map((source) => source.toJson()).toList(),
       };
 }
 
@@ -271,10 +270,8 @@ final class PortableCloudSource {
       roots: _mapList(json['roots'], PortableCloudRoot.fromJson),
       resourceRecords:
           _mapList(json['resourceRecords'], PortableCloudRecord.fromJson),
-      workRecords:
-          _mapList(json['workRecords'], PortableCloudRecord.fromJson),
-      seriesRules:
-          _mapList(json['seriesRules'], PortableCloudRecord.fromJson),
+      workRecords: _mapList(json['workRecords'], PortableCloudRecord.fromJson),
+      seriesRules: _mapList(json['seriesRules'], PortableCloudRecord.fromJson),
     );
   }
 
@@ -289,6 +286,89 @@ final class PortableCloudSource {
         'workRecords': workRecords.map((record) => record.toJson()).toList(),
         'seriesRules': seriesRules.map((record) => record.toJson()).toList(),
       };
+}
+
+final class LocalImportMatch {
+  const LocalImportMatch({required this.portable, required this.target});
+
+  final PortableLocalRecord portable;
+  final LocalMediaIndexItem target;
+}
+
+final class CloudResourceImportMatch {
+  const CloudResourceImportMatch({
+    required this.portable,
+    required this.targetSourceId,
+    required this.targetRemoteId,
+    required this.targetRemotePath,
+  });
+
+  final PortableCloudRecord portable;
+  final String targetSourceId;
+  final String targetRemoteId;
+  final String targetRemotePath;
+}
+
+final class CloudWorkImportMatch {
+  const CloudWorkImportMatch({
+    required this.portable,
+    required this.targetSourceId,
+    required this.targetWorkKey,
+    required this.targetWorkRootId,
+    required this.targetWorkRootPath,
+  });
+
+  final PortableCloudRecord portable;
+  final String targetSourceId;
+  final String targetWorkKey;
+  final String targetWorkRootId;
+  final String targetWorkRootPath;
+}
+
+final class CloudSeriesRuleImportMatch {
+  const CloudSeriesRuleImportMatch({
+    required this.portable,
+    required this.targetSourceId,
+    required this.targetParentPath,
+  });
+
+  final PortableCloudRecord portable;
+  final String targetSourceId;
+  final String targetParentPath;
+}
+
+final class ScrapedMetadataImportPlan {
+  const ScrapedMetadataImportPlan({
+    required this.payload,
+    required this.localMappings,
+    required this.cloudMappings,
+    required this.localMatches,
+    required this.cloudResourceMatches,
+    required this.cloudWorkMatches,
+    required this.cloudSeriesRuleMatches,
+    required this.unresolvedLocalSources,
+    required this.unresolvedCloudSources,
+    required this.missingMediaCount,
+    required this.recoverableImageCount,
+  });
+
+  final ScrapedMetadataPayload payload;
+  final Map<String, String> localMappings;
+  final Map<String, String> cloudMappings;
+  final List<LocalImportMatch> localMatches;
+  final List<CloudResourceImportMatch> cloudResourceMatches;
+  final List<CloudWorkImportMatch> cloudWorkMatches;
+  final List<CloudSeriesRuleImportMatch> cloudSeriesRuleMatches;
+  final List<PortableLocalSource> unresolvedLocalSources;
+  final List<PortableCloudSource> unresolvedCloudSources;
+  final int missingMediaCount;
+  final int recoverableImageCount;
+
+  int get matchedCount =>
+      localMatches.length +
+      cloudResourceMatches.length +
+      cloudWorkMatches.length +
+      cloudSeriesRuleMatches.length;
 }
 
 List<T> _mapList<T>(

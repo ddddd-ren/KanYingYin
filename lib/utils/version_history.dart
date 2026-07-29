@@ -30,6 +30,17 @@ const List<VersionHistory> versionHistoryList = [
     ],
   ),
   VersionHistory(
+    version: '2.1.80',
+    date: '2026-07-29',
+    isPrerelease: true,
+    changes: [
+      '修复应用内迅雷设备验证成功后，账号接口已经返回成功却因缺少手机号或昵称等展示字段而误报“迅雷登录失败”的问题',
+      '验证后会复用已签发令牌会话中的账号 ID；没有展示名称时显示“迅雷账号”，可以继续选择媒体目录并保存来源',
+      'WebView2 验证窗口继续阻止下载、新窗口、不安全页面和权限请求，验证成功后仍会自动继续登录；账号、密码、验证码与 Token 不会写入日志',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.79',
     date: '2026-07-29',
     isPrerelease: true,

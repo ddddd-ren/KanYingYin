@@ -4,8 +4,8 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一七十九修复迅雷验证窗口原生闪退', () {
-    final entries = versionHistoryForCurrent('2.1.79');
+  test('二点一八十修复验证成功后的账号展示字段兼容', () {
+    final entries = versionHistoryForCurrent('2.1.80');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
@@ -14,12 +14,12 @@ void main() {
     for (final text in <String>[
       '应用内',
       '设备验证',
-      '完成或关闭',
-      '偶发闪退',
-      '独立 WebView2 临时数据目录',
-      'Cookie',
-      'Refresh Token',
-      'Windows 安全存储',
+      '账号接口',
+      '返回成功',
+      '展示字段',
+      '令牌会话',
+      '迅雷账号',
+      '选择媒体目录',
       'WebView2',
       '阻止下载',
       '自动继续登录',

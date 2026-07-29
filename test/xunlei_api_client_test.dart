@@ -52,6 +52,30 @@ void main() {
     await client.close();
   });
 
+  test('账号接口已授权但缺少展示字段时复用令牌会话身份', () async {
+    final adapter = _QueueAdapter(<_FakeResponse>[
+      const _FakeResponse(
+        200,
+        '{"token_type":"Bearer","access_token":"access-fixture","refresh_token":"refresh-fixture","expires_in":3600,"user_id":"user-fixture"}',
+      ),
+      const _FakeResponse(200, '{}'),
+    ]);
+    final client = XunleiApiClient(
+      deviceId: deviceId,
+      dio: Dio()..httpClientAdapter = adapter,
+    );
+
+    final session = await client.refresh(
+      refreshToken: 'refresh-fixture',
+      deviceId: deviceId,
+    );
+    final account = await client.account(session);
+
+    expect(account.userId, 'user-fixture');
+    expect(account.accountLabel, '迅雷账号');
+    await client.close();
+  });
+
   test('验证码签名失效映射为协议更新且日志不含秘密', () async {
     final logs = <String>[];
     final adapter = _QueueAdapter(<_FakeResponse>[

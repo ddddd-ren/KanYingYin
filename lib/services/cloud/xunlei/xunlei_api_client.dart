@@ -196,7 +196,7 @@ class XunleiApiClient implements XunleiApi {
       session,
       stage: _XunleiRequestStage.account,
     );
-    return _parser.parseAccount(json);
+    return _parser.parseAccount(json, fallbackUserId: session.userId);
   }
 
   @override

@@ -22,12 +22,16 @@ class XunleiResponseParser {
     );
   }
 
-  XunleiAccount parseAccount(Map<String, Object?> json) {
-    final userId = _requiredString(json, 'user_id');
+  XunleiAccount parseAccount(
+    Map<String, Object?> json, {
+    String? fallbackUserId,
+  }) {
+    final userId = _optionalString(json['user_id']) ??
+        _optionalString(fallbackUserId);
+    if (userId == null) _incompatible();
     final phone = _optionalString(json['phone']);
     final name = _optionalString(json['name']);
-    final label = phone == null ? name : _maskAccount(phone);
-    if (label == null || label.isEmpty) _incompatible();
+    final label = phone == null ? name ?? '迅雷账号' : _maskAccount(phone);
     return XunleiAccount(userId: userId, accountLabel: label);
   }
 

@@ -82,6 +82,18 @@ void main() {
     await client.close();
   });
 
+  test('迅雷根目录兼容旧标识并以空 ID 请求接口', () async {
+    final api = _FakeXunleiApi();
+    final client = await _authenticatedClient(source, credential, api);
+
+    await client.listDirectory(
+      const CloudRemoteRef(id: '0', path: '/'),
+    );
+
+    expect(api.directoryIds, <String>['']);
+    await client.close();
+  });
+
   test('重复分页令牌被拒绝且不无限请求', () async {
     final api = _FakeXunleiApi(
       pages: <String?, XunleiDirectoryPage>{
@@ -161,6 +173,7 @@ class _FakeXunleiApi implements XunleiApi {
   final Map<String?, XunleiDirectoryPage> pages;
   int refreshCalls = 0;
   int listCalls = 0;
+  final List<String> directoryIds = <String>[];
   bool _usable = false;
   final Completer<void> _refreshStarted = Completer<void>();
 
@@ -203,6 +216,7 @@ class _FakeXunleiApi implements XunleiApi {
     int size = 100,
   }) async {
     listCalls++;
+    directoryIds.add(directoryId);
     return pages[pageToken] ?? const XunleiDirectoryPage(files: <XunleiFile>[]);
   }
 

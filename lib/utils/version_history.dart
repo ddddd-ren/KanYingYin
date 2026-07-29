@@ -16,6 +16,20 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.84',
+    date: '2026-07-30',
+    isPrerelease: true,
+    changes: [
+      '修复 Android 手机和平板播放视频时有声音无画面的问题，“自动”渲染器现在使用 media-kit 的 Android 稳定输出链路',
+      '修复 Android 全屏播放按返回键后停留在选集页的问题，现在单次返回会恢复系统界面并直接回到海报墙',
+      '修复 TMDB 海报和网盘字幕尚未读取完成就关闭网络连接的问题，避免重复出现 Connection closed while receiving data 错误',
+      '账号设备验证继续在应用内完成：Windows 使用 WebView2，Android 使用系统 WebView；阻止下载、新窗口、不安全页面和权限请求，验证成功后自动继续登录',
+      '本次修复针对手机和平板反馈的问题，签名包尚待真机复验，因此真机验收尚未完成',
+      'Windows 播放器、窗口、托盘和快捷方式行为保持不变',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.83',
     date: '2026-07-30',
     isPrerelease: true,

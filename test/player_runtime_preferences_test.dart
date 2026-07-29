@@ -63,4 +63,16 @@ void main() {
     expect(value.anime4kSupported, isFalse);
     expect(value.androidAutoEnterPip, isTrue);
   });
+
+  test('Android 自动渲染器交由 media-kit 选择平台默认输出', () {
+    final preferences = PlayerRuntimePreferences(
+      TypedSettings(box),
+      capabilities: AppPlatformCapabilities.android,
+    );
+
+    final value = preferences.load();
+
+    expect(value.videoRenderer, isNull);
+    expect(value.anime4kSupported, isFalse);
+  });
 }

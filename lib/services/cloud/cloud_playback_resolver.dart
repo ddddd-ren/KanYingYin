@@ -420,7 +420,7 @@ class CloudPlaybackResolver {
           uri: resource.uri,
         );
       }
-      return response.fold<List<int>>(
+      return await response.fold<List<int>>(
         <int>[],
         (bytes, chunk) => bytes..addAll(chunk),
       );

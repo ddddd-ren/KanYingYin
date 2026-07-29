@@ -4,6 +4,28 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一八十三交付 Android 测试版安装包', () {
+    final entries = versionHistoryForCurrent('2.1.83');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    for (final text in <String>[
+      'Android',
+      '系统存储访问框架',
+      'MediaCodec',
+      '画中画',
+      'WebView2',
+      '系统 WebView',
+      '签名包',
+      '真机验收尚未完成',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一八十二修复网页令牌目录加载', () {
     final entries = versionHistoryForCurrent('2.1.82');
 

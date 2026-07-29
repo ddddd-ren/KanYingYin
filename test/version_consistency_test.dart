@@ -6,10 +6,14 @@ import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
   test('应用版本、MSIX 版本和更新日志保持一致', () {
-    const expectedVersion = '2.1.82';
-    const expectedBuildNumber = '20182';
+    const expectedVersion = '2.1.83';
+    const expectedBuildNumber = '20183';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
+    final androidGradle =
+        File('android/app/build.gradle.kts').readAsStringSync();
+    final androidReleaseScript =
+        File('tool/android/build_signed_release.ps1').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final readme = File('README.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
@@ -38,12 +42,24 @@ void main() {
     expect(version, expectedVersion);
     expect(buildNumber, expectedBuildNumber);
     expect(msixVersion!.group(1), version);
+    expect(androidGradle, contains('versionCode = flutter.versionCode'));
+    expect(androidGradle, contains('versionName = flutter.versionName'));
+    expect(androidReleaseScript, contains(r'$versionCode = $Matches[2]'));
     expect(msixIdentity, AppIdentity.windowsIdentity);
     expect(readmeIdentity, AppIdentity.windowsIdentity);
     expect(appVersion, contains("current = '$version'"));
     expect(releaseNotes, contains('## $version+$buildNumber'));
     expect(releaseNotes, contains('MSIX 版本：$version.0'));
+    expect(
+      releaseNotes,
+      contains('APK/AAB 版本：$version ($buildNumber)'),
+    );
     expect(readme, contains('| 当前版本 | $version |'));
+    expect(
+      readme,
+      contains('| 支持平台 | Windows 10/11 x64；Android 7.0+（API 24+） |'),
+    );
+    expect(readme, contains('| 安装格式 | MSIX / APK |'));
     expect(readme, contains('OpenList 功能仍在调试，当前不建议使用'));
     expect(versionHistory, contains("version: '$version'"));
     expect(updateDialogCopy, contains('应用版本：$version'));
@@ -73,6 +89,10 @@ void main() {
       versionHistoryStart,
       versionHistoryEnd == -1 ? versionHistory.length : versionHistoryEnd,
     );
+    expect(currentReleaseNotes, contains('Android'));
+    expect(currentReleaseNotes, contains('真机验收尚未完成'));
+    expect(updateDialogCopy, contains('Android'));
+    expect(currentVersionHistory, contains('Android'));
     for (final currentCopy in [
       currentReleaseNotes,
       updateDialogCopy,

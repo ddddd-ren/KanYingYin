@@ -4,7 +4,7 @@
   <img src="assets/images/logo/logo_rounded.png" alt="看影音图标" width="160">
 </p>
 
-看影音是一款面向 Windows 的本地与个人网盘视频媒体库。它可以扫描、整理和播放用户自己的视频文件，并通过 TMDB 补充中文标题、简介、评分、海报、背景图和季集信息。
+看影音是一款面向 Windows 和 Android 的本地与个人网盘视频媒体库。它可以扫描、整理和播放用户自己的视频文件，并通过 TMDB 补充中文标题、简介、评分、海报、背景图和季集信息。
 
 项目专注用户自有媒体的整理、元数据管理与播放体验。
 
@@ -61,13 +61,13 @@ OpenList、夸克、百度和迅雷网盘在本项目中仅作为用户自有媒
 - 支持电影、电视剧、季度和剧集信息。
 - 支持自动匹配、手动选择候选、重新匹配和单独刮削。
 - 可配置语言、地区、匹配阈值以及标题和图片覆盖策略。
-- 公共安装包不内置 TMDB Key；用户可在设置中填写自己的 Key，并由 Windows 安全存储保护。
+- 公共安装包不内置 TMDB Key；用户可在设置中填写自己的 Key，并由系统安全存储保护。
 - 没有可用 API Key、断网或 TMDB 不可用时，本地扫描和播放仍可使用。
 
 ### 播放器
 
 - 基于 media-kit 与 mpv，支持常见本地和远程媒体格式。
-- 支持 Windows 硬件解码、低内存模式和 TrueHD 兼容音轨回退。
+- 支持 Windows 硬件解码、Android MediaCodec、低内存模式和 TrueHD 兼容音轨回退。
 - 支持播放进度、倍速、快进快退、画面比例、选集和自动连播。
 - 支持全屏、画中画、控制面板锁定、截图和外部播放器。
 - 支持定时停止和后台播放。
@@ -91,21 +91,25 @@ OpenList、夸克、百度和迅雷网盘在本项目中仅作为用户自有媒
 
 | 项目 | 当前配置 |
 | --- | --- |
-| 操作系统 | Windows 10 / Windows 11，64 位 |
-| 安装格式 | MSIX |
-| 当前版本 | 2.1.82 |
+| 支持平台 | Windows 10/11 x64；Android 7.0+（API 24+） |
+| 安装格式 | MSIX / APK |
+| 当前版本 | 2.1.83 |
 | Dart 包名 | `kanyingyin` |
 | Windows 包标识 | `com.kanyingyin.player` |
+| Android 应用标识 | `com.kanyingyin.player` |
 | Flutter | 3.41.9 |
 
-项目仅支持 Windows，并以 MSIX 交付。
+项目同时维护 Windows 与 Android 平台，Windows 使用 MSIX，Android 使用签名
+APK；AAB 用于 Android 应用商店交付。
 
 ## 安装
 
-1. 从当前仓库的 [Releases](https://github.com/ddddd-ren/KanYingYin/releases) 下载最新的 `看影音-版本号.msix`。
-2. 双击 MSIX 并按 Windows 提示完成安装。
-3. 如果系统提示签名证书不受信任，需要先信任发布页提供的项目证书，再重新安装。
-4. 新安装或首次启动时，如果桌面或开始菜单中没有快捷方式，应用会询问是否创建。
+1. Windows：从当前仓库的 [Releases](https://github.com/ddddd-ren/KanYingYin/releases)
+   下载 `看影音-版本号.msix`，双击并按系统提示完成安装。
+2. Android：下载 `看影音-版本号.apk`，允许当前文件管理器安装未知来源应用后
+   按系统提示完成安装。
+3. Windows 如果提示签名证书不受信任，需要先信任发布页提供的项目证书，再重新安装。
+4. Windows 新安装或首次启动时，如果桌面或开始菜单中没有快捷方式，应用会询问是否创建。
 
 看影音使用专属的应用身份和数据目录。
 
@@ -149,6 +153,15 @@ D:\flutter\bin\flutter.bat analyze --no-pub
 D:\flutter\bin\flutter.bat build windows --release --no-pub
 ```
 
+### Android 签名 Release
+
+Android 发布脚本只从当前用户的 `KANYINGYIN_ANDROID_*` 环境变量读取本机
+签名信息，生成并验证 APK/AAB 后复制到桌面，不会把密钥或密码写入仓库。
+
+```powershell
+.\tool\android\build_signed_release.ps1
+```
+
 ### 生成 MSIX
 
 MSIX 必须基于本轮生成的 Windows Release 目录封装。签名脚本从当前用户保护的凭据文件读取密码，不写入仓库，也不依赖或内置 TMDB Key。
@@ -169,6 +182,7 @@ lib/
   modules/        媒体、剧集、播放请求等领域模型
   utils/          日志、存储、窗口和通用工具
 windows/          Windows Runner、窗口行为和原生集成
+android/          Android Gradle、Kotlin、Manifest 和平台通道
 test/             单元测试、组件测试和身份一致性测试
 ```
 

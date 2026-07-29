@@ -49,7 +49,11 @@ void main() {
     );
     expect(
       playerSettings,
-      contains('if (detectAppPlatform().desktopShell)'),
+      contains('if (platform.desktopShell)'),
+    );
+    expect(
+      playerSettings,
+      contains('widget.capabilities ?? detectAppPlatform()'),
     );
   });
 }

@@ -77,17 +77,31 @@ void main() {
     );
   });
 
-  test('工作流不再包含旧平台并保留 Windows 质量门禁', () {
-    for (final workflowPath in [
-      '.github/workflows/pr.yaml',
-      '.github/workflows/release.yaml',
-    ]) {
-      final workflow = File(workflowPath).readAsStringSync();
-      expect(workflow, contains('runs-on: windows-latest'));
-      expect(workflow, contains('flutter analyze --no-pub'));
-      expect(workflow, contains('flutter test --no-pub'));
-      expect(workflow, contains('flutter build windows --release --no-pub'));
-      expect(workflow, isNot(contains('ubuntu-latest')));
+  test('PR 使用双平台质量门禁且发布工作流保留 Windows MSIX', () {
+    final prWorkflow = File('.github/workflows/pr.yaml').readAsStringSync();
+    final releaseWorkflow =
+        File('.github/workflows/release.yaml').readAsStringSync();
+
+    expect(prWorkflow, contains('runs-on: windows-latest'));
+    expect(prWorkflow, contains('runs-on: ubuntu-latest'));
+    expect(prWorkflow, contains('flutter analyze --no-pub'));
+    expect(prWorkflow, contains('flutter test --no-pub'));
+    expect(
+      prWorkflow,
+      contains('flutter build windows --release --no-pub'),
+    );
+    expect(prWorkflow, contains('flutter build apk --debug --no-pub'));
+
+    expect(releaseWorkflow, contains('runs-on: windows-latest'));
+    expect(releaseWorkflow, contains('flutter analyze --no-pub'));
+    expect(releaseWorkflow, contains('flutter test --no-pub'));
+    expect(
+      releaseWorkflow,
+      contains('flutter build windows --release --no-pub'),
+    );
+    expect(releaseWorkflow, isNot(contains('ubuntu-latest')));
+
+    for (final workflow in <String>[prWorkflow, releaseWorkflow]) {
       expect(workflow, isNot(contains('macos-latest')));
       expect(workflow, isNot(contains('assets/linux/')));
     }
@@ -109,7 +123,7 @@ void main() {
     expect(msixVersion, isNotNull);
 
     final currentVersion = packageVersion!.group(1)!;
-    expect(currentVersion, '2.1.82');
+    expect(currentVersion, '2.1.83');
     expect(msixVersion!.group(1), currentVersion);
     expect(
       _yamlField(msixConfig, 'identity_name'),

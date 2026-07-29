@@ -26,8 +26,8 @@ class XunleiResponseParser {
     Map<String, Object?> json, {
     String? fallbackUserId,
   }) {
-    final userId = _optionalString(json['user_id']) ??
-        _optionalString(fallbackUserId);
+    final userId =
+        _optionalString(json['user_id']) ?? _optionalString(fallbackUserId);
     if (userId == null) _incompatible();
     final phone = _optionalString(json['phone']);
     final name = _optionalString(json['name']);

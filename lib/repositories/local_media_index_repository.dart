@@ -52,7 +52,14 @@ abstract class ILocalMediaIndexRepository {
 
   Future<void> updateItem(LocalMediaIndexItem item);
 
-  Future<void> updateItems(Map<String, LocalMediaIndexItem> itemsById);
+  /// 批量更新的默认实现，兼容只实现单项更新的轻量仓储。
+  Future<void> updateItems(
+    Map<String, LocalMediaIndexItem> itemsById,
+  ) async {
+    for (final item in itemsById.values) {
+      await updateItem(item);
+    }
+  }
 
   Future<void> saveDirectoryFingerprints(
     String sourcePath,

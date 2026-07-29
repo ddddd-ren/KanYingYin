@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:kanyingyin/providers/theme_provider.dart';
 import 'package:kanyingyin/shaders/shaders_controller.dart';
 import 'package:kanyingyin/pages/navigation/navigation_config.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/services/windows_shortcut_startup_policy.dart';
 import 'package:kanyingyin/utils/windows_shortcut.dart';
 
@@ -63,6 +64,7 @@ class _InitPageState extends State<InitPage> {
   }
 
   Future<void> _showShortcutDialog() async {
+    if (!detectAppPlatform().desktopShell) return;
     final shortcutState = await WindowsShortcut.inspectShortcutEntries();
     final dialogAlreadyShown = setting.getTyped<bool>(
       SettingBoxKey.shortcutDialogShown,

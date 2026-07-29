@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -121,7 +122,7 @@ class CloudCacheOperationCoordinator {
     }
   }
 
-  static String _key(Directory directory) => Platform.isWindows
+  static String _key(Directory directory) => detectAppPlatform().isWindows
       ? p.normalize(directory.absolute.path).toLowerCase()
       : p.normalize(directory.absolute.path);
 }

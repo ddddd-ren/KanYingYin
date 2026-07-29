@@ -1,15 +1,15 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/bean/card/palette_card.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/providers/theme_provider.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
+import 'package:kanyingyin/services/windows_app_shell_service.dart';
 import 'package:kanyingyin/bean/settings/color_type.dart';
 import 'package:kanyingyin/utils/utils.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:provider/provider.dart';
-import 'package:window_manager/window_manager.dart';
 import 'package:kanyingyin/theme/app_theme.dart';
 
 class ThemeSettingsPage extends StatefulWidget {
@@ -27,6 +27,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
   late bool showWindowButton;
   late bool useSystemFont;
   late final ThemeProvider themeProvider;
+  final WindowsAppShellService appShellService = WindowsAppShellService();
   final MenuController menuController = MenuController();
 
   @override
@@ -60,6 +61,12 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
       AppDialog.dismiss<void>();
       return;
     }
+  }
+
+  @override
+  void dispose() {
+    appShellService.dispose();
+    super.dispose();
   }
 
   void setTheme(Color? color) {
@@ -98,10 +105,10 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
       defaultThemeMode = theme;
     });
 
-    // Update Windows title bar theme
-    if (Platform.isWindows) {
-      await windowManager.setBrightness(
-          themeProvider.isEffectiveDark() ? Brightness.dark : Brightness.light);
+    if (detectAppPlatform().desktopShell) {
+      await appShellService.syncBrightness(
+        themeProvider.isEffectiveDark() ? Brightness.dark : Brightness.light,
+      );
     }
   }
 

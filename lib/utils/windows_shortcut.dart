@@ -1,7 +1,6 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 
 enum WindowsShortcutEntryState {
   none,
@@ -49,7 +48,7 @@ class WindowsShortcut {
   static const _client = WindowsShortcutClient(channel: _channel);
 
   static Future<WindowsShortcutEntryState> inspectShortcutEntries() {
-    if (!Platform.isWindows) {
+    if (!detectAppPlatform().desktopShell) {
       return Future<WindowsShortcutEntryState>.value(
         WindowsShortcutEntryState.unknown,
       );
@@ -64,7 +63,7 @@ class WindowsShortcut {
   }
 
   static Future<bool> createDesktopShortcut() {
-    if (!Platform.isWindows) return Future<bool>.value(false);
+    if (!detectAppPlatform().desktopShell) return Future<bool>.value(false);
     return _client.createDesktopShortcut();
   }
 }

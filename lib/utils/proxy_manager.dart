@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:kanyingyin/core/network/proxy_probe_http_client_factory.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_endpoint_policy.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/utils/proxy_utils.dart';
 import 'package:kanyingyin/utils/storage.dart';
@@ -30,9 +31,7 @@ class ProxyManager {
   static final List<_ProxyProbeGroup> _probeGroups = [
     _ProxyProbeGroup(
       name: 'TMDB API',
-      uris: [
-        Uri.parse('https://api.themoviedb.org/3/configuration'),
-      ],
+      uris: TmdbEndpointPolicy.configurationUris,
     ),
   ];
   static Future<bool>? _recoveringProxy;

@@ -18,7 +18,7 @@ void main() {
     await directory.delete(recursive: true);
   });
 
-  test('TMDB 主站失败时不向非官方域名发送凭据', () async {
+  test('TMDB 主站失败时只尝试官方备用域名', () async {
     final hosts = <String>[];
     final apiDio = Dio()
       ..interceptors.add(
@@ -46,8 +46,16 @@ void main() {
       await service.searchPoster(rawFilename: 'Avatar.mkv'),
       isNull,
     );
-    expect(hosts, isNotEmpty);
-    expect(hosts, everyElement('api.themoviedb.org'));
+    expect(hosts, <String>[
+      'api.themoviedb.org',
+      'api.tmdb.org',
+    ]);
+    expect(
+      hosts,
+      everyElement(
+        isIn(<String>['api.themoviedb.org', 'api.tmdb.org']),
+      ),
+    );
   });
 
   for (final responseData in <List<int>?>[null, <int>[]]) {

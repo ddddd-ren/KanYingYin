@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:kanyingyin/core/network/dio_factory.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_endpoint_policy.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/utils/network_settings_config_factory.dart';
 import 'package:kanyingyin/utils/proxy_manager.dart';
@@ -28,6 +29,7 @@ class TmdbClient implements ITmdbClient {
   final TmdbDioFactory? _dioFactory;
   final TmdbProxyRecovery? _recoverProxy;
   Future<bool>? _rebuildingDio;
+  String _preferredBaseUrl = TmdbEndpointPolicy.primaryApiBaseUrl;
 
   TmdbClient({
     required this.apiKey,
@@ -48,7 +50,7 @@ class TmdbClient implements ITmdbClient {
       config,
       interceptors: const [],
     );
-    dio.options.baseUrl = 'https://api.themoviedb.org/3';
+    dio.options.baseUrl = TmdbEndpointPolicy.primaryApiBaseUrl;
     return dio;
   }
 
@@ -59,9 +61,9 @@ class TmdbClient implements ITmdbClient {
     String language = 'zh-CN',
   }) async {
     _validateKey();
-    final response = await _withProxyRecovery(
-      (dio) => dio.get<Map<String, dynamic>>(
-        '/search/${mediaType == TmdbMediaType.movie ? 'movie' : 'tv'}',
+    final response = await _withEndpointRecovery(
+      (dio, baseUrl) => dio.get<Map<String, dynamic>>(
+        '$baseUrl/search/${mediaType == TmdbMediaType.movie ? 'movie' : 'tv'}',
         queryParameters: {
           ..._authenticationQuery,
           'query': query,
@@ -116,9 +118,9 @@ class TmdbClient implements ITmdbClient {
     String language,
   ) async {
     _validateKey();
-    final response = await _withProxyRecovery(
-      (dio) => dio.get<Map<String, dynamic>>(
-        '/${mediaType == TmdbMediaType.movie ? 'movie' : 'tv'}/$id',
+    final response = await _withEndpointRecovery(
+      (dio, baseUrl) => dio.get<Map<String, dynamic>>(
+        '$baseUrl/${mediaType == TmdbMediaType.movie ? 'movie' : 'tv'}/$id',
         queryParameters: {..._authenticationQuery, 'language': language},
         options: _authenticationOptions,
       ),
@@ -214,35 +216,52 @@ class TmdbClient implements ITmdbClient {
     }).toList(growable: false);
   }
 
-  Future<T> _withProxyRecovery<T>(
-    Future<T> Function(Dio dio) request,
+  Future<T> _withEndpointRecovery<T>(
+    Future<T> Function(Dio dio, String baseUrl) request,
   ) async {
+    final firstBaseUrl = _preferredBaseUrl;
     try {
-      return await request(_dio);
-    } on DioException catch (error, stackTrace) {
-      final recoverProxy = _recoverProxy;
-      final dioFactory = _dioFactory;
-      if (!_isRecoverableNetworkError(error) ||
-          recoverProxy == null ||
-          dioFactory == null) {
-        rethrow;
-      }
+      return await request(_dio, firstBaseUrl);
+    } on DioException catch (firstError) {
+      if (!TmdbEndpointPolicy.canTryAnotherEndpoint(firstError)) rethrow;
 
-      bool recovered;
+      final secondBaseUrl =
+          firstBaseUrl == TmdbEndpointPolicy.primaryApiBaseUrl
+              ? TmdbEndpointPolicy.fallbackApiBaseUrl
+              : TmdbEndpointPolicy.primaryApiBaseUrl;
       try {
-        recovered = await _recoverAndRebuild(recoverProxy, dioFactory);
-      } catch (recoveryError, recoveryStackTrace) {
-        AppLogger().w(
-          'TMDB: 代理恢复失败',
-          error: recoveryError,
-          stackTrace: recoveryStackTrace,
+        final result = await request(_dio, secondBaseUrl);
+        _preferredBaseUrl = secondBaseUrl;
+        AppLogger().i(
+          'TMDB: 已切换官方端点 ${Uri.parse(secondBaseUrl).host}',
         );
-        Error.throwWithStackTrace(error, stackTrace);
+        return result;
+      } on DioException catch (secondError, secondStackTrace) {
+        if (!TmdbEndpointPolicy.canTryAnotherEndpoint(secondError)) rethrow;
+
+        final recoverProxy = _recoverProxy;
+        final dioFactory = _dioFactory;
+        if (recoverProxy == null || dioFactory == null) {
+          Error.throwWithStackTrace(secondError, secondStackTrace);
+        }
+
+        bool recovered;
+        try {
+          recovered = await _recoverAndRebuild(recoverProxy, dioFactory);
+        } catch (recoveryError, recoveryStackTrace) {
+          AppLogger().w(
+            'TMDB: 代理恢复失败',
+            error: recoveryError,
+            stackTrace: recoveryStackTrace,
+          );
+          Error.throwWithStackTrace(secondError, secondStackTrace);
+        }
+        if (!recovered) {
+          Error.throwWithStackTrace(secondError, secondStackTrace);
+        }
+        _preferredBaseUrl = TmdbEndpointPolicy.primaryApiBaseUrl;
+        return request(_dio, _preferredBaseUrl);
       }
-      if (!recovered) {
-        Error.throwWithStackTrace(error, stackTrace);
-      }
-      return request(_dio);
     }
   }
 
@@ -275,13 +294,6 @@ class TmdbClient implements ITmdbClient {
       previousDio.close(force: true);
     }
     return true;
-  }
-
-  bool _isRecoverableNetworkError(DioException error) {
-    return error.type == DioExceptionType.connectionTimeout ||
-        error.type == DioExceptionType.sendTimeout ||
-        error.type == DioExceptionType.receiveTimeout ||
-        error.type == DioExceptionType.connectionError;
   }
 
   void _validateKey() {

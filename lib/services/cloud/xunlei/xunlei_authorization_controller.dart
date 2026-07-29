@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_api_client.dart';
+import 'package:kanyingyin/services/cloud/xunlei/xunlei_models.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_request_policy.dart';
 
 enum XunleiAuthorizationState {
@@ -42,18 +43,19 @@ class XunleiAuthorizationController extends ChangeNotifier {
 
   XunleiAuthorizationState _state = XunleiAuthorizationState.idle;
   CloudCredential? _authorizedCredential;
-  Uri? _verificationUri;
+  XunleiVerificationChallenge? _verificationChallenge;
   String? _errorMessage;
   String? _pendingIdentifier;
   String? _pendingPassword;
   String? _pendingDeviceId;
-  String? _pendingCreditKey;
-  DateTime? _verificationStartedAt;
   bool _disposed = false;
 
   XunleiAuthorizationState get state => _state;
   CloudCredential? get authorizedCredential => _authorizedCredential;
-  Uri? get verificationUri => _verificationUri;
+  XunleiVerificationChallenge? get verificationChallenge =>
+      _verificationChallenge;
+
+  Uri? get verificationUri => _verificationChallenge?.reviewUri;
   String? get errorMessage => _errorMessage;
 
   Future<void> login({
@@ -75,7 +77,7 @@ class XunleiAuthorizationController extends ChangeNotifier {
     _state = XunleiAuthorizationState.signingIn;
     _errorMessage = null;
     _notify();
-    await _authorize(creditKey: null);
+    await _authorize(creditKey: null, isVerificationRetry: false);
   }
 
   Future<void> authorizeWithRefreshToken({
@@ -129,16 +131,17 @@ class XunleiAuthorizationController extends ChangeNotifier {
     }
   }
 
-  Future<void> completeVerification() async {
-    final startedAt = _verificationStartedAt;
+  Future<void> completeVerification({String? creditKey}) async {
+    final challenge = _verificationChallenge;
     if (_state != XunleiAuthorizationState.verificationRequired ||
-        startedAt == null ||
+        challenge == null ||
         _pendingIdentifier == null ||
         _pendingPassword == null ||
         _pendingDeviceId == null) {
       _fail('没有可继续的迅雷验证');
     }
-    if (_now().toUtc().difference(startedAt) > _verificationLifetime) {
+    if (_now().toUtc().difference(challenge.startedAt) >
+        _verificationLifetime) {
       _clearPendingSecrets();
       _state = XunleiAuthorizationState.failed;
       _errorMessage = '迅雷验证已过期，请重新登录';
@@ -147,13 +150,28 @@ class XunleiAuthorizationController extends ChangeNotifier {
         CloudDriveErrorType.verificationRequired,
       );
     }
+    final normalizedCreditKey = creditKey?.trim() ?? '';
+    if (normalizedCreditKey.isEmpty ||
+        normalizedCreditKey == challenge.creditKey) {
+      _clearPendingSecrets();
+      _state = XunleiAuthorizationState.failed;
+      _errorMessage = '迅雷设备验证结果不兼容，请重新登录';
+      _notify();
+      throw const CloudDriveException(CloudDriveErrorType.incompatible);
+    }
     _state = XunleiAuthorizationState.verifying;
     _errorMessage = null;
     _notify();
-    await _authorize(creditKey: _pendingCreditKey);
+    await _authorize(
+      creditKey: normalizedCreditKey,
+      isVerificationRetry: true,
+    );
   }
 
-  Future<void> _authorize({required String? creditKey}) async {
+  Future<void> _authorize({
+    required String? creditKey,
+    required bool isVerificationRetry,
+  }) async {
     final identifier = _pendingIdentifier!;
     final password = _pendingPassword!;
     final deviceId = _pendingDeviceId!;
@@ -179,6 +197,15 @@ class XunleiAuthorizationController extends ChangeNotifier {
       _errorMessage = null;
       _notify();
     } on XunleiVerificationRequired catch (challenge) {
+      if (isVerificationRetry) {
+        _clearPendingSecrets();
+        _state = XunleiAuthorizationState.failed;
+        _errorMessage = '迅雷再次要求设备验证，请重新登录';
+        _notify();
+        throw const CloudDriveException(
+          CloudDriveErrorType.verificationRequired,
+        );
+      }
       if (!_policy.isTrustedVerificationUri(challenge.uri)) {
         _clearPendingSecrets();
         _state = XunleiAuthorizationState.failed;
@@ -186,9 +213,13 @@ class XunleiAuthorizationController extends ChangeNotifier {
         _notify();
         throw const CloudDriveException(CloudDriveErrorType.incompatible);
       }
-      _verificationUri = challenge.uri;
-      _pendingCreditKey = challenge.creditKey;
-      _verificationStartedAt = _now().toUtc();
+      _verificationChallenge = XunleiVerificationChallenge(
+        reviewUri: challenge.uri,
+        creditKey: challenge.creditKey,
+        deviceId: deviceId,
+        deviceSign: _policy.deviceSign(deviceId),
+        startedAt: _now().toUtc(),
+      );
       _state = XunleiAuthorizationState.verificationRequired;
       _errorMessage = null;
       _notify();
@@ -212,6 +243,13 @@ class XunleiAuthorizationController extends ChangeNotifier {
     _clearPendingSecrets();
     _state = XunleiAuthorizationState.idle;
     _errorMessage = null;
+    _notify();
+  }
+
+  void failVerification(String message) {
+    _clearPendingSecrets();
+    _state = XunleiAuthorizationState.failed;
+    _errorMessage = message.trim().isEmpty ? '迅雷设备验证失败，请重新登录' : message.trim();
     _notify();
   }
 
@@ -241,9 +279,7 @@ class XunleiAuthorizationController extends ChangeNotifier {
     _pendingIdentifier = null;
     _pendingPassword = null;
     _pendingDeviceId = null;
-    _pendingCreditKey = null;
-    _verificationUri = null;
-    _verificationStartedAt = null;
+    _verificationChallenge = null;
   }
 
   void _notify() {

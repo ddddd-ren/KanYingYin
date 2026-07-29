@@ -372,7 +372,7 @@ class _FakeXunleiAuthorizationController extends XunleiAuthorizationController {
   }
 
   @override
-  Future<void> completeVerification() async {
+  Future<void> completeVerification({String? creditKey}) async {
     completeCalls++;
     _authorize();
   }

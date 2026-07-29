@@ -2,6 +2,8 @@ import 'package:kanyingyin/pages/about/about_module.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
+import 'package:kanyingyin/features/scraped_metadata_transfer/application/scraped_metadata_transfer_service.dart';
+import 'package:kanyingyin/features/scraped_metadata_transfer/presentation/scraped_metadata_transfer_page.dart';
 import 'package:kanyingyin/pages/settings/interface_settings.dart';
 import 'package:kanyingyin/pages/settings/theme_settings_page.dart';
 import 'package:kanyingyin/pages/settings/player_settings.dart';
@@ -95,6 +97,13 @@ class SettingsModule extends Module {
       module: AboutModule(),
       transition: TransitionType.rightToLeftWithFade,
       duration: SettingsMotion.pageDuration,
+    );
+    _child(
+      r,
+      "/tmdb/transfer",
+      child: (_) => ScrapedMetadataTransferPage(
+        service: Modular.get<ScrapedMetadataTransferService>(),
+      ),
     );
     _child(
       r,

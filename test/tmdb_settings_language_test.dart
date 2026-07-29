@@ -44,6 +44,27 @@ void main() {
     expect(find.text('日语'), findsOneWidget);
   });
 
+  testWidgets('提供刮削资料迁移入口', (tester) async {
+    final manager = await _memoryManager();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TmdbSettingsPage(
+          credentialManager: manager,
+          settings: TypedSettings(GStorage.setting),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byType(ListView),
+      const Offset(0, -1000),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('迁移刮削资料'), findsOneWidget);
+    expect(find.text('把已识别的资料和封面带到另一台设备'), findsOneWidget);
+  });
+
   testWidgets('空用户 Key 显示内置来源且用户 Key 可用后切换来源', (tester) async {
     await GStorage.setting.delete('tmdbApiKey');
     var userKey = '';

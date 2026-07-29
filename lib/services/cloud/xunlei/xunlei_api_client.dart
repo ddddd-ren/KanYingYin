@@ -347,7 +347,7 @@ class XunleiApiClient implements XunleiApi {
         );
       }
       if (statusCode < 200 || statusCode >= 300 || _hasApiError(json)) {
-        throw CloudDriveException(_errorType(statusCode, json));
+        throw CloudDriveException(_errorType(stage, statusCode, json));
       }
       _requestLog(
         '迅雷请求 stage=${stage.name} status=$statusCode success',
@@ -397,6 +397,7 @@ class XunleiApiClient implements XunleiApi {
   }
 
   CloudDriveErrorType _errorType(
+    _XunleiRequestStage stage,
     int? statusCode,
     Map<String, Object?> json,
   ) {
@@ -406,6 +407,10 @@ class XunleiApiClient implements XunleiApi {
     if (error == 'invalid_argument' &&
         description?.contains('invalid captcha_sign') == true) {
       return CloudDriveErrorType.protocolUpdated;
+    }
+    if (stage == _XunleiRequestStage.coreLogin &&
+        _isExplicitPasswordError(error, description)) {
+      return CloudDriveErrorType.invalidPassword;
     }
     if (statusCode == 401 || statusCode == 403) {
       return CloudDriveErrorType.authentication;
@@ -422,6 +427,24 @@ class XunleiApiClient implements XunleiApi {
       10 || 16 || 4121 || 4122 => CloudDriveErrorType.authentication,
       _ => CloudDriveErrorType.incompatible,
     };
+  }
+
+  bool _isExplicitPasswordError(String? error, String? description) {
+    if (const <String>{
+      'invalid_password',
+      'password_error',
+      'wrong_password',
+    }.contains(error)) {
+      return true;
+    }
+    final text = description ?? '';
+    return text.contains('密码错误') ||
+        text.contains('密码不正确') ||
+        text.contains('密码有误') ||
+        (text.contains('password') &&
+            (text.contains('incorrect') ||
+                text.contains('invalid') ||
+                text.contains('wrong')));
   }
 
   XunleiSession _requiredSession() {

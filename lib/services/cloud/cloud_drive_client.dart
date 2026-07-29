@@ -6,6 +6,7 @@ import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 
 enum CloudDriveErrorType {
   authentication,
+  invalidPassword,
   verificationRequired,
   permission,
   network,

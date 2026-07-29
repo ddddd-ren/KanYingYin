@@ -252,6 +252,7 @@ class XunleiAuthorizationController extends ChangeNotifier {
 
   static String _messageFor(CloudDriveErrorType type) => switch (type) {
         CloudDriveErrorType.authentication => '迅雷账号登录失败，请检查账号或重新登录',
+        CloudDriveErrorType.invalidPassword => '迅雷密码错误，请重新输入',
         CloudDriveErrorType.verificationRequired => '迅雷需要完成设备验证',
         CloudDriveErrorType.network => '网络连接失败，请检查网络后重试',
         CloudDriveErrorType.timeout => '迅雷登录请求超时，请稍后重试',

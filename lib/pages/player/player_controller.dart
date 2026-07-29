@@ -757,6 +757,10 @@ abstract class _PlayerController with Store {
     // 该设置可以在所有平台上正确启用双重缓存
     await pp.setProperty("demuxer-cache-dir", await Utils.getPlayerTempPath());
     await pp.setProperty("af", "scaletempo2=max-speed=8");
+    if (_capabilities.isAndroid) {
+      await pp.setProperty('demuxer-mkv-subtitle-preroll', 'yes');
+      await pp.setProperty('demuxer-mkv-subtitle-preroll-secs', '10');
+    }
     await _prepareAndroidAudioOutput(pp, trueHd: true);
     for (final property in cachePolicy.mpvProperties.entries) {
       await pp.setProperty(property.key, property.value);
@@ -786,6 +790,10 @@ abstract class _PlayerController with Store {
         enableHardwareAcceleration: hAenable,
         hwdec: hAenable ? hardwareDecoder : 'no',
       ),
+    );
+    AppLogger().i(
+      'PlayerController: renderer=${videoRenderer ?? "platform-default"} '
+      'hwdec=${hAenable ? hardwareDecoder : "no"}',
     );
     mediaPlayer!.setPlaylistMode(PlaylistMode.none);
 

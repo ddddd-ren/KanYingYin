@@ -10,8 +10,12 @@ void main() {
     expect(policy.decoderSettingKey, SettingBoxKey.androidHardwareDecoder);
     expect(policy.rendererSettingKey, SettingBoxKey.androidVideoRenderer);
     expect(policy.normalizeDecoder('d3d11va-copy'), 'auto');
-    expect(policy.normalizeRenderer('mediacodec_embed'), 'mediacodec_embed');
-    expect(policy.supportsAnime4k('mediacodec_embed'), isFalse);
+    expect(policy.normalizeRenderer('mediacodec_embed'), 'gpu');
+    expect(
+      AppPlatformCapabilities.android.videoRenderers,
+      isNot(contains('mediacodec_embed')),
+    );
+    expect(policy.supportsAnime4k('mediacodec_embed'), isTrue);
     expect(policy.supportsAnime4k('gpu'), isTrue);
   });
 
@@ -21,6 +25,18 @@ void main() {
     expect(policy.decoderSettingKey, SettingBoxKey.hardwareDecoder);
     expect(policy.rendererSettingKey, isNull);
     expect(policy.normalizeDecoder('d3d11va-copy'), 'd3d11va-copy');
+    expect(
+      policy.resolvePlaybackDecoder('d3d11va'),
+      'd3d11va,d3d11va-copy',
+    );
+    expect(
+      policy.resolvePlaybackDecoder('dxva2'),
+      'dxva2,dxva2-copy',
+    );
+    expect(
+      policy.resolvePlaybackDecoder('d3d11va-copy'),
+      'd3d11va-copy',
+    );
     expect(policy.normalizeRenderer('gpu'), isNull);
     expect(policy.supportsAnime4k(null), isTrue);
   });

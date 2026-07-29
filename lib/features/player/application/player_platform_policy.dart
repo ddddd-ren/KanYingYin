@@ -19,8 +19,20 @@ class PlayerPlatformPolicy {
         : 'auto';
   }
 
+  String resolvePlaybackDecoder(String? value) {
+    final decoder = normalizeDecoder(value);
+    if (!capabilities.isWindows) return decoder;
+    return switch (decoder) {
+      'd3d11va' => 'd3d11va,d3d11va-copy',
+      'dxva2' => 'dxva2,dxva2-copy',
+      _ => decoder,
+    };
+  }
+
   String? normalizeRenderer(String? value) {
     if (!capabilities.isAndroid) return null;
+    // mediacodec_embed 直接输出无法合成字幕，旧设置迁移到通用 GPU 渲染器。
+    if (value == 'mediacodec_embed') return 'gpu';
     return value != null && capabilities.videoRenderers.contains(value)
         ? value
         : 'auto';

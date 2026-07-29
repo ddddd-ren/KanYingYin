@@ -50,6 +50,21 @@ void main() {
     expect(controller, contains("libassAndroidFontName: 'MiSans'"));
   });
 
+  test('Android PGS 字幕使用 GPU 合成并在跳播时预读', () {
+    final platform = File('lib/platform/app_platform.dart').readAsStringSync();
+    final constants = File('lib/utils/constants.dart').readAsStringSync();
+    expect(platform, isNot(contains("'mediacodec_embed'")));
+    expect(constants, isNot(contains("'mediacodec_embed'")));
+    expect(
+      controller,
+      contains("'demuxer-mkv-subtitle-preroll', 'yes'"),
+    );
+    expect(
+      controller,
+      contains("'demuxer-mkv-subtitle-preroll-secs', '10'"),
+    );
+  });
+
   test('没有外挂字幕时保留内嵌字幕自动选择', () {
     expect(
       controller,

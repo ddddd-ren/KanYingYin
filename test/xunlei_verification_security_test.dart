@@ -31,8 +31,11 @@ void main() {
     expect(sources, contains('PermissionResponseAction.DENY'));
     expect(sources, contains('AppIdentity.storageNamespace'));
     expect(sources, contains('DebugLoggingSettings(enabled: false)'));
-    expect(sources, contains("methodName: 'Browser.setDownloadBehavior'"));
-    expect(sources, contains("'behavior': 'deny'"));
+    expect(sources, contains('onDownloadStarting:'));
+    expect(sources, contains('DownloadStartResponseAction.CANCEL'));
+    expect(sources, contains('handled: true'));
+    expect(sources, isNot(contains('Browser.setDownloadBehavior')));
+    expect(sources, isNot(contains('Page.setDownloadBehavior')));
   });
 
   test('挑战模型未提供序列化持久化入口', () {

@@ -92,10 +92,13 @@ Future<XunleiVerificationDialogResult> showXunleiVerificationDialog(
         ) ??
         const XunleiVerificationDialogResult.cancelled();
   } on XunleiVerificationProfileException catch (error) {
-    final message =
-        error.type == XunleiVerificationProfileError.runtimeUnavailable
-            ? '迅雷验证组件不可用，请安装或修复 Microsoft Edge WebView2 Runtime'
-            : '迅雷验证组件初始化失败，请重试';
+    final message = switch (error.type) {
+      XunleiVerificationProfileError.runtimeUnavailable =>
+        '迅雷验证组件不可用，请安装或修复 Microsoft Edge WebView2 Runtime',
+      XunleiVerificationProfileError.runtimeOutdated =>
+        '迅雷验证组件版本过低，请更新 Microsoft Edge WebView2 Runtime',
+      XunleiVerificationProfileError.initializationFailed => '迅雷验证组件初始化失败，请重试',
+    };
     if (context.mounted) {
       await showDialog<void>(
         context: context,
@@ -542,25 +545,11 @@ class _XunleiVerificationWebView extends StatelessWidget {
         allowFileAccessFromFileURLs: false,
         allowUniversalAccessFromFileURLs: false,
       ),
-      onWebViewCreated: (controller) async {
+      onWebViewCreated: (controller) {
         callbacks.onControllerCreated(controller);
-        try {
-          await controller.callDevToolsProtocolMethod(
-            methodName: 'Browser.setDownloadBehavior',
-            parameters: <String, dynamic>{'behavior': 'deny'},
-          );
-        } on Object {
-          try {
-            await controller.stopLoading();
-          } on Object {
-            // 下载防护初始化失败后仍继续退出，不记录异常正文。
-          }
-          callbacks.onSecurityViolation();
-          return;
-        }
         controller.addJavaScriptHandler(
           handlerName: xunleiVerificationHandlerName,
-          callback: (arguments) {
+          callback: (List<dynamic> arguments) {
             final raw = arguments.length == 1 ? arguments.first : null;
             callbacks.onResult(bridge.parseOperationResult(raw));
             return null;
@@ -577,8 +566,12 @@ class _XunleiVerificationWebView extends StatelessWidget {
         return NavigationActionPolicy.ALLOW;
       },
       onCreateWindow: (controller, action) async => false,
-      onDownloadStartRequest: (controller, request) {
+      onDownloadStarting: (controller, request) {
         callbacks.onSecurityViolation();
+        return DownloadStartResponse(
+          handled: true,
+          action: DownloadStartResponseAction.CANCEL,
+        );
       },
       onPermissionRequest: (controller, request) async => PermissionResponse(
         resources: request.resources,

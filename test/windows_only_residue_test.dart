@@ -51,7 +51,7 @@ void main() {
     expect(pubspec, contains('flutter_volume_controller:'));
     expect(pubspec, contains('audio_session:'));
     expect(pubspec, contains('media_kit_libs_windows_video:'));
-    expect(pubspec, contains('flutter_inappwebview: 6.1.5'));
+    expect(pubspec, contains('flutter_inappwebview: 6.2.0-beta.3'));
     expect(pubspec, isNot(contains('webview_flutter:')));
   });
 
@@ -95,7 +95,7 @@ void main() {
     ).readAsStringSync();
     final pubspec = File('pubspec.yaml').readAsStringSync();
 
-    expect(pubspec, contains('flutter_inappwebview: 6.1.5'));
+    expect(pubspec, contains('flutter_inappwebview: 6.2.0-beta.3'));
     expect(pubspec, isNot(contains('webview_flutter:')));
     expect(editor, isNot(contains('LaunchMode.externalApplication')));
     expect(editor, isNot(contains('launchUrl(')));
@@ -104,8 +104,11 @@ void main() {
     expect(dialog, contains('PermissionResponseAction.DENY'));
     expect(dialog, contains('NavigationActionPolicy.CANCEL'));
     expect(dialog, contains('DebugLoggingSettings(enabled: false)'));
-    expect(dialog, contains("methodName: 'Browser.setDownloadBehavior'"));
-    expect(dialog, contains("'behavior': 'deny'"));
+    expect(dialog, contains('onDownloadStarting:'));
+    expect(dialog, contains('DownloadStartResponseAction.CANCEL'));
+    expect(dialog, contains('handled: true'));
+    expect(dialog, isNot(contains('Browser.setDownloadBehavior')));
+    expect(dialog, isNot(contains('Page.setDownloadBehavior')));
     expect(dialog, isNot(contains('openDevTools')));
     expect(dialog, isNot(contains('onConsoleMessage')));
     expect(dialog, isNot(contains('initialData:')));

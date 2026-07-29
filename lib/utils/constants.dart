@@ -163,6 +163,10 @@ const Map<String, String> androidVideoRenderersList = {
   'mediacodec_embed': '功耗最低，不支持超分辨率',
 };
 
+String androidVideoRendererLabel(String? value) {
+  return androidVideoRenderersList[value] ?? androidVideoRenderersList['auto']!;
+}
+
 /// 超分辨率滤镜
 const List<String> mpvAnime4KShaders = [
   'Anime4K_Clamp_Highlights.glsl',

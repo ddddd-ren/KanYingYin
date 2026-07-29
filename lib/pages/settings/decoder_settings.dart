@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
+import 'package:kanyingyin/features/player/application/player_platform_policy.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/utils/constants.dart';
 
 class DecoderSettings extends StatefulWidget {
@@ -13,11 +15,19 @@ class DecoderSettings extends StatefulWidget {
 
 class _DecoderSettingsState extends State<DecoderSettings> {
   late final TypedSettings setting = Modular.get<TypedSettings>();
+  late final PlayerPlatformPolicy policy =
+      PlayerPlatformPolicy(detectAppPlatform());
+  late final Map<String, String> decoderOptions =
+      Map<String, String>.fromEntries(
+    hardwareDecodersList.entries.where(
+      (entry) => policy.capabilities.hardwareDecoders.contains(entry.key),
+    ),
+  );
   late final ValueNotifier<String> decoder = ValueNotifier<String>(
-    normalizeHardwareDecoder(
+    policy.normalizeDecoder(
       setting.getTyped<String>(
-        SettingBoxKey.hardwareDecoder,
-        defaultValue: defaultHardwareDecoder,
+        policy.decoderSettingKey,
+        defaultValue: 'auto',
       ),
     ),
   );
@@ -25,7 +35,7 @@ class _DecoderSettingsState extends State<DecoderSettings> {
   @override
   void initState() {
     super.initState();
-    setting.put(SettingBoxKey.hardwareDecoder, decoder.value);
+    setting.put(policy.decoderSettingKey, decoder.value);
   }
 
   @override
@@ -79,9 +89,9 @@ class _DecoderSettingsState extends State<DecoderSettings> {
                 crossAxisSpacing: 8,
                 childAspectRatio: 2.7,
               ),
-              itemCount: hardwareDecodersList.length,
+              itemCount: decoderOptions.length,
               itemBuilder: (context, index) {
-                final entry = hardwareDecodersList.entries.elementAt(index);
+                final entry = decoderOptions.entries.elementAt(index);
                 return ValueListenableBuilder<String>(
                   valueListenable: decoder,
                   builder: (context, selectedDecoder, child) {
@@ -94,7 +104,7 @@ class _DecoderSettingsState extends State<DecoderSettings> {
                       clipBehavior: Clip.antiAlias,
                       child: InkWell(
                         onTap: () {
-                          setting.put(SettingBoxKey.hardwareDecoder, entry.key);
+                          setting.put(policy.decoderSettingKey, entry.key);
                           setting.put(
                             SettingBoxKey.hAenable,
                             entry.key != 'no',
@@ -135,7 +145,9 @@ class _DecoderSettingsState extends State<DecoderSettings> {
             ),
             const SizedBox(height: 4),
             Text(
-              '默认按清晰度选择；1080P/HLS/HEVC/4K 可优先尝试 D3D11 拷贝，异常时可切 CPU 兼容。',
+              policy.capabilities.isWindows
+                  ? '默认按清晰度选择；1080P/HLS/HEVC/4K 可优先尝试 D3D11 拷贝，异常时可切 CPU 兼容。'
+                  : 'Android 默认由 MediaCodec 自动选择；遇到兼容问题时可切换 CPU 解码。',
               style: textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),

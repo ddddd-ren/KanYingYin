@@ -40,6 +40,9 @@ class TypedSettings {
 class SettingBoxKey {
   static const String hAenable = 'hAenable',
       hardwareDecoder = 'hardwareDecoder',
+      androidHardwareDecoder = 'androidHardwareDecoder',
+      androidVideoRenderer = 'androidVideoRenderer',
+      androidAutoEnterPip = 'androidAutoEnterPip',
       defaultPlaySpeed = 'defaultPlaySpeed',
       defaultShortcutForwardPlaySpeed = 'defaultShortcutForwardPlaySpeed',
       defaultAspectRatioType = 'defaultAspectRatioType',

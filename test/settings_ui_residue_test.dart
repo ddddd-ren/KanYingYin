@@ -25,6 +25,7 @@ void main() {
       'lib/pages/settings/interface_settings.dart',
       'lib/pages/settings/super_resolution_settings.dart',
       'lib/pages/settings/decoder_settings.dart',
+      'lib/pages/settings/renderer_settings.dart',
       'lib/pages/settings/keyboard_settings.dart',
       'lib/pages/settings/player_settings.dart',
       'lib/pages/settings/theme_settings_page.dart',
@@ -53,7 +54,7 @@ void main() {
     }
   });
 
-  test('Windows 设置不暴露动态配色和移动端播放选项', () {
+  test('Windows 与 Android 播放设置通过平台能力隔离', () {
     const paths = <String>[
       'lib/app_widget.dart',
       'lib/pages/init_page.dart',
@@ -67,13 +68,7 @@ void main() {
       'DynamicColorBuilder',
       'useDynamicColor',
       'setDynamic(',
-      'androidEnableOpenSLES',
-      'androidAutoEnterPIP',
-      'androidVideoRenderer',
-      '/player/renderer',
       '/theme/display',
-      'OpenSLES',
-      '自动进入画中画',
     ];
     for (final path in paths) {
       final source = File(path).readAsStringSync();
@@ -85,9 +80,13 @@ void main() {
       File('lib/pages/settings/displaymode_settings.dart').existsSync(),
       isFalse,
     );
+    final playerSettings =
+        File('lib/pages/settings/player_settings.dart').readAsStringSync();
+    expect(playerSettings, contains('detectAppPlatform().isAndroid'));
+    expect(playerSettings, contains("'/settings/player/renderer'"));
     expect(
       File('lib/pages/settings/renderer_settings.dart').existsSync(),
-      isFalse,
+      isTrue,
     );
   });
 }

@@ -1,6 +1,8 @@
 import 'package:kanyingyin/features/player/application/anime4k_policy.dart';
+import 'package:kanyingyin/features/player/application/player_platform_policy.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
-import 'package:kanyingyin/utils/constants.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 
 class PlayerRuntimeSettings {
   const PlayerRuntimeSettings({
@@ -11,6 +13,9 @@ class PlayerRuntimeSettings {
     required this.anime4kPreference,
     required this.hardwareAccelerationEnabled,
     required this.hardwareDecoder,
+    required this.videoRenderer,
+    required this.anime4kSupported,
+    required this.androidAutoEnterPip,
     required this.autoPlay,
     required this.lowMemoryMode,
     required this.debugMode,
@@ -26,6 +31,9 @@ class PlayerRuntimeSettings {
   final Anime4kPreference anime4kPreference;
   final bool hardwareAccelerationEnabled;
   final String hardwareDecoder;
+  final String? videoRenderer;
+  final bool anime4kSupported;
+  final bool androidAutoEnterPip;
   final bool autoPlay;
   final bool lowMemoryMode;
   final bool debugMode;
@@ -36,16 +44,26 @@ class PlayerRuntimeSettings {
 
 /// 集中读取播放器启动所需设置，避免控制器直接了解持久化键。
 class PlayerRuntimePreferences {
-  const PlayerRuntimePreferences(this._settings);
+  PlayerRuntimePreferences(
+    this._settings, {
+    AppPlatformCapabilities? capabilities,
+  }) : _policy = PlayerPlatformPolicy(capabilities ?? detectAppPlatform());
 
   final TypedSettings _settings;
+  final PlayerPlatformPolicy _policy;
 
   PlayerRuntimeSettings load() {
-    final decoder = normalizeHardwareDecoder(
+    final decoder = _policy.normalizeDecoder(
       _settings.getTyped<String>(
-        SettingBoxKey.hardwareDecoder,
-        defaultValue: defaultHardwareDecoder,
+        _policy.decoderSettingKey,
+        defaultValue: 'auto',
       ),
+    );
+    final rendererKey = _policy.rendererSettingKey;
+    final renderer = _policy.normalizeRenderer(
+      rendererKey == null
+          ? null
+          : _settings.getTyped<String>(rendererKey, defaultValue: 'auto'),
     );
     final accelerationEnabled = _settings.getTyped<bool>(
           SettingBoxKey.hAenable,
@@ -79,6 +97,13 @@ class PlayerRuntimePreferences {
       },
       hardwareAccelerationEnabled: accelerationEnabled,
       hardwareDecoder: decoder,
+      videoRenderer: renderer,
+      anime4kSupported: _policy.supportsAnime4k(renderer),
+      androidAutoEnterPip: _policy.capabilities.isAndroid &&
+          _settings.getTyped<bool>(
+            SettingBoxKey.androidAutoEnterPip,
+            defaultValue: false,
+          ),
       autoPlay: _settings.getTyped<bool>(
         SettingBoxKey.autoPlay,
         defaultValue: true,

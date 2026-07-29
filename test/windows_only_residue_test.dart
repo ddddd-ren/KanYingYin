@@ -51,6 +51,8 @@ void main() {
     expect(pubspec, contains('flutter_volume_controller:'));
     expect(pubspec, contains('audio_session:'));
     expect(pubspec, contains('media_kit_libs_windows_video:'));
+    expect(pubspec, contains('flutter_inappwebview: 6.1.5'));
+    expect(pubspec, isNot(contains('webview_flutter:')));
   });
 
   test('非 Windows 资产已移除', () {

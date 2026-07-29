@@ -139,4 +139,58 @@ void main() {
       );
     }
   });
+
+  test('短信校验只允许官方接口的子框架 POST', () {
+    final verificationUri = Uri.parse(
+      'https://xluser-ssl.xunlei.com/xluser.core.login/v3/checksms',
+    );
+    expect(
+      XunleiVerificationNavigationPolicy.allowsNavigation(
+        verificationUri,
+        isForMainFrame: false,
+        method: 'POST',
+      ),
+      isTrue,
+    );
+    for (final item in <(String, bool, String)>[
+      (verificationUri.toString(), true, 'POST'),
+      (verificationUri.toString(), false, 'GET'),
+      (
+        'http://xluser-ssl.xunlei.com/xluser.core.login/v3/checksms',
+        false,
+        'POST'
+      ),
+      (
+        'https://xluser-ssl.xunlei.com:444/xluser.core.login/v3/checksms',
+        false,
+        'POST'
+      ),
+      (
+        'https://user@xluser-ssl.xunlei.com/xluser.core.login/v3/checksms',
+        false,
+        'POST'
+      ),
+      (
+        'https://xluser-ssl.xunlei.com/xluser.core.login/v3/sendsms',
+        false,
+        'POST'
+      ),
+      ('https://xluser-ssl.xunlei.com/credit/v1/report', false, 'POST'),
+      (
+        'https://xluser-ssl.xunlei.com.evil.example/xluser.core.login/v3/checksms',
+        false,
+        'POST'
+      ),
+    ]) {
+      expect(
+        XunleiVerificationNavigationPolicy.allowsNavigation(
+          Uri.parse(item.$1),
+          isForMainFrame: item.$2,
+          method: item.$3,
+        ),
+        isFalse,
+        reason: item.toString(),
+      );
+    }
+  });
 }

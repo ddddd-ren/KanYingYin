@@ -4,8 +4,8 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一七十五修复迅雷应用内设备验证误拦截', () {
-    final entries = versionHistoryForCurrent('2.1.75');
+  test('二点一七十六修复短信验证码提交被误拦截', () {
+    final entries = versionHistoryForCurrent('2.1.76');
 
     expect(entries, hasLength(1));
     final entry = entries.single;

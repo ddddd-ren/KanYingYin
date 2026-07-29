@@ -559,7 +559,12 @@ class _XunleiVerificationWebView extends StatelessWidget {
       shouldOverrideUrlLoading: (controller, action) async {
         final value = action.request.url?.toString();
         final uri = value == null ? null : Uri.tryParse(value);
-        if (uri == null || !XunleiVerificationNavigationPolicy.allows(uri)) {
+        if (uri == null ||
+            !XunleiVerificationNavigationPolicy.allowsNavigation(
+              uri,
+              isForMainFrame: action.isForMainFrame,
+              method: action.request.method,
+            )) {
           callbacks.onSecurityViolation();
           return NavigationActionPolicy.CANCEL;
         }

@@ -539,6 +539,7 @@ void main() {
     );
     expect(shouldRefreshCloudLink('status code 412'), isTrue);
     expect(shouldRefreshCloudLink('decoder initialization failed'), isFalse);
+    expect(shouldRefreshCloudLink('Failed to open codec.'), isFalse);
     expect(
       cloudPlaybackFailureMessage('夸克'),
       '夸克播放地址不可用，请重新登录或稍后重试',

@@ -4,6 +4,26 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一八十六固定平板横屏并优化解码与网盘链路', () {
+    final entries = versionHistoryForCurrent('2.1.86');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      '平板',
+      '双向横屏',
+      '视频解码器',
+      '软件解码',
+      '4 MiB',
+      '复用网络连接',
+      '三路并发',
+      '真机复验',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一八十五修复 Android 字幕并兼容 TrueHD 音轨', () {
     final entries = versionHistoryForCurrent('2.1.85');
 

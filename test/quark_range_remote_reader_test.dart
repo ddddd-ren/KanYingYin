@@ -93,6 +93,45 @@ void main() {
     await reader.close();
   });
 
+  test('连续分段读取复用同一 HTTP 连接', () async {
+    final remotePorts = <int>{};
+    final server = await serve((request) async {
+      remotePorts.add(request.connectionInfo!.remotePort);
+      final value = request.headers.value(HttpHeaders.rangeHeader)!;
+      final match = RegExp(r'^bytes=(\d+)-(\d+)$').firstMatch(value)!;
+      final start = int.parse(match.group(1)!);
+      final end = int.parse(match.group(2)!);
+      request.response
+        ..statusCode = HttpStatus.partialContent
+        ..headers.set(
+          HttpHeaders.contentRangeHeader,
+          'bytes $start-$end/8',
+        )
+        ..contentLength = end - start + 1
+        ..add(<int>[for (var value = start; value <= end; value++) value]);
+      await request.response.close();
+    });
+    final reader = QuarkRangeRemoteReader(
+      resource: QuarkRemoteResource(
+        uri: Uri.parse('http://127.0.0.1:${server.port}/video'),
+      ),
+      refreshResource: () => throw StateError('不应刷新'),
+      uriValidator: allowTestUri,
+    );
+
+    await reader.readTo(
+      const ByteRange(0, 3),
+      File('${directory.path}/first.bin'),
+    );
+    await reader.readTo(
+      const ByteRange(4, 7),
+      File('${directory.path}/second.bin'),
+    );
+
+    expect(remotePorts, hasLength(1));
+    await reader.close();
+  });
+
   test('错误 Content-Range 和非零 Range 返回 200 均明确失败', () async {
     final wrongRange = await serve((request) async {
       request.response

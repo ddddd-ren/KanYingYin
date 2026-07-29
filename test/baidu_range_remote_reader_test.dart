@@ -161,6 +161,108 @@ void main() {
     await reader.close();
   });
 
+  test('百度连续分段读取复用同一 HTTP 连接', () async {
+    final remotePorts = <int>{};
+    final server = await serve((request) async {
+      remotePorts.add(request.connectionInfo!.remotePort);
+      final value = request.headers.value(HttpHeaders.rangeHeader)!;
+      final match = RegExp(r'^bytes=(\d+)-(\d+)$').firstMatch(value)!;
+      final start = int.parse(match.group(1)!);
+      final end = int.parse(match.group(2)!);
+      request.response
+        ..statusCode = HttpStatus.partialContent
+        ..headers.set(
+          HttpHeaders.contentRangeHeader,
+          'bytes $start-$end/8',
+        )
+        ..contentLength = end - start + 1
+        ..add(<int>[for (var value = start; value <= end; value++) value]);
+      await request.response.close();
+    });
+    final reader = BaiduRangeRemoteReader(
+      resource: CloudRangeRemoteResource(
+        uri: Uri.parse('http://127.0.0.1:${server.port}/file'),
+        totalLength: 8,
+      ),
+      accessTokenProvider: () async => 'access-fixture',
+      refreshResource: () => throw StateError('不应刷新'),
+      initialUriValidator: allowTestUri,
+      redirectUriValidator: allowTestUri,
+    );
+
+    await reader.readTo(
+      const ByteRange(0, 3),
+      File('${directory.path}/first'),
+    );
+    await reader.readTo(
+      const ByteRange(4, 7),
+      File('${directory.path}/second'),
+    );
+
+    expect(remotePorts, hasLength(1));
+    await reader.close();
+  });
+
+  test('百度会话缓存可信重定向并避免重复获取令牌', () async {
+    var initialRequests = 0;
+    var redirectRequests = 0;
+    var tokenRequests = 0;
+    final redirectServer = await serve((request) async {
+      redirectRequests++;
+      final value = request.headers.value(HttpHeaders.rangeHeader)!;
+      final match = RegExp(r'^bytes=(\d+)-(\d+)$').firstMatch(value)!;
+      final start = int.parse(match.group(1)!);
+      final end = int.parse(match.group(2)!);
+      request.response
+        ..statusCode = HttpStatus.partialContent
+        ..headers.set(
+          HttpHeaders.contentRangeHeader,
+          'bytes $start-$end/8',
+        )
+        ..contentLength = end - start + 1
+        ..add(<int>[for (var value = start; value <= end; value++) value]);
+      await request.response.close();
+    });
+    final initialServer = await serve((request) async {
+      initialRequests++;
+      expect(request.uri.queryParameters['access_token'], 'access-fixture');
+      request.response
+        ..statusCode = HttpStatus.found
+        ..headers.set(
+          HttpHeaders.locationHeader,
+          'http://127.0.0.1:${redirectServer.port}/cdn',
+        );
+      await request.response.close();
+    });
+    final reader = BaiduRangeRemoteReader(
+      resource: CloudRangeRemoteResource(
+        uri: Uri.parse('http://127.0.0.1:${initialServer.port}/file'),
+        totalLength: 8,
+      ),
+      accessTokenProvider: () async {
+        tokenRequests++;
+        return 'access-fixture';
+      },
+      refreshResource: () => throw StateError('不应刷新'),
+      initialUriValidator: allowTestUri,
+      redirectUriValidator: allowTestUri,
+    );
+
+    await reader.readTo(
+      const ByteRange(0, 3),
+      File('${directory.path}/redirect-first'),
+    );
+    await reader.readTo(
+      const ByteRange(4, 7),
+      File('${directory.path}/redirect-second'),
+    );
+
+    expect(initialRequests, 1);
+    expect(redirectRequests, 2);
+    expect(tokenRequests, 1);
+    await reader.close();
+  });
+
   test('探测返回 200 时顺序流只发起一次无 Range 的完整 GET', () async {
     final ranges = <String?>[];
     final userAgents = <String?>[];

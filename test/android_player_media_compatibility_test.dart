@@ -4,10 +4,42 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   late String controller;
+  late String mainActivity;
+  late String manifest;
+  late String windowUtils;
 
   setUpAll(() {
     controller =
         File('lib/pages/player/player_controller.dart').readAsStringSync();
+    mainActivity = File(
+      'android/app/src/main/kotlin/com/kanyingyin/player/MainActivity.kt',
+    ).readAsStringSync();
+    manifest =
+        File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
+    windowUtils = File('lib/utils/window_utils.dart').readAsStringSync();
+  });
+
+  test('Android 平板启动即固定为双向横屏且退出全屏不切回竖屏', () {
+    expect(mainActivity, contains('smallestScreenWidthDp >= 600'));
+    expect(
+      mainActivity,
+      contains('ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE'),
+    );
+    expect(
+      manifest,
+      contains(
+        'android.window.PROPERTY_COMPAT_ALLOW_RESTRICTED_RESIZABILITY',
+      ),
+    );
+    expect(windowUtils, contains('view.physicalSize.shortestSide'));
+    expect(
+      windowUtils,
+      contains('DeviceOrientation.landscapeLeft'),
+    );
+    expect(
+      windowUtils,
+      contains('DeviceOrientation.landscapeRight'),
+    );
   });
 
   test('Android libass 使用应用内中文字体渲染字幕', () {
@@ -63,5 +95,13 @@ void main() {
         '      await player.setAudioTrack(track);',
       ),
     );
+  });
+
+  test('Android 视频硬解打开失败时只重载视频轨并降级软解', () {
+    expect(controller, contains('PlayerDecoderFailureKind.video'));
+    expect(controller, contains("await platform.setProperty('hwdec', 'no')"));
+    expect(
+        controller, contains("await platform.command(const ['video-reload'])"));
+    expect(controller, isNot(contains('_retryWithSoftwareDecodingForTrueHd')));
   });
 }

@@ -17,6 +17,22 @@ void main() {
   var activeRequests = 0;
   var maxActiveRequests = 0;
 
+  test('默认调优缩短首字节等待并保留 256 MiB 缓存容量', () {
+    expect(CloudRangeRelayTuning.chunkSize, 4 * 1024 * 1024);
+    expect(CloudRangeRelayTuning.maxChunks, 64);
+    expect(
+      CloudRangeRelayTuning.chunkSize * CloudRangeRelayTuning.maxChunks,
+      256 * 1024 * 1024,
+    );
+    expect(CloudRangeRelayTuning.maxConcurrentReads, 3);
+    expect(CloudRangeRelayTuning.maxConcurrentPrefetch, 2);
+    expect(
+      CloudRangeRelayTuning.maxConcurrentPrefetch,
+      lessThan(CloudRangeRelayTuning.maxConcurrentReads),
+    );
+    expect(CloudRangeRelayTuning.prefetchAheadChunks, 3);
+  });
+
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('cloud-relay-test-');
     remoteServer = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -137,7 +153,7 @@ void main() {
     client.close(force: true);
   });
 
-  test('跨段读取准确且远端并发不超过两个', () async {
+  test('跨段读取准确且远端并发不超过三路', () async {
     final client = HttpClient()..findProxy = (_) => 'DIRECT';
     final requests = <Future<List<int>>>[];
     for (final range in <String>['bytes=1-10', 'bytes=11-19']) {
@@ -152,7 +168,7 @@ void main() {
 
     expect(results[0], sourceBytes.sublist(1, 11));
     expect(results[1], sourceBytes.sublist(11));
-    expect(maxActiveRequests, lessThanOrEqualTo(2));
+    expect(maxActiveRequests, lessThanOrEqualTo(3));
     client.close(force: true);
   });
 

@@ -4,6 +4,25 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一七十一说明 TMDB 直连和迅雷 Token 授权', () {
+    final entries = versionHistoryForCurrent('2.1.71');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    for (final text in <String>[
+      '官方备用端点',
+      'Refresh Token',
+      '名称清理',
+      '日志',
+      '本地扫描与播放',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一七十说明 TMDB 晚启动代理自动恢复', () {
     final entries = versionHistoryForCurrent('2.1.70');
 

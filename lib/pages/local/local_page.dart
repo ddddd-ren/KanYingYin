@@ -23,6 +23,7 @@ import 'package:kanyingyin/pages/cloud/quark/quark_share_import_action.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/services/local_custom_cover_service.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
+import 'package:kanyingyin/services/local_playback_request_builder.dart';
 import 'package:kanyingyin/services/local_series_grouper.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
@@ -109,12 +110,24 @@ class _LocalPageState extends State<LocalPage>
               'title': _playbackTitle(item),
             })
         .toList(growable: false);
+    final playbackEntries = series.episodes
+        .map(
+          (item) => LocalPlaybackEntry(
+            location: item.location,
+            parentLocation: item.parentLocation,
+            name: item.name,
+            title: _playbackTitle(item),
+            subtitlePath: item.subtitlePath,
+          ),
+        )
+        .toList(growable: false);
     AppLogger().i(
         'LocalPage: playing library episode: ${episode.path} (${directoryFiles.length} videos in series)');
     await localVideoController.openFilePlayback(
       filePath: episode.path,
       seriesTitle: series.displayTitle,
       directoryFiles: directoryFiles,
+      playbackEntries: playbackEntries,
       playlistAlreadyIsolated: true,
       autoLoadSubtitle: Modular.get<TypedSettings>().getTyped<bool>(
         SettingBoxKey.localAutoLoadSubtitle,

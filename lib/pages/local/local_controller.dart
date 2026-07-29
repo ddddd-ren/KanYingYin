@@ -485,6 +485,7 @@ abstract class _LocalController with Store {
       )) {
         await _syncIndexedCovers(
           targetItems,
+          coversByLocationId: result.coversByLocationId,
           posterRequestId: posterRequestId,
           posterPath: posterPath,
           navigationRequestId: refreshNavigationRequestId,
@@ -524,6 +525,7 @@ abstract class _LocalController with Store {
 
   Future<void> _syncIndexedCovers(
     List<LocalFileItem> targetItems, {
+    required Map<String, String> coversByLocationId,
     required int posterRequestId,
     required String posterPath,
     required int navigationRequestId,
@@ -537,10 +539,13 @@ abstract class _LocalController with Store {
       )) {
         return;
       }
-      final indexed = _mediaIndexRepository.getByPath(item.path);
+      final indexed = _mediaIndexRepository.getByLocation(item.location);
       if (indexed == null) continue;
 
-      final cover = LocalCoverFinder().findVideoCover(item.path);
+      final cover = coversByLocationId[item.location.stableId] ??
+          (item.location.isFile
+              ? LocalCoverFinder().findVideoCover(item.path)
+              : null);
       if (cover == null || cover.isEmpty || cover == indexed.cover) {
         continue;
       }

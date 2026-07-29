@@ -7,6 +7,7 @@ import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/pages/player/player_controller.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/pages/video/video_page_controller_interface.dart';
+import 'package:kanyingyin/services/android_document_cache.dart';
 
 /// 注册本地与网盘共用的播放器依赖。
 void registerPlaybackBindings(Injector i) {
@@ -28,6 +29,8 @@ void registerPlaybackBindings(Injector i) {
       trackLanguagePreferences: Modular.get<EmbeddedTrackLanguagePreferences>(),
       trueHdFallbackPolicy: Modular.get<TrueHdFallbackPolicy>(),
       runtimePreferences: Modular.get<PlayerRuntimePreferences>(),
+      clearLocalPlaybackCache:
+          Modular.get<AndroidDocumentCache>().clearPlaybackFiles,
     ),
   );
 }

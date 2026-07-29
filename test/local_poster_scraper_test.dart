@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
+import 'package:kanyingyin/modules/local/media_location.dart';
 import 'package:kanyingyin/modules/local/poster_scrape.dart';
 import 'package:kanyingyin/services/local_poster_scraper.dart';
 import 'package:kanyingyin/services/poster_service.dart';
@@ -319,6 +322,54 @@ void main() {
     expect(service.searchQueries, ['Show']);
     expect(service.downloadedUrls, ['https://example.test/bangumi.jpg']);
   });
+
+  test('LocalPosterScraper 将 Android 文档海报下载到应用缓存', () async {
+    final cacheRoot = await Directory.systemTemp.createTemp(
+      'kanyingyin-document-poster-',
+    );
+    addTearDown(() => cacheRoot.delete(recursive: true));
+    final service = _FakePosterService(
+      searchResults: <String, Object?>{
+        'Show': 'https://example.test/show.jpg',
+      },
+    );
+    final location = MediaLocation.document(
+      uri: 'content://provider/document/show%3A01',
+      treeUri: 'content://provider/tree/root',
+    );
+
+    final result = await LocalPosterScraper(
+      posterService: service,
+      applicationRootProvider: () async => cacheRoot,
+    ).scrapeMissingPosters(<LocalFileItem>[
+      LocalFileItem(
+        location: location,
+        name: 'Show S01E01.mkv',
+        size: 1024,
+        modified: DateTime(2026),
+        isDirectory: false,
+        isVideo: true,
+        episodeInfo: const LocalEpisodeInfo(
+          seriesName: 'Show',
+          seasonNumber: 1,
+          episodeNumber: 1,
+        ),
+      ),
+    ]);
+
+    expect(result.success, 1);
+    expect(service.downloadedVideos, isEmpty);
+    expect(service.downloadedTargets, hasLength(1));
+    expect(service.downloadedTargets.single, startsWith(cacheRoot.path));
+    expect(
+      service.downloadedTargets.single,
+      contains('local_document_posters'),
+    );
+    expect(
+      result.coversByLocationId[location.stableId],
+      service.downloadedTargets.single,
+    );
+  });
 }
 
 LocalFileItem _video({
@@ -351,6 +402,7 @@ class _FakePosterService extends PosterService {
   final searchQueries = <String>[];
   final downloadedUrls = <String>[];
   final downloadedVideos = <String>[];
+  final downloadedTargets = <String>[];
 
   @override
   String extractMovieName(String filename) {
@@ -382,5 +434,16 @@ class _FakePosterService extends PosterService {
     downloadedUrls.add(posterUrl);
     downloadedVideos.add(videoPath);
     return downloadResults[posterUrl];
+  }
+
+  @override
+  Future<String?> downloadPosterTo(
+    String posterUrl,
+    String savePath, {
+    bool overwrite = false,
+  }) async {
+    downloadedUrls.add(posterUrl);
+    downloadedTargets.add(savePath);
+    return savePath;
   }
 }

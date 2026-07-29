@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:kanyingyin/services/local_media_entry_provider.dart';
 import 'package:kanyingyin/services/local_episode_parser.dart';
 import 'package:path/path.dart' as p;
 
@@ -30,6 +31,47 @@ class LocalSubtitleMatcher {
     return subtitleExtensions.contains(p.extension(path).toLowerCase());
   }
 
+  LocalMediaEntry? findForEntry({
+    required LocalMediaEntry video,
+    required List<LocalMediaEntry> siblings,
+  }) {
+    final videoBaseName = p.basenameWithoutExtension(video.name);
+    final candidates = <_EntrySubtitleScore>[];
+    for (final entry in siblings) {
+      if (entry.isDirectory || !isSupportedSubtitlePath(entry.name)) continue;
+      final sameName = _isSameName(entry.name, videoBaseName);
+      final episodeMatch = _matchesEpisode(
+        videoEpisodePath: video.name,
+        subtitlePath: entry.name,
+      );
+      if (!sameName && !episodeMatch) continue;
+      candidates.add(_EntrySubtitleScore(
+        entry: entry,
+        score: _SubtitleScore(
+          path: entry.location.stableId,
+          priority: _subtitlePriority(
+            sameName: sameName,
+            inSubtitleDirectory: false,
+            episodeMatch: episodeMatch,
+          ),
+          score: _scoreSubtitle(
+            videoPath: video.name,
+            subtitlePath: entry.name,
+            sameName: sameName,
+            inSubtitleDirectory: false,
+            episodeMatch: episodeMatch,
+          ),
+          autoSelectable: true,
+        ),
+      ));
+    }
+    if (candidates.isEmpty) return null;
+    candidates.sort(
+      (left, right) => _compareSubtitleScore(left.score, right.score),
+    );
+    return candidates.first.entry;
+  }
+
   Future<String?> findForVideo(String videoPath) async {
     final scored = (await _scoredSubtitleCandidates(videoPath))
         .where((candidate) => candidate.autoSelectable)
@@ -46,7 +88,8 @@ class LocalSubtitleMatcher {
     return scored.map((candidate) => candidate.path).toList(growable: false);
   }
 
-  Future<List<_SubtitleScore>> _scoredSubtitleCandidates(String videoPath) async {
+  Future<List<_SubtitleScore>> _scoredSubtitleCandidates(
+      String videoPath) async {
     final videoDir = p.dirname(videoPath);
     final videoBaseName = p.basenameWithoutExtension(videoPath);
     final candidates = await _subtitleCandidates(videoDir);
@@ -235,4 +278,14 @@ class _SubtitleScore {
     required this.score,
     required this.autoSelectable,
   });
+}
+
+class _EntrySubtitleScore {
+  const _EntrySubtitleScore({
+    required this.entry,
+    required this.score,
+  });
+
+  final LocalMediaEntry entry;
+  final _SubtitleScore score;
 }

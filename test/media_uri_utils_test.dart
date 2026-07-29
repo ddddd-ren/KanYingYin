@@ -27,4 +27,13 @@ void main() {
       httpUrl,
     );
   });
+
+  test('MediaUriUtils 保留 Android content URI', () {
+    const uri = 'content://provider/document/video%3A42';
+
+    expect(
+      MediaUriUtils.toPlayableUri(uri, isLocalPlayback: true),
+      uri,
+    );
+  });
 }

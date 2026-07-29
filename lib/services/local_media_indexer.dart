@@ -1,9 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:kanyingyin/modules/local/local_episode_info.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
+import 'package:kanyingyin/modules/local/media_location.dart';
 import 'package:kanyingyin/repositories/local_media_index_repository.dart';
+import 'package:kanyingyin/services/file_system_media_entry_provider.dart';
 import 'package:kanyingyin/services/local_episode_parser.dart';
+import 'package:kanyingyin/services/local_media_entry_provider.dart';
 import 'package:kanyingyin/services/local_media_index_metadata_refresher.dart';
 import 'package:kanyingyin/services/local_media_probe.dart';
 import 'package:kanyingyin/services/local_subtitle_matcher.dart';
@@ -26,6 +30,16 @@ abstract class ILocalMediaIndexer {
     LocalMediaIndexCancelChecker? isCancelled,
     bool enrichMediaInfo,
     bool generateThumbnails,
+  });
+}
+
+abstract interface class ILocalMediaLocationIndexer {
+  Future<LocalMediaIndexResult> indexSourceLocation(
+    MediaLocation sourceLocation, {
+    LocalMediaIndexProgressCallback? onProgress,
+    LocalMediaIndexCancelChecker? isCancelled,
+    bool enrichMediaInfo = false,
+    bool generateThumbnails = false,
   });
 }
 
@@ -85,6 +99,7 @@ class LocalMediaIndexResult {
   final int removedCount;
   final int skippedCount;
   final bool cancelled;
+  final bool sourceAccessible;
   final List<LocalMediaIndexFailure> failures;
 
   const LocalMediaIndexResult({
@@ -96,13 +111,15 @@ class LocalMediaIndexResult {
     required this.removedCount,
     required this.skippedCount,
     this.cancelled = false,
+    this.sourceAccessible = true,
     this.failures = const <LocalMediaIndexFailure>[],
   });
 
   int get totalCount => items.length;
 }
 
-class LocalMediaIndexer implements ILocalMediaIndexer {
+class LocalMediaIndexer
+    implements ILocalMediaIndexer, ILocalMediaLocationIndexer {
   LocalMediaIndexer({
     ILocalMediaIndexRepository? repository,
     LocalEpisodeParser? episodeParser,
@@ -110,6 +127,7 @@ class LocalMediaIndexer implements ILocalMediaIndexer {
     ILocalMediaProbe? mediaProbe,
     LocalCoverFinder? coverFinder,
     LocalMediaIndexMetadataRefresher? metadataRefresher,
+    List<LocalMediaEntryProvider>? entryProviders,
     int minRecognizedVideoSizeBytes =
         LocalVideoFileTypes.minRecognizedVideoSizeBytes,
     int Function()? minRecognizedVideoSizeBytesProvider,
@@ -118,6 +136,10 @@ class LocalMediaIndexer implements ILocalMediaIndexer {
         _subtitleMatcher = subtitleMatcher ?? LocalSubtitleMatcher(),
         _mediaProbe = mediaProbe ?? MediaKitLocalMediaProbe(),
         _coverFinder = coverFinder ?? LocalCoverFinder(),
+        _entryProviders = entryProviders ??
+            const <LocalMediaEntryProvider>[
+              FileSystemMediaEntryProvider(),
+            ],
         _metadataRefresher = metadataRefresher ??
             LocalMediaIndexMetadataRefresher(
               episodeParser: episodeParser,
@@ -132,6 +154,7 @@ class LocalMediaIndexer implements ILocalMediaIndexer {
   final LocalSubtitleMatcher _subtitleMatcher;
   final ILocalMediaProbe _mediaProbe;
   final LocalCoverFinder _coverFinder;
+  final List<LocalMediaEntryProvider> _entryProviders;
   final LocalMediaIndexMetadataRefresher _metadataRefresher;
   final int Function() _minRecognizedVideoSizeBytesProvider;
 
@@ -143,21 +166,63 @@ class LocalMediaIndexer implements ILocalMediaIndexer {
     bool enrichMediaInfo = false,
     bool generateThumbnails = false,
   }) async {
+    return indexSourceLocation(
+      MediaLocation.file(sourcePath),
+      onProgress: onProgress,
+      isCancelled: isCancelled,
+      enrichMediaInfo: enrichMediaInfo,
+      generateThumbnails: generateThumbnails,
+    );
+  }
+
+  @override
+  Future<LocalMediaIndexResult> indexSourceLocation(
+    MediaLocation sourceLocation, {
+    LocalMediaIndexProgressCallback? onProgress,
+    LocalMediaIndexCancelChecker? isCancelled,
+    bool enrichMediaInfo = false,
+    bool generateThumbnails = false,
+  }) async {
+    final sourcePath = sourceLocation.value;
     final minSizeBytes = _minRecognizedVideoSizeBytesProvider();
-    final sourceDir = Directory(sourcePath);
-    if (!await sourceDir.exists()) {
-      final removedCount = _repository.getBySourcePath(sourcePath).length;
-      await _repository.removeSource(sourcePath);
-      return LocalMediaIndexResult(
-        sourcePath: sourcePath,
-        items: const [],
-        addedCount: 0,
-        updatedCount: 0,
-        reusedCount: 0,
-        removedCount: removedCount,
-        skippedCount: 0,
-        failures: const <LocalMediaIndexFailure>[],
-      );
+    final provider = _providerFor(sourceLocation);
+    final previousSourceItems = _repository.getBySourceLocation(sourceLocation);
+    try {
+      if (!await provider.canAccess(sourceLocation)) {
+        if (sourceLocation.isDocument) {
+          return _inaccessibleDocumentResult(
+            sourceLocation,
+            previousSourceItems,
+            '目录授权已失效，请重新授权',
+          );
+        }
+        final removedCount = previousSourceItems.length;
+        await _repository.removeSourceLocation(sourceLocation);
+        return LocalMediaIndexResult(
+          sourcePath: sourcePath,
+          items: const <LocalMediaIndexItem>[],
+          addedCount: 0,
+          updatedCount: 0,
+          reusedCount: 0,
+          removedCount: removedCount,
+          skippedCount: 0,
+          failures: const <LocalMediaIndexFailure>[],
+        );
+      }
+    } on Object catch (error, stackTrace) {
+      if (sourceLocation.isDocument) {
+        AppLogger().w(
+          'LocalMediaIndexer: document authorization check failed',
+          error: error,
+          stackTrace: stackTrace,
+        );
+        return _inaccessibleDocumentResult(
+          sourceLocation,
+          previousSourceItems,
+          error.toString(),
+        );
+      }
+      rethrow;
     }
 
     onProgress?.call(LocalMediaIndexProgress(
@@ -168,43 +233,44 @@ class LocalMediaIndexer implements ILocalMediaIndexer {
       phase: LocalMediaIndexPhase.collecting,
     ));
 
-    final files = <File>[];
+    final files = <_LocatedMediaEntry>[];
     final directoryFingerprints = <String, String>{};
     final previousDirectoryFingerprints =
-        _repository.getDirectoryFingerprints(sourcePath);
+        _repository.getDirectoryFingerprintsForLocation(sourceLocation);
     final previousByDirectory = <String, List<LocalMediaIndexItem>>{};
-    for (final item in _repository.getBySourcePath(sourcePath)) {
+    for (final item in previousSourceItems) {
       previousByDirectory
-          .putIfAbsent(
-              LocalMediaIndexItem.normalizePath(item.parentPath), () => [])
+          .putIfAbsent(_directoryId(item.parentLocation), () => [])
           .add(item);
     }
     final reusedDirectoryIds = <String>{};
     var skippedCount = 0;
     final failures = <LocalMediaIndexFailure>[];
 
-    Future<void> collectDirectory(Directory directory) async {
+    Future<void> collectDirectory(
+      MediaLocation directory,
+      String logicalDirectory,
+    ) async {
       if (isCancelled?.call() == true) return;
-      final dirId = LocalMediaIndexItem.normalizePath(directory.path);
-      final entries = <FileSystemEntity>[];
+      final dirId = _directoryId(directory);
+      List<LocalMediaEntry> entries;
       try {
-        await for (final entity in directory.list(followLinks: false)) {
-          entries.add(entity);
-        }
-      } catch (e) {
+        entries = await provider.listChildren(directory);
+      } on Object catch (error, stackTrace) {
         skippedCount++;
         failures.add(LocalMediaIndexFailure(
-          path: directory.path,
-          message: e.toString(),
+          path: directory.value,
+          message: error.toString(),
         ));
         AppLogger().w(
-          'LocalMediaIndexer: skip directory ${directory.path}',
-          error: e,
+          'LocalMediaIndexer: skip directory ${directory.value}',
+          error: error,
+          stackTrace: stackTrace,
         );
         return;
       }
 
-      final fingerprint = await _directoryFingerprint(
+      final fingerprint = _directoryFingerprint(
         entries,
         minSizeBytes: minSizeBytes,
       );
@@ -213,8 +279,11 @@ class LocalMediaIndexer implements ILocalMediaIndexer {
           previousByDirectory[dirId] ?? const <LocalMediaIndexItem>[];
       final unchanged = previousDirectoryFingerprints[dirId] == fingerprint &&
           previousItems.isNotEmpty &&
-          previousItems
-              .every((item) => !_metadataRefresher.needsRefresh(item)) &&
+          previousItems.every(
+            (item) =>
+                item.location.isDocument ||
+                !_metadataRefresher.needsRefresh(item),
+          ) &&
           previousItems.every((item) => LocalVideoFileTypes.isRecognizedVideo(
                 item.name,
                 size: item.size,
@@ -225,51 +294,61 @@ class LocalMediaIndexer implements ILocalMediaIndexer {
         return;
       }
 
-      for (final entity in entries) {
+      for (final entry in entries) {
         if (isCancelled?.call() == true) return;
         try {
-          final name = p.basename(entity.path);
+          final name = entry.name;
           if (name.startsWith('.')) {
             skippedCount++;
             continue;
           }
-          if (entity is Directory) {
+          if (entry.isDirectory) {
             if (LocalVideoFileTypes.isWindowsSystemDirectory(name)) {
               skippedCount++;
               continue;
             }
-            await collectDirectory(entity);
-          } else if (entity is File) {
-            if (!LocalVideoFileTypes.isVideoPath(name)) continue;
-            final stat = await entity.stat();
-            if (!LocalVideoFileTypes.isRecognizedVideoSize(
-              stat.size,
-              minSizeBytes: minSizeBytes,
-            )) {
-              skippedCount++;
-              continue;
-            }
-            files.add(entity);
+            await collectDirectory(
+              entry.location,
+              p.join(logicalDirectory, name),
+            );
+            continue;
           }
-        } catch (e) {
+          if (!LocalVideoFileTypes.isVideoPath(name)) continue;
+          if (!LocalVideoFileTypes.isRecognizedVideoSize(
+            entry.size,
+            minSizeBytes: minSizeBytes,
+          )) {
+            skippedCount++;
+            continue;
+          }
+          files.add(_LocatedMediaEntry(
+            entry: entry,
+            parentLocation: directory,
+            logicalPath: entry.location.isFile
+                ? entry.location.value
+                : p.join(logicalDirectory, name),
+            logicalParentPath: logicalDirectory,
+          ));
+        } on Object catch (error, stackTrace) {
           skippedCount++;
           failures.add(LocalMediaIndexFailure(
-            path: entity.path,
-            message: e.toString(),
+            path: entry.location.value,
+            message: error.toString(),
           ));
           AppLogger().w(
-            'LocalMediaIndexer: skip entity ${entity.path}',
-            error: e,
+            'LocalMediaIndexer: skip entity ${entry.location.value}',
+            error: error,
+            stackTrace: stackTrace,
           );
         }
       }
     }
 
-    await collectDirectory(sourceDir);
+    await collectDirectory(sourceLocation, '');
     if (isCancelled?.call() == true) {
       return LocalMediaIndexResult(
         sourcePath: sourcePath,
-        items: _repository.getBySourcePath(sourcePath),
+        items: previousSourceItems,
         addedCount: 0,
         updatedCount: 0,
         reusedCount: 0,
@@ -281,7 +360,7 @@ class LocalMediaIndexer implements ILocalMediaIndexer {
     }
 
     final previous = {
-      for (final item in _repository.getBySourcePath(sourcePath)) item.id: item,
+      for (final item in previousSourceItems) item.id: item,
     };
     final indexed = <LocalMediaIndexItem>[];
     var addedCount = 0;
@@ -301,7 +380,7 @@ class LocalMediaIndexer implements ILocalMediaIndexer {
       if (isCancelled?.call() == true) {
         return LocalMediaIndexResult(
           sourcePath: sourcePath,
-          items: _repository.getBySourcePath(sourcePath),
+          items: _repository.getBySourceLocation(sourceLocation),
           addedCount: addedCount,
           updatedCount: updatedCount,
           reusedCount: reusedCount,
@@ -311,12 +390,13 @@ class LocalMediaIndexer implements ILocalMediaIndexer {
           failures: failures,
         );
       }
-      final file = files[i];
+      final located = files[i];
+      final entry = located.entry;
       final current = i + 1;
       if (i == 0 || current % 25 == 0 || current == files.length) {
         onProgress?.call(LocalMediaIndexProgress(
           sourcePath: sourcePath,
-          currentPath: file.path,
+          currentPath: entry.location.value,
           current: current,
           total: files.length,
           phase: LocalMediaIndexPhase.indexing,
@@ -324,11 +404,10 @@ class LocalMediaIndexer implements ILocalMediaIndexer {
       }
 
       try {
-        final stat = await file.stat();
-        final oldItem =
-            previous.remove(LocalMediaIndexItem.normalizePath(file.path));
-        if (oldItem != null && oldItem.isSameFile(stat)) {
-          if (_metadataRefresher.needsRefresh(oldItem)) {
+        final oldItem = previous.remove(_entryId(entry));
+        if (oldItem != null && _isSameEntry(oldItem, entry)) {
+          if (entry.location.isFile &&
+              _metadataRefresher.needsRefresh(oldItem)) {
             indexed.add(await _metadataRefresher.refreshItem(
               oldItem,
               indexedAt: DateTime.now(),
@@ -341,29 +420,39 @@ class LocalMediaIndexer implements ILocalMediaIndexer {
           continue;
         }
 
-        final mediaInfo =
-            enrichMediaInfo ? await _mediaProbe.probe(file.path) : null;
-        final cover = _coverFinder.findVideoCover(file.path) ??
-            (generateThumbnails
-                ? await _mediaProbe.captureThumbnail(
-                    file.path,
-                    LocalThumbnailCache.pathForVideo(file.path),
-                  )
-                : null);
-        final episodeInfo = _episodeParser.parse(file.path);
-        final item = LocalMediaIndexItem.fromFile(
-          file: file,
-          stat: stat,
-          sourcePath: sourcePath,
-          cover: cover,
-          subtitlePath: await _subtitleMatcher.findForVideo(file.path),
-          episodeInfo: oldItem?.manualOverride == true
-              ? oldItem?.episodeInfo
-              : episodeInfo,
-          duration: mediaInfo?.duration ?? oldItem?.toFileItem().duration,
-          videoWidth: mediaInfo?.width ?? oldItem?.videoWidth,
-          videoHeight: mediaInfo?.height ?? oldItem?.videoHeight,
-        ).copyWith(
+        final episodeInfo = _episodeParser.parse(located.logicalPath);
+        final item = entry.location.isFile
+            ? await _buildFileItem(
+                entry,
+                sourceLocation: sourceLocation,
+                oldItem: oldItem,
+                episodeInfo: episodeInfo,
+                enrichMediaInfo: enrichMediaInfo,
+                generateThumbnails: generateThumbnails,
+              )
+            : LocalMediaIndexItem(
+                location: entry.location,
+                name: entry.name,
+                parentLocation: located.parentLocation,
+                sourceLocation: sourceLocation,
+                size: entry.size,
+                modified: entry.modified,
+                seriesName: episodeInfo?.seriesName ??
+                    p.basename(located.logicalParentPath),
+                seasonNumber: episodeInfo?.seasonNumber,
+                episodeNumber: episodeInfo?.episodeNumber,
+                episodeTitle: episodeInfo?.episodeTitle,
+                releaseGroup: episodeInfo?.releaseGroup,
+                resolution: episodeInfo?.resolution,
+                source: episodeInfo?.source,
+                codec: episodeInfo?.codec,
+                durationMillis: oldItem?.durationMillis,
+                videoWidth: oldItem?.videoWidth,
+                videoHeight: oldItem?.videoHeight,
+                pathFingerprint: _entryFingerprint(entry),
+                indexedAt: DateTime.now(),
+              );
+        final resolvedItem = item.copyWith(
           releaseGroup: oldItem?.manualOverride == true
               ? oldItem?.releaseGroup
               : episodeInfo?.releaseGroup,
@@ -378,7 +467,7 @@ class LocalMediaIndexer implements ILocalMediaIndexer {
               : episodeInfo?.codec,
           manualOverride: oldItem?.manualOverride ?? false,
         );
-        indexed.add(item);
+        indexed.add(resolvedItem);
         if (oldItem == null) {
           addedCount++;
         } else {
@@ -387,11 +476,11 @@ class LocalMediaIndexer implements ILocalMediaIndexer {
       } catch (e) {
         skippedCount++;
         failures.add(LocalMediaIndexFailure(
-          path: file.path,
+          path: entry.location.value,
           message: e.toString(),
         ));
         AppLogger().w(
-          'LocalMediaIndexer: failed to index ${file.path}',
+          'LocalMediaIndexer: failed to index ${entry.location.value}',
           error: e,
         );
       }
@@ -408,7 +497,7 @@ class LocalMediaIndexer implements ILocalMediaIndexer {
     if (isCancelled?.call() == true) {
       return LocalMediaIndexResult(
         sourcePath: sourcePath,
-        items: _repository.getBySourcePath(sourcePath),
+        items: _repository.getBySourceLocation(sourceLocation),
         addedCount: addedCount,
         updatedCount: updatedCount,
         reusedCount: reusedCount,
@@ -418,7 +507,7 @@ class LocalMediaIndexer implements ILocalMediaIndexer {
         failures: failures,
       );
     }
-    await _repository.saveForSource(sourcePath, indexed);
+    await _repository.saveForSourceLocation(sourceLocation, indexed);
     if (isCancelled?.call() == true) {
       return LocalMediaIndexResult(
         sourcePath: sourcePath,
@@ -432,8 +521,8 @@ class LocalMediaIndexer implements ILocalMediaIndexer {
         failures: failures,
       );
     }
-    await _repository.saveDirectoryFingerprints(
-      sourcePath,
+    await _repository.saveDirectoryFingerprintsForLocation(
+      sourceLocation,
       directoryFingerprints,
     );
 
@@ -457,24 +546,107 @@ class LocalMediaIndexer implements ILocalMediaIndexer {
     );
   }
 
-  Future<String> _directoryFingerprint(
-    List<FileSystemEntity> entries, {
+  String _directoryFingerprint(
+    List<LocalMediaEntry> entries, {
     required int minSizeBytes,
-  }) async {
+  }) {
     final parts = <String>[];
-    for (final entity in entries) {
-      try {
-        final stat = await entity.stat();
-        final type = entity is Directory ? 'D' : 'F';
-        parts.add(
-          '$type|${p.basename(entity.path).toLowerCase()}|${stat.size}|${stat.modified.millisecondsSinceEpoch}',
-        );
-      } catch (_) {
-        parts.add('E|${p.basename(entity.path).toLowerCase()}');
-      }
+    for (final entry in entries) {
+      final type = entry.isDirectory ? 'D' : 'F';
+      parts.add(
+        '$type|${entry.location.stableId}|${entry.name.toLowerCase()}|${entry.size}|${entry.modified.millisecondsSinceEpoch}|${entry.mimeType ?? ''}',
+      );
     }
     parts.sort();
     return 'minSizeBytes=$minSizeBytes\n${parts.join('\n')}';
+  }
+
+  Future<LocalMediaIndexItem> _buildFileItem(
+    LocalMediaEntry entry, {
+    required MediaLocation sourceLocation,
+    required LocalMediaIndexItem? oldItem,
+    required LocalEpisodeInfo? episodeInfo,
+    required bool enrichMediaInfo,
+    required bool generateThumbnails,
+  }) async {
+    final file = File(entry.location.value);
+    final stat = await file.stat();
+    final mediaInfo =
+        enrichMediaInfo ? await _mediaProbe.probe(file.path) : null;
+    final cover = _coverFinder.findVideoCover(file.path) ??
+        (generateThumbnails
+            ? await _mediaProbe.captureThumbnail(
+                file.path,
+                LocalThumbnailCache.pathForVideo(file.path),
+              )
+            : null);
+    return LocalMediaIndexItem.fromFile(
+      file: file,
+      stat: stat,
+      sourcePath: sourceLocation.value,
+      cover: cover,
+      subtitlePath: await _subtitleMatcher.findForVideo(file.path),
+      episodeInfo:
+          oldItem?.manualOverride == true ? oldItem?.episodeInfo : episodeInfo,
+      duration: mediaInfo?.duration ?? oldItem?.toFileItem().duration,
+      videoWidth: mediaInfo?.width ?? oldItem?.videoWidth,
+      videoHeight: mediaInfo?.height ?? oldItem?.videoHeight,
+    );
+  }
+
+  LocalMediaIndexResult _inaccessibleDocumentResult(
+    MediaLocation sourceLocation,
+    List<LocalMediaIndexItem> previousItems,
+    String message,
+  ) {
+    return LocalMediaIndexResult(
+      sourcePath: sourceLocation.value,
+      items: previousItems,
+      addedCount: 0,
+      updatedCount: 0,
+      reusedCount: previousItems.length,
+      removedCount: 0,
+      skippedCount: 1,
+      sourceAccessible: false,
+      failures: <LocalMediaIndexFailure>[
+        LocalMediaIndexFailure(
+          path: sourceLocation.value,
+          message: message,
+        ),
+      ],
+    );
+  }
+
+  LocalMediaEntryProvider _providerFor(MediaLocation location) {
+    for (final provider in _entryProviders) {
+      if (provider.supports(location)) return provider;
+    }
+    throw UnsupportedError('没有可用于该媒体位置的索引器: ${location.kind.name}');
+  }
+
+  String _directoryId(MediaLocation location) => location.isFile
+      ? LocalMediaIndexItem.normalizePath(location.value)
+      : location.stableId;
+
+  String _entryId(LocalMediaEntry entry) => entry.location.isFile
+      ? LocalMediaIndexItem.normalizePath(entry.location.value)
+      : entry.location.stableId;
+
+  bool _isSameEntry(LocalMediaIndexItem item, LocalMediaEntry entry) {
+    return item.size == entry.size &&
+        item.modified.millisecondsSinceEpoch ==
+            entry.modified.millisecondsSinceEpoch &&
+        item.pathFingerprint == _entryFingerprint(entry);
+  }
+
+  String _entryFingerprint(LocalMediaEntry entry) {
+    return LocalMediaIndexItem.buildLocationFingerprint(
+      location: entry.location,
+      name: entry.name,
+      size: entry.size,
+      modified: entry.modified,
+      mimeType: entry.mimeType,
+    );
   }
 
   int _compareItems(LocalMediaIndexItem a, LocalMediaIndexItem b) {
@@ -487,4 +659,18 @@ class LocalMediaIndexer implements ILocalMediaIndexer {
     if (episode != 0) return episode;
     return a.name.toLowerCase().compareTo(b.name.toLowerCase());
   }
+}
+
+class _LocatedMediaEntry {
+  const _LocatedMediaEntry({
+    required this.entry,
+    required this.parentLocation,
+    required this.logicalPath,
+    required this.logicalParentPath,
+  });
+
+  final LocalMediaEntry entry;
+  final MediaLocation parentLocation;
+  final String logicalPath;
+  final String logicalParentPath;
 }

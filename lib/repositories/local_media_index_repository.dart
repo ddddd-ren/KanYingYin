@@ -52,6 +52,8 @@ abstract class ILocalMediaIndexRepository {
 
   Future<void> updateItem(LocalMediaIndexItem item);
 
+  Future<void> updateItems(Map<String, LocalMediaIndexItem> itemsById);
+
   Future<void> saveDirectoryFingerprints(
     String sourcePath,
     Map<String, String> fingerprints,
@@ -264,6 +266,15 @@ class LocalMediaIndexRepository implements ILocalMediaIndexRepository {
     } else {
       items.add(item);
     }
+    await _save(items);
+  }
+
+  @override
+  Future<void> updateItems(
+    Map<String, LocalMediaIndexItem> itemsById,
+  ) async {
+    if (itemsById.isEmpty) return;
+    final items = getAll().map((item) => itemsById[item.id] ?? item).toList();
     await _save(items);
   }
 

@@ -71,6 +71,8 @@ class CloudResourceTmdbRepository {
   final CloudResourceTmdbStorage _storage;
   late final Lock _mutationLock;
 
+  Future<List<CloudResourceTmdbRecord>> getAll() => _getAll();
+
   Future<CloudResourceTmdbRecord?> get(String stableKey) async {
     for (final record in await _getAll()) {
       if (record.stableKey == stableKey) return record;
@@ -108,6 +110,12 @@ class CloudResourceTmdbRepository {
       };
       await _write(byKey.values.toList(growable: false));
     });
+  }
+
+  Future<void> replaceAll(Iterable<CloudResourceTmdbRecord> replacements) {
+    return _mutationLock.synchronized(
+      () => _write(replacements.toList(growable: false)),
+    );
   }
 
   Future<void> removeSource(String sourceId) {

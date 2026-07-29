@@ -286,6 +286,38 @@ class CloudResourceTmdbRecord {
     );
   }
 
+  CloudResourceTmdbRecord rebindForTransfer({
+    required String sourceId,
+    required String remoteId,
+    required String remotePath,
+    required String? posterCachePath,
+    required List<TmdbSeasonMetadata> seasons,
+  }) {
+    return CloudResourceTmdbRecord(
+      sourceId: sourceId,
+      remoteId: remoteId,
+      remotePath: remotePath,
+      displayName: displayName,
+      resourceKind: resourceKind,
+      status: status,
+      checkedAt: checkedAt,
+      tmdbId: tmdbId,
+      mediaType: mediaType,
+      title: title,
+      originalTitle: originalTitle,
+      overview: overview,
+      rating: rating,
+      releaseDate: releaseDate,
+      posterUrl: posterUrl,
+      backdropUrl: backdropUrl,
+      posterCachePath: posterCachePath,
+      customTitle: customTitle,
+      seasons: seasons,
+      tmdbMatchOrigin: tmdbMatchOrigin,
+      tmdbRuleVersion: tmdbRuleVersion,
+    );
+  }
+
   Map<String, Object?> toJson() {
     return <String, Object?>{
       'sourceId': sourceId,

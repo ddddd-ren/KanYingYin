@@ -66,6 +66,8 @@ class CloudSeriesMatchRuleRepository {
   final CloudSeriesMatchRuleStorage _storage;
   late final Lock _lock;
 
+  Future<List<CloudSeriesMatchRule>> getAll() => _getAll();
+
   Future<CloudSeriesMatchRule?> get(String stableKey) async {
     for (final rule in await _getAll()) {
       if (rule.stableKey == stableKey) return rule;
@@ -92,6 +94,12 @@ class CloudSeriesMatchRuleRepository {
       }
       await _write(rules);
     });
+  }
+
+  Future<void> replaceAll(Iterable<CloudSeriesMatchRule> replacements) {
+    return _lock.synchronized(
+      () => _write(replacements.toList(growable: false)),
+    );
   }
 
   Future<List<CloudSeriesMatchRule>> removeSource(String sourceId) {

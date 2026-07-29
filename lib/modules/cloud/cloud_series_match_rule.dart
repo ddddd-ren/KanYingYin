@@ -83,6 +83,22 @@ class CloudSeriesMatchRule {
     );
   }
 
+  CloudSeriesMatchRule rebindForTransfer({
+    required String sourceId,
+    required String parentPath,
+    required String? posterCachePath,
+    required TmdbMetadata metadata,
+  }) {
+    return CloudSeriesMatchRule(
+      sourceId: sourceId,
+      parentPath: parentPath,
+      normalizedSeriesName: normalizedSeriesName,
+      metadata: metadata,
+      posterCachePath: posterCachePath,
+      updatedAt: updatedAt,
+    );
+  }
+
   Map<String, Object?> toJson() => <String, Object?>{
         'sourceId': sourceId,
         'parentPath': parentPath,

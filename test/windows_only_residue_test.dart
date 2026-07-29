@@ -86,14 +86,29 @@ void main() {
     }
   });
 
-  test('迅雷设备验证只使用系统浏览器', () {
+  test('迅雷设备验证只使用受限应用内 WebView2', () {
     final editor = File(
       'lib/pages/cloud/xunlei/xunlei_source_editor.dart',
     ).readAsStringSync();
+    final dialog = File(
+      'lib/pages/cloud/xunlei/xunlei_verification_dialog.dart',
+    ).readAsStringSync();
     final pubspec = File('pubspec.yaml').readAsStringSync();
 
-    expect(editor, contains('LaunchMode.externalApplication'));
-    expect(editor, isNot(contains('WebView')));
-    expect(pubspec, isNot(contains('webview_flutter')));
+    expect(pubspec, contains('flutter_inappwebview: 6.1.5'));
+    expect(pubspec, isNot(contains('webview_flutter:')));
+    expect(editor, isNot(contains('LaunchMode.externalApplication')));
+    expect(editor, isNot(contains('launchUrl(')));
+    expect(editor, isNot(contains('url_launcher')));
+    expect(dialog, contains('xunleiVerificationEntryUri'));
+    expect(dialog, contains('PermissionResponseAction.DENY'));
+    expect(dialog, contains('NavigationActionPolicy.CANCEL'));
+    expect(dialog, contains('DebugLoggingSettings(enabled: false)'));
+    expect(dialog, contains("methodName: 'Browser.setDownloadBehavior'"));
+    expect(dialog, contains("'behavior': 'deny'"));
+    expect(dialog, isNot(contains('openDevTools')));
+    expect(dialog, isNot(contains('onConsoleMessage')));
+    expect(dialog, isNot(contains('initialData:')));
+    expect(dialog, isNot(contains('loadData(')));
   });
 }

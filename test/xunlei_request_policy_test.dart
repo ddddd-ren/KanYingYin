@@ -55,12 +55,17 @@ void main() {
     }
   });
 
-  test('API 请求头不包含令牌和账号', () {
-    final headers = policy.apiHeaders(deviceId: deviceId);
+  test('API 请求头绑定设备 ID 与设备签名且不包含令牌和账号', () {
+    for (final profile in XunleiClientProfile.values) {
+      final headers = policy.apiHeaders(
+        deviceId: deviceId,
+        profile: profile,
+      );
 
-    expect(headers['x-device-id'], deviceId);
-    expect(headers['x-client-id'], XunleiRequestPolicy.clientId);
-    expect(headers.keys, isNot(contains('Authorization')));
-    expect(headers.toString(), isNot(contains('password')));
+      expect(headers['x-device-id'], deviceId);
+      expect(headers['x-device-sign'], policy.deviceSign(deviceId));
+      expect(headers.keys, isNot(contains('Authorization')));
+      expect(headers.toString(), isNot(contains('password')));
+    }
   });
 }

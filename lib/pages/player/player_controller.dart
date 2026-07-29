@@ -326,6 +326,8 @@ abstract class _PlayerController with Store {
 
   bool hAenable = true;
   late String hardwareDecoder;
+  String? videoRenderer;
+  bool anime4kSupported = true;
   bool lowMemoryMode = false;
   bool autoPlay = true;
   bool playerDebugMode = false;
@@ -694,6 +696,8 @@ abstract class _PlayerController with Store {
     _anime4kCoordinator.reset();
     hAenable = runtimeSettings.hardwareAccelerationEnabled;
     hardwareDecoder = runtimeSettings.hardwareDecoder;
+    videoRenderer = runtimeSettings.videoRenderer;
+    anime4kSupported = runtimeSettings.anime4kSupported;
     autoPlay = runtimeSettings.autoPlay;
     lowMemoryMode = runtimeSettings.lowMemoryMode;
     playerDebugMode = runtimeSettings.debugMode;
@@ -755,9 +759,11 @@ abstract class _PlayerController with Store {
     videoController ??= VideoController(
       mediaPlayer!,
       configuration: VideoControllerConfiguration(
+        vo: videoRenderer,
         enableHardwareAcceleration: hAenable,
         hwdec: hAenable ? hardwareDecoder : 'no',
-        androidAttachSurfaceAfterVideoParameters: false,
+        androidAttachSurfaceAfterVideoParameters:
+            videoRenderer == 'mediacodec_embed',
       ),
     );
     mediaPlayer!.setPlaylistMode(PlaylistMode.none);
@@ -1312,8 +1318,7 @@ abstract class _PlayerController with Store {
       subtitleCandidates.clear();
       return;
     }
-    final candidates =
-        await _localSubtitleMatcher.findAllForVideo(videoUrl);
+    final candidates = await _localSubtitleMatcher.findAllForVideo(videoUrl);
     subtitleCandidates
       ..clear()
       ..addAll(candidates);
@@ -1622,7 +1627,8 @@ abstract class _PlayerController with Store {
           3 => Anime4kFit.fill,
           _ => Anime4kFit.contain,
         },
-        shaderSupported: mediaPlayer?.platform is NativePlayer,
+        shaderSupported:
+            anime4kSupported && mediaPlayer?.platform is NativePlayer,
       ),
     );
     runInAction(() => anime4kRuntimeState = decision.state);

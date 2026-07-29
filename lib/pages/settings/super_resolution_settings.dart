@@ -3,6 +3,8 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/features/player/application/anime4k_policy.dart';
+import 'package:kanyingyin/features/player/application/player_platform_policy.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 
 class SuperResolutionSettings extends StatefulWidget {
   const SuperResolutionSettings({super.key});
@@ -14,6 +16,14 @@ class SuperResolutionSettings extends StatefulWidget {
 
 class _SuperResolutionSettingsState extends State<SuperResolutionSettings> {
   late final TypedSettings setting = Modular.get<TypedSettings>();
+  late final PlayerPlatformPolicy platformPolicy =
+      PlayerPlatformPolicy(detectAppPlatform());
+  late final bool anime4kSupported = platformPolicy.supportsAnime4k(
+    setting.getTyped<String>(
+      SettingBoxKey.androidVideoRenderer,
+      defaultValue: 'auto',
+    ),
+  );
   late bool promptOnEnable;
   late Anime4kPreference anime4kPreference = switch (setting.getTyped<int>(
     SettingBoxKey.defaultSuperResolutionType,
@@ -71,7 +81,7 @@ class _SuperResolutionSettingsState extends State<SuperResolutionSettings> {
                       style: TextStyle(fontFamily: fontFamily)),
                   radioValue: Anime4kPreference.efficiency,
                   groupValue: anime4kPreference,
-                  onChanged: _setPreference,
+                  onChanged: anime4kSupported ? _setPreference : null,
                 ),
                 KSettingsTile<Anime4kPreference>.radioTile(
                   title: Text('质量档', style: TextStyle(fontFamily: fontFamily)),
@@ -79,8 +89,19 @@ class _SuperResolutionSettingsState extends State<SuperResolutionSettings> {
                       style: TextStyle(fontFamily: fontFamily)),
                   radioValue: Anime4kPreference.quality,
                   groupValue: anime4kPreference,
-                  onChanged: _setPreference,
+                  onChanged: anime4kSupported ? _setPreference : null,
                 ),
+                if (!anime4kSupported)
+                  KSettingsTile<void>(
+                    title: Text(
+                      '当前渲染器不支持动画画质增强',
+                      style: TextStyle(fontFamily: fontFamily),
+                    ),
+                    description: Text(
+                      '切换到 GPU 或 GPU Next 后可用，普通播放不受影响。',
+                      style: TextStyle(fontFamily: fontFamily),
+                    ),
+                  ),
                 KSettingsTile<void>(
                   title:
                       Text('自适应说明', style: TextStyle(fontFamily: fontFamily)),

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
+import 'package:kanyingyin/features/player/application/player_platform_policy.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/utils/diagnostic_log_exporter.dart';
@@ -190,6 +191,8 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final fontFamily = Theme.of(context).textTheme.bodyMedium?.fontFamily;
+    final platform = detectAppPlatform();
+    final playerPolicy = PlayerPlatformPolicy(platform);
     return PopScope(
       canPop: true,
       onPopInvokedWithResult: (bool didPop, Object? result) {
@@ -208,16 +211,16 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                     hAenable = value ?? !hAenable;
                     await setting.put(SettingBoxKey.hAenable, hAenable);
                     if (!hAenable) {
-                      await setting.put(SettingBoxKey.hardwareDecoder, 'no');
-                    } else if (normalizeHardwareDecoder(
-                            setting.getTyped<String>(
-                          SettingBoxKey.hardwareDecoder,
-                          defaultValue: defaultHardwareDecoder,
+                      await setting.put(playerPolicy.decoderSettingKey, 'no');
+                    } else if (playerPolicy
+                            .normalizeDecoder(setting.getTyped<String>(
+                          playerPolicy.decoderSettingKey,
+                          defaultValue: 'auto',
                         )) ==
                         'no') {
                       await setting.put(
-                        SettingBoxKey.hardwareDecoder,
-                        defaultHardwareDecoder,
+                        playerPolicy.decoderSettingKey,
+                        'auto',
                       );
                     }
                     setState(() {});
@@ -239,11 +242,27 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                   title: Text('解码方式', style: TextStyle(fontFamily: fontFamily)),
                   description: Text(
                       '当前：${hardwareDecoderLabel(setting.getTyped<String>(
-                        SettingBoxKey.hardwareDecoder,
-                        defaultValue: defaultHardwareDecoder,
+                        playerPolicy.decoderSettingKey,
+                        defaultValue: 'auto',
                       ))}',
                       style: TextStyle(fontFamily: fontFamily)),
                 ),
+                if (detectAppPlatform().isAndroid)
+                  KSettingsTile<void>.navigation(
+                    onPressed: (_) async {
+                      await Modular.to.pushNamed('/settings/player/renderer');
+                      if (mounted) setState(() {});
+                    },
+                    title:
+                        Text('视频渲染器', style: TextStyle(fontFamily: fontFamily)),
+                    description: Text(
+                      '当前：${androidVideoRendererLabel(setting.getTyped<String>(
+                        SettingBoxKey.androidVideoRenderer,
+                        defaultValue: 'auto',
+                      ))}',
+                      style: TextStyle(fontFamily: fontFamily),
+                    ),
+                  ),
                 KSettingsTile<bool>.switchTile(
                   onToggle: (value) async {
                     lowMemoryMode = value ?? !lowMemoryMode;

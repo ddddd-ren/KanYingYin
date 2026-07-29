@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/features/player/application/player_runtime_preferences.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
 
 void main() {
   late Directory directory;
@@ -43,5 +44,23 @@ void main() {
 
     expect(preferences.load().buttonSkipTime, 45);
     expect(preferences.load().arrowKeySkipTime, 8);
+  });
+
+  test('Android 独立读取解码器、渲染器和画中画设置', () async {
+    await box.put(SettingBoxKey.hardwareDecoder, 'd3d11va-copy');
+    await box.put(SettingBoxKey.androidHardwareDecoder, 'no');
+    await box.put(SettingBoxKey.androidVideoRenderer, 'mediacodec_embed');
+    await box.put(SettingBoxKey.androidAutoEnterPip, true);
+    final preferences = PlayerRuntimePreferences(
+      TypedSettings(box),
+      capabilities: AppPlatformCapabilities.android,
+    );
+
+    final value = preferences.load();
+
+    expect(value.hardwareDecoder, 'no');
+    expect(value.videoRenderer, 'mediacodec_embed');
+    expect(value.anime4kSupported, isFalse);
+    expect(value.androidAutoEnterPip, isTrue);
   });
 }

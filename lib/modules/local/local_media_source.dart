@@ -1,8 +1,10 @@
+import 'package:kanyingyin/modules/local/media_location.dart';
 import 'package:path/path.dart' as p;
 
 class LocalMediaSource {
   final String id;
-  final String path;
+  final MediaLocation location;
+  String get path => location.value;
   final String name;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -16,7 +18,7 @@ class LocalMediaSource {
 
   const LocalMediaSource({
     required this.id,
-    required this.path,
+    required this.location,
     required this.name,
     required this.createdAt,
     required this.updatedAt,
@@ -30,12 +32,18 @@ class LocalMediaSource {
   });
 
   factory LocalMediaSource.fromPath(String path) {
-    final normalizedPath = _normalizePath(path);
+    return LocalMediaSource.fromLocation(MediaLocation.file(path));
+  }
+
+  factory LocalMediaSource.fromLocation(
+    MediaLocation location, {
+    String? displayName,
+  }) {
     final now = DateTime.now();
     return LocalMediaSource(
-      id: idForPath(normalizedPath),
-      path: normalizedPath,
-      name: _nameForPath(normalizedPath),
+      id: location.stableId,
+      location: location,
+      name: displayName ?? _nameForLocation(location),
       createdAt: now,
       updatedAt: now,
     );
@@ -43,10 +51,14 @@ class LocalMediaSource {
 
   factory LocalMediaSource.fromJson(Map<String, dynamic> json) {
     final path = _stringValue(json['path']);
+    final rawLocation = json['location'];
+    final location = rawLocation is Map
+        ? MediaLocation.fromJson(Map<Object?, Object?>.from(rawLocation))
+        : MediaLocation.file(path);
     return LocalMediaSource(
-      id: _stringValue(json['id'], fallback: idForPath(path)),
-      path: path,
-      name: _stringValue(json['name'], fallback: _nameForPath(path)),
+      id: location.stableId,
+      location: location,
+      name: _stringValue(json['name'], fallback: _nameForLocation(location)),
       createdAt: _dateValue(json['createdAt']) ?? DateTime.now(),
       updatedAt: _dateValue(json['updatedAt']) ?? DateTime.now(),
       lastScannedAt: _dateValue(json['lastScannedAt']),
@@ -62,6 +74,7 @@ class LocalMediaSource {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'location': location.toJson(),
       'path': path,
       'name': name,
       'createdAt': createdAt.toIso8601String(),
@@ -77,7 +90,7 @@ class LocalMediaSource {
   }
 
   LocalMediaSource copyWith({
-    String? path,
+    MediaLocation? location,
     String? name,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -89,10 +102,10 @@ class LocalMediaSource {
     bool? recursive,
     bool? enabled,
   }) {
-    final nextPath = path == null ? this.path : _normalizePath(path);
+    final nextLocation = location ?? this.location;
     return LocalMediaSource(
-      id: idForPath(nextPath),
-      path: nextPath,
+      id: nextLocation.stableId,
+      location: nextLocation,
       name: name ?? this.name,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -107,11 +120,14 @@ class LocalMediaSource {
   }
 
   static String idForPath(String path) {
-    return _normalizePath(path).toLowerCase();
+    return MediaLocation.file(path).stableId;
   }
 
-  static String _normalizePath(String path) {
-    return p.normalize(path.trim());
+  static String idForLocation(MediaLocation location) => location.stableId;
+
+  static String _nameForLocation(MediaLocation location) {
+    if (location.isDocument) return location.value;
+    return _nameForPath(location.value);
   }
 
   static String _nameForPath(String path) {

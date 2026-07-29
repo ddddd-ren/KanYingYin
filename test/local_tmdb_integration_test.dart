@@ -450,7 +450,7 @@ class _MemoryMetadataRepository implements ITmdbMetadataRepository {
   }
 }
 
-class _MemoryIndexRepository implements ILocalMediaIndexRepository {
+class _MemoryIndexRepository extends ILocalMediaIndexRepository {
   final List<LocalMediaIndexItem> items;
 
   _MemoryIndexRepository(this.items);

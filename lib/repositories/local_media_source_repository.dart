@@ -1,4 +1,5 @@
 import 'package:kanyingyin/modules/local/local_media_source.dart';
+import 'package:kanyingyin/modules/local/media_location.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/utils/storage.dart';
 
@@ -7,9 +8,29 @@ abstract class ILocalMediaSourceRepository {
 
   LocalMediaSource? getByPath(String path);
 
+  LocalMediaSource? getByLocation(MediaLocation location) {
+    for (final source in getAll()) {
+      if (source.location == location) return source;
+    }
+    return null;
+  }
+
   Future<LocalMediaSource> upsertPath(String path);
 
+  Future<LocalMediaSource> upsertLocation(
+    MediaLocation location, {
+    required String displayName,
+  }) {
+    if (location.isFile) return upsertPath(location.value);
+    throw UnsupportedError('仓库实现不支持 Android 文档来源');
+  }
+
   Future<bool> removePath(String path);
+
+  Future<bool> removeLocation(MediaLocation location) {
+    if (location.isFile) return removePath(location.value);
+    throw UnsupportedError('仓库实现不支持 Android 文档来源');
+  }
 
   Future<void> updateScanSummary({
     required String path,
@@ -18,6 +39,25 @@ abstract class ILocalMediaSourceRepository {
     required int directoryCount,
     required int skippedCount,
   });
+
+  Future<void> updateScanSummaryForLocation({
+    required MediaLocation location,
+    required int fileCount,
+    required int videoCount,
+    required int directoryCount,
+    required int skippedCount,
+  }) {
+    if (location.isFile) {
+      return updateScanSummary(
+        path: location.value,
+        fileCount: fileCount,
+        videoCount: videoCount,
+        directoryCount: directoryCount,
+        skippedCount: skippedCount,
+      );
+    }
+    throw UnsupportedError('仓库实现不支持 Android 文档来源');
+  }
 }
 
 class LocalMediaSourceRepository implements ILocalMediaSourceRepository {
@@ -34,9 +74,16 @@ class LocalMediaSourceRepository implements ILocalMediaSourceRepository {
 
       final sources = value
           .whereType<Map<Object?, Object?>>()
-          .map((item) => LocalMediaSource.fromJson(
+          .map<LocalMediaSource?>((item) {
+            try {
+              return LocalMediaSource.fromJson(
                 Map<String, dynamic>.from(item),
-              ))
+              );
+            } on Object {
+              return null;
+            }
+          })
+          .whereType<LocalMediaSource>()
           .where((source) => source.path.isNotEmpty)
           .toList();
       sources.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
@@ -53,7 +100,12 @@ class LocalMediaSourceRepository implements ILocalMediaSourceRepository {
 
   @override
   LocalMediaSource? getByPath(String path) {
-    final id = LocalMediaSource.idForPath(path);
+    return getByLocation(MediaLocation.file(path));
+  }
+
+  @override
+  LocalMediaSource? getByLocation(MediaLocation location) {
+    final id = location.stableId;
     for (final source in getAll()) {
       if (source.id == id) return source;
     }
@@ -62,8 +114,20 @@ class LocalMediaSourceRepository implements ILocalMediaSourceRepository {
 
   @override
   Future<LocalMediaSource> upsertPath(String path) async {
+    final location = MediaLocation.file(path);
+    return upsertLocation(
+      location,
+      displayName: LocalMediaSource.fromLocation(location).name,
+    );
+  }
+
+  @override
+  Future<LocalMediaSource> upsertLocation(
+    MediaLocation location, {
+    required String displayName,
+  }) async {
     final sources = getAll();
-    final id = LocalMediaSource.idForPath(path);
+    final id = location.stableId;
     final existingIndex = sources.indexWhere((source) => source.id == id);
     final now = DateTime.now();
     final source = existingIndex >= 0
@@ -71,7 +135,10 @@ class LocalMediaSourceRepository implements ILocalMediaSourceRepository {
             updatedAt: now,
             enabled: true,
           )
-        : LocalMediaSource.fromPath(path);
+        : LocalMediaSource.fromLocation(
+            location,
+            displayName: displayName,
+          );
 
     if (existingIndex >= 0) {
       sources[existingIndex] = source;
@@ -84,8 +151,13 @@ class LocalMediaSourceRepository implements ILocalMediaSourceRepository {
 
   @override
   Future<bool> removePath(String path) async {
+    return removeLocation(MediaLocation.file(path));
+  }
+
+  @override
+  Future<bool> removeLocation(MediaLocation location) async {
     final sources = getAll();
-    final id = LocalMediaSource.idForPath(path);
+    final id = location.stableId;
     final nextSources =
         sources.where((source) => source.id != id).toList(growable: false);
     if (nextSources.length == sources.length) return false;
@@ -101,8 +173,25 @@ class LocalMediaSourceRepository implements ILocalMediaSourceRepository {
     required int directoryCount,
     required int skippedCount,
   }) async {
+    return updateScanSummaryForLocation(
+      location: MediaLocation.file(path),
+      fileCount: fileCount,
+      videoCount: videoCount,
+      directoryCount: directoryCount,
+      skippedCount: skippedCount,
+    );
+  }
+
+  @override
+  Future<void> updateScanSummaryForLocation({
+    required MediaLocation location,
+    required int fileCount,
+    required int videoCount,
+    required int directoryCount,
+    required int skippedCount,
+  }) async {
     final sources = getAll();
-    final id = LocalMediaSource.idForPath(path);
+    final id = location.stableId;
     final existingIndex = sources.indexWhere((source) => source.id == id);
     final now = DateTime.now();
     final source = existingIndex >= 0
@@ -114,7 +203,7 @@ class LocalMediaSourceRepository implements ILocalMediaSourceRepository {
             directoryCount: directoryCount,
             skippedCount: skippedCount,
           )
-        : LocalMediaSource.fromPath(path).copyWith(
+        : LocalMediaSource.fromLocation(location).copyWith(
             updatedAt: now,
             lastScannedAt: now,
             fileCount: fileCount,

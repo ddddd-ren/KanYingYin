@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:kanyingyin/modules/local/local_episode_info.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
+import 'package:kanyingyin/modules/local/media_location.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 import 'package:path/path.dart' as p;
@@ -10,10 +11,13 @@ class LocalMediaIndexItem {
   static const int pathFingerprintVersion = 2;
   static const int currentDerivedMetadataVersion = 3;
 
-  final String path;
+  final MediaLocation location;
+  String get path => location.value;
   final String name;
-  final String parentPath;
-  final String sourcePath;
+  final MediaLocation parentLocation;
+  String get parentPath => parentLocation.value;
+  final MediaLocation sourceLocation;
+  String get sourcePath => sourceLocation.value;
   final int size;
   final DateTime modified;
   final String? cover;
@@ -41,11 +45,14 @@ class LocalMediaIndexItem {
   final int derivedMetadataVersion;
   final DateTime indexedAt;
 
-  const LocalMediaIndexItem({
-    required this.path,
+  LocalMediaIndexItem({
+    String? path,
+    MediaLocation? location,
     required this.name,
-    required this.parentPath,
-    required this.sourcePath,
+    String? parentPath,
+    MediaLocation? parentLocation,
+    String? sourcePath,
+    MediaLocation? sourceLocation,
     required this.size,
     required this.modified,
     required this.seriesName,
@@ -72,7 +79,16 @@ class LocalMediaIndexItem {
     this.manualOverride = false,
     String? pathFingerprint,
     this.derivedMetadataVersion = currentDerivedMetadataVersion,
-  }) : pathFingerprint = pathFingerprint ?? '';
+  })  : assert(path != null || location != null),
+        assert(path == null || location == null),
+        assert(parentPath != null || parentLocation != null),
+        assert(parentPath == null || parentLocation == null),
+        assert(sourcePath != null || sourceLocation != null),
+        assert(sourcePath == null || sourceLocation == null),
+        location = location ?? MediaLocation.file(path!),
+        parentLocation = parentLocation ?? MediaLocation.file(parentPath!),
+        sourceLocation = sourceLocation ?? MediaLocation.file(sourcePath!),
+        pathFingerprint = pathFingerprint ?? '';
 
   factory LocalMediaIndexItem.fromFile({
     required File file,
@@ -115,11 +131,22 @@ class LocalMediaIndexItem {
   }
 
   factory LocalMediaIndexItem.fromJson(Map<String, dynamic> json) {
+    MediaLocation readLocation(String key, String legacyKey) {
+      final raw = json[key];
+      if (raw is Map) {
+        return MediaLocation.fromJson(Map<Object?, Object?>.from(raw));
+      }
+      return MediaLocation.file(json[legacyKey] as String? ?? '');
+    }
+
+    final location = readLocation('location', 'path');
+    final parentLocation = readLocation('parentLocation', 'parentPath');
+    final sourceLocation = readLocation('sourceLocation', 'sourcePath');
     return LocalMediaIndexItem(
-      path: json['path'] as String? ?? '',
+      location: location,
       name: json['name'] as String? ?? '',
-      parentPath: json['parentPath'] as String? ?? '',
-      sourcePath: json['sourcePath'] as String? ?? '',
+      parentLocation: parentLocation,
+      sourceLocation: sourceLocation,
       size: _asInt(json['size']),
       modified: _dateFromMillis(json['modifiedMillis']),
       cover: _asNullableString(json['cover']),
@@ -157,9 +184,12 @@ class LocalMediaIndexItem {
 
   Map<String, dynamic> toJson() {
     return {
+      'location': location.toJson(),
       'path': path,
       'name': name,
+      'parentLocation': parentLocation.toJson(),
       'parentPath': parentPath,
+      'sourceLocation': sourceLocation.toJson(),
       'sourcePath': sourcePath,
       'size': size,
       'modifiedMillis': modified.millisecondsSinceEpoch,
@@ -196,7 +226,7 @@ class LocalMediaIndexItem {
     };
   }
 
-  String get id => normalizePath(path);
+  String get id => location.isFile ? normalizePath(path) : location.stableId;
 
   bool get hasCurrentDerivedMetadata =>
       derivedMetadataVersion >= currentDerivedMetadataVersion;
@@ -241,7 +271,7 @@ class LocalMediaIndexItem {
 
   LocalFileItem toFileItem() {
     return LocalFileItem(
-      path: path,
+      location: location,
       name: name,
       size: size,
       modified: modified,
@@ -264,9 +294,12 @@ class LocalMediaIndexItem {
 
   LocalMediaIndexItem copyWith({
     String? path,
+    MediaLocation? location,
     String? name,
     String? parentPath,
+    MediaLocation? parentLocation,
     String? sourcePath,
+    MediaLocation? sourceLocation,
     int? size,
     DateTime? modified,
     String? cover,
@@ -294,11 +327,19 @@ class LocalMediaIndexItem {
     int? derivedMetadataVersion,
     DateTime? indexedAt,
   }) {
+    assert(path == null || location == null);
+    assert(parentPath == null || parentLocation == null);
+    assert(sourcePath == null || sourceLocation == null);
     return LocalMediaIndexItem(
-      path: path ?? this.path,
+      location: location ?? (path == null ? this.location : null),
+      path: path,
       name: name ?? this.name,
-      parentPath: parentPath ?? this.parentPath,
-      sourcePath: sourcePath ?? this.sourcePath,
+      parentLocation:
+          parentLocation ?? (parentPath == null ? this.parentLocation : null),
+      parentPath: parentPath,
+      sourceLocation:
+          sourceLocation ?? (sourcePath == null ? this.sourceLocation : null),
+      sourcePath: sourcePath,
       size: size ?? this.size,
       modified: modified ?? this.modified,
       cover: cover ?? this.cover,

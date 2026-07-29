@@ -160,6 +160,8 @@ class CloudProviderRegistry {
           '百度网盘授权无效或已失效',
         (CloudSourceType.xunlei, CloudDriveErrorType.authentication) =>
           '迅雷登录已失效，请重新登录',
+        (CloudSourceType.xunlei, CloudDriveErrorType.invalidPassword) =>
+          '迅雷密码错误，请重新输入',
         (CloudSourceType.xunlei, CloudDriveErrorType.verificationRequired) =>
           '迅雷需要完成设备验证',
         (CloudSourceType.xunlei, CloudDriveErrorType.protocolUpdated) =>

@@ -259,6 +259,10 @@ void main() {
           );
 
       expect(message(CloudDriveErrorType.authentication), '迅雷登录已失效，请重新登录');
+      expect(
+        message(CloudDriveErrorType.invalidPassword),
+        '迅雷密码错误，请重新输入',
+      );
       expect(message(CloudDriveErrorType.verificationRequired), '迅雷需要完成设备验证');
       expect(
         message(CloudDriveErrorType.protocolUpdated),

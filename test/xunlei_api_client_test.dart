@@ -169,6 +169,87 @@ void main() {
     );
     await client.close();
   });
+
+  test('只有核心登录明确密码错误才映射 invalidPassword', () async {
+    final cases = <(int, String, CloudDriveErrorType)>[
+      (
+        401,
+        '{"error":"invalid_password"}',
+        CloudDriveErrorType.invalidPassword,
+      ),
+      (
+        400,
+        '{"error":"password_error"}',
+        CloudDriveErrorType.invalidPassword,
+      ),
+      (
+        400,
+        '{"error":"invalid_argument","error_description":"密码错误"}',
+        CloudDriveErrorType.invalidPassword,
+      ),
+      (
+        401,
+        '{"error":"authentication_failed","error_description":"bad credentials"}',
+        CloudDriveErrorType.authentication,
+      ),
+      (
+        400,
+        '{"error":"invalid_argument","error_description":"invalid captcha_sign"}',
+        CloudDriveErrorType.protocolUpdated,
+      ),
+    ];
+
+    for (final item in cases) {
+      final client = XunleiApiClient(
+        deviceId: deviceId,
+        dio: Dio()
+          ..httpClientAdapter = _QueueAdapter(<_FakeResponse>[
+            _FakeResponse(item.$1, item.$2),
+          ]),
+      );
+      await expectLater(
+        client.login(
+          identifier: 'account-fixture',
+          password: 'password-fixture',
+          deviceId: deviceId,
+        ),
+        throwsA(
+          isA<CloudDriveException>().having(
+            (error) => error.type,
+            '错误类型',
+            item.$3,
+          ),
+        ),
+      );
+      await client.close();
+    }
+  });
+
+  test('Refresh Token 接口的密码字样不会误报账号密码错误', () async {
+    final client = XunleiApiClient(
+      deviceId: deviceId,
+      dio: Dio()
+        ..httpClientAdapter = _QueueAdapter(<_FakeResponse>[
+          const _FakeResponse(
+            401,
+            '{"error":"invalid_password","error_description":"wrong password"}',
+          ),
+        ]),
+    );
+
+    await expectLater(
+      client.refresh(
+        refreshToken: 'refresh-fixture',
+        deviceId: deviceId,
+      ),
+      throwsA(isA<CloudDriveException>().having(
+        (error) => error.type,
+        '错误类型',
+        CloudDriveErrorType.authentication,
+      )),
+    );
+    await client.close();
+  });
 }
 
 class _FakeResponse {

@@ -127,6 +127,29 @@ void main() {
     controller.dispose();
   });
 
+  test('明确密码错误使用独立类型和用户提示', () async {
+    final controller = XunleiAuthorizationController(
+      gateway: _RefreshGateway(
+        error: const CloudDriveException(
+          CloudDriveErrorType.invalidPassword,
+        ),
+      ),
+      deviceIdGenerator: () => '0123456789abcdef0123456789abcdef',
+    );
+
+    await expectLater(
+      controller.login(identifier: 'account', password: 'wrong-password'),
+      throwsA(isA<CloudDriveException>().having(
+        (error) => error.type,
+        '类型',
+        CloudDriveErrorType.invalidPassword,
+      )),
+    );
+    expect(controller.errorMessage, '迅雷密码错误，请重新输入');
+    expect(controller.authorizedCredential, isNull);
+    controller.dispose();
+  });
+
   test('需要验证时取消会清除临时秘密并禁止重试', () async {
     final gateway = _FakeGateway(challengeFirst: true);
     final controller = XunleiAuthorizationController(

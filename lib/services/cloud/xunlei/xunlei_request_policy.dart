@@ -2,12 +2,16 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 
+enum XunleiClientProfile { android, web }
+
 /// 迅雷个人云盘目前依赖非公开客户端协议；常量集中在此处便于隔离兼容变化。
 class XunleiRequestPolicy {
   const XunleiRequestPolicy();
 
   static const String clientId = 'Xp6vsxz_7IYVw2BB';
   static const String clientSecret = 'Xp6vsy4tN9toTVdMSpomVdXpRmES';
+  static const String webClientId = 'Xqp0kJBXWhwaTpB6';
+  static const String webSdkVersion = '3.4.20';
   static const String clientVersion = '8.31.0.9726';
   static const String packageName = 'com.xunlei.downloadprovider';
   static const String userAgent =
@@ -19,6 +23,9 @@ class XunleiRequestPolicy {
   static const String downloadUserAgent =
       'Dalvik/2.1.0 (Linux; U; Android 12; M2004J7AC '
       'Build/SP1A.210812.016)';
+  static const String webUserAgent =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+      'AppleWebKit/537.36 Chrome/138.0.0.0 Safari/537.36';
   static const String appId = '40';
   static const String appKey = '34a062aaa22f906fca4fefe9fb3a3021';
   static const List<String> _captchaSalts = <String>[
@@ -47,13 +54,26 @@ class XunleiRequestPolicy {
   static final Uri filesUri =
       Uri.https('api-pan.xunlei.com', '/drive/v1/files');
 
-  Map<String, String> apiHeaders({required String deviceId}) =>
-      <String, String>{
-        'accept': 'application/json;charset=UTF-8',
-        'user-agent': userAgent,
-        'x-device-id': deviceId,
-        'x-client-id': clientId,
-        'x-client-version': clientVersion,
+  Map<String, String> apiHeaders({
+    required String deviceId,
+    XunleiClientProfile profile = XunleiClientProfile.android,
+  }) =>
+      switch (profile) {
+        XunleiClientProfile.android => <String, String>{
+            'accept': 'application/json;charset=UTF-8',
+            'user-agent': userAgent,
+            'x-device-id': deviceId,
+            'x-client-id': clientId,
+            'x-client-version': clientVersion,
+          },
+        XunleiClientProfile.web => <String, String>{
+            'accept': 'application/json;charset=UTF-8',
+            'user-agent': webUserAgent,
+            'x-device-id': deviceId,
+            'x-client-id': webClientId,
+            'x-sdk-version': webSdkVersion,
+            'x-protocol-version': '301',
+          },
       };
 
   String captchaSign({

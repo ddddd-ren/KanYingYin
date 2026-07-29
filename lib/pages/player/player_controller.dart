@@ -25,6 +25,7 @@ import 'package:kanyingyin/features/player/application/anime4k_policy.dart';
 import 'package:kanyingyin/features/player/application/anime4k_shader_executor.dart';
 import 'package:kanyingyin/features/player/application/embedded_track_language_preferences.dart';
 import 'package:kanyingyin/features/player/application/player_runtime_preferences.dart';
+import 'package:kanyingyin/features/player/application/player_decoder_recovery_policy.dart';
 import 'package:kanyingyin/features/player/application/player_subtitle_coordinator.dart';
 import 'package:kanyingyin/features/player/application/subtitle_preferences.dart';
 import 'package:kanyingyin/features/player/application/truehd_fallback_policy.dart';
@@ -307,6 +308,9 @@ abstract class _PlayerController with Store {
   Future<void>? _disposeFuture;
   String? _subtitleStorageKey;
   bool _truehdAudioTrackFallbackAttempted = false;
+  bool _softwareVideoDecoderFallbackAttempted = false;
+  final PlayerDecoderRecoveryPolicy _decoderRecoveryPolicy =
+      PlayerDecoderRecoveryPolicy();
   final EmbeddedTrackSelectionState _embeddedTrackSelection =
       EmbeddedTrackSelectionState();
   final SubtitleTrackSelectionState _subtitleTrackSelection =
@@ -524,6 +528,8 @@ abstract class _PlayerController with Store {
     final bool isNewMedia = _lastInitParams?.videoUrl != params.videoUrl;
     if (isNewMedia) {
       _truehdAudioTrackFallbackAttempted = false;
+      _softwareVideoDecoderFallbackAttempted = false;
+      _decoderRecoveryPolicy.reset();
       _resetEmbeddedTrackState();
     }
     _lastInitParams = params;
@@ -628,6 +634,7 @@ abstract class _PlayerController with Store {
   Future<void> setupPlayerDebugInfoSubscription() async {
     await playerLogSubscription?.cancel();
     playerLogSubscription = mediaPlayer!.stream.log.listen((event) {
+      _decoderRecoveryPolicy.recordLog(event);
       final safeLog = sanitizePlayerDiagnostic(event.toString());
       writePlayerLog('MPV: $safeLog');
       if (playerDebugMode) {
@@ -789,6 +796,7 @@ abstract class _PlayerController with Store {
       if (!_isMediaOperationActive(mediaToken, lifecycleToken)) return;
       final errorStr = event.toString();
       final safeError = sanitizePlayerDiagnostic(errorStr);
+      final decoderFailure = _decoderRecoveryPolicy.classify(errorStr);
       if (await _refreshExpiredCloudLink(
         errorStr,
         mediaToken,
@@ -798,15 +806,26 @@ abstract class _PlayerController with Store {
         return;
       }
       if (!_isMediaOperationActive(mediaToken, lifecycleToken)) return;
-      // TrueHD 解码失败时只切换已有的兼容音轨，不重建视频解码器。
-      if (await _handleTrueHdPlaybackError(
-        errorStr,
-        mediaToken,
-        lifecycleToken,
-      )) {
+      if (decoderFailure == PlayerDecoderFailureKind.video &&
+          await _handleAndroidVideoDecoderError(
+            errorStr,
+            mediaToken,
+            lifecycleToken,
+          )) {
         return;
       }
       if (!_isMediaOperationActive(mediaToken, lifecycleToken)) return;
+      // TrueHD 解码失败时只切换已有的兼容音轨，不重建视频解码器。
+      if (decoderFailure != PlayerDecoderFailureKind.video &&
+          await _handleTrueHdPlaybackError(
+            errorStr,
+            mediaToken,
+            lifecycleToken,
+          )) {
+        return;
+      }
+      if (!_isMediaOperationActive(mediaToken, lifecycleToken)) return;
+      if (!_decoderRecoveryPolicy.shouldReport(errorStr)) return;
       if (showPlayerError) {
         if (initParams.refreshCloudPlayback != null &&
             shouldRefreshCloudLink(errorStr)) {
@@ -830,7 +849,7 @@ abstract class _PlayerController with Store {
       AppLogger().e(
         'PlayerController: player error for '
         '${sanitizeMediaDescription(initParams.videoUrl, isLocalPlayback: initParams.isLocalPlayback)} '
-        'error=$safeError',
+        'decoder=${decoderFailure.name} error=$safeError',
       );
     });
 
@@ -868,6 +887,50 @@ abstract class _PlayerController with Store {
     _scheduleAnime4kEvaluation();
 
     return mediaPlayer!;
+  }
+
+  Future<bool> _handleAndroidVideoDecoderError(
+    String errorStr,
+    PlayerMediaToken mediaToken,
+    PlayerLifecycleToken lifecycleToken,
+  ) async {
+    final lower = errorStr.toLowerCase();
+    final codecOpenFailed = lower.contains('could not open codec') ||
+        lower.contains('failed to open codec') ||
+        lower.contains('failed to initialize decoder');
+    if (!_capabilities.isAndroid ||
+        !hAenable ||
+        _softwareVideoDecoderFallbackAttempted ||
+        !codecOpenFailed ||
+        !_isMediaOperationActive(mediaToken, lifecycleToken)) {
+      return false;
+    }
+    final platform = mediaPlayer?.platform;
+    if (platform is! NativePlayer) return false;
+
+    _softwareVideoDecoderFallbackAttempted = true;
+    try {
+      await platform.setProperty('hwdec', 'no');
+      await platform.command(const ['video-reload']);
+      if (!_isMediaOperationActive(mediaToken, lifecycleToken)) return true;
+      hAenable = false;
+      hardwareDecoder = 'no';
+      AppLogger().w(
+        'PlayerController: video decoder failed, reloaded with software decoding',
+      );
+      AppDialog.showToast(
+        message: '硬件解码不兼容，已自动切换为软件解码',
+        duration: const Duration(seconds: 3),
+      );
+      return true;
+    } on Object catch (error, stackTrace) {
+      AppLogger().e(
+        'PlayerController: failed to reload video with software decoding',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return false;
+    }
   }
 
   Future<bool> _handleTrueHdPlaybackError(

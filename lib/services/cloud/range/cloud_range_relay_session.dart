@@ -8,6 +8,16 @@ import 'package:kanyingyin/services/cloud/range/cloud_range_chunk_cache.dart';
 import 'package:kanyingyin/services/cloud/range/cloud_range_relay_protocol.dart';
 import 'package:kanyingyin/services/cloud/range/cloud_range_remote_reader.dart';
 
+class CloudRangeRelayTuning {
+  const CloudRangeRelayTuning._();
+
+  static const int chunkSize = 4 * 1024 * 1024;
+  static const int maxChunks = 64;
+  static const int maxConcurrentReads = 3;
+  static const int maxConcurrentPrefetch = 2;
+  static const int prefetchAheadChunks = 3;
+}
+
 class CloudRangeRelaySession implements CloudPlaybackLease {
   CloudRangeRelaySession._({
     required CloudRangeRemoteReader reader,
@@ -21,8 +31,8 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
     required CloudRangeRemoteReader reader,
     required Directory directory,
     required String providerName,
-    int chunkSize = 16 * 1024 * 1024,
-    int maxChunks = 16,
+    int chunkSize = CloudRangeRelayTuning.chunkSize,
+    int maxChunks = CloudRangeRelayTuning.maxChunks,
   }) async {
     final session = CloudRangeRelaySession._(
       reader: reader,
@@ -45,7 +55,10 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
   final String providerName;
   final int chunkSize;
   final int maxChunks;
-  final _ReadScheduler _scheduler = _ReadScheduler(maxConcurrent: 2);
+  final _ReadScheduler _scheduler = _ReadScheduler(
+    maxConcurrent: CloudRangeRelayTuning.maxConcurrentReads,
+    maxConcurrentPrefetch: CloudRangeRelayTuning.maxConcurrentPrefetch,
+  );
   final StreamController<CloudRangeRelayStatus> _statuses =
       StreamController<CloudRangeRelayStatus>.broadcast(sync: true);
   final Queue<_TransferSample> _transferSamples = Queue<_TransferSample>();
@@ -327,7 +340,9 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
   }
 
   void _launchSequentialPrefetch(ByteRange current, int generation) {
-    for (var distance = 1; distance <= 2; distance++) {
+    for (var distance = 1;
+        distance <= CloudRangeRelayTuning.prefetchAheadChunks;
+        distance++) {
       final offset = current.start + distance * chunkSize;
       if (offset < totalLength) _launchPrefetch(offset, generation);
     }
@@ -425,17 +440,24 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
 enum _ReadPriority { foreground, prefetch }
 
 class _ReadScheduler {
-  _ReadScheduler({required this.maxConcurrent});
+  _ReadScheduler({
+    required this.maxConcurrent,
+    required this.maxConcurrentPrefetch,
+  })  : assert(maxConcurrent > 0),
+        assert(maxConcurrentPrefetch >= 0),
+        assert(maxConcurrentPrefetch < maxConcurrent);
 
   final int maxConcurrent;
+  final int maxConcurrentPrefetch;
   final Queue<_ScheduledRead> _foreground = Queue<_ScheduledRead>();
   final Queue<_ScheduledRead> _prefetch = Queue<_ScheduledRead>();
   var _active = 0;
+  var _activePrefetch = 0;
   var _closed = false;
 
   Future<void> run(_ReadPriority priority, Future<void> Function() action) {
     if (_closed) return Future<void>.error(StateError('远程读取调度器已关闭'));
-    final scheduled = _ScheduledRead(action);
+    final scheduled = _ScheduledRead(priority, action);
     switch (priority) {
       case _ReadPriority.foreground:
         _foreground.add(scheduled);
@@ -450,11 +472,14 @@ class _ReadScheduler {
     while (!_closed && _active < maxConcurrent) {
       final scheduled = _foreground.isNotEmpty
           ? _foreground.removeFirst()
-          : _prefetch.isNotEmpty
+          : _prefetch.isNotEmpty && _activePrefetch < maxConcurrentPrefetch
               ? _prefetch.removeFirst()
               : null;
       if (scheduled == null) return;
       _active++;
+      if (scheduled.priority == _ReadPriority.prefetch) {
+        _activePrefetch++;
+      }
       scheduled.action().then(
         (_) => scheduled.completer.complete(),
         onError: (Object error, StackTrace stackTrace) {
@@ -462,6 +487,9 @@ class _ReadScheduler {
         },
       ).whenComplete(() {
         _active--;
+        if (scheduled.priority == _ReadPriority.prefetch) {
+          _activePrefetch--;
+        }
         _drain();
       });
     }
@@ -480,8 +508,9 @@ class _ReadScheduler {
 }
 
 class _ScheduledRead {
-  _ScheduledRead(this.action);
+  _ScheduledRead(this.priority, this.action);
 
+  final _ReadPriority priority;
   final Future<void> Function() action;
   final Completer<void> completer = Completer<void>();
 }

@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:kanyingyin/platform/android/android_system_service.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
@@ -46,9 +47,17 @@ class WindowUtils {
     }
     await _androidSystem.setImmersive(false);
     if (lockOrientation) {
-      await SystemChrome.setPreferredOrientations(const [
-        DeviceOrientation.portraitUp,
-      ]);
+      final view = WidgetsBinding.instance.platformDispatcher.views.first;
+      final isTablet =
+          view.physicalSize.shortestSide / view.devicePixelRatio >= 600;
+      await SystemChrome.setPreferredOrientations(
+        isTablet
+            ? const [
+                DeviceOrientation.landscapeLeft,
+                DeviceOrientation.landscapeRight,
+              ]
+            : const [DeviceOrientation.portraitUp],
+      );
     }
   }
 }

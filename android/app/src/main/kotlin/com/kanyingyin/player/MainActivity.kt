@@ -5,9 +5,12 @@ import android.app.Activity
 import android.app.PictureInPictureParams
 import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
 import android.provider.DocumentsContract
@@ -30,6 +33,27 @@ class MainActivity : AudioServiceActivity() {
     private var pendingDirectoryPicker: MethodChannel.Result? = null
     private var pendingNotificationPermission: MethodChannel.Result? = null
     private var pendingScreenshot: Pair<ByteArray, MethodChannel.Result>? = null
+    private var tabletLandscapeLocked = false
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        applyTabletLandscapePolicy(resources.configuration)
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applyTabletLandscapePolicy(newConfig)
+    }
+
+    private fun applyTabletLandscapePolicy(configuration: Configuration) {
+        val shouldLockLandscape = configuration.smallestScreenWidthDp >= 600
+        if (shouldLockLandscape) {
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        } else if (tabletLandscapeLocked) {
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+        tabletLandscapeLocked = shouldLockLandscape
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

@@ -78,14 +78,19 @@ bool shouldRefreshCloudLink(Object error) {
         error.statusCode == 412;
   }
   if (error is String) {
+    final decoderFailure = RegExp(
+      r'\b(?:codec|decoder|decoding)\b',
+      caseSensitive: false,
+    ).hasMatch(error);
     return RegExp(
           r'\b(?:http status|http error|status code)\s*[:=]?\s*(?:401|403|412)\b',
           caseSensitive: false,
         ).hasMatch(error) ||
-        RegExp(
-          r'\bfailed to open\b',
-          caseSensitive: false,
-        ).hasMatch(error) ||
+        (!decoderFailure &&
+            RegExp(
+              r'\bfailed to open\b',
+              caseSensitive: false,
+            ).hasMatch(error)) ||
         RegExp(
           r'\b(?:expiredlink|expired link|signature expired)\b',
           caseSensitive: false,

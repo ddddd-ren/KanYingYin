@@ -153,6 +153,98 @@ void main() {
     await reader.close();
   });
 
+  test('迅雷连续分段读取复用同一 HTTP 连接', () async {
+    final remotePorts = <int>{};
+    final server = await serve((request) async {
+      remotePorts.add(request.connectionInfo!.remotePort);
+      final value = request.headers.value(HttpHeaders.rangeHeader)!;
+      final match = RegExp(r'^bytes=(\d+)-(\d+)$').firstMatch(value)!;
+      final start = int.parse(match.group(1)!);
+      final end = int.parse(match.group(2)!);
+      request.response
+        ..statusCode = HttpStatus.partialContent
+        ..headers.set(
+          HttpHeaders.contentRangeHeader,
+          'bytes $start-$end/8',
+        )
+        ..contentLength = end - start + 1
+        ..add(<int>[for (var value = start; value <= end; value++) value]);
+      await request.response.close();
+    });
+    final reader = XunleiRangeRemoteReader(
+      resource: CloudRangeRemoteResource(
+        uri: Uri.parse('http://127.0.0.1:${server.port}/file'),
+        totalLength: 8,
+      ),
+      refreshResource: () => throw StateError('不应刷新'),
+      uriValidator: allowTestUri,
+    );
+
+    await reader.readTo(
+      const ByteRange(0, 3),
+      File('${directory.path}/first'),
+    );
+    await reader.readTo(
+      const ByteRange(4, 7),
+      File('${directory.path}/second'),
+    );
+
+    expect(remotePorts, hasLength(1));
+    await reader.close();
+  });
+
+  test('迅雷会话缓存可信重定向地址', () async {
+    var initialRequests = 0;
+    var redirectRequests = 0;
+    final redirectServer = await serve((request) async {
+      redirectRequests++;
+      final value = request.headers.value(HttpHeaders.rangeHeader)!;
+      final match = RegExp(r'^bytes=(\d+)-(\d+)$').firstMatch(value)!;
+      final start = int.parse(match.group(1)!);
+      final end = int.parse(match.group(2)!);
+      request.response
+        ..statusCode = HttpStatus.partialContent
+        ..headers.set(
+          HttpHeaders.contentRangeHeader,
+          'bytes $start-$end/8',
+        )
+        ..contentLength = end - start + 1
+        ..add(<int>[for (var value = start; value <= end; value++) value]);
+      await request.response.close();
+    });
+    final initialServer = await serve((request) async {
+      initialRequests++;
+      request.response
+        ..statusCode = HttpStatus.found
+        ..headers.set(
+          HttpHeaders.locationHeader,
+          'http://127.0.0.1:${redirectServer.port}/cdn',
+        );
+      await request.response.close();
+    });
+    final reader = XunleiRangeRemoteReader(
+      resource: CloudRangeRemoteResource(
+        uri: Uri.parse('http://127.0.0.1:${initialServer.port}/file'),
+        totalLength: 8,
+      ),
+      refreshResource: () => throw StateError('不应刷新'),
+      uriValidator: allowTestUri,
+    );
+
+    await reader.readTo(
+      const ByteRange(0, 3),
+      File('${directory.path}/redirect-first'),
+    );
+    await reader.readTo(
+      const ByteRange(4, 7),
+      File('${directory.path}/redirect-second'),
+    );
+
+    expect(initialRequests, 1);
+    expect(redirectRequests, 2);
+    await reader.close();
+  });
+
   test('探测返回 200 时支持无 Range 的顺序流', () async {
     final ranges = <String?>[];
     final server = await serve((request) async {

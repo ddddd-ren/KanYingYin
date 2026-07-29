@@ -20,8 +20,8 @@ class CloudRangeChunkCache {
   CloudRangeChunkCache({
     required this.directory,
     required this.totalLength,
-    this.chunkSize = 16 * 1024 * 1024,
-    this.maxChunks = 16,
+    this.chunkSize = 4 * 1024 * 1024,
+    this.maxChunks = 64,
   })  : assert(totalLength > 0),
         assert(chunkSize > 0),
         assert(maxChunks > 0);

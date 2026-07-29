@@ -52,12 +52,13 @@ class BaiduRangeRemoteReader implements CloudRangeRemoteReader {
   final BaiduRemoteUriValidator _initialUriValidator;
   final BaiduRemoteUriValidator _redirectUriValidator;
   final Duration requestTimeout;
-  final Set<HttpClient> _activeClients = <HttpClient>{};
+  HttpClient? _client;
   final StreamController<CloudRangeReaderEvent> _events =
       StreamController<CloudRangeReaderEvent>.broadcast(sync: true);
 
   int? _totalLength;
   String _contentType = 'application/octet-stream';
+  Uri? _resolvedRedirectUri;
   bool _authRefreshUsed = false;
   Future<void>? _refreshing;
   bool _closed = false;
@@ -116,49 +117,46 @@ class BaiduRangeRemoteReader implements CloudRangeRemoteReader {
     File? destination,
   ) async {
     final client = _newClient();
-    try {
-      final opened = await _openResponse(
-        client,
-        rangeHeader: 'bytes=${range.start}-${range.endInclusive}',
+    final opened = await _openResponse(
+      client,
+      rangeHeader: 'bytes=${range.start}-${range.endInclusive}',
+    );
+    final response = opened.response;
+    if (response.statusCode == HttpStatus.ok &&
+        destination == null &&
+        range.start == 0 &&
+        range.endInclusive == 0) {
+      final metadata = _metadataFromFullResponse(response);
+      _rememberMetadata(metadata);
+      await _closeResponseConnection(response);
+      return metadata;
+    }
+    if (response.statusCode != HttpStatus.partialContent) {
+      await response.drain<void>();
+      throw CloudRangeRemoteProtocolException(
+        '百度远程 Range 响应状态无效：${response.statusCode}',
       );
-      final response = opened.response;
-      if (response.statusCode == HttpStatus.ok &&
-          destination == null &&
-          range.start == 0 &&
-          range.endInclusive == 0) {
-        final metadata = _metadataFromFullResponse(response);
-        _rememberMetadata(metadata);
-        return metadata;
+    }
+    final metadata = _validateRangeResponse(response, range);
+    IOSink? sink;
+    var received = 0;
+    try {
+      if (destination != null) sink = destination.openWrite();
+      await for (final chunk in response.timeout(requestTimeout)) {
+        received += chunk.length;
+        sink?.add(chunk);
       }
-      if (response.statusCode != HttpStatus.partialContent) {
-        await response.drain<void>();
+      if (received != range.length) {
         throw CloudRangeRemoteProtocolException(
-          '百度远程 Range 响应状态无效：${response.statusCode}',
+          '百度远程分段长度不符：期望 ${range.length}，实际 $received',
         );
       }
-      final metadata = _validateRangeResponse(response, range);
-      IOSink? sink;
-      var received = 0;
-      try {
-        if (destination != null) sink = destination.openWrite();
-        await for (final chunk in response.timeout(requestTimeout)) {
-          received += chunk.length;
-          sink?.add(chunk);
-        }
-        if (received != range.length) {
-          throw CloudRangeRemoteProtocolException(
-            '百度远程分段长度不符：期望 ${range.length}，实际 $received',
-          );
-        }
-        await sink?.flush();
-      } finally {
-        await sink?.close();
-      }
-      _rememberMetadata(metadata);
-      return metadata;
+      await sink?.flush();
     } finally {
-      _disposeClient(client);
+      await sink?.close();
     }
+    _rememberMetadata(metadata);
+    return metadata;
   }
 
   @override
@@ -175,30 +173,26 @@ class BaiduRangeRemoteReader implements CloudRangeRemoteReader {
 
   Future<void> _streamAllOnce(IOSink destination) async {
     final client = _newClient();
-    try {
-      final opened = await _openResponse(client);
-      final response = opened.response;
-      if (response.statusCode != HttpStatus.ok) {
-        await response.drain<void>();
-        throw CloudRangeRemoteProtocolException(
-          '百度远程完整响应状态无效：${response.statusCode}',
-        );
-      }
-      final metadata = _metadataFromFullResponse(response);
-      var received = 0;
-      await for (final chunk in response.timeout(requestTimeout)) {
-        received += chunk.length;
-        destination.add(chunk);
-      }
-      if (received != metadata.totalLength) {
-        throw CloudRangeRemoteProtocolException(
-          '百度远程完整响应长度不符：期望 ${metadata.totalLength}，实际 $received',
-        );
-      }
-      _rememberMetadata(metadata);
-    } finally {
-      _disposeClient(client);
+    final opened = await _openResponse(client);
+    final response = opened.response;
+    if (response.statusCode != HttpStatus.ok) {
+      await response.drain<void>();
+      throw CloudRangeRemoteProtocolException(
+        '百度远程完整响应状态无效：${response.statusCode}',
+      );
     }
+    final metadata = _metadataFromFullResponse(response);
+    var received = 0;
+    await for (final chunk in response.timeout(requestTimeout)) {
+      received += chunk.length;
+      destination.add(chunk);
+    }
+    if (received != metadata.totalLength) {
+      throw CloudRangeRemoteProtocolException(
+        '百度远程完整响应长度不符：期望 ${metadata.totalLength}，实际 $received',
+      );
+    }
+    _rememberMetadata(metadata);
   }
 
   Future<({HttpClientResponse response, Uri finalUri})> _openResponse(
@@ -208,16 +202,26 @@ class BaiduRangeRemoteReader implements CloudRangeRemoteReader {
     if (!_initialUriValidator(_resource.uri)) {
       throw const CloudRangeRemoteProtocolException('百度下载地址不在官方范围内');
     }
-    final token = (await _accessTokenProvider()).trim();
-    if (token.isEmpty) {
-      throw const CloudRangeRemoteAuthenticationException('百度授权无效');
+    final cachedRedirect = _resolvedRedirectUri;
+    late Uri uri;
+    if (cachedRedirect != null) {
+      if (!_redirectUriValidator(cachedRedirect)) {
+        _resolvedRedirectUri = null;
+        throw const CloudRangeRemoteProtocolException('百度缓存下载地址不安全');
+      }
+      uri = cachedRedirect;
+    } else {
+      final token = (await _accessTokenProvider()).trim();
+      if (token.isEmpty) {
+        throw const CloudRangeRemoteAuthenticationException('百度授权无效');
+      }
+      uri = _resource.uri.replace(
+        queryParameters: <String, String>{
+          ..._resource.uri.queryParameters,
+          'access_token': token,
+        },
+      );
     }
-    var uri = _resource.uri.replace(
-      queryParameters: <String, String>{
-        ..._resource.uri.queryParameters,
-        'access_token': token,
-      },
-    );
     for (var redirectCount = 0; redirectCount <= 5; redirectCount++) {
       final request = await client.getUrl(uri).timeout(requestTimeout);
       request.followRedirects = false;
@@ -235,6 +239,9 @@ class BaiduRangeRemoteReader implements CloudRangeRemoteReader {
         throw _BaiduAuthenticationStatusException(response.statusCode);
       }
       if (!_isRedirect(response.statusCode)) {
+        if (redirectCount > 0 || _resolvedRedirectUri != null) {
+          _resolvedRedirectUri = uri;
+        }
         return (response: response, finalUri: uri);
       }
       final location = response.headers.value(HttpHeaders.locationHeader);
@@ -354,6 +361,7 @@ class BaiduRangeRemoteReader implements CloudRangeRemoteReader {
         throw const CloudRangeRemoteProtocolException('刷新后的百度文件长度发生变化');
       }
       _resource = refreshed;
+      _resolvedRedirectUri = null;
     } on CloudRangeRemoteProtocolException {
       rethrow;
     } on Object {
@@ -362,16 +370,17 @@ class BaiduRangeRemoteReader implements CloudRangeRemoteReader {
   }
 
   HttpClient _newClient() {
-    final client = _httpClientFactory()
+    return _client ??= (_httpClientFactory()
       ..connectionTimeout = requestTimeout
-      ..findProxy = (_) => 'DIRECT';
-    _activeClients.add(client);
-    return client;
+      ..idleTimeout = const Duration(seconds: 30)
+      ..maxConnectionsPerHost = 4
+      ..autoUncompress = false
+      ..findProxy = (_) => 'DIRECT');
   }
 
-  void _disposeClient(HttpClient client) {
-    _activeClients.remove(client);
-    client.close(force: true);
+  Future<void> _closeResponseConnection(HttpClientResponse response) async {
+    final socket = await response.detachSocket();
+    socket.destroy();
   }
 
   bool _isTransportError(Object error) =>
@@ -401,10 +410,8 @@ class BaiduRangeRemoteReader implements CloudRangeRemoteReader {
 
   Future<void> _close() async {
     _closed = true;
-    for (final client in _activeClients.toList()) {
-      client.close(force: true);
-    }
-    _activeClients.clear();
+    _client?.close(force: true);
+    _client = null;
     await _events.close();
   }
 }

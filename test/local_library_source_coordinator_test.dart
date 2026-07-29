@@ -66,7 +66,7 @@ void main() {
   });
 }
 
-class _SourceRepository implements ILocalMediaSourceRepository {
+class _SourceRepository extends ILocalMediaSourceRepository {
   final List<String> removedPaths = [];
 
   @override
@@ -95,7 +95,7 @@ class _SourceRepository implements ILocalMediaSourceRepository {
       LocalMediaSource.fromPath(path);
 }
 
-class _IndexRepository implements ILocalMediaIndexRepository {
+class _IndexRepository extends ILocalMediaIndexRepository {
   final List<String> removedSources = [];
 
   @override

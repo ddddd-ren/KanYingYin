@@ -534,7 +534,7 @@ class _FakeMediaProbe implements ILocalMediaProbe {
   }
 }
 
-class _MemoryMediaIndexRepository implements ILocalMediaIndexRepository {
+class _MemoryMediaIndexRepository extends ILocalMediaIndexRepository {
   final _items = <String, LocalMediaIndexItem>{};
   final _fingerprints = <String, Map<String, String>>{};
 

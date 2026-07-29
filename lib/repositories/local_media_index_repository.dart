@@ -1,5 +1,6 @@
 import 'package:kanyingyin/legacy/local_index/legacy_local_media_index_parser.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
+import 'package:kanyingyin/modules/local/media_location.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/utils/library_performance_trace.dart';
 import 'package:kanyingyin/utils/storage.dart';
@@ -9,14 +10,45 @@ abstract class ILocalMediaIndexRepository {
 
   List<LocalMediaIndexItem> getBySourcePath(String sourcePath);
 
+  List<LocalMediaIndexItem> getBySourceLocation(MediaLocation sourceLocation) =>
+      getAll()
+          .where((item) => item.sourceLocation == sourceLocation)
+          .toList(growable: false);
+
   LocalMediaIndexItem? getByPath(String path);
 
+  LocalMediaIndexItem? getByLocation(MediaLocation location) {
+    for (final item in getAll()) {
+      if (item.location == location) return item;
+    }
+    return null;
+  }
+
   Map<String, String> getDirectoryFingerprints(String sourcePath);
+
+  Map<String, String> getDirectoryFingerprintsForLocation(
+    MediaLocation sourceLocation,
+  ) {
+    if (sourceLocation.isFile) {
+      return getDirectoryFingerprints(sourceLocation.value);
+    }
+    return const <String, String>{};
+  }
 
   Future<void> saveForSource(
     String sourcePath,
     List<LocalMediaIndexItem> items,
   );
+
+  Future<void> saveForSourceLocation(
+    MediaLocation sourceLocation,
+    List<LocalMediaIndexItem> items,
+  ) {
+    if (sourceLocation.isFile) {
+      return saveForSource(sourceLocation.value, items);
+    }
+    throw UnsupportedError('仓库实现不支持 Android 文档索引');
+  }
 
   Future<void> updateItem(LocalMediaIndexItem item);
 
@@ -25,7 +57,22 @@ abstract class ILocalMediaIndexRepository {
     Map<String, String> fingerprints,
   );
 
+  Future<void> saveDirectoryFingerprintsForLocation(
+    MediaLocation sourceLocation,
+    Map<String, String> fingerprints,
+  ) {
+    if (sourceLocation.isFile) {
+      return saveDirectoryFingerprints(sourceLocation.value, fingerprints);
+    }
+    throw UnsupportedError('仓库实现不支持 Android 文档目录指纹');
+  }
+
   Future<void> removeSource(String sourcePath);
+
+  Future<void> removeSourceLocation(MediaLocation sourceLocation) {
+    if (sourceLocation.isFile) return removeSource(sourceLocation.value);
+    throw UnsupportedError('仓库实现不支持 Android 文档索引');
+  }
 
   Future<void> clear();
 }
@@ -80,7 +127,8 @@ class LocalMediaIndexRepository implements ILocalMediaIndexRepository {
 
           final items = value
               .whereType<Map<Object?, Object?>>()
-              .map(_readIndexItem)
+              .map(_tryReadIndexItem)
+              .whereType<LocalMediaIndexItem>()
               .where(
                 (item) => item.path.isNotEmpty && item.sourcePath.isNotEmpty,
               )
@@ -111,20 +159,38 @@ class LocalMediaIndexRepository implements ILocalMediaIndexRepository {
     return LocalMediaIndexItem.fromJson(json);
   }
 
+  LocalMediaIndexItem? _tryReadIndexItem(Map<Object?, Object?> item) {
+    try {
+      return _readIndexItem(item);
+    } on Object {
+      return null;
+    }
+  }
+
   @override
   List<LocalMediaIndexItem> getBySourcePath(String sourcePath) {
-    final sourceId = LocalMediaIndexItem.normalizePath(sourcePath);
+    return getBySourceLocation(MediaLocation.file(sourcePath));
+  }
+
+  @override
+  List<LocalMediaIndexItem> getBySourceLocation(
+    MediaLocation sourceLocation,
+  ) {
+    final sourceId = sourceLocation.stableId;
     return getAll()
-        .where((item) =>
-            LocalMediaIndexItem.normalizePath(item.sourcePath) == sourceId)
+        .where((item) => item.sourceLocation.stableId == sourceId)
         .toList(growable: false);
   }
 
   @override
   LocalMediaIndexItem? getByPath(String path) {
-    final id = LocalMediaIndexItem.normalizePath(path);
+    return getByLocation(MediaLocation.file(path));
+  }
+
+  @override
+  LocalMediaIndexItem? getByLocation(MediaLocation location) {
     for (final item in getAll()) {
-      if (item.id == id) return item;
+      if (item.location == location) return item;
     }
     return null;
   }
@@ -147,14 +213,43 @@ class LocalMediaIndexRepository implements ILocalMediaIndexRepository {
   }
 
   @override
+  Map<String, String> getDirectoryFingerprintsForLocation(
+    MediaLocation sourceLocation,
+  ) {
+    if (sourceLocation.isFile) {
+      return getDirectoryFingerprints(sourceLocation.value);
+    }
+    try {
+      final all = _readFingerprintPayload();
+      return Map<String, String>.from(
+        all[sourceLocation.stableId] ?? const <String, String>{},
+      );
+    } on Object catch (error, stackTrace) {
+      AppLogger().w(
+        'LocalMediaIndexRepository: failed to read document fingerprints',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return const <String, String>{};
+    }
+  }
+
+  @override
   Future<void> saveForSource(
     String sourcePath,
     List<LocalMediaIndexItem> items,
   ) async {
-    final sourceId = LocalMediaIndexItem.normalizePath(sourcePath);
+    return saveForSourceLocation(MediaLocation.file(sourcePath), items);
+  }
+
+  @override
+  Future<void> saveForSourceLocation(
+    MediaLocation sourceLocation,
+    List<LocalMediaIndexItem> items,
+  ) async {
+    final sourceId = sourceLocation.stableId;
     final allItems = getAll()
-        .where((item) =>
-            LocalMediaIndexItem.normalizePath(item.sourcePath) != sourceId)
+        .where((item) => item.sourceLocation.stableId != sourceId)
         .toList();
     allItems.addAll(items);
     await _save(allItems);
@@ -186,11 +281,28 @@ class LocalMediaIndexRepository implements ILocalMediaIndexRepository {
   }
 
   @override
+  Future<void> saveDirectoryFingerprintsForLocation(
+    MediaLocation sourceLocation,
+    Map<String, String> fingerprints,
+  ) async {
+    if (sourceLocation.isFile) {
+      return saveDirectoryFingerprints(sourceLocation.value, fingerprints);
+    }
+    final all = _readFingerprintPayload();
+    all[sourceLocation.stableId] = fingerprints;
+    await _storage.write(SettingBoxKey.localMediaDirectoryFingerprints, all);
+  }
+
+  @override
   Future<void> removeSource(String sourcePath) async {
-    final sourceId = LocalMediaIndexItem.normalizePath(sourcePath);
+    return removeSourceLocation(MediaLocation.file(sourcePath));
+  }
+
+  @override
+  Future<void> removeSourceLocation(MediaLocation sourceLocation) async {
+    final sourceId = sourceLocation.stableId;
     final nextItems = getAll()
-        .where((item) =>
-            LocalMediaIndexItem.normalizePath(item.sourcePath) != sourceId)
+        .where((item) => item.sourceLocation.stableId != sourceId)
         .toList(growable: false);
     await _save(nextItems);
     final all = _readFingerprintPayload();
@@ -222,7 +334,7 @@ class LocalMediaIndexRepository implements ILocalMediaIndexRepository {
 
   int _compareItems(LocalMediaIndexItem a, LocalMediaIndexItem b) {
     final source =
-        a.sourcePath.toLowerCase().compareTo(b.sourcePath.toLowerCase());
+        a.sourceLocation.stableId.compareTo(b.sourceLocation.stableId);
     if (source != 0) return source;
     final series =
         a.seriesKey.toLowerCase().compareTo(b.seriesKey.toLowerCase());

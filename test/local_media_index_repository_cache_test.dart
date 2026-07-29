@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
+import 'package:kanyingyin/modules/local/media_location.dart';
 import 'package:kanyingyin/repositories/local_media_index_repository.dart';
 
 void main() {
@@ -35,6 +36,50 @@ void main() {
     await repository.clear();
     expect(repository.getAll(), isEmpty);
     expect(storage.readCountFor(SettingBoxKey.localMediaIndex), 1);
+  });
+
+  test('文档 URI 按大小写敏感稳定 ID 保存、查询和删除', () async {
+    final storage = _CountingStorage(<String, Object?>{});
+    final repository = LocalMediaIndexRepository(storage: storage);
+    final source = MediaLocation.document(
+      uri: 'content://provider/document/Root',
+      treeUri: 'content://provider/tree/Root',
+    );
+    final parent = MediaLocation.document(
+      uri: 'content://provider/document/Season',
+      treeUri: source.treeUri!,
+    );
+    final media = MediaLocation.document(
+      uri: 'content://provider/document/Video%3A1',
+      treeUri: source.treeUri!,
+    );
+    final item = LocalMediaIndexItem(
+      location: media,
+      parentLocation: parent,
+      sourceLocation: source,
+      name: '01.mkv',
+      size: 100,
+      modified: DateTime(2026),
+      seriesName: '剧集',
+      indexedAt: DateTime(2026),
+    );
+
+    await repository.saveForSourceLocation(source, [item]);
+
+    expect(repository.getByLocation(media), same(item));
+    expect(repository.getBySourceLocation(source), [item]);
+    expect(
+      repository.getByLocation(
+        MediaLocation.document(
+          uri: 'content://provider/document/video%3A1',
+          treeUri: source.treeUri!,
+        ),
+      ),
+      isNull,
+    );
+
+    await repository.removeSourceLocation(source);
+    expect(repository.getAll(), isEmpty);
   });
 }
 

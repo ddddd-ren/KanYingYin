@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:kanyingyin/modules/local/local_media_source.dart';
+import 'package:kanyingyin/modules/local/media_location.dart';
 import 'package:kanyingyin/repositories/local_media_index_repository.dart';
 import 'package:kanyingyin/repositories/local_media_source_repository.dart';
 import 'package:kanyingyin/utils/logger.dart';
@@ -32,7 +33,27 @@ class LocalLibrarySourceCoordinator {
   }) async {
     if (scanInProgress) return false;
     final removed = await _sourceRepository.removePath(path);
-    if (removed) await _removeDerivedIndex(path);
+    if (removed) {
+      try {
+        await _indexRepository.removeSource(path);
+      } on Object catch (error, stackTrace) {
+        AppLogger().w(
+          'LocalLibrarySourceCoordinator: failed to remove derived index',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+    }
+    return removed;
+  }
+
+  Future<bool> removeSourceLocation(
+    MediaLocation location, {
+    required bool scanInProgress,
+  }) async {
+    if (scanInProgress) return false;
+    final removed = await _sourceRepository.removeLocation(location);
+    if (removed) await _removeDerivedIndex(location);
     return removed;
   }
 
@@ -44,8 +65,8 @@ class LocalLibrarySourceCoordinator {
     var removedCount = 0;
     for (final source in sources.where((source) => !_isAvailable(source))) {
       try {
-        if (await _sourceRepository.removePath(source.path)) {
-          await _removeDerivedIndex(source.path);
+        if (await _sourceRepository.removeLocation(source.location)) {
+          await _removeDerivedIndex(source.location);
           removedCount++;
         }
       } on Object catch (error, stackTrace) {
@@ -59,9 +80,9 @@ class LocalLibrarySourceCoordinator {
     return removedCount;
   }
 
-  Future<void> _removeDerivedIndex(String path) async {
+  Future<void> _removeDerivedIndex(MediaLocation location) async {
     try {
-      await _indexRepository.removeSource(path);
+      await _indexRepository.removeSourceLocation(location);
     } on Object catch (error, stackTrace) {
       AppLogger().w(
         'LocalLibrarySourceCoordinator: failed to remove derived index',
@@ -72,5 +93,5 @@ class LocalLibrarySourceCoordinator {
   }
 
   static bool _directoryExists(LocalMediaSource source) =>
-      Directory(source.path).existsSync();
+      source.location.isFile && Directory(source.path).existsSync();
 }

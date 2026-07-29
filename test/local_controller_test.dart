@@ -1411,7 +1411,7 @@ class _ScanCall {
   final bool ascending;
 }
 
-class _MemoryMediaSourceRepository implements ILocalMediaSourceRepository {
+class _MemoryMediaSourceRepository extends ILocalMediaSourceRepository {
   final List<String> upsertedPaths = [];
   final List<_ScanSummaryCall> scanSummaries = [];
   final List<LocalMediaSource> _sources = [];
@@ -1660,7 +1660,7 @@ class _ThrowingCloudSourceStorage implements CloudSourceStorage {
   Future<void> write(List<Map<String, dynamic>> sources) async {}
 }
 
-class _MemoryMediaIndexRepository implements ILocalMediaIndexRepository {
+class _MemoryMediaIndexRepository extends ILocalMediaIndexRepository {
   final _items = <String, LocalMediaIndexItem>{};
   final _fingerprints = <String, Map<String, String>>{};
 

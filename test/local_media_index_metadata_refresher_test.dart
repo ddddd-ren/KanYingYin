@@ -24,7 +24,8 @@ void main() {
     expect(LocalMediaIndexMetadataRefresher().needsRefresh(item), isTrue);
   });
 
-  test('LocalMediaIndexMetadataRefresher repairs version 2 fansub parsing', () async {
+  test('LocalMediaIndexMetadataRefresher repairs version 2 fansub parsing',
+      () async {
     final path =
         r'D:\a TV\[SumiSora][Chu-2_Koi][BDRip]\[SumiSora][Chu-2_Koi][BDRip][01][x264_3flac](62A8611D).mkv';
     final item = LocalMediaIndexItem(
@@ -202,7 +203,7 @@ void main() {
   });
 }
 
-class _MemoryMediaIndexRepository implements ILocalMediaIndexRepository {
+class _MemoryMediaIndexRepository extends ILocalMediaIndexRepository {
   final _items = <String, LocalMediaIndexItem>{};
   final _fingerprints = <String, Map<String, String>>{};
 

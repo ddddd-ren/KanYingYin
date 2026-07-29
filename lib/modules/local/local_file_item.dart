@@ -1,4 +1,5 @@
 import 'package:kanyingyin/modules/local/local_episode_info.dart';
+import 'package:kanyingyin/modules/local/media_location.dart';
 
 enum LocalSortMode {
   name('name'),
@@ -30,7 +31,8 @@ class LocalScanResult {
 }
 
 class LocalFileItem {
-  final String path;
+  final MediaLocation location;
+  String get path => location.value;
   final String name;
   final int size;
   final DateTime modified;
@@ -48,8 +50,9 @@ class LocalFileItem {
   final String? codec;
   final String? seriesTitleOverride;
 
-  const LocalFileItem({
-    required this.path,
+  LocalFileItem({
+    String? path,
+    MediaLocation? location,
     required this.name,
     required this.size,
     required this.modified,
@@ -66,7 +69,9 @@ class LocalFileItem {
     this.source,
     this.codec,
     this.seriesTitleOverride,
-  });
+  })  : assert(path != null || location != null),
+        assert(path == null || location == null),
+        location = location ?? MediaLocation.file(path!);
 
   String get extension {
     final dot = name.lastIndexOf('.');
@@ -121,6 +126,7 @@ class LocalFileItem {
 
   LocalFileItem copyWith({
     String? path,
+    MediaLocation? location,
     String? name,
     int? size,
     DateTime? modified,
@@ -138,8 +144,10 @@ class LocalFileItem {
     String? codec,
     String? seriesTitleOverride,
   }) {
+    assert(path == null || location == null);
     return LocalFileItem(
-      path: path ?? this.path,
+      location: location ?? (path == null ? this.location : null),
+      path: path,
       name: name ?? this.name,
       size: size ?? this.size,
       modified: modified ?? this.modified,

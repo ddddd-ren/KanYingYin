@@ -328,7 +328,11 @@ class XunleiApiClient implements XunleiApi {
     final profile = _clientProfile;
     if (profile == XunleiClientProfile.web &&
         _captchaToken?.isNotEmpty != true) {
-      await _refreshWebCaptchaToken(method: method, uri: uri);
+      await _refreshAuthorizedCaptchaToken(
+        method: method,
+        uri: uri,
+        profile: profile,
+      );
     }
 
     Future<Map<String, Object?>> send() => _request(
@@ -345,30 +349,42 @@ class XunleiApiClient implements XunleiApi {
     try {
       return await send();
     } on CloudDriveException catch (error) {
-      if (profile != XunleiClientProfile.web ||
-          error.type != CloudDriveErrorType.verificationRequired) {
+      if (error.type != CloudDriveErrorType.verificationRequired) {
         rethrow;
       }
-      await _refreshWebCaptchaToken(method: method, uri: uri);
+      await _refreshAuthorizedCaptchaToken(
+        method: method,
+        uri: uri,
+        profile: profile,
+      );
       return send();
     }
   }
 
-  Future<void> _refreshWebCaptchaToken({
+  Future<void> _refreshAuthorizedCaptchaToken({
     required String method,
     required Uri uri,
+    required XunleiClientProfile profile,
   }) async {
     final json = await _request(
       'POST',
       XunleiRequestPolicy.captchaInitUri,
-      stage: _XunleiRequestStage.captchaInitWeb,
-      profile: XunleiClientProfile.web,
+      stage: profile == XunleiClientProfile.web
+          ? _XunleiRequestStage.captchaInitWeb
+          : _XunleiRequestStage.captchaInit,
+      profile: profile,
       data: <String, Object?>{
-        'client_id': XunleiRequestPolicy.webClientId,
+        'client_id': profile == XunleiClientProfile.web
+            ? XunleiRequestPolicy.webClientId
+            : XunleiRequestPolicy.clientId,
         'action': '${method.toUpperCase()}:${uri.path}',
         'device_id': _deviceId,
         'captcha_token': _captchaToken ?? '',
-        'meta': const <String, String>{},
+        'meta': const <String, String>{
+          'username': '',
+          'phone_number': '',
+          'email': '',
+        },
       },
     );
     _captchaToken = _requiredString(json, 'captcha_token');

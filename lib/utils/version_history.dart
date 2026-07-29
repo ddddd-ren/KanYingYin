@@ -16,6 +16,19 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.89',
+    date: '2026-07-30',
+    isPrerelease: true,
+    changes: [
+      '修复迅雷登录成功后仍无法读取文件目录的问题；Shield Token 请求现与迅雷官方网页流程保持一致，补齐目录校验所需的安全元数据',
+      '网页 Refresh Token 与安卓客户端 Token 两条链路遇到目录校验失效时，都会按当前客户端身份刷新 Shield Token 并重试一次，避免重复失败或无限请求',
+      '账号、Refresh Token、Shield Token、远程目录响应和验证参数均不会写入日志；读取目录和刷新校验不会修改网盘文件',
+      '本轮只迭代并交付 Windows MSIX；Android 更新暂停，未生成 APK/AAB，手机和平板真机验收尚未完成',
+      '账号设备验证继续在应用内完成：Windows 使用 WebView2；Android 更新暂停期间不改动系统 WebView 流程。验证窗口继续阻止下载、新窗口、不安全页面和权限请求，验证成功后自动继续登录',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.88',
     date: '2026-07-30',
     isPrerelease: true,

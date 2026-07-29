@@ -114,6 +114,10 @@ dev_dependencies:
 # following page: https://dart.dev/tools/pub/pubspec
 
 flutter_launcher_icons:
+  android: true
+  image_path_android: assets/images/logo/logo_rounded.png
+  adaptive_icon_background: "#1565C0"
+  adaptive_icon_foreground: assets/images/logo/logo_rounded.png
   windows:
     generate: true
     image_path: assets/images/logo/logo_rounded.png

@@ -16,6 +16,21 @@ class VersionHistory {
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.93',
+    date: '2026-07-30',
+    isPrerelease: true,
+    changes: [
+      '新增刮削资料迁移：可把本地媒体库和个人网盘中已经确认的 TMDB 标题、简介、评分、海报、背景图与季集资料导出为迁移包，并在另一台设备恢复',
+      '新设备先配置并扫描相同媒体来源后即可导入；本地磁盘盘符或根目录变化时可重新选择目录，应用会按相对路径和文件大小匹配，网盘来源会按类型和已扫描根目录匹配',
+      '迁移包携带已缓存的海报、背景图和季度海报，导入后可离线显示；同一图片只保存一份，缺少对应视频的资料会安全跳过',
+      '导入前会显示覆盖数量、缺失媒体和可恢复图片数量，只有确认后才写入；写入失败会恢复原有刮削资料',
+      '迁移包不会包含视频、字幕、TMDB API Key、网盘账号、Cookie、Token 或其他登录凭据',
+      '本轮只迭代并交付 Windows MSIX；Android 更新继续暂停，未生成 APK/AAB，也未启动 Android 模拟器，手机和平板真机验收尚未完成',
+      '账号设备验证继续在应用内完成：Windows 使用 WebView2；Android 更新暂停期间不改动系统 WebView 流程。验证窗口继续阻止下载、新窗口、不安全页面和权限请求，验证成功后自动继续登录',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.92',
     date: '2026-07-30',
     isPrerelease: true,

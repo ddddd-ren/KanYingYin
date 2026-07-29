@@ -4,6 +4,24 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一九十三支持刮削资料跨设备迁移', () {
+    final entries = versionHistoryForCurrent('2.1.93');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      '刮削资料',
+      '本地',
+      '网盘',
+      '海报',
+      '背景图',
+      '不会包含',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一九十补齐迅雷目录设备签名', () {
     final entries = versionHistoryForCurrent('2.1.90');
 

@@ -151,10 +151,12 @@ void main() {
   });
 
   test('需要验证时取消会清除临时秘密并禁止重试', () async {
+    final now = DateTime.utc(2026, 7, 28, 10);
     final gateway = _FakeGateway(challengeFirst: true);
     final controller = XunleiAuthorizationController(
       gateway: gateway,
       deviceIdGenerator: () => '0123456789abcdef0123456789abcdef',
+      now: () => now,
     );
 
     await expectLater(
@@ -165,11 +167,16 @@ void main() {
       throwsA(isA<XunleiVerificationRequired>()),
     );
     expect(controller.state, XunleiAuthorizationState.verificationRequired);
-    expect(controller.verificationUri?.host, 'i.xunlei.com');
+    final challenge = controller.verificationChallenge;
+    expect(challenge?.reviewUri.host, 'i.xunlei.com');
+    expect(challenge?.creditKey, 'credit-initial');
+    expect(challenge?.deviceId, '0123456789abcdef0123456789abcdef');
+    expect(challenge?.deviceSign, startsWith('div101.'));
+    expect(challenge?.startedAt, now);
     controller.cancelVerification();
-    expect(controller.verificationUri, isNull);
+    expect(controller.verificationChallenge, isNull);
     await expectLater(
-      controller.completeVerification(),
+      controller.completeVerification(creditKey: 'credit-new'),
       throwsA(isA<CloudDriveException>()),
     );
     expect(controller.toString(), isNot(contains('password-fixture')));
@@ -192,8 +199,10 @@ void main() {
       throwsA(isA<XunleiVerificationRequired>()),
     );
 
-    await controller.completeVerification();
-    expect(gateway.lastCreditKey, 'credit-fixture');
+    await controller.completeVerification(creditKey: 'credit-new');
+    expect(gateway.lastCreditKey, 'credit-new');
+    expect(gateway.loginCalls, 2);
+    expect(controller.verificationChallenge, isNull);
     expect(controller.state, XunleiAuthorizationState.authorized);
 
     final expiredGateway = _FakeGateway(challengeFirst: true);
@@ -208,7 +217,7 @@ void main() {
     );
     now = now.add(const Duration(minutes: 11));
     await expectLater(
-      expired.completeVerification(),
+      expired.completeVerification(creditKey: 'credit-new-expired'),
       throwsA(isA<CloudDriveException>().having(
         (error) => error.type,
         '类型',
@@ -218,13 +227,80 @@ void main() {
     expired.dispose();
     controller.dispose();
   });
+
+  test('验证成功必须提供不同于初始值的新 CreditKey', () async {
+    final controller = XunleiAuthorizationController(
+      gateway: _FakeGateway(challengeFirst: true),
+      deviceIdGenerator: () => '0123456789abcdef0123456789abcdef',
+    );
+    await expectLater(
+      controller.login(identifier: 'user', password: 'password'),
+      throwsA(isA<XunleiVerificationRequired>()),
+    );
+    await expectLater(
+      controller.completeVerification(creditKey: 'credit-initial'),
+      throwsA(isA<CloudDriveException>().having(
+        (error) => error.type,
+        '类型',
+        CloudDriveErrorType.incompatible,
+      )),
+    );
+    expect(controller.verificationChallenge, isNull);
+    expect(controller.authorizedCredential, isNull);
+    controller.dispose();
+  });
+
+  test('续登再次收到挑战时停止循环并清除秘密', () async {
+    final gateway = _FakeGateway(challengeEveryTime: true);
+    final controller = XunleiAuthorizationController(
+      gateway: gateway,
+      deviceIdGenerator: () => '0123456789abcdef0123456789abcdef',
+    );
+    await expectLater(
+      controller.login(identifier: 'user', password: 'password-secret'),
+      throwsA(isA<XunleiVerificationRequired>()),
+    );
+    await expectLater(
+      controller.completeVerification(creditKey: 'credit-new'),
+      throwsA(isA<CloudDriveException>().having(
+        (error) => error.type,
+        '类型',
+        CloudDriveErrorType.verificationRequired,
+      )),
+    );
+    expect(gateway.loginCalls, 2);
+    expect(controller.verificationChallenge, isNull);
+    expect(controller.errorMessage, '迅雷再次要求设备验证，请重新登录');
+    expect(controller.toString(), isNot(contains('password-secret')));
+    controller.dispose();
+  });
+
+  test('页面失败会结束验证并清除挑战', () async {
+    final controller = XunleiAuthorizationController(
+      gateway: _FakeGateway(challengeFirst: true),
+      deviceIdGenerator: () => '0123456789abcdef0123456789abcdef',
+    );
+    await expectLater(
+      controller.login(identifier: 'user', password: 'password'),
+      throwsA(isA<XunleiVerificationRequired>()),
+    );
+    controller.failVerification('迅雷验证页面加载失败');
+    expect(controller.state, XunleiAuthorizationState.failed);
+    expect(controller.verificationChallenge, isNull);
+    expect(controller.errorMessage, '迅雷验证页面加载失败');
+    controller.dispose();
+  });
 }
 
 class _FakeGateway implements XunleiAuthGateway {
-  _FakeGateway({this.challengeFirst = false});
+  _FakeGateway({
+    this.challengeFirst = false,
+    this.challengeEveryTime = false,
+  });
 
   final bool challengeFirst;
-  var _loginCalls = 0;
+  final bool challengeEveryTime;
+  var loginCalls = 0;
   String? lastCreditKey;
 
   @override
@@ -238,12 +314,12 @@ class _FakeGateway implements XunleiAuthGateway {
     String? captchaToken,
     String? creditKey,
   }) async {
-    _loginCalls++;
+    loginCalls++;
     lastCreditKey = creditKey;
-    if (challengeFirst && _loginCalls == 1) {
+    if (challengeEveryTime || (challengeFirst && loginCalls == 1)) {
       throw XunleiVerificationRequired(
         uri: Uri.parse('https://i.xunlei.com/verify?ticket=fixture'),
-        creditKey: 'credit-fixture',
+        creditKey: 'credit-initial',
       );
     }
     return XunleiSession(

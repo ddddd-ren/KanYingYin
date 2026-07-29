@@ -4,6 +4,25 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一八十八固化 Windows 联合验证播放器组件', () {
+    final entries = versionHistoryForCurrent('2.1.88');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      'Windows',
+      'D3D11',
+      'TrueHD',
+      'PGS',
+      '联合验证',
+      'Android',
+      '更新暂停',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一八十七修复 Windows 四K帧率和 Android PGS 字幕', () {
     final entries = versionHistoryForCurrent('2.1.87');
 

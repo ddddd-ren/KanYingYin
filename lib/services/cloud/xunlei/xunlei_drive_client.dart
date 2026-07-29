@@ -59,7 +59,10 @@ class XunleiDriveClient implements CloudDriveClient {
     String? pageToken;
     for (var page = 0; page < _maxPages; page++) {
       final result = await api.listDirectoryPage(
-        directoryId: directory.id,
+        directoryId: directory.path == '/' &&
+                (directory.id == '0' || directory.id == '/')
+            ? ''
+            : directory.id,
         pageToken: pageToken,
         size: _pageSize,
       );

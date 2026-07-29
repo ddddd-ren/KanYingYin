@@ -15,6 +15,8 @@ void main() {
     expect(renderer, contains('SettingBoxKey.androidVideoRenderer'));
     expect(module, contains('/player/renderer'));
     expect(player, contains("'/settings/player/renderer'"));
-    expect(player, contains('detectAppPlatform().isAndroid'));
+    expect(player, contains('widget.capabilities ?? detectAppPlatform()'));
+    expect(player, contains('if (platform.isAndroid)'));
+    expect(player, contains('SettingBoxKey.androidAutoEnterPip'));
   });
 }

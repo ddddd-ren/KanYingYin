@@ -28,7 +28,8 @@ void main() {
     expect(request.road.identifier, ['01.mkv', '02.mkv']);
   });
 
-  test('LocalPlaybackRequestBuilder falls back to single file playlist', () async {
+  test('LocalPlaybackRequestBuilder falls back to single file playlist',
+      () async {
     final request = await LocalPlaybackRequestBuilder().build(
       filePath: r'D:\Anime\Show\01.mkv',
       fileName: '01.mkv',
@@ -42,7 +43,8 @@ void main() {
     expect(request.road.identifier, ['01.mkv']);
   });
 
-  test('LocalPlaybackRequestBuilder ignores invalid playlist entries', () async {
+  test('LocalPlaybackRequestBuilder ignores invalid playlist entries',
+      () async {
     final request = await LocalPlaybackRequestBuilder().build(
       filePath: r'D:\Anime\Show\02.mkv',
       fileName: '02.mkv',
@@ -77,7 +79,8 @@ void main() {
     expect(request.road.identifier, ['02.mkv', '01.mkv']);
   });
 
-  test('LocalPlaybackRequestBuilder removes duplicate playlist paths', () async {
+  test('LocalPlaybackRequestBuilder removes duplicate playlist paths',
+      () async {
     final request = await LocalPlaybackRequestBuilder().build(
       filePath: r'D:\Anime\Show\02.mkv',
       fileName: '02.mkv',

@@ -225,10 +225,9 @@ class TmdbClient implements ITmdbClient {
     } on DioException catch (firstError) {
       if (!TmdbEndpointPolicy.canTryAnotherEndpoint(firstError)) rethrow;
 
-      final secondBaseUrl =
-          firstBaseUrl == TmdbEndpointPolicy.primaryApiBaseUrl
-              ? TmdbEndpointPolicy.fallbackApiBaseUrl
-              : TmdbEndpointPolicy.primaryApiBaseUrl;
+      final secondBaseUrl = firstBaseUrl == TmdbEndpointPolicy.primaryApiBaseUrl
+          ? TmdbEndpointPolicy.fallbackApiBaseUrl
+          : TmdbEndpointPolicy.primaryApiBaseUrl;
       try {
         final result = await request(_dio, secondBaseUrl);
         _preferredBaseUrl = secondBaseUrl;

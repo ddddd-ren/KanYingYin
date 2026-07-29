@@ -4,8 +4,7 @@ import 'package:dio/dio.dart';
 class TmdbEndpointPolicy {
   const TmdbEndpointPolicy._();
 
-  static const String primaryApiBaseUrl =
-      'https://api.themoviedb.org/3';
+  static const String primaryApiBaseUrl = 'https://api.themoviedb.org/3';
   static const String fallbackApiBaseUrl = 'https://api.tmdb.org/3';
   static const String imageBaseUrl = 'https://image.tmdb.org/t/p/w780';
   static const List<String> apiBaseUrls = <String>[

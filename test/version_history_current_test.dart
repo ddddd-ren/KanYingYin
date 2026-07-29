@@ -4,6 +4,26 @@ import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一七十三说明应用内设备验证和密码错误提示', () {
+    final entries = versionHistoryForCurrent('2.1.73');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    for (final text in <String>[
+      '应用内',
+      '设备验证',
+      '自动继续登录',
+      '密码错误',
+      'WebView2',
+      '临时数据',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一七十二说明迅雷设备验证空白页修复', () {
     final entries = versionHistoryForCurrent('2.1.72');
 

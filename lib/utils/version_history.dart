@@ -30,6 +30,18 @@ const List<VersionHistory> versionHistoryList = [
     ],
   ),
   VersionHistory(
+    version: '2.1.73',
+    date: '2026-07-29',
+    isPrerelease: true,
+    changes: [
+      '迅雷设备验证改为应用内安全窗口，不再打开系统浏览器空白页；短信或图形验证完成后会自动继续登录并关闭窗口',
+      '明确输错迅雷密码时，密码框会提示“迅雷密码错误，请重新输入”，清空错误密码并保留账号',
+      '验证窗口只允许迅雷官方 HTTPS 页面，拒绝新窗口、下载、摄像头、麦克风、位置和其他权限请求',
+      '每次验证使用独立 WebView2 临时数据目录，关闭后清除 Cookie、缓存和临时数据；账号、密码、Token 和验证参数不会写入日志',
+      'WebView2 缺失、页面加载失败、取消、超时或协议变化会显示明确提示；本次更新不会修改或删除本地及网盘原始文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.72',
     date: '2026-07-29',
     isPrerelease: true,

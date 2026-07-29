@@ -260,6 +260,10 @@ void main() {
 
       expect(message(CloudDriveErrorType.authentication), '迅雷登录已失效，请重新登录');
       expect(message(CloudDriveErrorType.verificationRequired), '迅雷需要完成设备验证');
+      expect(
+        message(CloudDriveErrorType.protocolUpdated),
+        '迅雷登录协议已更新，请改用 Refresh Token',
+      );
       expect(message(CloudDriveErrorType.incompatible), '当前版本暂不兼容迅雷接口');
       expect(message(CloudDriveErrorType.expiredLink), '迅雷原画地址已失效');
     });

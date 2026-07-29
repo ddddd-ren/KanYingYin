@@ -29,6 +29,104 @@ void main() {
     controller.dispose();
   });
 
+  test('Refresh Token 授权保存服务端轮换值和固定设备 ID', () async {
+    final gateway = _RefreshGateway();
+    final controller = XunleiAuthorizationController(
+      gateway: gateway,
+      deviceIdGenerator: () => '0123456789abcdef0123456789abcdef',
+    );
+
+    await controller.authorizeWithRefreshToken(
+      refreshToken: 'refresh-old',
+    );
+
+    final credential = controller.authorizedCredential;
+    expect(controller.state, XunleiAuthorizationState.authorized);
+    expect(gateway.lastRefreshToken, 'refresh-old');
+    expect(credential?.refreshToken, 'refresh-rotated');
+    expect(credential?.deviceId, '0123456789abcdef0123456789abcdef');
+    expect(credential?.accountLabel, '138****0000');
+    expect(credential?.accessToken, isNull);
+    controller.dispose();
+  });
+
+  test('Refresh Token 失效显示明确提示且不生成凭据', () async {
+    final controller = XunleiAuthorizationController(
+      gateway: _RefreshGateway(
+        error: const CloudDriveException(CloudDriveErrorType.authentication),
+      ),
+      deviceIdGenerator: () => '0123456789abcdef0123456789abcdef',
+    );
+
+    await expectLater(
+      controller.authorizeWithRefreshToken(refreshToken: 'refresh-expired'),
+      throwsA(isA<CloudDriveException>()),
+    );
+    expect(controller.authorizedCredential, isNull);
+    expect(controller.errorMessage, 'Refresh Token 无效或已过期，请重新填写');
+    controller.dispose();
+  });
+
+  test('账号确认失败不接受半完成 Token 凭据', () async {
+    final controller = XunleiAuthorizationController(
+      gateway: _RefreshGateway(
+        accountError: const CloudDriveException(CloudDriveErrorType.network),
+      ),
+      deviceIdGenerator: () => '0123456789abcdef0123456789abcdef',
+    );
+
+    await expectLater(
+      controller.authorizeWithRefreshToken(refreshToken: 'refresh-fixture'),
+      throwsA(isA<CloudDriveException>()),
+    );
+    expect(controller.state, XunleiAuthorizationState.failed);
+    expect(controller.authorizedCredential, isNull);
+    controller.dispose();
+  });
+
+  test('Refresh Token 授权区分网络超时限流和协议更新', () async {
+    final cases = <(CloudDriveErrorType, String)>[
+      (CloudDriveErrorType.network, '网络连接失败，请检查网络后重试'),
+      (CloudDriveErrorType.timeout, '迅雷授权请求超时，请稍后重试'),
+      (CloudDriveErrorType.rateLimited, '迅雷请求过于频繁，请稍后再试'),
+      (
+        CloudDriveErrorType.protocolUpdated,
+        '迅雷登录协议已更新，请重新获取 Refresh Token',
+      ),
+    ];
+
+    for (final item in cases) {
+      final controller = XunleiAuthorizationController(
+        gateway: _RefreshGateway(error: CloudDriveException(item.$1)),
+        deviceIdGenerator: () => '0123456789abcdef0123456789abcdef',
+      );
+      await expectLater(
+        controller.authorizeWithRefreshToken(refreshToken: 'refresh-fixture'),
+        throwsA(isA<CloudDriveException>()),
+      );
+      expect(controller.errorMessage, item.$2, reason: item.$1.name);
+      controller.dispose();
+    }
+  });
+
+  test('兼容登录遇到旧签名失效时建议改用 Refresh Token', () async {
+    final controller = XunleiAuthorizationController(
+      gateway: _RefreshGateway(
+        error: const CloudDriveException(
+          CloudDriveErrorType.protocolUpdated,
+        ),
+      ),
+      deviceIdGenerator: () => '0123456789abcdef0123456789abcdef',
+    );
+
+    await expectLater(
+      controller.login(identifier: 'account', password: 'password'),
+      throwsA(isA<CloudDriveException>()),
+    );
+    expect(controller.errorMessage, '迅雷登录协议已更新，请改用 Refresh Token');
+    controller.dispose();
+  });
+
   test('需要验证时取消会清除临时秘密并禁止重试', () async {
     final gateway = _FakeGateway(challengeFirst: true);
     final controller = XunleiAuthorizationController(
@@ -148,6 +246,64 @@ class _FakeGateway implements XunleiAuthGateway {
         userId: 'user-fixture',
         accountLabel: '138****0000',
       );
+
+  @override
+  Future<void> close() async {}
+}
+
+class _RefreshGateway implements XunleiAuthGateway {
+  _RefreshGateway({this.error, this.accountError});
+
+  final CloudDriveException? error;
+  final CloudDriveException? accountError;
+  String? lastRefreshToken;
+
+  @override
+  String? get captchaToken => 'captcha-fixture';
+
+  @override
+  Future<XunleiSession> refresh({
+    required String refreshToken,
+    required String deviceId,
+    String? captchaToken,
+  }) async {
+    lastRefreshToken = refreshToken;
+    if (error case final failure?) throw failure;
+    return XunleiSession(
+      tokenType: 'Bearer',
+      accessToken: 'access-fixture',
+      refreshToken: 'refresh-rotated',
+      expiresAt: DateTime.utc(2026, 7, 29, 12),
+      userId: 'user-fixture',
+    );
+  }
+
+  @override
+  Future<XunleiAccount> account(XunleiSession session) async {
+    if (accountError case final failure?) throw failure;
+    return const XunleiAccount(
+      userId: 'user-fixture',
+      accountLabel: '138****0000',
+    );
+  }
+
+  @override
+  Future<XunleiSession> login({
+    required String identifier,
+    required String password,
+    required String deviceId,
+    String? captchaToken,
+    String? creditKey,
+  }) async {
+    if (error case final failure?) throw failure;
+    return XunleiSession(
+      tokenType: 'Bearer',
+      accessToken: 'access-login-fixture',
+      refreshToken: 'refresh-login-fixture',
+      expiresAt: DateTime.utc(2026, 7, 29, 12),
+      userId: 'user-fixture',
+    );
+  }
 
   @override
   Future<void> close() async {}

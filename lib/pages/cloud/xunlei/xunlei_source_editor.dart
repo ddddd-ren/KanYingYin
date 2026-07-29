@@ -37,6 +37,7 @@ class XunleiSourceEditorPage extends StatefulWidget {
 class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
+  late final TextEditingController _refreshTokenController;
   late final TextEditingController _identifierController;
   late final TextEditingController _passwordController;
   late final CloudLibraryController _controller;
@@ -51,6 +52,7 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
   bool _loadingCredential = false;
   bool _updatingLibrary = false;
   bool _enabled = true;
+  bool _showRefreshToken = false;
 
   bool get _authorizationBusy =>
       _authorizationController.state == XunleiAuthorizationState.signingIn ||
@@ -83,6 +85,7 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
     _nameController = TextEditingController(
       text: widget.source?.name ?? '迅雷网盘',
     );
+    _refreshTokenController = TextEditingController();
     _identifierController = TextEditingController();
     _passwordController = TextEditingController();
     _rootRefs = List<CloudRemoteRef>.from(
@@ -144,6 +147,27 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
       }
     } finally {
       if (mounted) _passwordController.clear();
+    }
+  }
+
+  Future<void> _authorizeWithRefreshToken() async {
+    final refreshToken = _refreshTokenController.text.trim();
+    if (refreshToken.isEmpty) {
+      _showMessage('请填写 Refresh Token');
+      return;
+    }
+    try {
+      await _authorizationController.authorizeWithRefreshToken(
+        refreshToken: refreshToken,
+        deviceId: _authorizedCredential?.deviceId,
+      );
+      _acceptAuthorizedCredential();
+    } on Object {
+      if (mounted) {
+        _showMessage(_authorizationController.errorMessage ?? '迅雷授权失败');
+      }
+    } finally {
+      if (mounted) _refreshTokenController.clear();
     }
   }
 
@@ -272,10 +296,81 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
     if (_ownsController) _controller.dispose();
     if (_ownsAuthorizationController) _authorizationController.dispose();
     _nameController.dispose();
+    _refreshTokenController.dispose();
     _identifierController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
+
+  List<Widget> _buildCompatibleLogin(bool verifying) => <Widget>[
+        TextFormField(
+          key: const ValueKey<String>('xunlei-identifier'),
+          controller: _identifierController,
+          autocorrect: false,
+          enableSuggestions: false,
+          decoration: const InputDecoration(
+            labelText: '迅雷账号',
+            helperText: '支持手机号或迅雷账号',
+          ),
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          key: const ValueKey<String>('xunlei-password'),
+          controller: _passwordController,
+          obscureText: true,
+          autocorrect: false,
+          enableSuggestions: false,
+          decoration: const InputDecoration(
+            labelText: '迅雷密码',
+            helperText: '密码仅用于本次兼容登录，不会保存',
+          ),
+          onFieldSubmitted: (_) => _busy ? null : _login(),
+        ),
+        const SizedBox(height: 16),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.icon(
+            onPressed: _busy ? null : _login,
+            icon: const Icon(Icons.login_outlined),
+            label: Text(_authorizationBusy ? '正在登录' : '兼容登录'),
+          ),
+        ),
+        if (verifying) ...<Widget>[
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  const Text('请在系统浏览器中完成迅雷设备验证'),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: <Widget>[
+                      OutlinedButton.icon(
+                        onPressed: _busy ? null : _openVerification,
+                        icon: const Icon(Icons.open_in_browser_outlined),
+                        label: const Text('打开验证页面'),
+                      ),
+                      FilledButton.icon(
+                        onPressed: _busy ? null : _completeVerification,
+                        icon: const Icon(Icons.verified_user_outlined),
+                        label: const Text('完成验证'),
+                      ),
+                      TextButton(
+                        onPressed: _busy ? null : _cancelVerification,
+                        child: const Text('取消验证'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ];
 
   @override
   Widget build(BuildContext context) {
@@ -298,38 +393,48 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
               ),
               const SizedBox(height: 16),
               TextFormField(
-                key: const ValueKey<String>('xunlei-identifier'),
-                controller: _identifierController,
+                key: const ValueKey<String>('xunlei-refresh-token'),
+                controller: _refreshTokenController,
+                obscureText: !_showRefreshToken,
                 autocorrect: false,
                 enableSuggestions: false,
                 decoration: InputDecoration(
-                  labelText: '迅雷账号',
-                  helperText: _isAuthorized ? '已授权，无需重新输入账号' : '支持手机号或迅雷账号',
+                  labelText: 'Refresh Token',
+                  helperText: _isAuthorized
+                      ? '已授权；如需更换账号，请粘贴新的 Token'
+                      : '粘贴你本人已有的 Token；仅保存到 Windows 安全凭据',
+                  suffixIcon: IconButton(
+                    onPressed: _busy
+                        ? null
+                        : () => setState(
+                              () => _showRefreshToken = !_showRefreshToken,
+                            ),
+                    icon: Icon(
+                      _showRefreshToken
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                key: const ValueKey<String>('xunlei-password'),
-                controller: _passwordController,
-                obscureText: true,
-                autocorrect: false,
-                enableSuggestions: false,
-                decoration: const InputDecoration(
-                  labelText: '迅雷密码',
-                  helperText: '密码仅用于本次登录，不会保存',
-                ),
-                onFieldSubmitted: (_) => _busy ? null : _login(),
+                onFieldSubmitted: (_) =>
+                    _busy ? null : _authorizeWithRefreshToken(),
               ),
               const SizedBox(height: 16),
               Wrap(
                 spacing: 12,
                 runSpacing: 12,
                 crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
+                children: <Widget>[
                   FilledButton.icon(
-                    onPressed: _busy ? null : _login,
-                    icon: const Icon(Icons.login_outlined),
-                    label: Text(_authorizationBusy ? '正在登录' : '登录迅雷'),
+                    onPressed: _busy ? null : _authorizeWithRefreshToken,
+                    icon: const Icon(Icons.key_outlined),
+                    label: Text(
+                      _authorizationBusy
+                          ? '正在验证'
+                          : _isAuthorized
+                              ? '重新授权'
+                              : '验证并登录',
+                    ),
                   ),
                   if (_isAuthorized)
                     Text(
@@ -339,41 +444,15 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
                     ),
                 ],
               ),
-              if (verifying) ...[
-                const SizedBox(height: 16),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('请在系统浏览器中完成迅雷设备验证'),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
-                          children: [
-                            OutlinedButton.icon(
-                              onPressed: _busy ? null : _openVerification,
-                              icon: const Icon(Icons.open_in_browser_outlined),
-                              label: const Text('打开验证页面'),
-                            ),
-                            FilledButton.icon(
-                              onPressed: _busy ? null : _completeVerification,
-                              icon: const Icon(Icons.verified_user_outlined),
-                              label: const Text('完成验证'),
-                            ),
-                            TextButton(
-                              onPressed: _busy ? null : _cancelVerification,
-                              child: const Text('取消验证'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+              const SizedBox(height: 8),
+              ExpansionTile(
+                key: const ValueKey<String>('xunlei-compatible-login'),
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: const EdgeInsets.only(bottom: 16),
+                title: const Text('账号密码兼容登录'),
+                subtitle: const Text('旧协议可能失效，建议优先使用 Refresh Token'),
+                children: _buildCompatibleLogin(verifying),
+              ),
               const SizedBox(height: 8),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,

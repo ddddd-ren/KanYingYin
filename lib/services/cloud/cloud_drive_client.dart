@@ -10,6 +10,7 @@ enum CloudDriveErrorType {
   permission,
   network,
   notFound,
+  protocolUpdated,
   incompatible,
   expiredLink,
   certificate,

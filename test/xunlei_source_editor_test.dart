@@ -12,6 +12,50 @@ import 'package:kanyingyin/services/cloud/xunlei/xunlei_authorization_controller
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_models.dart';
 
 void main() {
+  testWidgets('默认显示 Refresh Token 且兼容账号密码登录折叠', (tester) async {
+    final authorization = _FakeXunleiAuthorizationController();
+    await tester.pumpWidget(MaterialApp(
+      home: XunleiSourceEditorPage(
+        authorizationController: authorization,
+        credentialStore: MemoryCloudCredentialStore(),
+      ),
+    ));
+
+    final tokenField = find.byKey(
+      const ValueKey<String>('xunlei-refresh-token'),
+    );
+    expect(tokenField, findsOneWidget);
+    expect(
+      tester
+          .widget<EditableText>(
+            find.descendant(
+                of: tokenField, matching: find.byType(EditableText)),
+          )
+          .obscureText,
+      isTrue,
+    );
+    expect(find.text('验证并登录'), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey<String>('xunlei-identifier')), findsNothing);
+    expect(find.text('账号密码兼容登录'), findsOneWidget);
+    expect(
+      tester
+          .widget<OutlinedButton>(
+            find.widgetWithText(OutlinedButton, '选择媒体目录'),
+          )
+          .onPressed,
+      isNull,
+    );
+
+    await tester.enterText(tokenField, 'refresh-user-fixture');
+    await tester.tap(find.text('验证并登录'));
+    await tester.pumpAndSettle();
+
+    expect(authorization.lastRefreshToken, 'refresh-user-fixture');
+    expect(find.text('登录成功：138****0000'), findsOneWidget);
+    expect(tester.widget<TextFormField>(tokenField).controller?.text, isEmpty);
+  });
+
   testWidgets('迅雷账号登录后清空密码并允许选择目录', (tester) async {
     final authorization = _FakeXunleiAuthorizationController();
     await tester.pumpWidget(MaterialApp(
@@ -21,6 +65,9 @@ void main() {
       ),
     ));
 
+    await tester.tap(find.text('账号密码兼容登录'));
+    await tester.pumpAndSettle();
+
     await tester.enterText(
       find.byKey(const ValueKey<String>('xunlei-identifier')),
       '13800000000',
@@ -29,7 +76,7 @@ void main() {
       find.byKey(const ValueKey<String>('xunlei-password')),
       'password-fixture',
     );
-    await tester.tap(find.text('登录迅雷'));
+    await tester.tap(find.text('兼容登录'));
     await tester.pumpAndSettle();
 
     expect(find.text('登录成功'), findsOneWidget);
@@ -69,6 +116,8 @@ void main() {
         },
       ),
     ));
+    await tester.tap(find.text('账号密码兼容登录'));
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const ValueKey<String>('xunlei-identifier')),
       'account-fixture',
@@ -78,19 +127,21 @@ void main() {
       'password-fixture',
     );
 
-    await tester.tap(find.text('登录迅雷'));
+    await tester.tap(find.text('兼容登录'));
     await tester.pumpAndSettle();
 
     expect(opened, Uri.parse('https://i.xunlei.com/verify?id=fixture'));
     expect(find.text('完成验证'), findsOneWidget);
     expect(find.text('取消验证'), findsOneWidget);
+    await tester.ensureVisible(find.text('完成验证'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('完成验证'));
     await tester.pumpAndSettle();
     expect(find.text('登录成功'), findsOneWidget);
     expect(authorization.completeCalls, 1);
   });
 
-  testWidgets('登录失败不覆盖已保存的迅雷凭据', (tester) async {
+  testWidgets('Token 授权失败不覆盖已保存的迅雷凭据', (tester) async {
     const source = CloudSource(
       id: 'xunlei-existing',
       type: CloudSourceType.xunlei,
@@ -116,28 +167,20 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(
-      tester
-          .widget<TextFormField>(
-            find.byKey(const ValueKey<String>('xunlei-password')),
-          )
-          .controller
-          ?.text,
-      isEmpty,
+    final tokenField = find.byKey(
+      const ValueKey<String>('xunlei-refresh-token'),
     );
+    expect(tester.widget<TextFormField>(tokenField).controller?.text, isEmpty);
     await tester.enterText(
-      find.byKey(const ValueKey<String>('xunlei-identifier')),
-      'account-fixture',
+      tokenField,
+      'refresh-invalid',
     );
-    await tester.enterText(
-      find.byKey(const ValueKey<String>('xunlei-password')),
-      'wrong-password',
-    );
-    await tester.tap(find.text('登录迅雷'));
+    await tester.tap(find.text('重新授权'));
     await tester.pumpAndSettle();
 
     expect(await store.read(source.id), oldCredential);
-    expect(find.text('迅雷登录失败'), findsOneWidget);
+    expect(find.text('Refresh Token 无效或已过期，请重新填写'), findsOneWidget);
+    expect(find.text('登录成功：138****0000'), findsOneWidget);
   });
 
   testWidgets('编辑已授权来源可清除目录并保存回传来源 ID', (tester) async {
@@ -245,14 +288,10 @@ void main() {
       ),
     ));
     await tester.enterText(
-      find.byKey(const ValueKey<String>('xunlei-identifier')),
-      'account-fixture',
+      find.byKey(const ValueKey<String>('xunlei-refresh-token')),
+      'refresh-fixture',
     );
-    await tester.enterText(
-      find.byKey(const ValueKey<String>('xunlei-password')),
-      'password-fixture',
-    );
-    await tester.tap(find.text('登录迅雷'));
+    await tester.tap(find.text('验证并登录'));
     await authorization.started.future;
 
     await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
@@ -277,6 +316,7 @@ class _FakeXunleiAuthorizationController extends XunleiAuthorizationController {
   String? _error;
   String? lastIdentifier;
   String? lastPassword;
+  String? lastRefreshToken;
   int completeCalls = 0;
 
   @override
@@ -317,6 +357,21 @@ class _FakeXunleiAuthorizationController extends XunleiAuthorizationController {
   }
 
   @override
+  Future<void> authorizeWithRefreshToken({
+    required String refreshToken,
+    String? deviceId,
+  }) async {
+    lastRefreshToken = refreshToken;
+    if (failLogin) {
+      _fakeState = XunleiAuthorizationState.failed;
+      _error = 'Refresh Token 无效或已过期，请重新填写';
+      notifyListeners();
+      throw const CloudDriveException(CloudDriveErrorType.authentication);
+    }
+    _authorize();
+  }
+
+  @override
   Future<void> completeVerification() async {
     completeCalls++;
     _authorize();
@@ -352,6 +407,16 @@ class _BlockingXunleiAuthorizationController
   Future<void> login({
     required String identifier,
     required String password,
+  }) async {
+    started.complete();
+    await release.future;
+    throw const CloudDriveException(CloudDriveErrorType.cancelled);
+  }
+
+  @override
+  Future<void> authorizeWithRefreshToken({
+    required String refreshToken,
+    String? deviceId,
   }) async {
     started.complete();
     await release.future;

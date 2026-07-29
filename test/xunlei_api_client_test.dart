@@ -47,6 +47,51 @@ void main() {
     await client.close();
   });
 
+  test('验证码签名失效映射为协议更新且日志不含秘密', () async {
+    final logs = <String>[];
+    final adapter = _QueueAdapter(<_FakeResponse>[
+      const _FakeResponse(200, '{"sessionID":"session-fixture"}'),
+      const _FakeResponse(
+        400,
+        '{"error":"invalid_argument","error_code":3,"error_description":"invalid captcha_sign secret-body"}',
+      ),
+    ]);
+    final client = XunleiApiClient(
+      deviceId: deviceId,
+      dio: Dio()..httpClientAdapter = adapter,
+      requestLog: logs.add,
+    );
+
+    await expectLater(
+      client.login(
+        identifier: 'account-secret',
+        password: 'password-secret',
+        deviceId: deviceId,
+      ),
+      throwsA(
+        isA<CloudDriveException>().having(
+          (error) => error.type,
+          '错误类型',
+          CloudDriveErrorType.protocolUpdated,
+        ),
+      ),
+    );
+
+    final text = logs.join('\n');
+    expect(text, contains('captchaInit'));
+    expect(text, contains('protocolUpdated'));
+    for (final secret in <String>[
+      'account-secret',
+      'password-secret',
+      'session-fixture',
+      'secret-body',
+      deviceId,
+    ]) {
+      expect(text, isNot(contains(secret)));
+    }
+    await client.close();
+  });
+
   test('刷新令牌使用受限超时且异常不泄漏响应内容', () async {
     final dio = Dio();
     final adapter = _QueueAdapter(<_FakeResponse>[

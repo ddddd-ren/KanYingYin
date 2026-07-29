@@ -162,6 +162,8 @@ class CloudProviderRegistry {
           '迅雷登录已失效，请重新登录',
         (CloudSourceType.xunlei, CloudDriveErrorType.verificationRequired) =>
           '迅雷需要完成设备验证',
+        (CloudSourceType.xunlei, CloudDriveErrorType.protocolUpdated) =>
+          '迅雷登录协议已更新，请改用 Refresh Token',
         (_, CloudDriveErrorType.permission) => '当前账号没有访问权限',
         (_, CloudDriveErrorType.network) => '连接失败，请检查网络',
         (CloudSourceType.openList, CloudDriveErrorType.notFound) =>

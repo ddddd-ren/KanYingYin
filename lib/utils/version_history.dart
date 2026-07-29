@@ -30,6 +30,17 @@ const List<VersionHistory> versionHistoryList = [
     ],
   ),
   VersionHistory(
+    version: '2.1.77',
+    date: '2026-07-29',
+    isPrerelease: true,
+    changes: [
+      '修复应用内迅雷设备验证成功后，后续登录请求携带当前接口不接受的验证码签名，导致无法自动继续登录的问题',
+      'Refresh Token 接口返回 HTTP 400 参数错误时，现会明确提示 Token 无效或已过期，不再笼统显示“迅雷授权失败”',
+      'WebView2 验证窗口继续阻止下载、新窗口、不安全页面和权限请求；账号、密码、验证码与 Token 不会写入日志',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.76',
     date: '2026-07-29',
     isPrerelease: true,

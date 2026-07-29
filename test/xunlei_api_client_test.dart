@@ -41,6 +41,11 @@ void main() {
         adapter.requests.first.data, containsPair('userName', '13800000000'));
     expect(adapter.requests.first.data,
         containsPair('passWord', 'password-fixture'));
+    final captchaRequest = adapter.requests[1].data as Map<Object?, Object?>;
+    final captchaMeta = captchaRequest['meta'] as Map<Object?, Object?>;
+    expect(captchaMeta, containsPair('phone_number', '13800000000'));
+    expect(captchaMeta, isNot(contains('timestamp')));
+    expect(captchaMeta, isNot(contains('captcha_sign')));
     expect(session.refreshToken, 'refresh-fixture');
     expect(client.captchaToken, 'captcha-fixture');
     expect(client.toString(), isNot(contains('password-fixture')));
@@ -233,6 +238,32 @@ void main() {
           const _FakeResponse(
             401,
             '{"error":"invalid_password","error_description":"wrong password"}',
+          ),
+        ]),
+    );
+
+    await expectLater(
+      client.refresh(
+        refreshToken: 'refresh-fixture',
+        deviceId: deviceId,
+      ),
+      throwsA(isA<CloudDriveException>().having(
+        (error) => error.type,
+        '错误类型',
+        CloudDriveErrorType.authentication,
+      )),
+    );
+    await client.close();
+  });
+
+  test('Refresh Token 接口的 HTTP 400 参数错误映射为令牌无效', () async {
+    final client = XunleiApiClient(
+      deviceId: deviceId,
+      dio: Dio()
+        ..httpClientAdapter = _QueueAdapter(<_FakeResponse>[
+          const _FakeResponse(
+            400,
+            '{"error":"invalid_argument","error_code":3,"error_description":"invalid refresh token"}',
           ),
         ]),
     );

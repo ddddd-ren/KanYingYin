@@ -250,7 +250,6 @@ class XunleiApiClient implements XunleiApi {
   }
 
   Future<void> _refreshCaptchaToken(String identifier) async {
-    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
     final metaKey = identifier.contains('@')
         ? 'email'
         : RegExp(r'^\d{11,18}$').hasMatch(identifier)
@@ -267,11 +266,6 @@ class XunleiApiClient implements XunleiApi {
         'device_id': _deviceId,
         'meta': <String, String>{
           metaKey: identifier,
-          'timestamp': timestamp,
-          'captcha_sign': _policy.captchaSign(
-            deviceId: _deviceId,
-            timestamp: timestamp,
-          ),
         },
         'redirect_uri': 'xlaccsdk01://xunlei.com/callback?state=kanyingyin',
       },
@@ -404,6 +398,8 @@ class XunleiApiClient implements XunleiApi {
     final error = _optionalString(json['error'])?.toLowerCase();
     final description =
         _optionalString(json['error_description'])?.toLowerCase();
+    final code = json['error_code'];
+    final numericCode = code is num ? code.toInt() : int.tryParse('$code');
     if (error == 'invalid_argument' &&
         description?.contains('invalid captcha_sign') == true) {
       return CloudDriveErrorType.protocolUpdated;
@@ -411,6 +407,11 @@ class XunleiApiClient implements XunleiApi {
     if (stage == _XunleiRequestStage.coreLogin &&
         _isExplicitPasswordError(error, description)) {
       return CloudDriveErrorType.invalidPassword;
+    }
+    if (stage == _XunleiRequestStage.refresh &&
+        statusCode == 400 &&
+        (error == 'invalid_argument' || numericCode == 3)) {
+      return CloudDriveErrorType.authentication;
     }
     if (statusCode == 401 || statusCode == 403) {
       return CloudDriveErrorType.authentication;
@@ -420,8 +421,6 @@ class XunleiApiClient implements XunleiApi {
     if (statusCode != null && statusCode >= 500) {
       return CloudDriveErrorType.network;
     }
-    final code = json['error_code'];
-    final numericCode = code is num ? code.toInt() : int.tryParse('$code');
     return switch (numericCode) {
       9 => CloudDriveErrorType.verificationRequired,
       10 || 16 || 4121 || 4122 => CloudDriveErrorType.authentication,

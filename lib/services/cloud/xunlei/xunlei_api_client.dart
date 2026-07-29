@@ -4,11 +4,11 @@ export 'package:kanyingyin/services/cloud/xunlei/xunlei_models.dart'
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:kanyingyin/services/cloud/cloud_request_diagnostics.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_models.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_request_policy.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_response_parser.dart';
-import 'package:kanyingyin/utils/logger.dart';
 
 typedef XunleiRequestLog = void Function(String message);
 
@@ -69,7 +69,7 @@ class XunleiApiClient implements XunleiApi {
         _dio = dio ?? Dio(),
         _ownsDio = dio == null,
         _policy = policy,
-        _requestLog = requestLog ?? ((message) => AppLogger().i(message)),
+        _requestLog = requestLog ?? writeCloudRequestDiagnostic,
         _parser = XunleiResponseParser(now: now ?? DateTime.now) {
     _dio.options
       ..connectTimeout = const Duration(seconds: 10)

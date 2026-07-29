@@ -37,6 +37,10 @@ migrate_working_dir/
 *.pfx
 *.private-build.json
 /tool/windows/private-output/
+/tool/android/private-output/
+/android/key.properties
+*.jks
+*.keystore
 
 # Symbolication related
 app.*.symbols

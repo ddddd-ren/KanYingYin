@@ -5,6 +5,27 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val releaseKeystorePath =
+    providers.environmentVariable("KANYINGYIN_ANDROID_KEYSTORE").orNull
+val releaseStorePassword =
+    providers.environmentVariable("KANYINGYIN_ANDROID_STORE_PASSWORD").orNull
+val releaseKeyAlias =
+    providers.environmentVariable("KANYINGYIN_ANDROID_KEY_ALIAS").orNull
+val releaseKeyPassword =
+    providers.environmentVariable("KANYINGYIN_ANDROID_KEY_PASSWORD").orNull
+val releaseSigningReady = listOf(
+    releaseKeystorePath,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+).all { !it.isNullOrBlank() }
+val releaseRequested = gradle.startParameter.taskNames.any {
+    it.contains("release", ignoreCase = true)
+}
+if (releaseRequested && !releaseSigningReady) {
+    throw GradleException("Android Release 缺少 KANYINGYIN_ANDROID_* 签名环境变量")
+}
+
 android {
     namespace = "com.kanyingyin.player"
     compileSdk = 36
@@ -27,11 +48,26 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            if (releaseSigningReady) {
+                storeFile = file(releaseKeystorePath!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }

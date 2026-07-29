@@ -30,6 +30,17 @@ const List<VersionHistory> versionHistoryList = [
     ],
   ),
   VersionHistory(
+    version: '2.1.70',
+    date: '2026-07-29',
+    isPrerelease: true,
+    changes: [
+      '修复看影音早于代理软件启动时，TMDB 搜索一直提示网络失败的问题',
+      'TMDB 遇到连接失败后会重新探测本机代理，按最新设置重建网络客户端并自动重试一次，无需重启应用',
+      'API Key 错误、服务器响应错误和限流不会重复请求；TMDB 不可用时，本地媒体库扫描与播放器继续使用',
+      '本次修复不会修改或删除本地及网盘媒体库中的原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.69',
     date: '2026-07-28',
     isPrerelease: true,

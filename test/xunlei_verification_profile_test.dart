@@ -1,11 +1,25 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_verification_profile.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
+  test('Android 迅雷验证不依赖 Windows WebView2 环境', () async {
+    final factory = XunleiVerificationProfileFactory(
+      capabilities: AppPlatformCapabilities.android,
+      availableVersionLoader: () async => throw StateError('不应调用'),
+      supportDirectoryLoader: () async => throw StateError('不应调用'),
+    );
+
+    final profile = await factory.create();
+
+    expect(profile.environment, isNull);
+    await profile.dispose();
+  });
+
   test('WebView2 Runtime 版本必须支持原生下载取消事件', () {
     for (final version in <String>[
       '91.0.864.71',

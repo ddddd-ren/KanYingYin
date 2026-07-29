@@ -2,10 +2,19 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:kanyingyin/core/network/proxy_probe_http_client_factory.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_endpoint_policy.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/utils/proxy_utils.dart';
 import 'package:kanyingyin/utils/storage.dart';
+
+class ProxyPlatformPolicy {
+  const ProxyPlatformPolicy._();
+
+  static bool canAutoDetectLocalProxy(AppPlatformCapabilities capabilities) =>
+      capabilities.desktopShell;
+}
 
 /// 代理管理器
 /// 统一管理 Dio HTTP 请求的代理设置
@@ -51,6 +60,22 @@ class ProxyManager {
       SettingBoxKey.proxyUrl,
       defaultValue: '',
     );
+    if (!ProxyPlatformPolicy.canAutoDetectLocalProxy(detectAppPlatform())) {
+      final parsedProxy = ProxyUtils.parseProxyUrl(proxyUrl);
+      final configured = proxyEnable && parsedProxy != null;
+      await setting.put(SettingBoxKey.proxyConfigured, configured);
+      await setting.put(SettingBoxKey.enableSystemProxy, configured);
+      if (!configured && proxyEnable) {
+        await setting.put(SettingBoxKey.proxyEnable, false);
+      }
+      AppLogger().i(
+        configured
+            ? 'Proxy: Android 使用用户明确配置的代理'
+            : 'Proxy: Android 未启用用户代理，跳过本机端口探测',
+      );
+      applyProxy();
+      return;
+    }
 
     if (proxyEnable) {
       final parsedProxy = ProxyUtils.parseProxyUrl(proxyUrl);
@@ -114,6 +139,9 @@ class ProxyManager {
   }
 
   static Future<(String, int)?> _detectLocalProxy() async {
+    if (!ProxyPlatformPolicy.canAutoDetectLocalProxy(detectAppPlatform())) {
+      return null;
+    }
     for (final port in _localProxyPorts) {
       final portOpen = await _isPortOpen('127.0.0.1', port);
       if (!portOpen) continue;
@@ -149,6 +177,20 @@ class ProxyManager {
   }
 
   static Future<bool> _recoverOnlineResourceProxy() async {
+    if (!ProxyPlatformPolicy.canAutoDetectLocalProxy(detectAppPlatform())) {
+      final setting = GStorage.setting;
+      final enabled = setting.getTyped<bool>(
+        SettingBoxKey.proxyEnable,
+        defaultValue: false,
+      );
+      final url = setting.getTyped<String>(
+        SettingBoxKey.proxyUrl,
+        defaultValue: '',
+      );
+      final configured = enabled && ProxyUtils.parseProxyUrl(url) != null;
+      if (configured) applyProxy();
+      return configured;
+    }
     final detected = await _detectLocalProxy();
     if (detected != null) {
       await _enableDetectedProxy(detected);

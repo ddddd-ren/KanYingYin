@@ -2,6 +2,8 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -40,19 +42,29 @@ class XunleiVerificationProfileFactory {
     XunleiSupportDirectoryLoader? supportDirectoryLoader,
     XunleiEnvironmentLoader? environmentLoader,
     String Function()? sessionIdGenerator,
+    AppPlatformCapabilities? capabilities,
   })  : _availableVersionLoader = availableVersionLoader ??
             (() => WebViewEnvironment.getAvailableVersion()),
         _supportDirectoryLoader =
             supportDirectoryLoader ?? getApplicationSupportDirectory,
         _environmentLoader = environmentLoader ?? _createEnvironment,
-        _sessionIdGenerator = sessionIdGenerator ?? _generateSessionId;
+        _sessionIdGenerator = sessionIdGenerator ?? _generateSessionId,
+        _capabilities = capabilities ?? detectAppPlatform();
 
   final XunleiAvailableVersionLoader _availableVersionLoader;
   final XunleiSupportDirectoryLoader _supportDirectoryLoader;
   final XunleiEnvironmentLoader _environmentLoader;
   final String Function() _sessionIdGenerator;
+  final AppPlatformCapabilities _capabilities;
 
   Future<XunleiVerificationProfile> create() async {
+    if (_capabilities.isAndroid) {
+      return XunleiVerificationProfile._(
+        rootDirectory: null,
+        sessionDirectory: null,
+        environment: null,
+      );
+    }
     String? version;
     try {
       version = await _availableVersionLoader();
@@ -182,29 +194,36 @@ class XunleiVerificationProfile {
     required this.environment,
   });
 
-  final Directory rootDirectory;
-  final Directory sessionDirectory;
-  final WebViewEnvironment environment;
+  final Directory? rootDirectory;
+  final Directory? sessionDirectory;
+  final WebViewEnvironment? environment;
   bool _disposed = false;
 
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
+    final webViewEnvironment = environment;
     await _cleanup(() async {
       await CookieManager.instance(
-        webViewEnvironment: environment,
+        webViewEnvironment: webViewEnvironment,
       ).deleteAllCookies();
     });
     await _cleanup(() async {
       await InAppWebViewController.clearAllCache(includeDiskFiles: true);
     });
-    await _cleanup(environment.dispose);
-    await _cleanup(() async {
-      await XunleiVerificationProfileFactory.deleteSessionDirectory(
-        root: rootDirectory,
-        session: sessionDirectory,
-      );
-    });
+    if (webViewEnvironment != null) {
+      await _cleanup(webViewEnvironment.dispose);
+    }
+    final root = rootDirectory;
+    final session = sessionDirectory;
+    if (root != null && session != null) {
+      await _cleanup(() async {
+        await XunleiVerificationProfileFactory.deleteSessionDirectory(
+          root: root,
+          session: session,
+        );
+      });
+    }
   }
 
   Future<void> _cleanup(Future<void> Function() action) async {

@@ -20,6 +20,7 @@ import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/pages/video/cloud_relay_status_presenter.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:kanyingyin/features/player/presentation/player_exit_coordinator.dart';
+import 'package:kanyingyin/features/player/application/player_back_policy.dart';
 
 class VideoPage extends StatefulWidget {
   const VideoPage({super.key});
@@ -57,10 +58,12 @@ class _VideoPageState extends State<VideoPage>
   @override
   void initState() {
     super.initState();
-    windowManager.addListener(this);
-    windowManager.isFullScreen().then((value) {
-      localVideoController.isFullscreen = value;
-    });
+    if (Utils.isDesktop()) {
+      windowManager.addListener(this);
+      windowManager.isFullScreen().then((value) {
+        localVideoController.isFullscreen = value;
+      });
+    }
     tabController = TabController(length: 1, vsync: this);
     observerController = ListObserverController(controller: scrollController);
     animation = AnimationController(
@@ -112,9 +115,13 @@ class _VideoPageState extends State<VideoPage>
   void dispose() {
     _relayStableTimer?.cancel();
     _exitCoordinator.beginExit();
-    try {
-      windowManager.removeListener(this);
-    } catch (_) {}
+    if (Utils.isDesktop()) {
+      try {
+        windowManager.removeListener(this);
+      } catch (_) {}
+    } else {
+      unawaited(Utils.exitFullScreen());
+    }
     try {
       observerController.controller?.dispose();
     } catch (_) {}
@@ -282,7 +289,11 @@ class _VideoPageState extends State<VideoPage>
   }
 
   void onBackPressed(BuildContext context) async {
-    if (AppDialog.observer.hasAppDialog) {
+    final action = PlayerBackPolicy.decide(
+      overlayVisible: AppDialog.observer.hasAppDialog,
+      fullscreen: localVideoController.isFullscreen,
+    );
+    if (action == PlayerBackAction.closeOverlay) {
       AppDialog.dismiss<void>();
       return;
     }
@@ -291,16 +302,14 @@ class _VideoPageState extends State<VideoPage>
       localVideoController.isPip = false;
       return;
     }
-    if (localVideoController.isFullscreen && !Utils.isTablet()) {
-      menuJumpToCurrentEpisode();
+    if (action == PlayerBackAction.exitFullscreen) {
+      if (!Utils.isTablet()) {
+        menuJumpToCurrentEpisode();
+        localVideoController.showTabBody = false;
+      }
       await Utils.exitFullScreen();
-      localVideoController.showTabBody = false;
       localVideoController.isFullscreen = false;
       return;
-    }
-    if (localVideoController.isFullscreen) {
-      Utils.exitFullScreen();
-      localVideoController.isFullscreen = false;
     }
     if (!_exitCoordinator.beginExit()) return;
     AppLogger().i('VideoPage: route exit requested');

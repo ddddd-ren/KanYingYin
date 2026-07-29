@@ -58,6 +58,7 @@ void main() {
     expect(source, contains('void _child('));
     expect(source, contains('_child(r, "/theme"'));
     expect(source, contains('_child(r, "/player"'));
+    expect(source, contains('"/tmdb/transfer"'));
     expect(
       source,
       matches(RegExp(r'_child\(\s*r,\s*"/cloud-sources"')),

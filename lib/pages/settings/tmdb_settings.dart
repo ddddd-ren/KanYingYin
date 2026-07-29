@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
+import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
@@ -270,6 +271,15 @@ class _TmdbSettingsPageState extends State<TmdbSettingsPage> {
             subtitle: const Text('不会删除媒体文件或已经写入媒体库的信息'),
             trailing: const Icon(Icons.chevron_right),
             onTap: _clearMetadataCache,
+          ),
+          ListTile(
+            key: const ValueKey<String>('scraped-metadata-transfer-entry'),
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.move_to_inbox_outlined),
+            title: const Text('迁移刮削资料'),
+            subtitle: const Text('把已识别的资料和封面带到另一台设备'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Modular.to.pushNamed('/settings/tmdb/transfer'),
           ),
           const SizedBox(height: 24),
           Align(

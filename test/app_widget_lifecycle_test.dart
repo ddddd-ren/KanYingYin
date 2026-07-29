@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/app_widget.dart';
+import 'package:kanyingyin/platform/windows/windows_app_shell_host.dart';
 import 'package:kanyingyin/services/windows_app_shell_service.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';

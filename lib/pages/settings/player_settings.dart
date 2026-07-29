@@ -3,6 +3,7 @@ import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/utils/diagnostic_log_exporter.dart';
 // ignore_for_file: avoid_print
@@ -355,20 +356,21 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                       style: TextStyle(fontFamily: fontFamily)),
                   initialValue: showPlayerError,
                 ),
-                KSettingsTile<void>.navigation(
-                  onPressed: (_) async {
-                    try {
-                      await DiagnosticLogExporter().openLogDirectory();
-                    } on Object {
-                      AppDialog.showToast(message: '无法打开日志目录');
-                    }
-                  },
-                  leading: const Icon(Icons.folder_open_outlined),
-                  title:
-                      Text('打开日志目录', style: TextStyle(fontFamily: fontFamily)),
-                  description: Text('自动记录运行信息，最多保留 10 个日志文件',
-                      style: TextStyle(fontFamily: fontFamily)),
-                ),
+                if (detectAppPlatform().desktopShell)
+                  KSettingsTile<void>.navigation(
+                    onPressed: (_) async {
+                      try {
+                        await DiagnosticLogExporter().openLogDirectory();
+                      } on Object {
+                        AppDialog.showToast(message: '无法打开日志目录');
+                      }
+                    },
+                    leading: const Icon(Icons.folder_open_outlined),
+                    title: Text('打开日志目录',
+                        style: TextStyle(fontFamily: fontFamily)),
+                    description: Text('自动记录运行信息，最多保留 10 个日志文件',
+                        style: TextStyle(fontFamily: fontFamily)),
+                  ),
                 KSettingsTile<void>.navigation(
                   onPressed: (_) async {
                     try {

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:kanyingyin/core/app_version.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/utils/log_sanitizer.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/utils/rotating_log_writer.dart';
@@ -35,7 +36,7 @@ class DiagnosticLogExporter {
 
   Future<void> openLogDirectory() async {
     final directory = await getLogDirectory();
-    if (!Platform.isWindows) {
+    if (!detectAppPlatform().desktopShell) {
       throw UnsupportedError('当前系统不支持打开日志目录');
     }
     final result = await Process.run('explorer.exe', <String>[directory.path]);

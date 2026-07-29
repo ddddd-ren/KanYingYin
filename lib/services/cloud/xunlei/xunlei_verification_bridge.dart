@@ -31,6 +31,26 @@ class XunleiVerificationResult {
 }
 
 abstract final class XunleiVerificationNavigationPolicy {
+  static const String _verificationApiHost = 'xluser-ssl.xunlei.com';
+  static const String _verificationApiPath = '/xluser.core.login/v3/checksms';
+
+  static bool allowsNavigation(
+    Uri uri, {
+    required bool? isForMainFrame,
+    required String? method,
+  }) {
+    if (allows(uri)) return true;
+    return isForMainFrame == false &&
+        method?.toUpperCase() == 'POST' &&
+        uri.scheme.toLowerCase() == 'https' &&
+        uri.host.toLowerCase() == _verificationApiHost &&
+        uri.userInfo.isEmpty &&
+        (!uri.hasPort || uri.port == 443) &&
+        uri.path == _verificationApiPath &&
+        !uri.hasQuery &&
+        !uri.hasFragment;
+  }
+
   static bool allows(Uri uri) =>
       uri.scheme.toLowerCase() == 'https' &&
       uri.host.toLowerCase() == 'i.xunlei.com' &&

@@ -47,7 +47,11 @@ class CloudMediaNameParser {
         preferred != null && preferred.isNotEmpty ? preferred : source;
     final yearMatch =
         _yearPattern.firstMatch(titleSource) ?? _yearPattern.firstMatch(source);
-    final searchTitle = _cleanTitle(titleSource);
+    final year = yearMatch == null ? null : int.tryParse(yearMatch.group(1)!);
+    final searchTitle = _removeYearWhenTitleRemains(
+      _cleanTitle(titleSource),
+      year,
+    );
     final seasonNumber = int.tryParse(
           seasonEpisode?.group(1) ??
               chineseSeason?.group(1) ??
@@ -63,7 +67,7 @@ class CloudMediaNameParser {
       mediaTypeMode: seasonNumber == null && episodeNumber == null
           ? TmdbMediaTypeMode.auto
           : TmdbMediaTypeMode.tv,
-      year: yearMatch == null ? null : int.tryParse(yearMatch.group(1)!),
+      year: year,
       seasonNumber: seasonNumber,
       episodeNumber: episodeNumber == null ? null : int.tryParse(episodeNumber),
     );
@@ -81,6 +85,15 @@ class CloudMediaNameParser {
         .replaceAll(RegExp(r'全\s*\d+\s*集|全集|完结'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
+  }
+
+  String _removeYearWhenTitleRemains(String value, int? year) {
+    if (year == null) return value;
+    final withoutYear = value
+        .replaceAll(RegExp('(?<!\\d)$year(?!\\d)'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return withoutYear.isEmpty ? value : withoutYear;
   }
 
   static int? _parseChineseNumber(String? value) {

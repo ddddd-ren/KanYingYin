@@ -89,17 +89,22 @@ class TmdbScrapePolicy {
   }
 
   String _cleanTitle(String value) {
-    return _cleaner
+    final cleaned = _cleaner
         .clean(value)
         .replaceAll(_seasonEpisodePattern, ' ')
         .replaceAll(_chineseSeasonPattern, ' ')
         .replaceAll(_englishSeasonPattern, ' ')
         .replaceAll(_chineseEpisodePattern, ' ')
-        .replaceAll(_yearPattern, ' ')
         .replaceAll(RegExp(r'[（(]\s*[)）]'), ' ')
         .replaceAll(RegExp(r'全\s*\d+\s*集|全集|完结'), ' ')
         .replaceAll(RegExp(r'\s+-\s+'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
+    final withoutYear = cleaned
+        .replaceAll(_yearPattern, ' ')
+        .replaceAll(RegExp(r'[（(]\s*[)）]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return withoutYear.isEmpty ? cleaned : withoutYear;
   }
 }

@@ -65,6 +65,41 @@ void main() {
     expect(plan.queries, <String>['流浪地球2']);
   });
 
+  test('本地搜索计划清理发布站尾缀并保留年份筛选', () {
+    const subject = TmdbScrapeSubject(
+      stableKey: 'release-title',
+      titleCandidates: <String>[
+        '片名【高清剧集网发布 www.DDHDTV.com】第二季[全6集][简繁英字幕].S02.2014.1080p.BluRay.x264.FLAC.2.0-ZeroTV',
+      ],
+      seasonNumbers: <int>{2},
+      mediaEvidence: TmdbMediaEvidence.tv,
+    );
+
+    final plan = policy.build(
+      subject,
+      const TmdbScrapeOptions.defaults(),
+    );
+
+    expect(plan.queries, <String>['片名']);
+    expect(plan.year, 2014);
+    expect(plan.mediaTypes, <TmdbMediaType>[TmdbMediaType.tv]);
+  });
+
+  test('纯年份数字作品名不会被清空', () {
+    const subject = TmdbScrapeSubject(
+      stableKey: 'numeric-title',
+      titleCandidates: <String>['1923'],
+    );
+
+    final plan = policy.build(
+      subject,
+      const TmdbScrapeOptions.defaults(),
+    );
+
+    expect(plan.queries, <String>['1923']);
+    expect(plan.year, 1923);
+  });
+
   test('显式媒体类型设置覆盖自动识别证据', () {
     const subject = TmdbScrapeSubject(
       stableKey: 'forced',

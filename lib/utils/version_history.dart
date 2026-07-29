@@ -30,6 +30,17 @@ const List<VersionHistory> versionHistoryList = [
     ],
   ),
   VersionHistory(
+    version: '2.1.72',
+    date: '2026-07-29',
+    isPrerelease: true,
+    changes: [
+      '修复迅雷账号密码兼容登录触发设备验证后，系统浏览器只显示空白页的问题',
+      '自动纠正迅雷返回的旧短信验证页面地址，并补齐与本次登录一致的设备签名',
+      '验证页面继续只在系统浏览器中打开；账号、密码、Token 和验证参数不会写入日志',
+      '本次更新不会修改或删除本地及网盘中的原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.71',
     date: '2026-07-29',
     isPrerelease: true,

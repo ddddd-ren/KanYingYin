@@ -15,6 +15,8 @@ void main() {
   test('错误仅在有 TrueHD 音轨时匹配通用音频解码错误', () {
     final tracks = [const AudioTrack('1', 'TrueHD', 'en', codec: 'truehd')];
     expect(policy.isRelatedError('audio decoder failed', tracks), isTrue);
+    expect(policy.isRelatedError('Could not open codec.', tracks), isTrue);
+    expect(policy.isRelatedError('Error decoding frame!', tracks), isTrue);
     expect(policy.isRelatedError('audio decoder failed', const []), isFalse);
     expect(policy.isRelatedError('MLP open error', const []), isTrue);
   });

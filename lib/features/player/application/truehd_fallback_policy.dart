@@ -17,11 +17,10 @@ class TrueHdFallbackPolicy {
     final hasTrueHd = tracks.any(isTrueHd);
     if (!hasTrueHd) return false;
     final audio = lower.contains('audio') || lower.contains('ao');
-    final decoder = lower.contains('decoder') ||
-        lower.contains('decode') ||
+    final decoder = lower.contains('decod') ||
         lower.contains('codec') ||
         lower.contains('failed');
-    return audio && decoder;
+    return decoder || (audio && lower.contains('error'));
   }
 
   AudioTrack? chooseFallback(Iterable<AudioTrack> tracks,

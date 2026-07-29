@@ -3,14 +3,12 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:kanyingyin/services/local_cover_finder.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_endpoint_policy.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/modules/local/local_episode_info.dart';
 import 'package:path/path.dart' as p;
 
 class PosterService {
-  static const _baseUrl = 'https://api.themoviedb.org/3';
-  static const _imageBaseUrl = 'https://image.tmdb.org/t/p/w780';
-
   final Dio _dio;
   final Dio _downloadDio;
   final TmdbApiKeyProvider _apiKeyProvider;
@@ -211,7 +209,7 @@ class PosterService {
         if (results != null && results.isNotEmpty) {
           final posterPath = results.first['poster_path'];
           if (posterPath is String && posterPath.isNotEmpty) {
-            return '$_imageBaseUrl$posterPath';
+            return '${TmdbEndpointPolicy.imageBaseUrl}$posterPath';
           }
         }
       }
@@ -305,14 +303,18 @@ class PosterService {
   Future<String?> _ensureBaseUrl(String apiKey) async {
     if (_workingBaseUrl != null) return _workingBaseUrl;
 
-    try {
-      await _dio.get<Object?>(
-        '$_baseUrl/configuration',
-        queryParameters: {'api_key': apiKey},
-      );
-      _workingBaseUrl = _baseUrl;
-      return _baseUrl;
-    } catch (_) {}
+    for (final baseUrl in TmdbEndpointPolicy.apiBaseUrls) {
+      try {
+        await _dio.get<Object?>(
+          '$baseUrl/configuration',
+          queryParameters: <String, String>{'api_key': apiKey},
+        );
+        _workingBaseUrl = baseUrl;
+        return baseUrl;
+      } on DioException catch (error) {
+        if (!TmdbEndpointPolicy.canTryAnotherEndpoint(error)) return null;
+      }
+    }
 
     return null;
   }

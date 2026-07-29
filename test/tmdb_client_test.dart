@@ -31,6 +31,60 @@ void main() {
     expect(adapter.lastRequest?.headers['Authorization'], 'Bearer $token');
   });
 
+  test('主端点连接失败后使用官方备用端点并在运行期保持', () async {
+    final adapter = _HostAdapter((options) {
+      if (options.uri.host == 'api.themoviedb.org') {
+        throw DioException(
+          requestOptions: options,
+          type: DioExceptionType.connectionError,
+        );
+      }
+      return ResponseBody.fromString(
+        '{"results":[{"id":1,"title":"Avatar"}]}',
+        200,
+        headers: <String, List<String>>{
+          Headers.contentTypeHeader: <String>['application/json'],
+        },
+      );
+    });
+    final dio = Dio()..httpClientAdapter = adapter;
+    final client = TmdbClient(
+      apiKey: 'key',
+      dio: dio,
+      recoverProxy: () async => false,
+      dioFactory: () => dio,
+    );
+
+    await client.search('Avatar', TmdbMediaType.movie);
+    await client.search('Avatar 2', TmdbMediaType.movie);
+
+    expect(adapter.hosts, <String>[
+      'api.themoviedb.org',
+      'api.tmdb.org',
+      'api.tmdb.org',
+    ]);
+  });
+
+  test('主端点 401 时不向备用端点重复发送 API Key', () async {
+    final adapter = _HostAdapter(
+      (_) => ResponseBody.fromString(
+        '{"status_code":7}',
+        401,
+        headers: <String, List<String>>{
+          Headers.contentTypeHeader: <String>['application/json'],
+        },
+      ),
+    );
+    final dio = Dio()..httpClientAdapter = adapter;
+    final client = TmdbClient(apiKey: 'bad-key', dio: dio);
+
+    await expectLater(
+      client.search('Avatar', TmdbMediaType.movie),
+      throwsA(isA<DioException>()),
+    );
+    expect(adapter.hosts, <String>['api.themoviedb.org']);
+  });
+
   test('电视剧详情解析季度并用英文补齐缺失季度海报', () async {
     final adapter = _SeasonDetailsAdapter();
     final dio = Dio()..httpClientAdapter = adapter;
@@ -50,7 +104,11 @@ void main() {
   test('首次连接失败后恢复代理并使用新 Dio 重试一次', () async {
     final firstAdapter = _QueueAdapter([
       DioException(
-        requestOptions: RequestOptions(path: '/search/movie'),
+        requestOptions: RequestOptions(path: '/primary'),
+        type: DioExceptionType.connectionError,
+      ),
+      DioException(
+        requestOptions: RequestOptions(path: '/fallback'),
         type: DioExceptionType.connectionError,
       ),
     ]);
@@ -85,16 +143,20 @@ void main() {
     expect(results.single.title, 'Avatar');
     expect(recoveries, 1);
     expect(rebuilds, 1);
-    expect(firstAdapter.requestCount, 1);
+    expect(firstAdapter.requestCount, 2);
     expect(secondAdapter.requestCount, 1);
   });
 
-  test('代理恢复失败时保留首次网络异常且不重建 Dio', () async {
-    final error = DioException(
-      requestOptions: RequestOptions(path: '/search/movie'),
+  test('代理恢复失败时返回备用端点异常且不重建 Dio', () async {
+    final primaryError = DioException(
+      requestOptions: RequestOptions(path: '/primary'),
       type: DioExceptionType.connectionTimeout,
     );
-    final adapter = _QueueAdapter([error]);
+    final fallbackError = DioException(
+      requestOptions: RequestOptions(path: '/fallback'),
+      type: DioExceptionType.connectionTimeout,
+    );
+    final adapter = _QueueAdapter([primaryError, fallbackError]);
     final dio = Dio()..httpClientAdapter = adapter;
     var recoveries = 0;
     var rebuilds = 0;
@@ -113,11 +175,11 @@ void main() {
 
     await expectLater(
       client.search('Avatar', TmdbMediaType.movie),
-      throwsA(same(error)),
+      throwsA(same(fallbackError)),
     );
     expect(recoveries, 1);
     expect(rebuilds, 0);
-    expect(adapter.requestCount, 1);
+    expect(adapter.requestCount, 2);
   });
 
   test('HTTP 响应错误不恢复代理', () async {
@@ -151,13 +213,16 @@ void main() {
     expect(adapter.requestCount, 1);
   });
 
-  test('重建后的请求失败时不进行第三次请求', () async {
+  test('代理重建后的请求失败时不进行第四次请求', () async {
     DioException failure(String path) => DioException(
           requestOptions: RequestOptions(path: path),
           type: DioExceptionType.connectionError,
         );
-    final firstAdapter = _QueueAdapter([failure('/first')]);
-    final secondError = failure('/second');
+    final firstAdapter = _QueueAdapter([
+      failure('/primary'),
+      failure('/fallback'),
+    ]);
+    final secondError = failure('/rebuilt-primary');
     final secondAdapter = _QueueAdapter([secondError]);
     final firstDio = Dio()..httpClientAdapter = firstAdapter;
     final secondDio = Dio()..httpClientAdapter = secondAdapter;
@@ -177,7 +242,7 @@ void main() {
       throwsA(same(secondError)),
     );
     expect(recoveries, 1);
-    expect(firstAdapter.requestCount, 1);
+    expect(firstAdapter.requestCount, 2);
     expect(secondAdapter.requestCount, 1);
   });
 
@@ -194,8 +259,10 @@ void main() {
           },
         );
     final firstAdapter = _QueueAdapter([
-      failure('/first'),
-      failure('/second'),
+      failure('/request-1-primary'),
+      failure('/request-2-primary'),
+      failure('/request-1-fallback'),
+      failure('/request-2-fallback'),
     ]);
     final secondAdapter = _QueueAdapter([
       success(1),
@@ -224,11 +291,11 @@ void main() {
       client.search('Avatar 2', TmdbMediaType.movie),
     ];
     for (var attempt = 0;
-        attempt < 20 && firstAdapter.requestCount < 2;
+        attempt < 20 && firstAdapter.requestCount < 4;
         attempt += 1) {
       await Future<void>.delayed(Duration.zero);
     }
-    expect(firstAdapter.requestCount, 2);
+    expect(firstAdapter.requestCount, 4);
     for (var attempt = 0; attempt < 5; attempt += 1) {
       await Future<void>.delayed(Duration.zero);
     }
@@ -240,7 +307,7 @@ void main() {
     expect(recoveriesBeforeRelease, 1);
     expect(recoveries, recoveriesBeforeRelease);
     expect(rebuilds, 1);
-    expect(firstAdapter.requestCount, 2);
+    expect(firstAdapter.requestCount, 4);
     expect(secondAdapter.requestCount, 2);
   });
 }
@@ -260,6 +327,28 @@ class _QueueAdapter implements HttpClientAdapter {
     final outcome = outcomes[requestCount++];
     if (outcome is DioException) throw outcome;
     return outcome as ResponseBody;
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+typedef _HostResponder = ResponseBody Function(RequestOptions options);
+
+class _HostAdapter implements HttpClientAdapter {
+  _HostAdapter(this.responder);
+
+  final _HostResponder responder;
+  final List<String> hosts = <String>[];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    hosts.add(options.uri.host);
+    return responder(options);
   }
 
   @override

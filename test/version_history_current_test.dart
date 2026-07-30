@@ -1,9 +1,64 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/pages/init_page.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('一点零三正式版同步 Android 一点零零安装包', () {
+    final entries = versionHistoryForCurrent('1.0.3');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isFalse);
+    for (final text in <String>[
+      '综合近期版本更新',
+      'Android 1.0.0',
+      '硬件解码',
+      '迅雷',
+      '媒体库',
+      '系统存储访问框架',
+      'MediaCodec',
+      '画中画',
+      '后台播放',
+      '刮削资料',
+      'TMDB',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
+  test('Android 首次正式版弹窗只展示 Android 功能', () {
+    final entries = versionHistoryForCurrent(
+      '1.0.3',
+      platform: AppPlatformKind.android,
+    );
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.version, '1.0.0');
+    expect(entry.isPrerelease, isFalse);
+    for (final text in <String>[
+      'Android 首次正式发布',
+      '系统存储访问框架',
+      'MediaCodec',
+      '后台播放',
+      '画中画',
+      'PGS',
+      'TrueHD',
+      '个人网盘媒体播放',
+      '系统 WebView',
+      '不会修改、删除或转码',
+    ]) {
+      expect(changes, contains(text));
+    }
+    expect(changes, isNot(contains('Windows')));
+    expect(changes, isNot(contains('迅雷')));
+  });
+
   test('二点一九十三支持刮削资料跨设备迁移', () {
     final entries = versionHistoryForCurrent('2.1.93');
 

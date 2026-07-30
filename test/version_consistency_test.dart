@@ -6,8 +6,8 @@ import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
   test('应用版本、MSIX 版本和更新日志保持一致', () {
-    const expectedVersion = '2.1.93';
-    const expectedBuildNumber = '20193';
+    const expectedVersion = '1.0.3';
+    const expectedBuildNumber = '10003';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final androidGradle =
@@ -42,18 +42,19 @@ void main() {
     expect(version, expectedVersion);
     expect(buildNumber, expectedBuildNumber);
     expect(msixVersion!.group(1), version);
-    expect(androidGradle, contains('versionCode = flutter.versionCode'));
-    expect(androidGradle, contains('versionName = flutter.versionName'));
-    expect(androidReleaseScript, contains(r'$versionCode = $Matches[2]'));
+    expect(androidGradle, contains('val androidVersionName = "1.0.0"'));
+    expect(androidGradle, contains('val androidVersionCode = 10000'));
+    expect(androidGradle, contains('versionCode = androidVersionCode'));
+    expect(androidGradle, contains('versionName = androidVersionName'));
+    expect(androidReleaseScript, contains(r"$androidVersion = '1.0.0'"));
+    expect(androidReleaseScript, contains(r'$androidVersionCode = 10000'));
     expect(msixIdentity, AppIdentity.windowsIdentity);
     expect(readmeIdentity, AppIdentity.windowsIdentity);
     expect(appVersion, contains("current = '$version'"));
     expect(releaseNotes, contains('## $version+$buildNumber'));
     expect(releaseNotes, contains('MSIX 版本：$version.0'));
-    expect(
-      releaseNotes,
-      contains('APK/AAB 版本：未构建（Android 更新暂停）'),
-    );
+    expect(releaseNotes, contains('APK/AAB 版本：1.0.0 (10000)'));
+    expect(releaseNotes, contains('Android 1.0.0'));
     expect(readme, contains('| 当前版本 | $version |'));
     expect(
       readme,
@@ -64,7 +65,11 @@ void main() {
     expect(versionHistory, contains("version: '$version'"));
     expect(updateDialogCopy, contains('应用版本：$version'));
     expect(updateDialogCopy, contains('安装包版本：$version.0'));
-    expect(updateDialogCopy, contains('看影音 $version 测试版'));
+    expect(updateDialogCopy, contains('Android 应用版本：1.0.0'));
+    expect(updateDialogCopy, contains('看影音 $version 正式版'));
+    expect(updateDialogCopy, contains('Android 弹窗正文（首次正式版）'));
+    expect(updateDialogCopy, contains('看影音 Android 1.0.0 正式版'));
+    expect(updateDialogCopy, contains('Android 首次正式发布'));
     expect(
       versionHistory.indexOf("version: '$version'"),
       lessThan(versionHistory.indexOf("version: '2.1.65'")),
@@ -89,10 +94,10 @@ void main() {
       versionHistoryStart,
       versionHistoryEnd == -1 ? versionHistory.length : versionHistoryEnd,
     );
-    expect(currentReleaseNotes, contains('Android'));
-    expect(currentReleaseNotes, contains('更新暂停'));
-    expect(currentReleaseNotes, contains('未生成 APK/AAB'));
-    expect(currentReleaseNotes, contains('真机验收尚未完成'));
+    expect(currentReleaseNotes, contains('Android 1.0.0'));
+    expect(currentReleaseNotes, contains('APK/AAB 版本：1.0.0 (10000)'));
+    expect(currentReleaseNotes, contains('系统存储访问框架'));
+    expect(currentReleaseNotes, contains('刮削资料'));
     expect(updateDialogCopy, contains('Android'));
     expect(currentVersionHistory, contains('Android'));
     for (final currentCopy in [
@@ -101,20 +106,22 @@ void main() {
       currentVersionHistory,
     ]) {
       for (final text in <String>[
-        '应用内',
-        '设备验证',
-        '自动继续登录',
-        '不安全',
-        'WebView2',
-        '下载',
+        '综合近期版本更新',
+        'Android',
+        '硬件解码',
+        '迅雷',
+        'MediaCodec',
+        '系统存储访问框架',
+        '画中画',
+        '刮削资料',
         '不会修改或删除',
       ]) {
         expect(currentCopy, contains(text));
       }
     }
-    expect(currentReleaseNotes, contains('测试版'));
-    expect(updateDialogCopy, contains('测试版'));
-    expect(currentVersionHistory, contains('isPrerelease: true'));
+    expect(currentReleaseNotes, contains('正式版'));
+    expect(updateDialogCopy, contains('正式版'));
+    expect(currentVersionHistory, isNot(contains('isPrerelease: true')));
   });
 }
 

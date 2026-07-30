@@ -126,7 +126,10 @@ class _InitPageState extends State<InitPage> {
 
     if (lastSeenVersion == currentVersion) return;
 
-    final newVersions = versionHistoryForCurrent(currentVersion);
+    final newVersions = versionHistoryForCurrent(
+      currentVersion,
+      platform: detectAppPlatform().kind,
+    );
     if (newVersions.isEmpty) return;
 
     // 更新 lastSeenVersion

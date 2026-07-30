@@ -18,6 +18,8 @@ void main() {
     expect(gradle, contains('isShrinkResources = true'));
     expect(gradle, contains('proguard-rules.pro'));
     expect(gradle, isNot(contains('signingConfigs.getByName("debug")')));
+    expect(gradle, contains('val androidVersionName = "1.0.0"'));
+    expect(gradle, contains('val androidVersionCode = 10000'));
   });
 
   test('Android Release 忽略未启用的 Play Core 延迟组件引用', () {
@@ -46,8 +48,10 @@ void main() {
       script,
       contains('-storepass:env KANYINGYIN_ANDROID_STORE_PASSWORD'),
     );
-    expect(script, contains(r'$appName-$version.apk'));
-    expect(script, contains(r'$appName-$version.aab'));
+    expect(script, contains(r'$appName-$androidVersion.apk'));
+    expect(script, contains(r'$appName-$androidVersion.aab'));
+    expect(script, contains(r"$androidVersion = '1.0.0'"));
+    expect(script, contains(r'$androidVersionCode = 10000'));
     expect(script, contains('[char]0x770B'));
     expect(script, contains('com.kanyingyin.player'));
   });

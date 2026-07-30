@@ -26,6 +26,9 @@ if (releaseRequested && !releaseSigningReady) {
     throw GradleException("Android Release 缺少 KANYINGYIN_ANDROID_* 签名环境变量")
 }
 
+val androidVersionName = "1.0.0"
+val androidVersionCode = 10000
+
 android {
     namespace = "com.kanyingyin.player"
     compileSdk = 36
@@ -44,8 +47,8 @@ android {
         applicationId = "com.kanyingyin.player"
         minSdk = 24
         targetSdk = 36
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        versionCode = androidVersionCode
+        versionName = androidVersionName
     }
 
     signingConfigs {

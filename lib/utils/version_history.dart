@@ -1,3 +1,5 @@
+import 'package:kanyingyin/platform/app_platform.dart';
+
 class VersionHistory {
   final String version;
   final String date;
@@ -14,7 +16,41 @@ class VersionHistory {
   });
 }
 
+const VersionHistory _androidFirstRelease = VersionHistory(
+  version: '1.0.0',
+  date: '2026-07-30',
+  changes: [
+    'Android 首次正式发布：支持 Android 7.0 及以上设备，使用系统存储访问框架选择一个或多个本地媒体目录，应用不会申请或扫描全盘存储',
+    '本地媒体库支持递归扫描视频、字幕和媒体信息，保留 content URI；授权失效时保留已有索引，重新授权后可继续使用',
+    '播放器支持 MediaCodec 硬件解码、自动或软件解码切换、GPU 渲染、中文字体字幕、内嵌与外挂字幕、PGS 图形字幕、配音和音轨选择、选集与播放进度恢复',
+    '支持后台播放、前台播放通知、系统画中画、亮度调节、截图、外部播放器和横屏播放；平板进入应用后使用双向横屏，退出全屏不会强制切回竖屏',
+    '改进手机和平板的黑屏、返回、TrueHD 音轨、字幕显示、跳播预读和视频硬解兼容性；硬解打开失败时自动重载视频轨并回退软件解码',
+    '支持个人网盘媒体播放和 TMDB 资料、海报、背景图与季集信息；没有 TMDB Key 或断网时，本地扫描和已缓存资料仍可使用',
+    'Android 使用系统 WebView 完成账号设备验证，仅允许官方 HTTPS 页面，阻止下载、新窗口、不安全页面和权限请求，验证成功后自动继续登录',
+    '应用数据、字幕缓存和缩略图保存在看影音专属目录；安装和更新不会修改、删除或转码本地及网盘原始视频和字幕文件',
+  ],
+);
+
 const List<VersionHistory> versionHistoryList = [
+  VersionHistory(
+    version: '1.0.3',
+    date: '2026-07-30',
+    changes: [
+      '综合近期版本更新：Android 手机和平板的黑屏、返回、字幕、音轨、TrueHD 和横屏播放体验已持续修复，正式包现在可直接使用系统存储访问框架选择媒体目录',
+      '综合近期版本更新：Windows 4K、10-bit HEVC、TrueHD 和蓝光 PGS 播放继续使用经过验证的硬件解码与字幕链路，硬解失败时会回退到软件解码',
+      '综合近期版本更新：夸克、百度和迅雷的目录读取、登录设备验证、Token 刷新和根目录兼容性持续改进，失败时会给出明确提示且不会修改网盘文件',
+      '综合近期版本更新：媒体库支持更稳定的电影、季集、字幕、音轨和多版本整理，TMDB 不可用或断网时本地扫描和播放仍可继续',
+      '新增 Android 1.0.0 正式安装包：使用系统存储访问框架选择本地媒体目录，支持 MediaCodec 硬件解码、后台播放、画中画、系统 WebView 和个人网盘媒体播放',
+      'Windows 与 Android 共用本地媒体库、个人网盘、TMDB、字幕、音轨、选集和播放进度；没有 TMDB Key 或断网时，本地扫描和播放仍可使用',
+      '新增刮削资料迁移：可把本地媒体库和个人网盘中已经确认的 TMDB 标题、简介、评分、海报、背景图与季集资料导出为 `.kyymeta` 迁移包，并在另一台设备恢复',
+      '新设备先配置并扫描相同媒体来源后即可导入；本地磁盘盘符或根目录变化时可重新选择目录，应用会按相对路径和文件大小匹配，网盘来源会按类型和已扫描根目录匹配',
+      '迁移包携带已缓存的海报、背景图和季度海报，导入后可离线显示；同一图片只保存一份，缺少对应视频的资料会安全跳过',
+      '导入前会显示覆盖数量、缺失媒体和可恢复图片数量，只有确认后才写入；写入失败会恢复原有刮削资料',
+      '迁移包不会包含视频、字幕、TMDB API Key、网盘账号、Cookie、Token 或其他登录凭据',
+      '账号设备验证继续在应用内完成：Windows 使用 WebView2，Android 使用系统 WebView；验证窗口阻止下载、新窗口、不安全页面和权限请求，验证成功后自动继续登录',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
   VersionHistory(
     version: '2.1.93',
     date: '2026-07-30',
@@ -1719,17 +1755,15 @@ const List<VersionHistory> versionHistoryList = [
       'TMDB 连接现在会自动使用已检测到的本机代理',
     ],
   ),
-  VersionHistory(
-    version: '1.0.3',
-    date: '2026-07-14',
-    changes: [
-      'TMDB 现在同时支持 v3 API Key 和 v4 读取访问令牌',
-      '连接测试会区分凭据无效与网络连接失败',
-    ],
-  ),
 ];
 
-List<VersionHistory> versionHistoryForCurrent(String currentVersion) {
+List<VersionHistory> versionHistoryForCurrent(
+  String currentVersion, {
+  AppPlatformKind? platform,
+}) {
+  if (currentVersion == '1.0.3' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[_androidFirstRelease];
+  }
   return versionHistoryList
       .where((entry) => entry.version == currentVersion)
       .take(1)

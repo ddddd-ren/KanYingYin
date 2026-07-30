@@ -7,6 +7,8 @@ chcp 65001 > $null
 
 $projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $flutter = 'D:\flutter\bin\flutter.bat'
+$androidVersion = '1.0.0'
+$androidVersionCode = 10000
 $requiredVariables = @(
     'KANYINGYIN_ANDROID_KEYSTORE',
     'KANYINGYIN_ANDROID_STORE_PASSWORD',
@@ -42,8 +44,11 @@ try {
     if ($versionLine -notmatch '^version:\s*(\d+\.\d+\.\d+)\+(\d+)\s*$') {
         throw 'Unable to read Android version from pubspec.yaml'
     }
-    $version = $Matches[1]
-    $versionCode = $Matches[2]
+    $windowsVersion = $Matches[1]
+    $windowsBuildNumber = $Matches[2]
+    if ($windowsVersion -ne '1.0.3' -or $windowsBuildNumber -ne '10003') {
+        throw "Windows pubspec 版本必须为 1.0.3+10003，实际为 $windowsVersion+$windowsBuildNumber"
+    }
     $expectedPackage = 'com.kanyingyin.player'
 
     Push-Location $projectRoot
@@ -82,10 +87,10 @@ try {
     if ($packageLine -notmatch "name='$([regex]::Escape($expectedPackage))'") {
         throw 'APK applicationId is incorrect'
     }
-    if ($packageLine -notmatch "versionCode='$versionCode'") {
+    if ($packageLine -notmatch "versionCode='$androidVersionCode'") {
         throw 'APK versionCode is incorrect'
     }
-    if ($packageLine -notmatch "versionName='$([regex]::Escape($version))'") {
+    if ($packageLine -notmatch "versionName='$([regex]::Escape($androidVersion))'") {
         throw 'APK versionName is incorrect'
     }
 
@@ -100,8 +105,8 @@ try {
 
     $desktop = [Environment]::GetFolderPath('Desktop')
     $appName = -join ([char]0x770B, [char]0x5F71, [char]0x97F3)
-    $apkTarget = Join-Path $desktop "$appName-$version.apk"
-    $aabTarget = Join-Path $desktop "$appName-$version.aab"
+    $apkTarget = Join-Path $desktop "$appName-$androidVersion.apk"
+    $aabTarget = Join-Path $desktop "$appName-$androidVersion.aab"
     Copy-Item -LiteralPath $apk -Destination $apkTarget -Force
     Copy-Item -LiteralPath $aab -Destination $aabTarget -Force
     Write-Output "Android release verified: $apkTarget / $aabTarget"

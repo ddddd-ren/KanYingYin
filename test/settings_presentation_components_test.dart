@@ -120,6 +120,32 @@ void main() {
     expect(selected, 'gpu');
   });
 
+  testWidgets('迁移适配器允许禁用的单选项没有回调', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: KSettingsList(
+            sections: [
+              KSettingsSection(
+                tiles: [
+                  KSettingsTile<String>.radioTile(
+                    title: const Text('不可用单选'),
+                    radioValue: 'quality',
+                    groupValue: 'off',
+                    onChanged: null,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('不可用单选'), findsOneWidget);
+  });
+
   testWidgets('减少动画时使用不超过八十毫秒的动效', (tester) async {
     late Duration resolved;
 

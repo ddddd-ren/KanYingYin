@@ -5,11 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('二点一九十八测试版双平台版本和发布文案保持一致', () {
-    const expectedVersion = '2.1.98';
-    const expectedBuildNumber = '20198';
-    const expectedAndroidVersion = expectedVersion;
-    const expectedAndroidVersionCode = expectedBuildNumber;
+  test('一点零四正式版双平台版本和发布文案保持一致', () {
+    const expectedVersion = '1.0.4';
+    const expectedBuildNumber = '10004';
+    const expectedAndroidVersion = '1.0.1';
+    const expectedAndroidVersionCode = '10001';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final androidGradle =
@@ -84,11 +84,11 @@ void main() {
     expect(updateDialogCopy, contains('应用版本：$version'));
     expect(updateDialogCopy, contains('安装包版本：$version.0'));
     expect(updateDialogCopy, contains('Android 应用版本：$expectedAndroidVersion'));
-    expect(updateDialogCopy, contains('看影音 $version 测试版'));
+    expect(updateDialogCopy, contains('看影音 $version 正式版'));
     expect(updateDialogCopy, contains('Android 弹窗正文'));
     expect(
       updateDialogCopy,
-      contains('看影音 Android $expectedAndroidVersion 测试版'),
+      contains('看影音 Android $expectedAndroidVersion 正式版'),
     );
     final versionHistoryListStart = versionHistory.indexOf(
       'const List<VersionHistory> versionHistoryList',
@@ -97,7 +97,7 @@ void main() {
     expect(
       versionHistory.indexOf("version: '$version'", versionHistoryListStart),
       lessThan(
-        versionHistory.indexOf("version: '2.1.94'", versionHistoryListStart),
+        versionHistory.indexOf("version: '2.1.98'", versionHistoryListStart),
       ),
     );
     expect(versionHistory, contains("version: '1.0.2'"));
@@ -135,18 +135,19 @@ void main() {
       for (final text in <String>[
         'Android',
         'Anime4K',
-        '逐个',
+        '网盘',
         '更新说明',
         '普通播放',
         'Windows',
+        '设置',
         '不会修改或删除',
       ]) {
         expect(currentCopy, contains(text));
       }
     }
-    expect(currentReleaseNotes, contains('测试版'));
-    expect(updateDialogCopy, contains('测试版'));
-    expect(currentVersionHistory, contains('isPrerelease: true'));
+    expect(currentReleaseNotes, contains('正式版'));
+    expect(updateDialogCopy, contains('正式版'));
+    expect(currentVersionHistory, isNot(contains('isPrerelease: true')));
   });
 }
 

@@ -158,6 +158,17 @@ class _LogsPageState extends State<LogsPage> {
     }
   }
 
+  Future<void> _copyEvent(LogEventViewData event) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: event.rawText));
+      if (!mounted) return;
+      AppDialog.showToast(message: '日志已复制');
+    } on Object {
+      if (!mounted) return;
+      AppDialog.showToast(message: '复制日志失败，请稍后重试');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -273,6 +284,7 @@ class _LogsPageState extends State<LogsPage> {
                       event: event,
                       expanded: _expandedEventIds.contains(event.id),
                       onToggle: () => _toggleEvent(event.id),
+                      onCopy: () => unawaited(_copyEvent(event)),
                     );
                   },
                 ),

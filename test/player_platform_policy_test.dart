@@ -16,6 +16,7 @@ void main() {
       isNot(contains('mediacodec_embed')),
     );
     expect(policy.supportsAnime4k('mediacodec_embed'), isTrue);
+    expect(policy.supportsAnime4k('auto'), isTrue);
     expect(policy.supportsAnime4k('gpu'), isTrue);
   });
 

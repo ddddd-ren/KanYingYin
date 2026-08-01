@@ -77,7 +77,7 @@ void main() {
     expect(value.hardwareAccelerationEnabled, isTrue);
   });
 
-  test('Android 自动渲染器交由 media-kit 选择平台默认输出', () {
+  test('Android 自动渲染器使用 media-kit 默认 GPU 并支持 Anime4K', () {
     final preferences = PlayerRuntimePreferences(
       TypedSettings(box),
       capabilities: AppPlatformCapabilities.android,
@@ -86,6 +86,6 @@ void main() {
     final value = preferences.load();
 
     expect(value.videoRenderer, isNull);
-    expect(value.anime4kSupported, isFalse);
+    expect(value.anime4kSupported, isTrue);
   });
 }

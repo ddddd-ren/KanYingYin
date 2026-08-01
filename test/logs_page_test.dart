@@ -107,6 +107,38 @@ void main() {
     expect(payload['text'], contains('播放器失败'));
   });
 
+  testWidgets('单条复制只写入对应日志的完整原文', (tester) async {
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') calls.add(call);
+      return null;
+    });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null);
+    });
+    final reader = await readerWith('''
+[2026-07-23T10:00:00.000] INFO
+媒体库扫描完成
+[2026-07-23T10:01:00.000] ERROR
+播放器失败
+错误详情第二行
+''');
+    await pumpLogs(tester, reader);
+
+    final errorTile = find.byKey(const ValueKey('log-event-1'));
+    await tester.tap(find.descendant(
+      of: errorTile,
+      matching: find.byTooltip('复制此条日志'),
+    ));
+    await tester.pump();
+
+    final payload = calls.single.arguments as Map<Object?, Object?>;
+    expect(payload['text'], contains('播放器失败\n错误详情第二行'));
+    expect(payload['text'], isNot(contains('媒体库扫描完成')));
+  });
+
   testWidgets('清空日志后显示空状态并清除搜索', (tester) async {
     final reader = await readerWith(
       '[2026-07-23T10:00:00.000] INFO\n媒体库扫描完成',

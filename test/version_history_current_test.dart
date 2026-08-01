@@ -5,6 +5,51 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一九十六说明日志复制与安卓 Anime4K 修复', () {
+    final entries = versionHistoryForCurrent('2.1.96');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    for (final text in <String>[
+      'Windows',
+      'Android',
+      '日志',
+      '复制',
+      'Anime4K',
+      '自动',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
+  test('Android 二点一九十六只展示本轮移动端更新', () {
+    final entries = versionHistoryForCurrent(
+      '2.1.96',
+      platform: AppPlatformKind.android,
+    );
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.version, '2.1.96');
+    expect(entry.isPrerelease, isTrue);
+    for (final text in <String>[
+      'Android',
+      '日志',
+      '复制',
+      'Anime4K',
+      '自动',
+      'GPU',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+    expect(changes, isNot(contains('Windows')));
+  });
+
   test('二点一九十五说明双平台网盘读取优化', () {
     final entries = versionHistoryForCurrent('2.1.95');
 

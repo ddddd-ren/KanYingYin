@@ -64,6 +64,7 @@ void main() {
               event: warning,
               expanded: expanded,
               onToggle: () => setState(() => expanded = !expanded),
+              onCopy: () {},
             ),
           ),
         ),
@@ -74,6 +75,29 @@ void main() {
     await tester.tap(find.text('海报请求超时'));
     await tester.pumpAndSettle();
     expect(find.text(warning.rawText), findsOneWidget);
+  });
+
+  testWidgets('事件复制按钮只触发复制而不展开', (tester) async {
+    var toggleCount = 0;
+    var copyCount = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: LogEventTile(
+            event: warning,
+            expanded: false,
+            onToggle: () => toggleCount += 1,
+            onCopy: () => copyCount += 1,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('复制此条日志'));
+    await tester.pump();
+
+    expect(copyCount, 1);
+    expect(toggleCount, 0);
   });
 
   testWidgets('减少动画时日志动效不超过八十毫秒', (tester) async {

@@ -9,11 +9,13 @@ class LogEventTile extends StatelessWidget {
     required this.event,
     required this.expanded,
     required this.onToggle,
+    required this.onCopy,
   });
 
   final LogEventViewData event;
   final bool expanded;
   final VoidCallback onToggle;
+  final VoidCallback onCopy;
 
   @override
   Widget build(BuildContext context) {
@@ -95,6 +97,13 @@ class LogEventTile extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: '复制此条日志',
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.copy_outlined, size: 18),
+                      onPressed: onCopy,
+                    ),
+                    const SizedBox(width: 2),
                     AnimatedRotation(
                       turns: expanded ? 0.5 : 0,
                       duration: LogMotion.duration(

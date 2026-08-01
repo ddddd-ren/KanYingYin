@@ -51,6 +51,9 @@ class AppPlatformCapabilities {
   bool get isWindows => kind == AppPlatformKind.windows;
   bool get isAndroid => kind == AppPlatformKind.android;
 
-  bool supportsAnime4k(String renderer) =>
-      isWindows || renderer == 'gpu' || renderer == 'gpu-next';
+  bool supportsAnime4k(String renderer) {
+    if (isWindows) return true;
+    // media_kit_video 在 Android 未指定 vo 时默认使用 gpu。
+    return renderer == 'auto' || renderer == 'gpu' || renderer == 'gpu-next';
+  }
 }

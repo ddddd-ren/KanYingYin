@@ -31,6 +31,18 @@ const VersionHistory _androidFirstRelease = VersionHistory(
   ],
 );
 
+const VersionHistory _androidLogAnime4kRelease = VersionHistory(
+  version: '2.1.96',
+  date: '2026-08-01',
+  isPrerelease: true,
+  changes: [
+    '运行记录中的每条日志新增复制按钮，可直接复制该条完整脱敏原文，同时保留复制全部、展开和局部选择',
+    'Android 自动渲染器实际使用 GPU 后端时，Anime4K 效率档和质量档现在可正常选择和运行',
+    'Anime4K 仍只在画面需要放大时运行；着色器加载失败会安全关闭增强，普通播放不受影响',
+    '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+  ],
+);
+
 const VersionHistory _androidNetworkRelease = VersionHistory(
   version: '2.1.95',
   date: '2026-08-01',
@@ -45,6 +57,18 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 );
 
 const List<VersionHistory> versionHistoryList = [
+  VersionHistory(
+    version: '2.1.96',
+    date: '2026-08-01',
+    isPrerelease: true,
+    changes: [
+      '本轮同步提供 Windows 与 Android 2.1.96 测试版，分别使用 MSIX、APK 和 AAB 交付',
+      '运行记录中的每条日志新增复制按钮，可直接复制该条完整脱敏原文，同时保留复制全部、展开和局部选择',
+      'Android 自动渲染器现在会按实际 GPU 后端启用 Anime4K，不再错误显示当前渲染器不兼容',
+      'Anime4K 仍只在画面需要放大时运行；着色器加载失败会安全关闭增强，普通播放不受影响',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
   VersionHistory(
     version: '2.1.95',
     date: '2026-08-01',
@@ -1801,6 +1825,9 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '2.1.96' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[_androidLogAnime4kRelease];
+  }
   if (currentVersion == '2.1.95' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[_androidNetworkRelease];
   }

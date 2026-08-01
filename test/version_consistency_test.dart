@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('二点一九十五测试版双平台版本和发布文案保持一致', () {
-    const expectedVersion = '2.1.95';
-    const expectedBuildNumber = '20195';
+  test('二点一九十六测试版双平台版本和发布文案保持一致', () {
+    const expectedVersion = '2.1.96';
+    const expectedBuildNumber = '20196';
     const expectedAndroidVersion = expectedVersion;
     const expectedAndroidVersionCode = expectedBuildNumber;
     final pubspec = File('pubspec.yaml').readAsStringSync();
@@ -134,10 +134,10 @@ void main() {
     ]) {
       for (final text in <String>[
         'Android',
-        '网盘',
-        '预取',
-        '缓存',
-        '读取速度',
+        '日志',
+        '复制',
+        'Anime4K',
+        '自动',
         '不会修改或删除',
       ]) {
         expect(currentCopy, contains(text));

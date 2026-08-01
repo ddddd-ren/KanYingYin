@@ -11,17 +11,30 @@ Set-StrictMode -Version Latest
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $temporaryRoot = Join-Path $env:TEMP ("kanyingyin-private-release-{0}" -f [Guid]::NewGuid().ToString('N'))
-$defineFile = Join-Path $temporaryRoot 'tmdb.private-build.json'
+$tmdbDefineFile = Join-Path $temporaryRoot 'tmdb.private-build.json'
+$xunleiDefineFile = Join-Path $temporaryRoot 'xunlei.build.json'
 $packageRoot = Join-Path $temporaryRoot 'package'
 $releaseDirectory = Join-Path $projectRoot 'build\windows\x64\runner\Release'
 $generatedMsix = Join-Path $releaseDirectory 'kanyingyin.msix'
 $pfxPath = Join-Path $SigningDirectory 'certificate.pfx'
 $passwordPath = Join-Path $SigningDirectory 'certificate-password.clixml'
 $tmdbApiKeyPath = Join-Path $SigningDirectory 'tmdb-api-key.clixml'
+$xunleiClientIdPath = Join-Path $SigningDirectory 'xunlei-client-id.clixml'
+$xunleiClientSecretPath = Join-Path $SigningDirectory 'xunlei-client-secret.clixml'
+$xunleiWebClientIdPath = Join-Path $SigningDirectory 'xunlei-web-client-id.clixml'
+$xunleiAppKeyPath = Join-Path $SigningDirectory 'xunlei-app-key.clixml'
 $plainPassword = $null
 $passwordPointer = [IntPtr]::Zero
 $plainTmdbApiKey = $null
 $tmdbApiKeyPointer = [IntPtr]::Zero
+$plainXunleiClientId = $null
+$xunleiClientIdPointer = [IntPtr]::Zero
+$plainXunleiClientSecret = $null
+$xunleiClientSecretPointer = [IntPtr]::Zero
+$plainXunleiWebClientId = $null
+$xunleiWebClientIdPointer = [IntPtr]::Zero
+$plainXunleiAppKey = $null
+$xunleiAppKeyPointer = [IntPtr]::Zero
 
 function Assert-PrivateTemporaryRoot {
   $temporaryBase = [System.IO.Path]::GetFullPath($env:TEMP).TrimEnd('\') + '\'
@@ -67,7 +80,17 @@ function Get-SignToolPath {
 if (Get-Process -Name 'kanyingyin' -ErrorAction SilentlyContinue) {
   throw '请先退出正在运行的看影音，再进行私人构建'
 }
-foreach ($requiredPath in @($FlutterPath, $DartPath, $pfxPath, $passwordPath, $tmdbApiKeyPath)) {
+foreach ($requiredPath in @(
+    $FlutterPath,
+    $DartPath,
+    $pfxPath,
+    $passwordPath,
+    $tmdbApiKeyPath,
+    $xunleiClientIdPath,
+    $xunleiClientSecretPath,
+    $xunleiWebClientIdPath,
+    $xunleiAppKeyPath
+  )) {
   if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
     throw "缺少构建所需文件：$requiredPath"
   }
@@ -117,7 +140,7 @@ try {
         'run',
         'tool/export_tmdb_build_define.dart',
         '--output',
-        $defineFile
+        $tmdbDefineFile
       )
     } finally {
       Remove-Item Env:KANYINGYIN_TMDB_PRIVATE_BUILD_KEY -ErrorAction SilentlyContinue
@@ -128,13 +151,84 @@ try {
       $plainTmdbApiKey = $null
     }
 
-    Invoke-Checked -Executable $FlutterPath -Arguments @(
-      'build',
-      'windows',
-      '--release',
-      '--no-pub',
-      "--dart-define-from-file=$defineFile"
-    )
+    try {
+      $secureXunleiClientId = Import-Clixml -LiteralPath $xunleiClientIdPath
+      $secureXunleiClientSecret = Import-Clixml -LiteralPath $xunleiClientSecretPath
+      $secureXunleiWebClientId = Import-Clixml -LiteralPath $xunleiWebClientIdPath
+      $secureXunleiAppKey = Import-Clixml -LiteralPath $xunleiAppKeyPath
+      foreach ($secureValue in @(
+          $secureXunleiClientId,
+          $secureXunleiClientSecret,
+          $secureXunleiWebClientId,
+          $secureXunleiAppKey
+        )) {
+        if ($secureValue -isnot [System.Security.SecureString]) {
+          throw '迅雷配置文件不是当前用户可读取的 SecureString'
+        }
+      }
+
+      $xunleiClientIdPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureXunleiClientId)
+      $plainXunleiClientId = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($xunleiClientIdPointer)
+      $xunleiClientSecretPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureXunleiClientSecret)
+      $plainXunleiClientSecret = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($xunleiClientSecretPointer)
+      $xunleiWebClientIdPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureXunleiWebClientId)
+      $plainXunleiWebClientId = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($xunleiWebClientIdPointer)
+      $xunleiAppKeyPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureXunleiAppKey)
+      $plainXunleiAppKey = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($xunleiAppKeyPointer)
+
+      Invoke-Checked -Executable $DartPath -Arguments @(
+        'run',
+        'tool/export_xunlei_build_define.dart',
+        '--client-id',
+        $plainXunleiClientId,
+        '--client-secret',
+        $plainXunleiClientSecret,
+        '--web-client-id',
+        $plainXunleiWebClientId,
+        '--app-key',
+        $plainXunleiAppKey,
+        '--output',
+        $xunleiDefineFile
+      )
+    } finally {
+      if ($xunleiClientIdPointer -ne [IntPtr]::Zero) {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($xunleiClientIdPointer)
+        $xunleiClientIdPointer = [IntPtr]::Zero
+      }
+      if ($xunleiClientSecretPointer -ne [IntPtr]::Zero) {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($xunleiClientSecretPointer)
+        $xunleiClientSecretPointer = [IntPtr]::Zero
+      }
+      if ($xunleiWebClientIdPointer -ne [IntPtr]::Zero) {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($xunleiWebClientIdPointer)
+        $xunleiWebClientIdPointer = [IntPtr]::Zero
+      }
+      if ($xunleiAppKeyPointer -ne [IntPtr]::Zero) {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($xunleiAppKeyPointer)
+        $xunleiAppKeyPointer = [IntPtr]::Zero
+      }
+      $plainXunleiClientId = $null
+      $plainXunleiClientSecret = $null
+      $plainXunleiWebClientId = $null
+      $plainXunleiAppKey = $null
+    }
+
+    try {
+      Invoke-Checked -Executable $FlutterPath -Arguments @(
+        'build',
+        'windows',
+        '--release',
+        '--no-pub',
+        "--dart-define-from-file=$tmdbDefineFile",
+        "--dart-define-from-file=$xunleiDefineFile"
+      )
+    } finally {
+      foreach ($temporaryDefineFile in @($tmdbDefineFile, $xunleiDefineFile)) {
+        if (Test-Path -LiteralPath $temporaryDefineFile) {
+          Remove-Item -LiteralPath $temporaryDefineFile -Force
+        }
+      }
+    }
 
     if (Test-Path -LiteralPath $generatedMsix) {
       Remove-Item -LiteralPath $generatedMsix -Force
@@ -251,14 +345,43 @@ try {
   Write-Host "MSIX SHA256：$desktopHash"
 } finally {
   Remove-Item Env:KANYINGYIN_TMDB_PRIVATE_BUILD_KEY -ErrorAction SilentlyContinue
+  if ($xunleiClientIdPointer -ne [IntPtr]::Zero) {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($xunleiClientIdPointer)
+    $xunleiClientIdPointer = [IntPtr]::Zero
+  }
+  if ($xunleiClientSecretPointer -ne [IntPtr]::Zero) {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($xunleiClientSecretPointer)
+    $xunleiClientSecretPointer = [IntPtr]::Zero
+  }
+  if ($xunleiWebClientIdPointer -ne [IntPtr]::Zero) {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($xunleiWebClientIdPointer)
+    $xunleiWebClientIdPointer = [IntPtr]::Zero
+  }
+  if ($xunleiAppKeyPointer -ne [IntPtr]::Zero) {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($xunleiAppKeyPointer)
+    $xunleiAppKeyPointer = [IntPtr]::Zero
+  }
+  $plainXunleiClientId = $null
+  $plainXunleiClientSecret = $null
+  $plainXunleiWebClientId = $null
+  $plainXunleiAppKey = $null
   if ($tmdbApiKeyPointer -ne [IntPtr]::Zero) {
     [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($tmdbApiKeyPointer)
+    $tmdbApiKeyPointer = [IntPtr]::Zero
   }
   $plainTmdbApiKey = $null
   if ($passwordPointer -ne [IntPtr]::Zero) {
     [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
   }
   $plainPassword = $null
+  if (Test-Path -LiteralPath $tmdbDefineFile) {
+    Assert-PrivateTemporaryRoot
+    Remove-Item -LiteralPath $tmdbDefineFile -Force
+  }
+  if (Test-Path -LiteralPath $xunleiDefineFile) {
+    Assert-PrivateTemporaryRoot
+    Remove-Item -LiteralPath $xunleiDefineFile -Force
+  }
   if (Test-Path -LiteralPath $temporaryRoot) {
     Assert-PrivateTemporaryRoot
     Remove-Item -LiteralPath $temporaryRoot -Recurse -Force

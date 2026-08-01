@@ -5,6 +5,25 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一九十四说明 Windows 测试版风险修复边界', () {
+    final entries = versionHistoryForCurrent('2.1.94');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    for (final text in <String>[
+      'Windows 测试版',
+      'Android 未构建',
+      '迅雷',
+      'Anime4K',
+      '播放器',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('一点零三正式版同步 Android 一点零零安装包', () {
     final entries = versionHistoryForCurrent('1.0.3');
 

@@ -50,11 +50,82 @@ void main() {
 
     expect(lower, isNot(contains('tmdb-api-key')));
     expect(lower, isNot(contains('kanyingyin_tmdb')));
-    expect(lower, isNot(contains('--dart-define')));
+    expect(lower, contains('--dart-define-from-file'));
     expect(script, contains('[System.Security.SecureString]'));
     expect(script, contains('ZeroFreeBSTR'));
     expect(script, contains('finally {'));
     expect(script, contains('Assert-PublicTemporaryRoot'));
+  });
+
+  test('公共签名脚本短暂解密四项迅雷配置并在构建前清零', () async {
+    final script =
+        await File('tool/windows/build_signed_release.ps1').readAsString();
+
+    for (final fileName in <String>[
+      'xunlei-client-id.clixml',
+      'xunlei-client-secret.clixml',
+      'xunlei-web-client-id.clixml',
+      'xunlei-app-key.clixml',
+    ]) {
+      expect(script, contains("Join-Path \$SigningDirectory '$fileName'"));
+    }
+    for (final argument in <String>[
+      '--client-id',
+      '--client-secret',
+      '--web-client-id',
+      '--app-key',
+      '--output',
+    ]) {
+      expect(script, contains("'$argument'"), reason: argument);
+    }
+    expect(script, contains('tool/export_xunlei_build_define.dart'));
+    expect(
+      script,
+      contains('"--dart-define-from-file=\$xunleiDefineFile"'),
+    );
+
+    final buildIndex = script.indexOf("'build', 'windows'");
+    expect(buildIndex, greaterThanOrEqualTo(0));
+    for (final pointer in <String>[
+      'xunleiClientIdPointer',
+      'xunleiClientSecretPointer',
+      'xunleiWebClientIdPointer',
+      'xunleiAppKeyPointer',
+    ]) {
+      expect(script, contains('SecureStringToBSTR'));
+      final immediateCleanup = script.indexOf('ZeroFreeBSTR(\$$pointer)');
+      expect(immediateCleanup, greaterThanOrEqualTo(0), reason: pointer);
+      expect(immediateCleanup, lessThan(buildIndex), reason: pointer);
+    }
+
+    final conversions = RegExp(
+      r'Marshal\]::SecureStringToBSTR',
+    ).allMatches(script).length;
+    final zeroFrees = RegExp(
+      r'Marshal\]::ZeroFreeBSTR',
+    ).allMatches(script).length;
+    expect(conversions, greaterThanOrEqualTo(5));
+    expect(zeroFrees, greaterThanOrEqualTo(conversions));
+  });
+
+  test('公共签名脚本在最外层 finally 删除迅雷 JSON 和临时目录', () async {
+    final script =
+        await File('tool/windows/build_signed_release.ps1').readAsString();
+    final outerFinally = script.lastIndexOf('} finally {');
+
+    expect(outerFinally, greaterThanOrEqualTo(0));
+    final cleanup = script.substring(outerFinally);
+    for (final pointer in <String>[
+      'xunleiClientIdPointer',
+      'xunleiClientSecretPointer',
+      'xunleiWebClientIdPointer',
+      'xunleiAppKeyPointer',
+    ]) {
+      expect(cleanup, contains('ZeroFreeBSTR(\$$pointer)'), reason: pointer);
+    }
+    expect(cleanup, contains('Test-Path -LiteralPath \$xunleiDefineFile'));
+    expect(cleanup, contains('Remove-Item -LiteralPath \$xunleiDefineFile'));
+    expect(cleanup, contains('Remove-Item -LiteralPath \$temporaryRoot'));
   });
 
   test('公共异机 ZIP 使用固定清单且不包含任何私钥凭据', () async {
@@ -73,6 +144,8 @@ void main() {
       'accesstoken',
       'refreshtoken',
       'tmdb',
+      'xunlei',
+      '.clixml',
       '.json',
     ]) {
       expect(manifest, isNot(contains(forbidden)), reason: forbidden);

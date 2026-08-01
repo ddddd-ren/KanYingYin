@@ -17,5 +17,5 @@ void registerInfrastructureBindings(
   i.addSingleton<TmdbApiKeyProvider>(
     () => TmdbApiKeyProvider(userKeyReader: tmdbCredentialManager.read),
   );
-  i.addSingleton<ShadersController>(ShadersController.new);
+  i.addSingleton<ShadersController>(() => ShadersController());
 }

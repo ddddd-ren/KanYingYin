@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('应用版本、MSIX 版本和更新日志保持一致', () {
-    const expectedVersion = '1.0.3';
-    const expectedBuildNumber = '10003';
+  test('Windows 二点一九十四测试版版本和发布文案保持一致', () {
+    const expectedVersion = '2.1.94';
+    const expectedBuildNumber = '20194';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final androidGradle =
@@ -53,8 +53,7 @@ void main() {
     expect(appVersion, contains("current = '$version'"));
     expect(releaseNotes, contains('## $version+$buildNumber'));
     expect(releaseNotes, contains('MSIX 版本：$version.0'));
-    expect(releaseNotes, contains('APK/AAB 版本：1.0.0 (10000)'));
-    expect(releaseNotes, contains('Android 1.0.0'));
+    expect(releaseNotes, contains('APK/AAB 版本：未构建'));
     expect(readme, contains('| 当前版本 | $version |'));
     expect(
       readme,
@@ -65,14 +64,14 @@ void main() {
     expect(versionHistory, contains("version: '$version'"));
     expect(updateDialogCopy, contains('应用版本：$version'));
     expect(updateDialogCopy, contains('安装包版本：$version.0'));
-    expect(updateDialogCopy, contains('Android 应用版本：1.0.0'));
-    expect(updateDialogCopy, contains('看影音 $version 正式版'));
+    expect(updateDialogCopy, contains('Android 未构建'));
+    expect(updateDialogCopy, contains('看影音 $version Windows 测试版'));
     expect(updateDialogCopy, contains('Android 弹窗正文（首次正式版）'));
     expect(updateDialogCopy, contains('看影音 Android 1.0.0 正式版'));
     expect(updateDialogCopy, contains('Android 首次正式发布'));
     expect(
       versionHistory.indexOf("version: '$version'"),
-      lessThan(versionHistory.indexOf("version: '2.1.65'")),
+      lessThan(versionHistory.indexOf("version: '2.1.93'")),
     );
     expect(versionHistory, contains("version: '1.0.2'"));
 
@@ -94,34 +93,29 @@ void main() {
       versionHistoryStart,
       versionHistoryEnd == -1 ? versionHistory.length : versionHistoryEnd,
     );
-    expect(currentReleaseNotes, contains('Android 1.0.0'));
-    expect(currentReleaseNotes, contains('APK/AAB 版本：1.0.0 (10000)'));
-    expect(currentReleaseNotes, contains('系统存储访问框架'));
-    expect(currentReleaseNotes, contains('刮削资料'));
-    expect(updateDialogCopy, contains('Android'));
-    expect(currentVersionHistory, contains('Android'));
+    expect(currentReleaseNotes, contains('Windows 测试版'));
+    expect(currentReleaseNotes, contains('Android 未构建'));
+    expect(currentVersionHistory, contains('Windows 测试版'));
+    expect(currentVersionHistory, contains('Android 未构建'));
     for (final currentCopy in [
       currentReleaseNotes,
       updateDialogCopy,
       currentVersionHistory,
     ]) {
       for (final text in <String>[
-        '综合近期版本更新',
-        'Android',
-        '硬件解码',
+        'Windows 测试版',
+        'Android 未构建',
         '迅雷',
-        'MediaCodec',
-        '系统存储访问框架',
-        '画中画',
-        '刮削资料',
+        'Anime4K',
+        '播放器',
         '不会修改或删除',
       ]) {
         expect(currentCopy, contains(text));
       }
     }
-    expect(currentReleaseNotes, contains('正式版'));
-    expect(updateDialogCopy, contains('正式版'));
-    expect(currentVersionHistory, isNot(contains('isPrerelease: true')));
+    expect(currentReleaseNotes, contains('测试版'));
+    expect(updateDialogCopy, contains('测试版'));
+    expect(currentVersionHistory, contains('isPrerelease: true'));
   });
 }
 

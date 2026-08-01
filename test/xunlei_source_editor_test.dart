@@ -15,6 +15,61 @@ import 'package:kanyingyin/services/cloud/xunlei/xunlei_authorization_controller
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_models.dart';
 
 void main() {
+  testWidgets('未配置迅雷构建凭据时禁用授权入口', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: XunleiSourceEditorPage()),
+    );
+    await tester.pump();
+
+    expect(find.text('当前构建未配置迅雷授权'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, '验证并登录'),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<EditableText>(
+            find.descendant(
+              of: find.byKey(
+                const ValueKey<String>('xunlei-refresh-token'),
+              ),
+              matching: find.byType(EditableText),
+            ),
+          )
+          .onSubmitted,
+      isNull,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey<String>('xunlei-compatible-login')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<EditableText>(
+            find.descendant(
+              of: find.byKey(const ValueKey<String>('xunlei-password')),
+              matching: find.byType(EditableText),
+            ),
+          )
+          .onSubmitted,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, '兼容登录'),
+          )
+          .onPressed,
+      isNull,
+    );
+  });
+
   testWidgets('默认显示 Refresh Token 且兼容账号密码登录折叠', (tester) async {
     final authorization = _FakeXunleiAuthorizationController();
     await tester.pumpWidget(MaterialApp(

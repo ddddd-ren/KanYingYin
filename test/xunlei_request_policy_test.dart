@@ -1,8 +1,15 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/services/cloud/xunlei/xunlei_client_configuration.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_request_policy.dart';
 
 void main() {
-  const policy = XunleiRequestPolicy();
+  const configuration = XunleiClientConfiguration(
+    clientId: 'client-fixture',
+    clientSecret: 'secret-fixture',
+    webClientId: 'web-fixture',
+    appKey: 'app-key-fixture',
+  );
+  const policy = XunleiRequestPolicy(configuration: configuration);
   const deviceId = '0123456789abcdef0123456789abcdef';
 
   test('生成稳定设备签名和验证码签名', () {
@@ -67,5 +74,12 @@ void main() {
       expect(headers.keys, isNot(contains('Authorization')));
       expect(headers.toString(), isNot(contains('password')));
     }
+  });
+
+  test('缺少构建配置时签名请求会被拒绝', () {
+    expect(
+      () => const XunleiRequestPolicy().deviceSign(deviceId),
+      throwsA(isA<StateError>()),
+    );
   });
 }

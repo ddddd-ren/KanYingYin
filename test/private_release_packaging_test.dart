@@ -77,6 +77,89 @@ void main() {
     expect(script, isNot(contains('setting.hive')));
   });
 
+  test('私人构建脚本短暂解密四项迅雷配置并在构建前清零', () async {
+    final script =
+        await File('tool/windows/build_private_release.ps1').readAsString();
+
+    for (final fileName in <String>[
+      'xunlei-client-id.clixml',
+      'xunlei-client-secret.clixml',
+      'xunlei-web-client-id.clixml',
+      'xunlei-app-key.clixml',
+    ]) {
+      expect(script, contains("Join-Path \$SigningDirectory '$fileName'"));
+    }
+    for (final argument in <String>[
+      '--client-id',
+      '--client-secret',
+      '--web-client-id',
+      '--app-key',
+      '--output',
+    ]) {
+      expect(script, contains("'$argument'"), reason: argument);
+    }
+    expect(script, contains('tool/export_xunlei_build_define.dart'));
+    expect(
+      script,
+      contains('"--dart-define-from-file=\$xunleiDefineFile"'),
+    );
+
+    final buildIndex = script.indexOf("'build',");
+    expect(buildIndex, greaterThanOrEqualTo(0));
+    for (final pointer in <String>[
+      'xunleiClientIdPointer',
+      'xunleiClientSecretPointer',
+      'xunleiWebClientIdPointer',
+      'xunleiAppKeyPointer',
+    ]) {
+      final immediateCleanup = script.indexOf('ZeroFreeBSTR(\$$pointer)');
+      expect(immediateCleanup, greaterThanOrEqualTo(0), reason: pointer);
+      expect(immediateCleanup, lessThan(buildIndex), reason: pointer);
+    }
+
+    final conversions = RegExp(
+      r'Marshal\]::SecureStringToBSTR',
+    ).allMatches(script).length;
+    final zeroFrees = RegExp(
+      r'Marshal\]::ZeroFreeBSTR',
+    ).allMatches(script).length;
+    expect(conversions, greaterThanOrEqualTo(6));
+    expect(zeroFrees, greaterThanOrEqualTo(conversions));
+  });
+
+  test('私人构建脚本在最外层 finally 删除全部临时 JSON 和目录', () async {
+    final script =
+        await File('tool/windows/build_private_release.ps1').readAsString();
+    final outerFinally = script.lastIndexOf('} finally {');
+
+    expect(outerFinally, greaterThanOrEqualTo(0));
+    final cleanup = script.substring(outerFinally);
+    for (final pointer in <String>[
+      'xunleiClientIdPointer',
+      'xunleiClientSecretPointer',
+      'xunleiWebClientIdPointer',
+      'xunleiAppKeyPointer',
+    ]) {
+      expect(cleanup, contains('ZeroFreeBSTR(\$$pointer)'), reason: pointer);
+    }
+    for (final defineFile in <String>[
+      'tmdbDefineFile',
+      'xunleiDefineFile',
+    ]) {
+      expect(
+        cleanup,
+        contains('Test-Path -LiteralPath \$$defineFile'),
+        reason: defineFile,
+      );
+      expect(
+        cleanup,
+        contains('Remove-Item -LiteralPath \$$defineFile'),
+        reason: defineFile,
+      );
+    }
+    expect(cleanup, contains('Remove-Item -LiteralPath \$temporaryRoot'));
+  });
+
   test('异机安装脚本提权后把证书导入本机受信任人', () async {
     final script =
         await File('tool/windows/installer/安装看影音.ps1').readAsString();
@@ -118,6 +201,8 @@ void main() {
       'accesstoken',
       'refreshtoken',
       'tmdb_api_key',
+      'xunlei',
+      '.clixml',
       '.json',
     ]) {
       expect(manifest, isNot(contains(forbidden)), reason: forbidden);

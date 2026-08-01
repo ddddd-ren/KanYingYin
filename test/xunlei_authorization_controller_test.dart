@@ -2,13 +2,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_api_client.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_authorization_controller.dart';
+import 'package:kanyingyin/services/cloud/xunlei/xunlei_client_configuration.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_models.dart';
+import 'package:kanyingyin/services/cloud/xunlei/xunlei_request_policy.dart';
 
 void main() {
+  const policy = XunleiRequestPolicy(
+    configuration: XunleiClientConfiguration(
+      clientId: 'client-fixture',
+      clientSecret: 'client-secret-fixture',
+      webClientId: 'web-client-fixture',
+      appKey: 'app-key-fixture',
+    ),
+  );
+
   test('登录成功只生成允许持久化的凭据', () async {
     final gateway = _FakeGateway();
     final controller = XunleiAuthorizationController(
       gateway: gateway,
+      policy: policy,
       deviceIdGenerator: () => '0123456789abcdef0123456789abcdef',
     );
 
@@ -33,6 +45,7 @@ void main() {
     final gateway = _RefreshGateway();
     final controller = XunleiAuthorizationController(
       gateway: gateway,
+      policy: policy,
       deviceIdGenerator: () => '0123456789abcdef0123456789abcdef',
     );
 
@@ -155,6 +168,7 @@ void main() {
     final gateway = _FakeGateway(challengeFirst: true);
     final controller = XunleiAuthorizationController(
       gateway: gateway,
+      policy: policy,
       deviceIdGenerator: () => '0123456789abcdef0123456789abcdef',
       now: () => now,
     );
@@ -188,6 +202,7 @@ void main() {
     final gateway = _FakeGateway(challengeFirst: true);
     final controller = XunleiAuthorizationController(
       gateway: gateway,
+      policy: policy,
       deviceIdGenerator: () => '0123456789abcdef0123456789abcdef',
       now: () => now,
     );
@@ -208,6 +223,7 @@ void main() {
     final expiredGateway = _FakeGateway(challengeFirst: true);
     final expired = XunleiAuthorizationController(
       gateway: expiredGateway,
+      policy: policy,
       deviceIdGenerator: () => 'fedcba9876543210fedcba9876543210',
       now: () => now,
     );
@@ -231,6 +247,7 @@ void main() {
   test('验证成功必须提供不同于初始值的新 CreditKey', () async {
     final controller = XunleiAuthorizationController(
       gateway: _FakeGateway(challengeFirst: true),
+      policy: policy,
       deviceIdGenerator: () => '0123456789abcdef0123456789abcdef',
     );
     await expectLater(
@@ -254,6 +271,7 @@ void main() {
     final gateway = _FakeGateway(challengeEveryTime: true);
     final controller = XunleiAuthorizationController(
       gateway: gateway,
+      policy: policy,
       deviceIdGenerator: () => '0123456789abcdef0123456789abcdef',
     );
     await expectLater(
@@ -278,6 +296,7 @@ void main() {
   test('页面失败会结束验证并清除挑战', () async {
     final controller = XunleiAuthorizationController(
       gateway: _FakeGateway(challengeFirst: true),
+      policy: policy,
       deviceIdGenerator: () => '0123456789abcdef0123456789abcdef',
     );
     await expectLater(

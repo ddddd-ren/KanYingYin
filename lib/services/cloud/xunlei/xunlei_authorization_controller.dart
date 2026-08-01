@@ -27,7 +27,11 @@ class XunleiAuthorizationController extends ChangeNotifier {
     String Function()? deviceIdGenerator,
     XunleiRequestPolicy policy = const XunleiRequestPolicy(),
   })  : _gateway = gateway,
-        _gatewayFactory = gatewayFactory ?? _createGateway,
+        _gatewayFactory = gatewayFactory ??
+            ((deviceId) => XunleiApiClient(
+                  deviceId: deviceId,
+                  policy: policy,
+                )),
         _now = now ?? DateTime.now,
         _deviceIdGenerator = deviceIdGenerator ?? _generateDeviceId,
         _policy = policy;
@@ -304,9 +308,6 @@ class XunleiAuthorizationController extends ChangeNotifier {
         CloudDriveErrorType.protocolUpdated => '迅雷登录协议已更新，请重新获取 Refresh Token',
         _ => '迅雷授权失败，请稍后重试',
       };
-
-  static XunleiAuthGateway _createGateway(String deviceId) =>
-      XunleiApiClient(deviceId: deviceId);
 
   static String _generateDeviceId() {
     final random = Random.secure();

@@ -29,4 +29,36 @@ void main() {
     expect(source, isNot(contains('focusNode: FocusNode(')));
     expect(source, contains('canRequestFocus: false'));
   });
+
+  test('播放器在首个异步释放前解除资源所有权且不复用旧实例', () {
+    final source =
+        File('lib/pages/player/player_controller.dart').readAsStringSync();
+    final disposeStart = source.indexOf(
+      'Future<void> _disposePlayerResources()',
+    );
+    final disposeEnd = source.indexOf(
+      '\n  Future<void> stop()',
+      disposeStart,
+    );
+
+    expect(disposeStart, isNonNegative);
+    expect(disposeEnd, greaterThan(disposeStart));
+    final disposeBody = source.substring(disposeStart, disposeEnd);
+    final firstAwait = disposeBody.indexOf('await ');
+    expect(firstAwait, isNonNegative);
+    for (final ownershipRelease in <String>[
+      'playerErrorSubscription = null;',
+      'playerLogSubscription = null;',
+      'playerAudioBitrateSubscription = null;',
+      'mediaPlayer = null;',
+      'videoController = null;',
+    ]) {
+      final releaseIndex = disposeBody.indexOf(ownershipRelease);
+      expect(releaseIndex, isNonNegative, reason: ownershipRelease);
+      expect(releaseIndex, lessThan(firstAwait), reason: ownershipRelease);
+    }
+
+    expect(source, isNot(contains('mediaPlayer ??=')));
+    expect(source, contains('mediaPlayer = await createVideoController('));
+  });
 }

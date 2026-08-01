@@ -4,10 +4,18 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_api_client.dart';
+import 'package:kanyingyin/services/cloud/xunlei/xunlei_client_configuration.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_request_policy.dart';
 
 void main() {
   const deviceId = '0123456789abcdef0123456789abcdef';
+  const configuration = XunleiClientConfiguration(
+    clientId: 'client-fixture',
+    clientSecret: 'client-secret-fixture',
+    webClientId: 'web-client-fixture',
+    appKey: 'app-key-fixture',
+  );
+  const policy = XunleiRequestPolicy(configuration: configuration);
 
   test('登录依次请求核心登录、验证码和令牌接口', () async {
     final adapter = _QueueAdapter(<_FakeResponse>[
@@ -23,6 +31,7 @@ void main() {
     ]);
     final client = XunleiApiClient(
       deviceId: deviceId,
+      policy: policy,
       dio: Dio()..httpClientAdapter = adapter,
       now: () => DateTime.utc(2026, 7, 28),
     );
@@ -63,6 +72,7 @@ void main() {
     ]);
     final client = XunleiApiClient(
       deviceId: deviceId,
+      policy: policy,
       dio: Dio()..httpClientAdapter = adapter,
     );
 
@@ -88,6 +98,7 @@ void main() {
     ]);
     final client = XunleiApiClient(
       deviceId: deviceId,
+      policy: policy,
       dio: Dio()..httpClientAdapter = adapter,
       requestLog: logs.add,
     );
@@ -135,7 +146,11 @@ void main() {
       ),
     ]);
     dio.httpClientAdapter = adapter;
-    final client = XunleiApiClient(deviceId: deviceId, dio: dio);
+    final client = XunleiApiClient(
+      deviceId: deviceId,
+      policy: policy,
+      dio: dio,
+    );
 
     final session = await client.refresh(
       refreshToken: 'refresh-fixture',
@@ -186,6 +201,7 @@ void main() {
     ]);
     final client = XunleiApiClient(
       deviceId: deviceId,
+      policy: policy,
       dio: Dio()..httpClientAdapter = adapter,
       requestLog: logs.add,
     );
@@ -201,17 +217,26 @@ void main() {
     expect(adapter.requests, hasLength(4));
     final androidBody = adapter.requests[0].data as Map<Object?, Object?>;
     final webBody = adapter.requests[1].data as Map<Object?, Object?>;
-    expect(androidBody['client_id'], 'Xp6vsxz_7IYVw2BB');
+    expect(androidBody['client_id'], configuration.clientId);
     expect(androidBody, contains('client_secret'));
-    expect(webBody['client_id'], 'Xqp0kJBXWhwaTpB6');
+    expect(webBody['client_id'], configuration.webClientId);
     expect(webBody, isNot(contains('client_secret')));
-    expect(adapter.requests[1].headers['x-client-id'], 'Xqp0kJBXWhwaTpB6');
+    expect(
+      adapter.requests[1].headers['x-client-id'],
+      configuration.webClientId,
+    );
     expect(adapter.requests[1].headers['x-sdk-version'], '3.4.20');
     expect(adapter.requests[1].headers['x-action'], '401');
     expect(adapter.requests[1].headers['x-device-id'], deviceId);
-    expect(adapter.requests[2].headers['x-client-id'], 'Xqp0kJBXWhwaTpB6');
+    expect(
+      adapter.requests[2].headers['x-client-id'],
+      configuration.webClientId,
+    );
     expect(adapter.requests[2].headers['x-sdk-version'], '3.4.20');
-    expect(adapter.requests[3].headers['x-client-id'], 'Xqp0kJBXWhwaTpB6');
+    expect(
+      adapter.requests[3].headers['x-client-id'],
+      configuration.webClientId,
+    );
     expect(adapter.requests[3].headers['x-sdk-version'], '3.4.20');
     expect(adapter.requests[3].headers['x-captcha-token'], 'captcha-web');
     expect(logs.join('\n'), isNot(contains('refresh-web-secret')));
@@ -239,6 +264,7 @@ void main() {
     ]);
     final client = XunleiApiClient(
       deviceId: deviceId,
+      policy: policy,
       dio: Dio()..httpClientAdapter = adapter,
     );
 
@@ -259,7 +285,7 @@ void main() {
       ],
     );
     final shieldBody = adapter.requests[2].data as Map<Object?, Object?>;
-    expect(shieldBody['client_id'], 'Xqp0kJBXWhwaTpB6');
+    expect(shieldBody['client_id'], configuration.webClientId);
     expect(shieldBody['device_id'], deviceId);
     expect(shieldBody['action'], 'GET:/v1/user/me');
     expect(shieldBody['captcha_token'], '');
@@ -268,7 +294,10 @@ void main() {
       'phone_number': '',
       'email': '',
     });
-    expect(adapter.requests[2].headers['x-client-id'], 'Xqp0kJBXWhwaTpB6');
+    expect(
+      adapter.requests[2].headers['x-client-id'],
+      configuration.webClientId,
+    );
     expect(adapter.requests[3].headers['x-captcha-token'], 'captcha-web');
     expect(client.captchaToken, 'captcha-web');
     await client.close();
@@ -301,6 +330,7 @@ void main() {
     ]);
     final client = XunleiApiClient(
       deviceId: deviceId,
+      policy: policy,
       dio: Dio()..httpClientAdapter = adapter,
     );
 
@@ -349,6 +379,7 @@ void main() {
     ]);
     final client = XunleiApiClient(
       deviceId: deviceId,
+      policy: policy,
       dio: Dio()..httpClientAdapter = adapter,
       now: () => now,
     );
@@ -363,8 +394,8 @@ void main() {
     expect(page.files, isEmpty);
     final shieldRequest = adapter.requests[3];
     final shieldBody = shieldRequest.data as Map<Object?, Object?>;
-    expect(shieldRequest.headers['x-client-id'], 'Xp6vsxz_7IYVw2BB');
-    expect(shieldBody['client_id'], 'Xp6vsxz_7IYVw2BB');
+    expect(shieldRequest.headers['x-client-id'], configuration.clientId);
+    expect(shieldBody['client_id'], configuration.clientId);
     expect(shieldBody['action'], 'GET:/drive/v1/files');
     final timestamp = '${now.millisecondsSinceEpoch}';
     expect(shieldBody['meta'], <String, String>{
@@ -372,7 +403,7 @@ void main() {
       'package_name': XunleiRequestPolicy.packageName,
       'user_id': 'user-android',
       'timestamp': timestamp,
-      'captcha_sign': const XunleiRequestPolicy().captchaSign(
+      'captcha_sign': policy.captchaSign(
         deviceId: deviceId,
         timestamp: timestamp,
       ),
@@ -393,6 +424,7 @@ void main() {
     ]);
     final client = XunleiApiClient(
       deviceId: deviceId,
+      policy: policy,
       dio: Dio()..httpClientAdapter = adapter,
     );
 
@@ -452,6 +484,7 @@ void main() {
     for (final item in cases) {
       final client = XunleiApiClient(
         deviceId: deviceId,
+        policy: policy,
         dio: Dio()
           ..httpClientAdapter = _QueueAdapter(<_FakeResponse>[
             _FakeResponse(item.$1, item.$2),
@@ -478,6 +511,7 @@ void main() {
   test('Refresh Token 接口的密码字样不会误报账号密码错误', () async {
     final client = XunleiApiClient(
       deviceId: deviceId,
+      policy: policy,
       dio: Dio()
         ..httpClientAdapter = _QueueAdapter(<_FakeResponse>[
           const _FakeResponse(
@@ -504,6 +538,7 @@ void main() {
   test('Refresh Token 接口的 HTTP 400 参数错误映射为令牌无效', () async {
     final client = XunleiApiClient(
       deviceId: deviceId,
+      policy: policy,
       dio: Dio()
         ..httpClientAdapter = _QueueAdapter(<_FakeResponse>[
           const _FakeResponse(

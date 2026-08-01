@@ -28,13 +28,15 @@
 
 ## 架构和数据流
 
-`CloudRangeRelayService` 保留平台能力信息，在 `start()` 已完成 `providerKey` 去空白规范化后选择会话参数：
+公共中转启动接口新增强类型的 `providerType`，并继续保留 `providerKey` 作为每个用户来源的缓存命名键。`CloudPlaybackResolver` 从 `CloudSource.type` 直接传入提供方类型，旧夸克专用包装器显式传入 `CloudSourceType.quark`。这样不会把 `baidu-home` 等用户来源 ID 误当成固定提供方标识。
+
+`CloudRangeRelayService` 保留平台能力信息，在 `start()` 校验完缓存命名键后根据 `providerType` 选择会话参数：
 
 - Android 且提供方为 `quark` 或 `baidu`：使用高吞吐参数。
 - Android 的迅雷及未知提供方：使用现有 Android 参数。
 - Windows 的所有提供方：使用现有 Windows 参数。
 
-提供方比较使用规范化后的稳定标识，不依赖面向用户的提供方名称。选出的参数继续通过现有 `CloudRangeRelaySession.start()` 传入，不改变读取器接口、缓存目录结构、Range 协议和播放租约生命周期。
+提供方比较使用 `CloudSourceType` 枚举，不依赖用户可编辑的来源 ID 或面向用户的提供方名称。选出的参数继续通过现有 `CloudRangeRelaySession.start()` 传入，不改变读取器接口、缓存目录结构、Range 协议和播放租约生命周期。
 
 播放进入连续读取后，前台请求获取当前分段；完成一个分段时调度最多十个后续分段。调度器最多并行执行五个预取，并始终允许前台请求优先取得第六个槽位。跳播仍通过现有预取代次失效机制取消旧方向任务。
 
@@ -52,6 +54,7 @@
 - 验证 Android 百度选择相同高吞吐参数。
 - 验证 Android 迅雷和未知提供方仍为 4/3/6。
 - 验证 Windows 的夸克、百度仍为 5/4/8。
+- 验证播放解析器把来源 ID 继续作为缓存键，同时把 `CloudSource.type` 独立传给中转启动器。
 - 使用延迟 Range 读取器验证高吞吐会话在连续播放时能达到五路后台并发，且不超过六路总并发。
 - 保留缓存容量、Range 协议、跳播失效、关闭清理和错误处理测试。
 

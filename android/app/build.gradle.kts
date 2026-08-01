@@ -26,8 +26,8 @@ if (releaseRequested && !releaseSigningReady) {
     throw GradleException("Android Release 缺少 KANYINGYIN_ANDROID_* 签名环境变量")
 }
 
-val androidVersionName = "2.1.97"
-val androidVersionCode = 20197
+val androidVersionName = "2.1.98"
+val androidVersionCode = 20198
 
 android {
     namespace = "com.kanyingyin.player"

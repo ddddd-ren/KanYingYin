@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('二点一九十七测试版双平台版本和发布文案保持一致', () {
-    const expectedVersion = '2.1.97';
-    const expectedBuildNumber = '20197';
+  test('二点一九十八测试版双平台版本和发布文案保持一致', () {
+    const expectedVersion = '2.1.98';
+    const expectedBuildNumber = '20198';
     const expectedAndroidVersion = expectedVersion;
     const expectedAndroidVersionCode = expectedBuildNumber;
     final pubspec = File('pubspec.yaml').readAsStringSync();
@@ -134,13 +134,11 @@ void main() {
     ]) {
       for (final text in <String>[
         'Android',
-        '夸克',
-        '百度',
-        '六路',
-        '40 MiB',
-        '128 MiB',
+        'Anime4K',
+        '逐个',
+        '更新说明',
+        '普通播放',
         'Windows',
-        '迅雷',
         '不会修改或删除',
       ]) {
         expect(currentCopy, contains(text));

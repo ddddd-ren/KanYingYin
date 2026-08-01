@@ -31,7 +31,33 @@ const VersionHistory _androidFirstRelease = VersionHistory(
   ],
 );
 
+const VersionHistory _androidNetworkRelease = VersionHistory(
+  version: '2.1.95',
+  date: '2026-08-01',
+  isPrerelease: true,
+  changes: [
+    'Android 网盘视频连续播放改为三路后台预取，并把前向预取窗口扩大到 24 MiB，改善移动网络高延迟或单连接速度不足时的加载和拖动恢复速度',
+    'Android 网盘中转与直连播放器缓存限制为 128 MiB；开启低内存模式后降到 64 MiB，避免沿用桌面端大缓存造成手机和平板内存压力',
+    'Android 网盘中转缓存上限调整为 128 MiB，在提高预取并发的同时控制应用缓存目录占用',
+    '修复多路分段同时下载时读取速度显示偏低的问题，当前速度会按实际重叠传输时间统计',
+    '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+  ],
+);
+
 const List<VersionHistory> versionHistoryList = [
+  VersionHistory(
+    version: '2.1.95',
+    date: '2026-08-01',
+    isPrerelease: true,
+    changes: [
+      '本轮同步提供 Windows 与 Android 2.1.95 测试版，分别使用 MSIX、APK 和 AAB 交付',
+      '夸克、百度和迅雷网盘视频读取允许复用最多六条下载连接；Windows 使用四路后台预取和 32 MiB 前向窗口，改善高速网络下单连接吞吐不足的问题',
+      'Android 使用三路后台预取和 24 MiB 前向窗口，针对移动网络高延迟优化加载和拖动恢复速度',
+      'Android 网盘中转与直连播放器缓存限制为 128 MiB，低内存模式降到 64 MiB，兼顾连续播放速度与手机和平板内存占用',
+      '修复多路分段并发时读取速度显示偏低的问题，当前速度会按实际重叠传输时间统计',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
   VersionHistory(
     version: '2.1.94',
     date: '2026-08-01',
@@ -1775,6 +1801,9 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '2.1.95' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[_androidNetworkRelease];
+  }
   if (currentVersion == '1.0.3' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[_androidFirstRelease];
   }

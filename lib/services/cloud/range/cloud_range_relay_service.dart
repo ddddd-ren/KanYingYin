@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:math';
 
+import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/services/cloud/cloud_cache_directories.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:kanyingyin/services/cloud/range/cloud_range_relay_session.dart';
@@ -28,12 +30,17 @@ class CloudRangeRelayPlayback {
 class CloudRangeRelayService {
   CloudRangeRelayService({
     CloudCacheRootProvider? cacheRootProvider,
-  }) : _cacheRootProvider = cacheRootProvider ?? defaultCloudCacheRoot;
+    AppPlatformCapabilities? capabilities,
+  })  : _cacheRootProvider = cacheRootProvider ?? defaultCloudCacheRoot,
+        _tuning = CloudRangeRelayTuning.forPlatform(
+          capabilities ?? detectAppPlatform(),
+        );
 
   static final RegExp _sessionDirectoryPattern =
       RegExp(r'^cloud-relay-[0-9a-f]{32}$');
 
   final CloudCacheRootProvider _cacheRootProvider;
+  final CloudRangeRelayTuning _tuning;
   final Set<CloudPlaybackLease> _leases = <CloudPlaybackLease>{};
   final Map<String, Future<void>> _cleanupFutures = <String, Future<void>>{};
   bool _closed = false;
@@ -76,6 +83,7 @@ class CloudRangeRelayService {
         reader: reader,
         directory: directory,
         providerName: normalizedProviderName,
+        tuning: _tuning,
       );
       late final _TrackedPlaybackLease lease;
       lease = _TrackedPlaybackLease(

@@ -3,19 +3,52 @@ import 'dart:collection';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:kanyingyin/services/cloud/range/cloud_range_chunk_cache.dart';
 import 'package:kanyingyin/services/cloud/range/cloud_range_relay_protocol.dart';
 import 'package:kanyingyin/services/cloud/range/cloud_range_remote_reader.dart';
 
 class CloudRangeRelayTuning {
-  const CloudRangeRelayTuning._();
+  const CloudRangeRelayTuning({
+    required this.chunkSize,
+    required this.maxChunks,
+    required this.maxConcurrentReads,
+    required this.maxConcurrentPrefetch,
+    required this.prefetchAheadChunks,
+  })  : assert(chunkSize > 0),
+        assert(maxChunks > 0),
+        assert(maxConcurrentReads > 0),
+        assert(maxConcurrentPrefetch > 0),
+        assert(maxConcurrentPrefetch < maxConcurrentReads),
+        assert(prefetchAheadChunks >= maxConcurrentPrefetch);
 
-  static const int chunkSize = 4 * 1024 * 1024;
-  static const int maxChunks = 64;
-  static const int maxConcurrentReads = 3;
-  static const int maxConcurrentPrefetch = 2;
-  static const int prefetchAheadChunks = 3;
+  static const windows = CloudRangeRelayTuning(
+    chunkSize: 4 * 1024 * 1024,
+    maxChunks: 64,
+    maxConcurrentReads: 5,
+    maxConcurrentPrefetch: 4,
+    prefetchAheadChunks: 8,
+  );
+
+  static const android = CloudRangeRelayTuning(
+    chunkSize: 4 * 1024 * 1024,
+    maxChunks: 32,
+    maxConcurrentReads: 4,
+    maxConcurrentPrefetch: 3,
+    prefetchAheadChunks: 6,
+  );
+
+  final int chunkSize;
+  final int maxChunks;
+  final int maxConcurrentReads;
+  final int maxConcurrentPrefetch;
+  final int prefetchAheadChunks;
+
+  static CloudRangeRelayTuning forPlatform(
+    AppPlatformCapabilities capabilities,
+  ) =>
+      capabilities.isAndroid ? android : windows;
 }
 
 class CloudRangeRelaySession implements CloudPlaybackLease {
@@ -23,23 +56,30 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
     required CloudRangeRemoteReader reader,
     required this.directory,
     required this.providerName,
+    required this.tuning,
     required this.chunkSize,
     required this.maxChunks,
-  }) : _reader = reader;
+  })  : _reader = reader,
+        _scheduler = _ReadScheduler(
+          maxConcurrent: tuning.maxConcurrentReads,
+          maxConcurrentPrefetch: tuning.maxConcurrentPrefetch,
+        );
 
   static Future<CloudRangeRelaySession> start({
     required CloudRangeRemoteReader reader,
     required Directory directory,
     required String providerName,
-    int chunkSize = CloudRangeRelayTuning.chunkSize,
-    int maxChunks = CloudRangeRelayTuning.maxChunks,
+    CloudRangeRelayTuning tuning = CloudRangeRelayTuning.windows,
+    int? chunkSize,
+    int? maxChunks,
   }) async {
     final session = CloudRangeRelaySession._(
       reader: reader,
       directory: directory,
       providerName: providerName,
-      chunkSize: chunkSize,
-      maxChunks: maxChunks,
+      tuning: tuning,
+      chunkSize: chunkSize ?? tuning.chunkSize,
+      maxChunks: maxChunks ?? tuning.maxChunks,
     );
     try {
       await session._start();
@@ -53,12 +93,10 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
   final CloudRangeRemoteReader _reader;
   final Directory directory;
   final String providerName;
+  final CloudRangeRelayTuning tuning;
   final int chunkSize;
   final int maxChunks;
-  final _ReadScheduler _scheduler = _ReadScheduler(
-    maxConcurrent: CloudRangeRelayTuning.maxConcurrentReads,
-    maxConcurrentPrefetch: CloudRangeRelayTuning.maxConcurrentPrefetch,
-  );
+  final _ReadScheduler _scheduler;
   final StreamController<CloudRangeRelayStatus> _statuses =
       StreamController<CloudRangeRelayStatus>.broadcast(sync: true);
   final Queue<_TransferSample> _transferSamples = Queue<_TransferSample>();
@@ -340,9 +378,7 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
   }
 
   void _launchSequentialPrefetch(ByteRange current, int generation) {
-    for (var distance = 1;
-        distance <= CloudRangeRelayTuning.prefetchAheadChunks;
-        distance++) {
+    for (var distance = 1; distance <= tuning.prefetchAheadChunks; distance++) {
       final offset = current.start + distance * chunkSize;
       if (offset < totalLength) _launchPrefetch(offset, generation);
     }
@@ -367,10 +403,16 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
   }
 
   void _recordTransfer(int bytes, Duration elapsed) {
-    final now = DateTime.now();
+    final completedAt = DateTime.now();
     _receivedBytes += bytes;
-    _transferSamples.add(_TransferSample(now, bytes, elapsed));
-    final cutoff = now.subtract(const Duration(seconds: 5));
+    _transferSamples.add(
+      _TransferSample(
+        startedAt: completedAt.subtract(elapsed),
+        completedAt: completedAt,
+        bytes: bytes,
+      ),
+    );
+    final cutoff = completedAt.subtract(const Duration(seconds: 5));
     while (_transferSamples.isNotEmpty &&
         _transferSamples.first.completedAt.isBefore(cutoff)) {
       _transferSamples.removeFirst();
@@ -378,12 +420,18 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
   }
 
   double get _bytesPerSecond {
+    if (_transferSamples.isEmpty) return 0;
     var bytes = 0;
-    var microseconds = 0;
+    var startedAt = _transferSamples.first.startedAt;
+    var completedAt = _transferSamples.first.completedAt;
     for (final sample in _transferSamples) {
       bytes += sample.bytes;
-      microseconds += sample.elapsed.inMicroseconds;
+      if (sample.startedAt.isBefore(startedAt)) startedAt = sample.startedAt;
+      if (sample.completedAt.isAfter(completedAt)) {
+        completedAt = sample.completedAt;
+      }
     }
+    final microseconds = completedAt.difference(startedAt).inMicroseconds;
     if (bytes == 0 || microseconds <= 0) return 0;
     return bytes * Duration.microsecondsPerSecond / microseconds;
   }
@@ -516,9 +564,13 @@ class _ScheduledRead {
 }
 
 class _TransferSample {
-  const _TransferSample(this.completedAt, this.bytes, this.elapsed);
+  const _TransferSample({
+    required this.startedAt,
+    required this.completedAt,
+    required this.bytes,
+  });
 
+  final DateTime startedAt;
   final DateTime completedAt;
   final int bytes;
-  final Duration elapsed;
 }

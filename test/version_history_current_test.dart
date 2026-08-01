@@ -5,6 +5,51 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一九十五说明双平台网盘读取优化', () {
+    final entries = versionHistoryForCurrent('2.1.95');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    for (final text in <String>[
+      'Windows',
+      'Android',
+      '网盘',
+      '预取',
+      '缓存',
+      '读取速度',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
+  test('Android 二点一九十五只展示本轮移动端更新', () {
+    final entries = versionHistoryForCurrent(
+      '2.1.95',
+      platform: AppPlatformKind.android,
+    );
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.version, '2.1.95');
+    expect(entry.isPrerelease, isTrue);
+    for (final text in <String>[
+      'Android',
+      '三路',
+      '24 MiB',
+      '128 MiB',
+      '64 MiB',
+      '读取速度',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+    expect(changes, isNot(contains('Windows')));
+  });
+
   test('二点一九十四说明 Windows 测试版风险修复边界', () {
     final entries = versionHistoryForCurrent('2.1.94');
 

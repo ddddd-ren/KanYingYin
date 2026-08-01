@@ -743,15 +743,15 @@ abstract class _PlayerController with Store {
     lowMemoryMode = runtimeSettings.lowMemoryMode;
     playerDebugMode = runtimeSettings.debugMode;
 
-    final cachePolicy =
-        CloudPlaybackCachePolicy.forTransport(initParams.transport);
+    final cachePolicy = CloudPlaybackCachePolicy.forTransport(
+      initParams.transport,
+      capabilities: _capabilities,
+      lowMemoryMode: lowMemoryMode,
+    );
     mediaPlayer = Player(
       configuration: PlayerConfiguration(
-        bufferSize: initParams.transport == CloudPlaybackTransport.rangeRelay
-            ? 256 * 1024 * 1024
-            : lowMemoryMode
-                ? 15 * 1024 * 1024
-                : 1500 * 1024 * 1024,
+        bufferSize: cachePolicy.playerBufferSize ??
+            (lowMemoryMode ? 15 * 1024 * 1024 : 1500 * 1024 * 1024),
         osc: false,
         libass: true,
         libassAndroidFont: 'assets/fonts/MiSans-Regular.ttf',

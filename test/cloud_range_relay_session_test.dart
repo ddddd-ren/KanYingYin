@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:kanyingyin/services/cloud/range/cloud_range_relay_protocol.dart';
 import 'package:kanyingyin/services/cloud/range/cloud_range_relay_session.dart';
@@ -17,20 +19,92 @@ void main() {
   var activeRequests = 0;
   var maxActiveRequests = 0;
 
-  test('默认调优缩短首字节等待并保留 256 MiB 缓存容量', () {
-    expect(CloudRangeRelayTuning.chunkSize, 4 * 1024 * 1024);
-    expect(CloudRangeRelayTuning.maxChunks, 64);
+  test('Windows 与 Android 使用各自的吞吐和缓存调优', () {
+    final windows = CloudRangeRelayTuning.forPlatform(
+      AppPlatformCapabilities.windows,
+    );
+    final android = CloudRangeRelayTuning.forPlatform(
+      AppPlatformCapabilities.android,
+    );
+
+    expect(windows.chunkSize, 4 * 1024 * 1024);
+    expect(windows.maxChunks, 64);
     expect(
-      CloudRangeRelayTuning.chunkSize * CloudRangeRelayTuning.maxChunks,
+      windows.chunkSize * windows.maxChunks,
       256 * 1024 * 1024,
     );
-    expect(CloudRangeRelayTuning.maxConcurrentReads, 3);
-    expect(CloudRangeRelayTuning.maxConcurrentPrefetch, 2);
-    expect(
-      CloudRangeRelayTuning.maxConcurrentPrefetch,
-      lessThan(CloudRangeRelayTuning.maxConcurrentReads),
+    expect(windows.maxConcurrentReads, 5);
+    expect(windows.maxConcurrentPrefetch, 4);
+    expect(windows.prefetchAheadChunks, 8);
+
+    expect(android.chunkSize, 4 * 1024 * 1024);
+    expect(android.maxChunks, 32);
+    expect(android.chunkSize * android.maxChunks, 128 * 1024 * 1024);
+    expect(android.maxConcurrentReads, 4);
+    expect(android.maxConcurrentPrefetch, 3);
+    expect(android.prefetchAheadChunks, 6);
+  });
+
+  test('并发分段速度按墙钟时间聚合而不是相加每路耗时', () async {
+    const chunkSize = 256 * 1024;
+    final speedDirectory =
+        await Directory.systemTemp.createTemp('cloud-relay-speed-');
+    final speedReader = _DelayedRangeReader(
+      totalLength: chunkSize * 2,
+      delay: const Duration(milliseconds: 500),
     );
-    expect(CloudRangeRelayTuning.prefetchAheadChunks, 3);
+    final speedSession = await CloudRangeRelaySession.start(
+      reader: speedReader,
+      directory: speedDirectory,
+      providerName: '测试网盘',
+      chunkSize: chunkSize,
+      maxChunks: 2,
+    );
+    try {
+      await _waitUntil(
+        () => speedSession.currentStatus.receivedBytes >= chunkSize * 2,
+      );
+
+      expect(speedReader.maxActiveReads, 2);
+      expect(
+        speedSession.currentStatus.bytesPerSecond,
+        greaterThan(768 * 1024),
+      );
+    } finally {
+      await speedSession.close();
+    }
+  });
+
+  test('Android 会话连续播放时启用三路后台预取', () async {
+    final androidDirectory =
+        await Directory.systemTemp.createTemp('cloud-relay-android-');
+    final androidReader = _DelayedRangeReader(
+      totalLength: 32,
+      delay: const Duration(milliseconds: 100),
+    );
+    final androidSession = await CloudRangeRelaySession.start(
+      reader: androidReader,
+      directory: androidDirectory,
+      providerName: '测试网盘',
+      tuning: CloudRangeRelayTuning.android,
+      chunkSize: 4,
+      maxChunks: 8,
+    );
+    final client = HttpClient()..findProxy = (_) => 'DIRECT';
+    try {
+      final request = await client.getUrl(androidSession.uri);
+      request.headers.set(HttpHeaders.rangeHeader, 'bytes=0-19');
+      await (await request.close()).drain<void>();
+
+      expect(androidReader.maxActiveReads, greaterThanOrEqualTo(3));
+      expect(
+        androidReader.maxActiveReads,
+        lessThanOrEqualTo(CloudRangeRelayTuning.android.maxConcurrentReads),
+      );
+    } finally {
+      client.close(force: true);
+      await androidSession.close();
+    }
   });
 
   setUp(() async {
@@ -153,7 +227,7 @@ void main() {
     client.close(force: true);
   });
 
-  test('跨段读取准确且远端并发不超过三路', () async {
+  test('跨段读取准确且远端并发不超过平台限制', () async {
     final client = HttpClient()..findProxy = (_) => 'DIRECT';
     final requests = <Future<List<int>>>[];
     for (final range in <String>['bytes=1-10', 'bytes=11-19']) {
@@ -168,7 +242,10 @@ void main() {
 
     expect(results[0], sourceBytes.sublist(1, 11));
     expect(results[1], sourceBytes.sublist(11));
-    expect(maxActiveRequests, lessThanOrEqualTo(3));
+    expect(
+      maxActiveRequests,
+      lessThanOrEqualTo(CloudRangeRelayTuning.windows.maxConcurrentReads),
+    );
     client.close(force: true);
   });
 
@@ -244,6 +321,65 @@ void main() {
 
 Future<List<int>> _readResponse(HttpClientResponse response) =>
     response.fold(<int>[], (bytes, chunk) => bytes..addAll(chunk));
+
+Future<void> _waitUntil(
+  bool Function() predicate, {
+  Duration timeout = const Duration(seconds: 3),
+}) async {
+  final stopwatch = Stopwatch()..start();
+  while (!predicate()) {
+    if (stopwatch.elapsed >= timeout) {
+      throw TimeoutException('等待测试条件超时', timeout);
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
+}
+
+class _DelayedRangeReader implements CloudRangeRemoteReader {
+  _DelayedRangeReader({required this.totalLength, required this.delay});
+
+  @override
+  final int totalLength;
+  final Duration delay;
+  var activeReads = 0;
+  var maxActiveReads = 0;
+
+  @override
+  String get contentType => 'video/mp4';
+
+  @override
+  Stream<CloudRangeReaderEvent> get events =>
+      const Stream<CloudRangeReaderEvent>.empty();
+
+  @override
+  Future<CloudRangeRemoteMetadata> probe() async => CloudRangeRemoteMetadata(
+        totalLength: totalLength,
+        contentType: contentType,
+        supportsRanges: true,
+      );
+
+  @override
+  Future<void> readTo(ByteRange range, File destination) async {
+    activeReads++;
+    if (activeReads > maxActiveReads) maxActiveReads = activeReads;
+    try {
+      await Future<void>.delayed(delay);
+      await destination.writeAsBytes(
+        List<int>.filled(range.length, 0),
+        flush: true,
+      );
+    } finally {
+      activeReads--;
+    }
+  }
+
+  @override
+  Future<void> streamAll(IOSink destination) async =>
+      throw StateError('测试读取器只支持 Range');
+
+  @override
+  Future<void> close() async {}
+}
 
 class _SequentialOnlyReader implements CloudRangeRemoteReader {
   _SequentialOnlyReader(this.bytes);

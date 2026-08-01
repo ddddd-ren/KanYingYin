@@ -373,7 +373,7 @@ class BaiduRangeRemoteReader implements CloudRangeRemoteReader {
     return _client ??= (_httpClientFactory()
       ..connectionTimeout = requestTimeout
       ..idleTimeout = const Duration(seconds: 30)
-      ..maxConnectionsPerHost = 4
+      ..maxConnectionsPerHost = 6
       ..autoUncompress = false
       ..findProxy = (_) => 'DIRECT');
   }

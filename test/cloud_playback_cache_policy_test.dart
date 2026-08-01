@@ -1,13 +1,18 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/player/application/cloud_playback_cache_policy.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 
 void main() {
-  test('夸克中转使用独立 MPV 网络缓存参数', () {
+  test('Windows 中转保留 256 MiB 播放缓存', () {
+    final policy = CloudPlaybackCachePolicy.forTransport(
+      CloudPlaybackTransport.rangeRelay,
+      capabilities: AppPlatformCapabilities.windows,
+      lowMemoryMode: false,
+    );
+    expect(policy.playerBufferSize, 256 * 1024 * 1024);
     expect(
-      CloudPlaybackCachePolicy.forTransport(
-        CloudPlaybackTransport.rangeRelay,
-      ).mpvProperties,
+      policy.mpvProperties,
       const <String, String>{
         'stream-buffer-size': '4MiB',
         'cache-pause-initial': 'yes',
@@ -18,19 +23,73 @@ void main() {
       },
     );
     expect(
-      CloudPlaybackCachePolicy.forTransport(CloudPlaybackTransport.direct)
-          .mpvProperties,
+      CloudPlaybackCachePolicy.forTransport(
+        CloudPlaybackTransport.direct,
+        capabilities: AppPlatformCapabilities.windows,
+        lowMemoryMode: false,
+      ).mpvProperties,
       isEmpty,
     );
   });
 
-  test('通用 Range 中转使用统一缓存参数', () {
-    expect(
-      CloudPlaybackCachePolicy.forTransport(
-        CloudPlaybackTransport.rangeRelay,
-      ).mpvProperties,
-      CloudPlaybackCachePolicy.cloudRangeRelay.mpvProperties,
+  test('Android 中转扩大预读时长并限制双层缓存占用', () {
+    final policy = CloudPlaybackCachePolicy.forTransport(
+      CloudPlaybackTransport.rangeRelay,
+      capabilities: AppPlatformCapabilities.android,
+      lowMemoryMode: false,
     );
+
+    expect(policy.playerBufferSize, 128 * 1024 * 1024);
+    expect(
+      policy.mpvProperties,
+      const <String, String>{
+        'stream-buffer-size': '4MiB',
+        'cache-pause-initial': 'yes',
+        'cache-pause-wait': '5',
+        'cache-secs': '45',
+        'demuxer-max-bytes': '128MiB',
+        'demuxer-max-back-bytes': '16MiB',
+      },
+    );
+  });
+
+  test('Android 低内存模式对中转缓存生效', () {
+    final policy = CloudPlaybackCachePolicy.forTransport(
+      CloudPlaybackTransport.rangeRelay,
+      capabilities: AppPlatformCapabilities.android,
+      lowMemoryMode: true,
+    );
+
+    expect(policy.playerBufferSize, 64 * 1024 * 1024);
+    expect(
+      policy.mpvProperties,
+      const <String, String>{
+        'stream-buffer-size': '4MiB',
+        'cache-pause-initial': 'yes',
+        'cache-pause-wait': '5',
+        'cache-secs': '30',
+        'demuxer-max-bytes': '64MiB',
+        'demuxer-max-back-bytes': '8MiB',
+      },
+    );
+  });
+
+  test('Android 直连资源不沿用桌面端 1500 MiB 播放缓存', () {
+    final normal = CloudPlaybackCachePolicy.forTransport(
+      CloudPlaybackTransport.direct,
+      capabilities: AppPlatformCapabilities.android,
+      lowMemoryMode: false,
+    );
+    final lowMemory = CloudPlaybackCachePolicy.forTransport(
+      CloudPlaybackTransport.direct,
+      capabilities: AppPlatformCapabilities.android,
+      lowMemoryMode: true,
+    );
+
+    expect(normal.playerBufferSize, 128 * 1024 * 1024);
+    expect(lowMemory.playerBufferSize, 64 * 1024 * 1024);
+    expect(normal.mpvProperties, isEmpty);
+    expect(lowMemory.mpvProperties, isEmpty);
   });
 
   test('租约协调器在新媒体接管后释放旧租约', () async {

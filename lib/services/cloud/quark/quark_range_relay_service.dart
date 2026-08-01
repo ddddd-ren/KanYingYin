@@ -1,3 +1,4 @@
+import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/services/cloud/cloud_cache_directories.dart';
 import 'package:kanyingyin/services/cloud/range/cloud_range_relay_service.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_range_remote_reader.dart';
@@ -29,6 +30,7 @@ class QuarkRangeRelayService {
         ),
         providerKey: 'quark',
         providerName: '夸克',
+        providerType: CloudSourceType.quark,
       );
 
   Future<void> close() => _relayService.close();

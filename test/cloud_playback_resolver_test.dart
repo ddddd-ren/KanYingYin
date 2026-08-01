@@ -63,6 +63,7 @@ void main() {
         required reader,
         required providerKey,
         required providerName,
+        required providerType,
       }) async {
         relayCalls++;
         throw StateError('OpenList 不应启动中转');
@@ -146,9 +147,11 @@ void main() {
         required reader,
         required providerKey,
         required providerName,
+        required providerType,
       }) async {
         expect(providerKey, quarkSource.id);
         expect(providerName, '夸克网盘');
+        expect(providerType, CloudSourceType.quark);
         return CloudRangeRelayPlayback(
           uri: Uri.parse('http://127.0.0.1:32100/token'),
           lease: lease,
@@ -217,10 +220,12 @@ void main() {
         required reader,
         required providerKey,
         required providerName,
+        required providerType,
       }) async {
         expect(reader, isA<BaiduRangeRemoteReader>());
         expect(providerKey, baiduSource.id);
         expect(providerName, '百度网盘');
+        expect(providerType, CloudSourceType.baidu);
         return CloudRangeRelayPlayback(
           uri: Uri.parse('http://127.0.0.1:32100/baidu-token'),
           lease: lease,
@@ -306,10 +311,12 @@ void main() {
         required reader,
         required providerKey,
         required providerName,
+        required providerType,
       }) async {
         expect(reader, same(fakeReader));
         expect(providerKey, xunleiSource.id);
         expect(providerName, '迅雷网盘');
+        expect(providerType, CloudSourceType.xunlei);
         return CloudRangeRelayPlayback(
           uri: Uri.parse('http://127.0.0.1:32100/xunlei-token'),
           lease: _ReaderClosingLease(reader),
@@ -383,6 +390,7 @@ void main() {
         required reader,
         required providerKey,
         required providerName,
+        required providerType,
       }) async =>
           throw const QuarkRemoteTransportException('启动失败'),
     );
@@ -427,6 +435,7 @@ void main() {
         required reader,
         required providerKey,
         required providerName,
+        required providerType,
       }) async =>
           throw const QuarkRemoteProtocolException('不可信地址'),
     );

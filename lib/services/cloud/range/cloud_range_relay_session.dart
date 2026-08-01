@@ -39,6 +39,14 @@ class CloudRangeRelayTuning {
     prefetchAheadChunks: 6,
   );
 
+  static const androidHighThroughput = CloudRangeRelayTuning(
+    chunkSize: 4 * 1024 * 1024,
+    maxChunks: 32,
+    maxConcurrentReads: 6,
+    maxConcurrentPrefetch: 5,
+    prefetchAheadChunks: 10,
+  );
+
   final int chunkSize;
   final int maxChunks;
   final int maxConcurrentReads;

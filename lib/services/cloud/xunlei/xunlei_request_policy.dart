@@ -1,16 +1,23 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:kanyingyin/services/cloud/xunlei/xunlei_client_configuration.dart';
 
 enum XunleiClientProfile { android, web }
 
 /// 迅雷个人云盘目前依赖非公开客户端协议；常量集中在此处便于隔离兼容变化。
 class XunleiRequestPolicy {
-  const XunleiRequestPolicy();
+  const XunleiRequestPolicy({
+    this.configuration = const XunleiClientConfiguration(),
+  });
 
-  static const String clientId = 'Xp6vsxz_7IYVw2BB';
-  static const String clientSecret = 'Xp6vsy4tN9toTVdMSpomVdXpRmES';
-  static const String webClientId = 'Xqp0kJBXWhwaTpB6';
+  final XunleiClientConfiguration configuration;
+
+  String get clientId => configuration.requiredClientId;
+  String get clientSecret => configuration.requiredClientSecret;
+  String get webClientId => configuration.requiredWebClientId;
+  String get appKey => configuration.requiredAppKey;
+
   static const String webSdkVersion = '3.4.20';
   static const String clientVersion = '8.31.0.9726';
   static const String packageName = 'com.xunlei.downloadprovider';
@@ -27,7 +34,6 @@ class XunleiRequestPolicy {
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
       'AppleWebKit/537.36 Chrome/138.0.0.0 Safari/537.36';
   static const String appId = '40';
-  static const String appKey = '34a062aaa22f906fca4fefe9fb3a3021';
   static const List<String> _captchaSalts = <String>[
     '9uJNVj/wLmdwKrJaVj/omlQ',
     'Oz64Lp0GigmChHMf/6TNfxx7O9PyopcczMsnf',
@@ -53,6 +59,8 @@ class XunleiRequestPolicy {
       Uri.https('xluser-ssl.xunlei.com', '/v1/user/me');
   static final Uri filesUri =
       Uri.https('api-pan.xunlei.com', '/drive/v1/files');
+
+  void requireConfigured() => configuration.requireConfigured();
 
   Map<String, String> apiHeaders({
     required String deviceId,

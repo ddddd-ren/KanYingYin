@@ -9,6 +9,7 @@ set(BINARY_NAME "kanyingyin")
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
 cmake_policy(VERSION 3.14...3.25)
+set(CMAKE_POLICY_DEFAULT_CMP0175 OLD)
 
 # Define build configuration option.
 get_property(IS_MULTICONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)

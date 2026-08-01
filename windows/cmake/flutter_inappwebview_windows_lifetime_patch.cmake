@@ -2,6 +2,9 @@
 if(NOT TARGET flutter_inappwebview_windows_plugin)
   message(FATAL_ERROR "flutter_inappwebview_windows 插件目标不存在")
 endif()
+target_compile_options(
+  flutter_inappwebview_windows_plugin
+  PRIVATE /wd4458)
 
 set(FLUTTER_INAPPWEBVIEW_WINDOWS_ROOT
   "${CMAKE_CURRENT_SOURCE_DIR}/flutter/ephemeral/.plugin_symlinks/flutter_inappwebview_windows/windows")

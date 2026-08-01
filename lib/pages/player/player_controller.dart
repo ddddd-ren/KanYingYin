@@ -26,6 +26,7 @@ import 'package:kanyingyin/features/player/application/anime4k_shader_executor.d
 import 'package:kanyingyin/features/player/application/embedded_track_language_preferences.dart';
 import 'package:kanyingyin/features/player/application/player_runtime_preferences.dart';
 import 'package:kanyingyin/features/player/application/player_decoder_recovery_policy.dart';
+import 'package:kanyingyin/features/player/application/player_resource_disposer.dart';
 import 'package:kanyingyin/features/player/application/player_subtitle_coordinator.dart';
 import 'package:kanyingyin/features/player/application/subtitle_preferences.dart';
 import 'package:kanyingyin/features/player/application/truehd_fallback_policy.dart';
@@ -68,6 +69,21 @@ bool shouldApplyPlayerProxy({
   required PlaybackNetworkRoute networkRoute,
 }) =>
     proxyEnabled && networkRoute == PlaybackNetworkRoute.inheritProxy;
+
+List<String>? resolveAnime4kShaderPaths({
+  required String? directoryPath,
+  required Anime4kAction action,
+}) {
+  if (directoryPath == null) return null;
+  final names = switch (action) {
+    Anime4kAction.enableEfficiency => mpvAnime4KShadersLite,
+    Anime4kAction.enableQuality => mpvAnime4KShaders,
+    Anime4kAction.clear => const <String>[],
+  };
+  return names
+      .map((name) => p.join(directoryPath, name))
+      .toList(growable: false);
+}
 
 String cloudPlaybackFailureMessage(String? providerName) {
   final label = providerName?.trim();
@@ -303,6 +319,8 @@ abstract class _PlayerController with Store {
       PlayerMediaOperationCoordinator();
   final PlayerLifecycleCoordinator _lifecycleOperations =
       PlayerLifecycleCoordinator();
+  final PlayerResourceDisposer _resourceDisposer =
+      const PlayerResourceDisposer();
   final Lock _playerInitLock = Lock();
   bool _disposeRequested = false;
   Future<void>? _disposeFuture;
@@ -348,6 +366,9 @@ abstract class _PlayerController with Store {
 
   // 播放器实时状态
   bool get hasActivePlayer => !_disposeRequested && mediaPlayer != null;
+
+  bool get anime4kShadersAvailable =>
+      anime4kSupported && shadersController.shadersDirectory != null;
 
   PlayerRuntimeSnapshot? readRuntimeSnapshot() {
     final player = mediaPlayer;
@@ -570,9 +591,7 @@ abstract class _PlayerController with Store {
     aspectRatioType = runtimeSettings.aspectRatioType;
     buttonSkipTime = runtimeSettings.buttonSkipTime;
     arrowKeySkipTime = runtimeSettings.arrowKeySkipTime;
-    try {
-      await _disposePlayerResources();
-    } catch (_) {}
+    await _disposePlayerResources();
     if (!_isMediaOperationActive(mediaToken, lifecycleToken)) return false;
     int episodeFromTitle = 0;
     try {
@@ -589,7 +608,7 @@ abstract class _PlayerController with Store {
       await refreshSubtitleCandidates();
     }
     try {
-      mediaPlayer ??= await createVideoController(
+      mediaPlayer = await createVideoController(
         params.httpHeaders,
         mediaToken: mediaToken,
         lifecycleToken: lifecycleToken,
@@ -710,14 +729,16 @@ abstract class _PlayerController with Store {
       String? subtitlePath}) async {
     final runtimeSettings = _runtimePreferences.load();
     anime4kPreference = runtimeSettings.anime4kPreference;
-    anime4kRuntimeState = anime4kPreference == Anime4kPreference.off
-        ? Anime4kRuntimeState.off
-        : Anime4kRuntimeState.waitingForSize;
-    _anime4kCoordinator.reset();
     hAenable = runtimeSettings.hardwareAccelerationEnabled;
     hardwareDecoder = runtimeSettings.hardwareDecoder;
     videoRenderer = runtimeSettings.videoRenderer;
     anime4kSupported = runtimeSettings.anime4kSupported;
+    anime4kRuntimeState = anime4kPreference == Anime4kPreference.off
+        ? Anime4kRuntimeState.off
+        : anime4kShadersAvailable
+            ? Anime4kRuntimeState.waitingForSize
+            : Anime4kRuntimeState.incompatible;
+    _anime4kCoordinator.reset();
     autoPlay = runtimeSettings.autoPlay;
     lowMemoryMode = runtimeSettings.lowMemoryMode;
     playerDebugMode = runtimeSettings.debugMode;
@@ -1742,7 +1763,7 @@ abstract class _PlayerController with Store {
           _ => Anime4kFit.contain,
         },
         shaderSupported:
-            anime4kSupported && mediaPlayer?.platform is NativePlayer,
+            anime4kShadersAvailable && mediaPlayer?.platform is NativePlayer,
       ),
     );
     runInAction(() => anime4kRuntimeState = decision.state);
@@ -1762,12 +1783,14 @@ abstract class _PlayerController with Store {
         return;
       }
       runInAction(() => anime4kRuntimeState = Anime4kRuntimeState.loading);
-      final names = decision.action == Anime4kAction.enableEfficiency
-          ? mpvAnime4KShadersLite
-          : mpvAnime4KShaders;
-      final shaderPaths = names
-          .map((name) => p.join(shadersController.shadersDirectory.path, name))
-          .toList(growable: false);
+      final shadersDirectory = shadersController.shadersDirectory;
+      final shaderPaths = resolveAnime4kShaderPaths(
+        directoryPath: shadersDirectory?.path,
+        action: decision.action,
+      );
+      if (shaderPaths == null) {
+        throw StateError('Anime4K 着色器目录不可用');
+      }
       shaderCount = shaderPaths.length;
       await executor.apply(
         decision.action,
@@ -1892,14 +1915,56 @@ abstract class _PlayerController with Store {
     _anime4kOutputPixels = Size.zero;
     _anime4kCoordinator.reset();
     runInAction(() => anime4kRuntimeState = Anime4kRuntimeState.off);
-    await playerErrorSubscription?.cancel();
+
+    final steps = <({String name, PlayerDisposeStep dispose})>[
+      if (playerErrorSubscription case final subscription?)
+        (name: 'error-subscription', dispose: subscription.cancel),
+      if (playerLogSubscription case final subscription?)
+        (name: 'log-subscription', dispose: subscription.cancel),
+      if (playerWidthSubscription case final subscription?)
+        (name: 'width-subscription', dispose: subscription.cancel),
+      if (playerHeightSubscription case final subscription?)
+        (name: 'height-subscription', dispose: subscription.cancel),
+      if (playerVideoParamsSubscription case final subscription?)
+        (name: 'video-params-subscription', dispose: subscription.cancel),
+      if (playerAudioParamsSubscription case final subscription?)
+        (name: 'audio-params-subscription', dispose: subscription.cancel),
+      if (playerPlaylistSubscription case final subscription?)
+        (name: 'playlist-subscription', dispose: subscription.cancel),
+      if (playerTracksSubscription case final subscription?)
+        (name: 'tracks-subscription', dispose: subscription.cancel),
+      if (playerAvailableTracksSubscription case final subscription?)
+        (name: 'available-tracks-subscription', dispose: subscription.cancel),
+      if (playerAudioBitrateSubscription case final subscription?)
+        (name: 'audio-bitrate-subscription', dispose: subscription.cancel),
+      if (mediaPlayer case final player?)
+        (name: 'player', dispose: player.dispose),
+    ];
+
     playerErrorSubscription = null;
-    try {
-      await cancelPlayerDebugInfoSubscription();
-    } catch (_) {}
-    await mediaPlayer?.dispose();
+    playerLogSubscription = null;
+    playerWidthSubscription = null;
+    playerHeightSubscription = null;
+    playerVideoParamsSubscription = null;
+    playerAudioParamsSubscription = null;
+    playerPlaylistSubscription = null;
+    playerTracksSubscription = null;
+    playerAvailableTracksSubscription = null;
+    playerAudioBitrateSubscription = null;
     mediaPlayer = null;
     videoController = null;
+
+    final failures = await _resourceDisposer.dispose(
+      steps.map((step) => step.dispose),
+    );
+    for (final failure in failures) {
+      AppLogger().w(
+        'PlayerController: resource disposal failed '
+        'step=${steps[failure.stepIndex].name}',
+        error: failure.error,
+        stackTrace: failure.stackTrace,
+      );
+    }
   }
 
   Future<void> stop() async {

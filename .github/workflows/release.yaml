@@ -45,7 +45,54 @@ jobs:
         run: flutter test --no-pub
 
       - name: 构建 Windows Release
-        run: flutter build windows --release --no-pub
+        env:
+          KANYINGYIN_XUNLEI_CLIENT_ID: ${{ secrets.KANYINGYIN_XUNLEI_CLIENT_ID }}
+          KANYINGYIN_XUNLEI_CLIENT_SECRET: ${{ secrets.KANYINGYIN_XUNLEI_CLIENT_SECRET }}
+          KANYINGYIN_XUNLEI_WEB_CLIENT_ID: ${{ secrets.KANYINGYIN_XUNLEI_WEB_CLIENT_ID }}
+          KANYINGYIN_XUNLEI_APP_KEY: ${{ secrets.KANYINGYIN_XUNLEI_APP_KEY }}
+        shell: pwsh
+        run: |
+          $runnerTemporaryBase = [System.IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\') + '\'
+          $xunleiTemporaryRoot = Join-Path $env:RUNNER_TEMP ("kanyingyin-xunlei-release-{0}" -f [Guid]::NewGuid().ToString('N'))
+          $resolvedXunleiTemporaryRoot = [System.IO.Path]::GetFullPath($xunleiTemporaryRoot)
+          if (-not $resolvedXunleiTemporaryRoot.StartsWith($runnerTemporaryBase, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw '迅雷 Release 构建临时目录越界'
+          }
+          $xunleiDefineFile = Join-Path $xunleiTemporaryRoot 'xunlei.build.json'
+          $requiredSecrets = @(
+            'KANYINGYIN_XUNLEI_CLIENT_ID',
+            'KANYINGYIN_XUNLEI_CLIENT_SECRET',
+            'KANYINGYIN_XUNLEI_WEB_CLIENT_ID',
+            'KANYINGYIN_XUNLEI_APP_KEY'
+          )
+          try {
+            foreach ($name in $requiredSecrets) {
+              if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+                throw "迅雷 Release 构建缺少必要 Secret：$name"
+              }
+            }
+            New-Item -ItemType Directory -Path $xunleiTemporaryRoot -Force | Out-Null
+            dart run tool/export_xunlei_build_define.dart `
+              --client-id $env:KANYINGYIN_XUNLEI_CLIENT_ID `
+              --client-secret $env:KANYINGYIN_XUNLEI_CLIENT_SECRET `
+              --web-client-id $env:KANYINGYIN_XUNLEI_WEB_CLIENT_ID `
+              --app-key $env:KANYINGYIN_XUNLEI_APP_KEY `
+              --output $xunleiDefineFile
+            if ($LASTEXITCODE -ne 0) { throw '生成迅雷 Release 构建参数失败' }
+
+            flutter build windows --release --no-pub "--dart-define-from-file=$xunleiDefineFile"
+            if ($LASTEXITCODE -ne 0) { throw 'Windows Release 构建失败' }
+          } finally {
+            foreach ($name in $requiredSecrets) {
+              Remove-Item -LiteralPath "Env:$name" -ErrorAction SilentlyContinue
+            }
+            if (Test-Path -LiteralPath $xunleiDefineFile) {
+              Remove-Item -LiteralPath $xunleiDefineFile -Force
+            }
+            if (Test-Path -LiteralPath $xunleiTemporaryRoot) {
+              Remove-Item -LiteralPath $xunleiTemporaryRoot -Recurse -Force
+            }
+          }
 
       - name: 校验应用版本与标签
         env:

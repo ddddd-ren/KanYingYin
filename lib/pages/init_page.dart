@@ -10,7 +10,28 @@ import 'package:kanyingyin/shaders/shaders_controller.dart';
 import 'package:kanyingyin/pages/navigation/navigation_config.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/services/windows_shortcut_startup_policy.dart';
+import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/utils/windows_shortcut.dart';
+
+typedef InitShaderErrorHandler = void Function(
+  Object error,
+  StackTrace stackTrace,
+);
+
+Future<void> runInitStartupSequence({
+  required Future<void> Function() prepareShaders,
+  required Future<void> Function() checkShortcut,
+  required void Function() navigateToDefaultPage,
+  InitShaderErrorHandler? onShaderError,
+}) async {
+  try {
+    await prepareShaders();
+  } on Object catch (error, stackTrace) {
+    onShaderError?.call(error, stackTrace);
+  }
+  await checkShortcut();
+  navigateToDefaultPage();
+}
 
 class InitPage extends StatefulWidget {
   const InitPage({super.key});
@@ -32,10 +53,17 @@ class _InitPageState extends State<InitPage> {
   }
 
   Future<void> _initializeApp() async {
-    await _loadShaders();
-    await _showShortcutDialog();
+    await runInitStartupSequence(
+      prepareShaders: _loadShaders,
+      checkShortcut: _showShortcutDialog,
+      navigateToDefaultPage: _startDefaultPage,
+      onShaderError: (error, stackTrace) => AppLogger().e(
+        'InitPage: 着色器准备异常，继续启动应用',
+        error: error,
+        stackTrace: stackTrace,
+      ),
+    );
 
-    _startDefaultPage();
     // delay to ensure that the default page is fully loaded
     await Future<void>.delayed(const Duration(milliseconds: 500));
     _showVersionChangelog();

@@ -11,13 +11,26 @@ Set-StrictMode -Version Latest
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $temporaryRoot = Join-Path $env:TEMP ("kanyingyin-public-release-{0}" -f [Guid]::NewGuid().ToString('N'))
+$xunleiDefineFile = Join-Path $temporaryRoot 'xunlei.build.json'
 $packageRoot = Join-Path $temporaryRoot 'package'
 $releaseDirectory = Join-Path $projectRoot 'build\windows\x64\runner\Release'
 $generatedMsix = Join-Path $releaseDirectory 'kanyingyin.msix'
 $pfxPath = Join-Path $SigningDirectory 'certificate.pfx'
 $passwordPath = Join-Path $SigningDirectory 'certificate-password.clixml'
+$xunleiClientIdPath = Join-Path $SigningDirectory 'xunlei-client-id.clixml'
+$xunleiClientSecretPath = Join-Path $SigningDirectory 'xunlei-client-secret.clixml'
+$xunleiWebClientIdPath = Join-Path $SigningDirectory 'xunlei-web-client-id.clixml'
+$xunleiAppKeyPath = Join-Path $SigningDirectory 'xunlei-app-key.clixml'
 $plainPassword = $null
 $passwordPointer = [IntPtr]::Zero
+$plainXunleiClientId = $null
+$xunleiClientIdPointer = [IntPtr]::Zero
+$plainXunleiClientSecret = $null
+$xunleiClientSecretPointer = [IntPtr]::Zero
+$plainXunleiWebClientId = $null
+$xunleiWebClientIdPointer = [IntPtr]::Zero
+$plainXunleiAppKey = $null
+$xunleiAppKeyPointer = [IntPtr]::Zero
 
 function Assert-PublicTemporaryRoot {
   $temporaryBase = [System.IO.Path]::GetFullPath($env:TEMP).TrimEnd('\') + '\'
@@ -65,7 +78,16 @@ $runningProcesses = @(Get-Process -Name 'kanyingyin' -ErrorAction SilentlyContin
 if ($runningProcesses.Count -gt 0) {
   throw '请先退出正在运行的看影音，再生成签名安装包'
 }
-foreach ($requiredPath in @($FlutterPath, $DartPath, $pfxPath, $passwordPath)) {
+foreach ($requiredPath in @(
+    $FlutterPath,
+    $DartPath,
+    $pfxPath,
+    $passwordPath,
+    $xunleiClientIdPath,
+    $xunleiClientSecretPath,
+    $xunleiWebClientIdPath,
+    $xunleiAppKeyPath
+  )) {
   if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
     throw "缺少构建所需文件：$requiredPath"
   }
@@ -103,7 +125,77 @@ try {
 
   Push-Location $projectRoot
   try {
-    Invoke-Checked -Executable $FlutterPath -Arguments @('build', 'windows', '--release', '--no-pub')
+    try {
+      $secureXunleiClientId = Import-Clixml -LiteralPath $xunleiClientIdPath
+      $secureXunleiClientSecret = Import-Clixml -LiteralPath $xunleiClientSecretPath
+      $secureXunleiWebClientId = Import-Clixml -LiteralPath $xunleiWebClientIdPath
+      $secureXunleiAppKey = Import-Clixml -LiteralPath $xunleiAppKeyPath
+      foreach ($secureValue in @(
+          $secureXunleiClientId,
+          $secureXunleiClientSecret,
+          $secureXunleiWebClientId,
+          $secureXunleiAppKey
+        )) {
+        if ($secureValue -isnot [System.Security.SecureString]) {
+          throw '迅雷配置文件不是当前用户可读取的 SecureString'
+        }
+      }
+
+      $xunleiClientIdPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureXunleiClientId)
+      $plainXunleiClientId = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($xunleiClientIdPointer)
+      $xunleiClientSecretPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureXunleiClientSecret)
+      $plainXunleiClientSecret = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($xunleiClientSecretPointer)
+      $xunleiWebClientIdPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureXunleiWebClientId)
+      $plainXunleiWebClientId = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($xunleiWebClientIdPointer)
+      $xunleiAppKeyPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureXunleiAppKey)
+      $plainXunleiAppKey = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($xunleiAppKeyPointer)
+
+      Invoke-Checked -Executable $DartPath -Arguments @(
+        'run',
+        'tool/export_xunlei_build_define.dart',
+        '--client-id',
+        $plainXunleiClientId,
+        '--client-secret',
+        $plainXunleiClientSecret,
+        '--web-client-id',
+        $plainXunleiWebClientId,
+        '--app-key',
+        $plainXunleiAppKey,
+        '--output',
+        $xunleiDefineFile
+      )
+    } finally {
+      if ($xunleiClientIdPointer -ne [IntPtr]::Zero) {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($xunleiClientIdPointer)
+        $xunleiClientIdPointer = [IntPtr]::Zero
+      }
+      if ($xunleiClientSecretPointer -ne [IntPtr]::Zero) {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($xunleiClientSecretPointer)
+        $xunleiClientSecretPointer = [IntPtr]::Zero
+      }
+      if ($xunleiWebClientIdPointer -ne [IntPtr]::Zero) {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($xunleiWebClientIdPointer)
+        $xunleiWebClientIdPointer = [IntPtr]::Zero
+      }
+      if ($xunleiAppKeyPointer -ne [IntPtr]::Zero) {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($xunleiAppKeyPointer)
+        $xunleiAppKeyPointer = [IntPtr]::Zero
+      }
+      $plainXunleiClientId = $null
+      $plainXunleiClientSecret = $null
+      $plainXunleiWebClientId = $null
+      $plainXunleiAppKey = $null
+    }
+
+    try {
+      Invoke-Checked -Executable $FlutterPath -Arguments @(
+        'build', 'windows', '--release', '--no-pub', "--dart-define-from-file=$xunleiDefineFile"
+      )
+    } finally {
+      if (Test-Path -LiteralPath $xunleiDefineFile) {
+        Remove-Item -LiteralPath $xunleiDefineFile -Force
+      }
+    }
 
     $releaseExecutable = Join-Path $releaseDirectory 'kanyingyin.exe'
     $releaseApp = Join-Path $releaseDirectory 'data\app.so'
@@ -239,11 +331,35 @@ try {
   Write-Host "异机安装包：$desktopZip"
   Write-Host "MSIX SHA256：$desktopHash"
 } finally {
+  if ($xunleiClientIdPointer -ne [IntPtr]::Zero) {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($xunleiClientIdPointer)
+    $xunleiClientIdPointer = [IntPtr]::Zero
+  }
+  if ($xunleiClientSecretPointer -ne [IntPtr]::Zero) {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($xunleiClientSecretPointer)
+    $xunleiClientSecretPointer = [IntPtr]::Zero
+  }
+  if ($xunleiWebClientIdPointer -ne [IntPtr]::Zero) {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($xunleiWebClientIdPointer)
+    $xunleiWebClientIdPointer = [IntPtr]::Zero
+  }
+  if ($xunleiAppKeyPointer -ne [IntPtr]::Zero) {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($xunleiAppKeyPointer)
+    $xunleiAppKeyPointer = [IntPtr]::Zero
+  }
+  $plainXunleiClientId = $null
+  $plainXunleiClientSecret = $null
+  $plainXunleiWebClientId = $null
+  $plainXunleiAppKey = $null
   if ($passwordPointer -ne [IntPtr]::Zero) {
     [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
     $passwordPointer = [IntPtr]::Zero
   }
   $plainPassword = $null
+  if (Test-Path -LiteralPath $xunleiDefineFile) {
+    Assert-PublicTemporaryRoot
+    Remove-Item -LiteralPath $xunleiDefineFile -Force
+  }
   if (Test-Path -LiteralPath $temporaryRoot) {
     Assert-PublicTemporaryRoot
     Remove-Item -LiteralPath $temporaryRoot -Recurse -Force

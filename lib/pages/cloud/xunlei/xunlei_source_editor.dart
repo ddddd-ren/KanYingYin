@@ -9,7 +9,9 @@ import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_source_path_scope.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_authorization_controller.dart';
+import 'package:kanyingyin/services/cloud/xunlei/xunlei_client_configuration.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_models.dart';
+import 'package:kanyingyin/services/cloud/xunlei/xunlei_request_policy.dart';
 
 class XunleiSourceEditorPage extends StatefulWidget {
   const XunleiSourceEditorPage({
@@ -18,6 +20,7 @@ class XunleiSourceEditorPage extends StatefulWidget {
     this.controller,
     this.credentialStore,
     this.authorizationController,
+    this.configuration = const XunleiClientConfiguration(),
     this.verificationDialogLauncher,
     this.onRootSelectionChanged,
   });
@@ -26,6 +29,7 @@ class XunleiSourceEditorPage extends StatefulWidget {
   final CloudLibraryController? controller;
   final CloudCredentialStore? credentialStore;
   final XunleiAuthorizationController? authorizationController;
+  final XunleiClientConfiguration configuration;
   final XunleiVerificationDialogLauncher? verificationDialogLauncher;
   final Future<void> Function(String sourceId)? onRootSelectionChanged;
 
@@ -68,6 +72,10 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
 
   bool get _isAuthorized => _isCompleteCredential(_authorizedCredential);
 
+  bool get _authorizationAvailable =>
+      widget.authorizationController != null ||
+      widget.configuration.isConfigured;
+
   @override
   void initState() {
     super.initState();
@@ -75,8 +83,10 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
     _controller = widget.controller ?? CloudLibraryController();
     _credentialStore = widget.credentialStore ?? SecureCloudCredentialStore();
     _ownsAuthorizationController = widget.authorizationController == null;
-    _authorizationController =
-        widget.authorizationController ?? XunleiAuthorizationController();
+    _authorizationController = widget.authorizationController ??
+        XunleiAuthorizationController(
+          policy: XunleiRequestPolicy(configuration: widget.configuration),
+        );
     _verificationDialogLauncher =
         widget.verificationDialogLauncher ?? showXunleiVerificationDialog;
     _controller.addListener(_refresh);
@@ -352,13 +362,14 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
               setState(() => _passwordErrorText = null);
             }
           },
-          onFieldSubmitted: (_) => _busy ? null : _login(),
+          onFieldSubmitted:
+              !_authorizationAvailable ? null : (_) => _busy ? null : _login(),
         ),
         const SizedBox(height: 16),
         Align(
           alignment: Alignment.centerLeft,
           child: FilledButton.icon(
-            onPressed: _busy ? null : _login,
+            onPressed: _busy || !_authorizationAvailable ? null : _login,
             icon: const Icon(Icons.login_outlined),
             label: Text(_authorizationBusy ? '正在登录' : '兼容登录'),
           ),
@@ -376,6 +387,15 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
           padding: const EdgeInsets.all(24),
           child: Column(
             children: [
+              if (!_authorizationAvailable) ...<Widget>[
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    XunleiClientConfiguration.missingConfigurationMessage,
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(labelText: '来源名称'),
@@ -408,8 +428,9 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
                     ),
                   ),
                 ),
-                onFieldSubmitted: (_) =>
-                    _busy ? null : _authorizeWithRefreshToken(),
+                onFieldSubmitted: !_authorizationAvailable
+                    ? null
+                    : (_) => _busy ? null : _authorizeWithRefreshToken(),
               ),
               const SizedBox(height: 16),
               Wrap(
@@ -418,7 +439,9 @@ class _XunleiSourceEditorPageState extends State<XunleiSourceEditorPage> {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: <Widget>[
                   FilledButton.icon(
-                    onPressed: _busy ? null : _authorizeWithRefreshToken,
+                    onPressed: _busy || !_authorizationAvailable
+                        ? null
+                        : _authorizeWithRefreshToken,
                     icon: const Icon(Icons.key_outlined),
                     label: Text(
                       _authorizationBusy

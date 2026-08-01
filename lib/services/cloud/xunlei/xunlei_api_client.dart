@@ -111,6 +111,7 @@ class XunleiApiClient implements XunleiApi {
     String? captchaToken,
     String? creditKey,
   }) async {
+    _policy.requireConfigured();
     if (deviceId != _deviceId ||
         identifier.trim().isEmpty ||
         password.isEmpty) {
@@ -159,8 +160,8 @@ class XunleiApiClient implements XunleiApi {
       XunleiRequestPolicy.signInUri,
       stage: _XunleiRequestStage.signIn,
       data: <String, Object?>{
-        'client_id': XunleiRequestPolicy.clientId,
-        'client_secret': XunleiRequestPolicy.clientSecret,
+        'client_id': _policy.clientId,
+        'client_secret': _policy.clientSecret,
         'provider': 'access_end_point_token',
         'signin_token': sessionId,
       },
@@ -174,6 +175,7 @@ class XunleiApiClient implements XunleiApi {
     required String deviceId,
     String? captchaToken,
   }) async {
+    _policy.requireConfigured();
     if (deviceId != _deviceId || refreshToken.trim().isEmpty) {
       throw const CloudDriveException(CloudDriveErrorType.authentication);
     }
@@ -217,15 +219,16 @@ class XunleiApiClient implements XunleiApi {
           'grant_type': 'refresh_token',
           'refresh_token': refreshToken,
           'client_id': profile == XunleiClientProfile.web
-              ? XunleiRequestPolicy.webClientId
-              : XunleiRequestPolicy.clientId,
+              ? _policy.webClientId
+              : _policy.clientId,
           if (profile == XunleiClientProfile.android)
-            'client_secret': XunleiRequestPolicy.clientSecret,
+            'client_secret': _policy.clientSecret,
         },
       );
 
   @override
   Future<XunleiAccount> account(XunleiSession session) async {
+    _policy.requireConfigured();
     final json = await _authorizedRequest(
       'GET',
       XunleiRequestPolicy.accountUri,
@@ -241,6 +244,7 @@ class XunleiApiClient implements XunleiApi {
     String? pageToken,
     int size = 100,
   }) async {
+    _policy.requireConfigured();
     final session = _requiredSession();
     final uri = XunleiRequestPolicy.filesUri.replace(
       queryParameters: <String, String>{
@@ -267,6 +271,7 @@ class XunleiApiClient implements XunleiApi {
 
   @override
   Future<XunleiFileDetail> fileDetail(String fileId) async {
+    _policy.requireConfigured();
     final session = _requiredSession();
     final normalizedId = fileId.trim();
     if (normalizedId.isEmpty || normalizedId.contains('/')) {
@@ -298,7 +303,7 @@ class XunleiApiClient implements XunleiApi {
       data: <String, Object?>{
         'action': 'POST:/v1/auth/signin/token',
         'captcha_token': _captchaToken ?? '',
-        'client_id': XunleiRequestPolicy.clientId,
+        'client_id': _policy.clientId,
         'device_id': _deviceId,
         'meta': <String, String>{
           metaKey: identifier,
@@ -385,8 +390,8 @@ class XunleiApiClient implements XunleiApi {
       profile: profile,
       data: <String, Object?>{
         'client_id': profile == XunleiClientProfile.web
-            ? XunleiRequestPolicy.webClientId
-            : XunleiRequestPolicy.clientId,
+            ? _policy.webClientId
+            : _policy.clientId,
         'action': '${method.toUpperCase()}:${uri.path}',
         'device_id': _deviceId,
         'captcha_token': _captchaToken ?? '',

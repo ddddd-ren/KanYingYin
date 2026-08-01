@@ -4,8 +4,11 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/core/app_version.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
+import 'package:kanyingyin/features/version/presentation/version_changelog_dialog.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/services/local_image_cache_service.dart';
 import 'package:kanyingyin/utils/utils.dart';
+import 'package:kanyingyin/utils/version_history.dart';
 
 class AboutPage extends StatefulWidget {
   const AboutPage({super.key, this.cacheService});
@@ -91,6 +94,20 @@ class _AboutPageState extends State<AboutPage> {
           ],
         );
       },
+    );
+  }
+
+  void _showCurrentVersionChangelog() {
+    final versions = versionHistoryForCurrent(
+      AppVersion.current,
+      platform: detectAppPlatform().kind,
+    );
+    if (versions.isEmpty) {
+      AppDialog.showToast(message: '当前版本暂无更新说明');
+      return;
+    }
+    AppDialog.show<void>(
+      builder: (context) => VersionChangelogDialog(versions: versions),
     );
   }
 
@@ -204,6 +221,14 @@ class _AboutPageState extends State<AboutPage> {
                   ),
                   trailing: Text(
                     AppVersion.current,
+                    style: TextStyle(fontFamily: fontFamily),
+                  ),
+                ),
+                KSettingsTile<void>.navigation(
+                  onPressed: (_) => _showCurrentVersionChangelog(),
+                  title: Text('更新说明', style: TextStyle(fontFamily: fontFamily)),
+                  description: Text(
+                    '查看当前版本的更新内容',
                     style: TextStyle(fontFamily: fontFamily),
                   ),
                 ),

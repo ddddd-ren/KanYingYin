@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:kanyingyin/pages/init_page.dart';
+import 'package:kanyingyin/features/version/presentation/version_changelog_dialog.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 

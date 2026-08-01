@@ -52,6 +52,24 @@ void main() {
     expect(source, isNot(contains("Text('2.1.30')")));
   });
 
+  test('当前版本下方提供当前平台更新说明入口', () {
+    final source = File('lib/pages/about/about_page.dart').readAsStringSync();
+    final currentVersionIndex = source.indexOf("'当前版本'");
+    final updateNotesIndex = source.indexOf("'更新说明'");
+
+    expect(updateNotesIndex, greaterThan(currentVersionIndex));
+    expect(source, contains("'查看当前版本的更新内容'"));
+    expect(source, contains('versionHistoryForCurrent('));
+    expect(source, contains('AppVersion.current'));
+    expect(source, contains('detectAppPlatform().kind'));
+    expect(
+      source,
+      contains('VersionChangelogDialog(versions: versions)'),
+    );
+    expect(source, contains("'当前版本暂无更新说明'"));
+    expect(source, isNot(contains('SettingBoxKey.lastSeenVersion')));
+  });
+
   test('持续集成仅保留 Windows 质量门禁与发布', () {
     for (final workflowPath in [
       '.github/workflows/pr.yaml',

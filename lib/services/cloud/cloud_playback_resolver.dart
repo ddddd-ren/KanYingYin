@@ -350,6 +350,7 @@ class CloudPlaybackResolver {
             reader: reader,
             providerKey: source.id,
             providerName: _providerRegistry.providerName(source.type),
+            providerType: source.type,
           );
           videoUri = relay.uri;
           httpHeaders = const <String, String>{};

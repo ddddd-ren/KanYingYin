@@ -12,6 +12,7 @@ void main() {
     expect(source, contains('QuarkRangeRemoteReader'));
     expect(source, contains("providerKey: 'quark'"));
     expect(source, contains("providerName: '夸克'"));
+    expect(source, contains('providerType: CloudSourceType.quark'));
     expect(source, isNot(contains('HttpServer.bind')));
   });
 }

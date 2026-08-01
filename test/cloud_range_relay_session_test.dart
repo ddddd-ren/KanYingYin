@@ -107,6 +107,41 @@ void main() {
     }
   });
 
+  test('Android 夸克百度高吞吐会话连续播放时达到五路后台预取', () async {
+    final highThroughputDirectory = await Directory.systemTemp.createTemp(
+      'cloud-relay-high-throughput-',
+    );
+    final highThroughputReader = _DelayedRangeReader(
+      totalLength: 64,
+      delay: const Duration(milliseconds: 100),
+    );
+    final highThroughputSession = await CloudRangeRelaySession.start(
+      reader: highThroughputReader,
+      directory: highThroughputDirectory,
+      providerName: '测试网盘',
+      tuning: CloudRangeRelayTuning.androidHighThroughput,
+      chunkSize: 4,
+      maxChunks: 16,
+    );
+    final client = HttpClient()..findProxy = (_) => 'DIRECT';
+    try {
+      final request = await client.getUrl(highThroughputSession.uri);
+      request.headers.set(HttpHeaders.rangeHeader, 'bytes=0-19');
+      await (await request.close()).drain<void>();
+
+      expect(highThroughputReader.maxActiveReads, greaterThanOrEqualTo(5));
+      expect(
+        highThroughputReader.maxActiveReads,
+        lessThanOrEqualTo(
+          CloudRangeRelayTuning.androidHighThroughput.maxConcurrentReads,
+        ),
+      );
+    } finally {
+      client.close(force: true);
+      await highThroughputSession.close();
+    }
+  });
+
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('cloud-relay-test-');
     remoteServer = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);

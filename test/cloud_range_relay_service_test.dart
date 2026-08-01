@@ -1,10 +1,48 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/services/cloud/range/cloud_range_relay_service.dart';
+import 'package:kanyingyin/services/cloud/range/cloud_range_relay_session.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
+  test('Android 仅为夸克和百度启用六路高吞吐参数', () {
+    final quark = CloudRangeRelayService.tuningFor(
+      capabilities: AppPlatformCapabilities.android,
+      providerType: CloudSourceType.quark,
+    );
+    final baidu = CloudRangeRelayService.tuningFor(
+      capabilities: AppPlatformCapabilities.android,
+      providerType: CloudSourceType.baidu,
+    );
+    final xunlei = CloudRangeRelayService.tuningFor(
+      capabilities: AppPlatformCapabilities.android,
+      providerType: CloudSourceType.xunlei,
+    );
+
+    for (final tuning in <CloudRangeRelayTuning>[quark, baidu]) {
+      expect(tuning.maxConcurrentReads, 6);
+      expect(tuning.maxConcurrentPrefetch, 5);
+      expect(tuning.prefetchAheadChunks, 10);
+      expect(tuning.chunkSize * tuning.maxChunks, 128 * 1024 * 1024);
+    }
+    expect(xunlei, same(CloudRangeRelayTuning.android));
+  });
+
+  test('Windows 所有提供方继续使用原有参数', () {
+    for (final providerType in CloudSourceType.values) {
+      expect(
+        CloudRangeRelayService.tuningFor(
+          capabilities: AppPlatformCapabilities.windows,
+          providerType: providerType,
+        ),
+        same(CloudRangeRelayTuning.windows),
+      );
+    }
+  });
+
   test('只清理超过 24 小时且名称匹配的公共中转目录', () async {
     final root = await Directory.systemTemp.createTemp('cloud-relay-root-');
     addTearDown(() async {

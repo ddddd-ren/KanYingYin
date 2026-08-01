@@ -17,12 +17,15 @@ final class Anime4kShaderExecutor {
       return;
     }
     try {
-      await _command(<String>[
-        'change-list',
-        'glsl-shaders',
-        'set',
-        shaderPaths.join(';'),
-      ]);
+      await _clear();
+      for (final shaderPath in shaderPaths) {
+        await _command(<String>[
+          'change-list',
+          'glsl-shaders',
+          'append',
+          shaderPath,
+        ]);
+      }
     } on Object catch (error, stackTrace) {
       try {
         await _clear();

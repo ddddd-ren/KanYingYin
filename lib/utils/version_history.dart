@@ -31,6 +31,18 @@ const VersionHistory _androidFirstRelease = VersionHistory(
   ],
 );
 
+const VersionHistory _androidAnime4kShaderListRelease = VersionHistory(
+  version: '2.1.98',
+  date: '2026-08-02',
+  isPrerelease: true,
+  changes: [
+    '修复 Android 启用 Anime4K 时可能把多条着色器路径误当成一个文件名、导致视频无法打开的问题',
+    'Anime4K 着色器现在按既定顺序逐个加载；任一着色器失败后会安全清空增强并保留普通播放',
+    '关于页当前版本下方新增“更新说明”，可随时查看本版本 Android 更新内容，不影响升级后的首次启动提示',
+    '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+  ],
+);
+
 const VersionHistory _androidCloudHighThroughputRelease = VersionHistory(
   version: '2.1.97',
   date: '2026-08-02',
@@ -69,6 +81,18 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 );
 
 const List<VersionHistory> versionHistoryList = [
+  VersionHistory(
+    version: '2.1.98',
+    date: '2026-08-02',
+    isPrerelease: true,
+    changes: [
+      '本轮同步提供 Windows 与 Android 2.1.98 测试版，分别使用 MSIX、APK 和 AAB 交付',
+      '修复 Android 启用 Anime4K 时可能把多条着色器路径误当成一个文件名、导致视频无法打开的问题',
+      'Anime4K 着色器现在按既定顺序逐个加载；任一着色器失败后会安全清空增强并保留普通播放',
+      '关于页当前版本下方新增“更新说明”，可随时查看本版本内容且不会改写首次启动更新提示状态',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
   VersionHistory(
     version: '2.1.97',
     date: '2026-08-02',
@@ -1849,6 +1873,9 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '2.1.98' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[_androidAnime4kShaderListRelease];
+  }
   if (currentVersion == '2.1.97' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[_androidCloudHighThroughputRelease];
   }

@@ -5,6 +5,54 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一九十七说明安卓夸克百度高码率读取优化', () {
+    final entries = versionHistoryForCurrent('2.1.97');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isTrue);
+    for (final text in <String>[
+      'Windows',
+      'Android',
+      '夸克',
+      '百度',
+      '六路',
+      '40 MiB',
+      '128 MiB',
+      '迅雷',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
+  test('Android 二点一九十七只展示本轮移动端更新', () {
+    final entries = versionHistoryForCurrent(
+      '2.1.97',
+      platform: AppPlatformKind.android,
+    );
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.version, '2.1.97');
+    expect(entry.isPrerelease, isTrue);
+    for (final text in <String>[
+      'Android',
+      '夸克',
+      '百度',
+      '六路',
+      '40 MiB',
+      '128 MiB',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+    expect(changes, isNot(contains('Windows')));
+    expect(changes, isNot(contains('迅雷')));
+  });
+
   test('二点一九十六说明日志复制与安卓 Anime4K 修复', () {
     final entries = versionHistoryForCurrent('2.1.96');
 

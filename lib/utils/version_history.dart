@@ -31,6 +31,18 @@ const VersionHistory _androidFirstRelease = VersionHistory(
   ],
 );
 
+const VersionHistory _androidCloudHighThroughputRelease = VersionHistory(
+  version: '2.1.97',
+  date: '2026-08-02',
+  isPrerelease: true,
+  changes: [
+    'Android 夸克与百度网盘的高码率视频读取现在可使用最多六路连接和五路后台预取',
+    '连续播放的前向预取窗口扩大到 40 MiB，改善高质量视频加载和卡顿恢复速度',
+    '网盘中转缓存仍限制为 128 MiB，不会因提高读取并发继续增加缓存占用',
+    '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+  ],
+);
+
 const VersionHistory _androidLogAnime4kRelease = VersionHistory(
   version: '2.1.96',
   date: '2026-08-01',
@@ -57,6 +69,18 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 );
 
 const List<VersionHistory> versionHistoryList = [
+  VersionHistory(
+    version: '2.1.97',
+    date: '2026-08-02',
+    isPrerelease: true,
+    changes: [
+      '本轮同步提供 Windows 与 Android 2.1.97 测试版，分别使用 MSIX、APK 和 AAB 交付',
+      'Android 夸克与百度网盘的高码率视频读取现在可使用最多六路连接和五路后台预取，前向预取窗口扩大到 40 MiB',
+      'Android 网盘中转缓存仍限制为 128 MiB，不会因提高读取并发继续增加缓存占用',
+      'Windows 网盘读取策略与 Android 迅雷网盘保持不变，避免影响已经稳定的播放链路',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
   VersionHistory(
     version: '2.1.96',
     date: '2026-08-01',
@@ -1825,6 +1849,9 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '2.1.97' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[_androidCloudHighThroughputRelease];
+  }
   if (currentVersion == '2.1.96' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[_androidLogAnime4kRelease];
   }

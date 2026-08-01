@@ -18,8 +18,8 @@ void main() {
     expect(gradle, contains('isShrinkResources = true'));
     expect(gradle, contains('proguard-rules.pro'));
     expect(gradle, isNot(contains('signingConfigs.getByName("debug")')));
-    expect(gradle, contains('val androidVersionName = "2.1.98"'));
-    expect(gradle, contains('val androidVersionCode = 20198'));
+    expect(gradle, contains('val androidVersionName = "1.0.1"'));
+    expect(gradle, contains('val androidVersionCode = 10001'));
   });
 
   test('Android Release 忽略未启用的 Play Core 延迟组件引用', () {
@@ -50,8 +50,8 @@ void main() {
     );
     expect(script, contains(r'$appName-$androidVersion.apk'));
     expect(script, contains(r'$appName-$androidVersion.aab'));
-    expect(script, contains(r"$androidVersion = '2.1.98'"));
-    expect(script, contains(r'$androidVersionCode = 20198'));
+    expect(script, contains(r"$androidVersion = '1.0.1'"));
+    expect(script, contains(r'$androidVersionCode = 10001'));
     expect(script, contains('[char]0x770B'));
     expect(script, contains('com.kanyingyin.player'));
   });

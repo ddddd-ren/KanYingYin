@@ -31,6 +31,19 @@ const VersionHistory _androidFirstRelease = VersionHistory(
   ],
 );
 
+const VersionHistory _androidSecondRelease = VersionHistory(
+  version: '1.0.1',
+  date: '2026-08-02',
+  changes: [
+    'Android 1.0.1 正式版综合近期移动端更新，继续支持本地媒体库、个人网盘、字幕、音轨、后台播放和系统画中画',
+    '夸克与百度网盘高码率视频读取可使用最多六路连接和五路后台预取，前向预取窗口扩大到 40 MiB；缓存仍限制为 128 MiB，低内存模式降到 64 MiB',
+    '修复自动 GPU 渲染器无法正确启用 Anime4K，以及多条着色器路径可能被误当成一个文件名的问题；着色器会按顺序加载，失败时保留普通播放',
+    '运行记录支持复制单条完整脱敏日志；关于页新增“更新说明”，可随时查看 Android 当前版本内容',
+    '修复设置页面禁用的单选项缺少回调时可能构建失败的问题，不可用选项现在会安全保持禁用',
+    '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+  ],
+);
+
 const VersionHistory _androidAnime4kShaderListRelease = VersionHistory(
   version: '2.1.98',
   date: '2026-08-02',
@@ -81,6 +94,19 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 );
 
 const List<VersionHistory> versionHistoryList = [
+  VersionHistory(
+    version: '1.0.4',
+    date: '2026-08-02',
+    changes: [
+      '本轮同步提供 Windows 1.0.4 与 Android 1.0.1 正式版，分别使用 MSIX、APK 和 AAB 交付',
+      '综合近期网盘读取优化：夸克、百度和迅雷可复用更多连接并扩大前向预取窗口，改善高码率视频加载、拖动和卡顿恢复速度',
+      'Anime4K 着色器现在按既定顺序逐个加载；准备或加载失败时会安全清空增强并保留普通播放',
+      '修复 Windows 安装包可能停在初始化阶段的问题，并改进播放器退出、重载和切换资源时的释放稳定性',
+      '运行记录支持复制单条完整脱敏日志；关于页新增“更新说明”，可随时查看当前版本内容',
+      '修复设置页面禁用的单选项缺少回调时可能构建失败的问题，不可用选项现在会安全保持禁用',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
   VersionHistory(
     version: '2.1.98',
     date: '2026-08-02',
@@ -1859,20 +1885,15 @@ const List<VersionHistory> versionHistoryList = [
       '代理检测现在直接验证 TMDB，并加强凭据日志保护',
     ],
   ),
-  VersionHistory(
-    version: '1.0.4',
-    date: '2026-07-14',
-    changes: [
-      '修复 TMDB 请求未使用应用代理设置导致连接失败的问题',
-      'TMDB 连接现在会自动使用已检测到的本机代理',
-    ],
-  ),
 ];
 
 List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '1.0.4' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[_androidSecondRelease];
+  }
   if (currentVersion == '2.1.98' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[_androidAnime4kShaderListRelease];
   }

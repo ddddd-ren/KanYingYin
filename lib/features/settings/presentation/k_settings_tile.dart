@@ -85,6 +85,7 @@ class KSettingsTile<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final radioChanged = onChanged;
     return switch (_kind) {
       _KSettingsTileKind.plain => _SettingsTileContent(
           title: title,
@@ -123,8 +124,8 @@ class KSettingsTile<T> extends StatelessWidget {
           leading: leading,
           value: radioValue as T,
           groupValue: groupValue,
-          enabled: enabled,
-          onChanged: onChanged!,
+          enabled: enabled && radioChanged != null,
+          onChanged: radioChanged ?? (_) {},
         ),
     };
   }

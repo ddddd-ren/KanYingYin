@@ -5,6 +5,54 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('一点零四正式版综合近期双平台更新', () {
+    final entries = versionHistoryForCurrent('1.0.4');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isFalse);
+    for (final text in <String>[
+      'Windows',
+      'Android 1.0.1',
+      'Anime4K',
+      '网盘',
+      '更新说明',
+      '设置',
+      '普通播放',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
+  test('Android 一点零一正式版只展示移动端更新', () {
+    final entries = versionHistoryForCurrent(
+      '1.0.4',
+      platform: AppPlatformKind.android,
+    );
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.version, '1.0.1');
+    expect(entry.isPrerelease, isFalse);
+    for (final text in <String>[
+      'Android 1.0.1',
+      '夸克',
+      '百度',
+      'Anime4K',
+      '更新说明',
+      '设置',
+      '普通播放',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+    expect(changes, isNot(contains('Windows')));
+    expect(changes, isNot(contains('迅雷')));
+  });
+
   test('二点一九十八说明安卓 Anime4K 路径与更新说明入口', () {
     final entries = versionHistoryForCurrent('2.1.98');
 

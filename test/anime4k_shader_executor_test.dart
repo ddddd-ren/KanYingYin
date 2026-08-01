@@ -110,4 +110,57 @@ void main() {
       <String>['change-list', 'glsl-shaders', 'clr', ''],
     ]);
   });
+
+  test('首次清空失败后再次清空并保留首次错误', () async {
+    final commands = <List<String>>[];
+    final error = StateError('initial clear failed');
+    var clearCalls = 0;
+    final executor = Anime4kShaderExecutor(command: (command) async {
+      commands.add(command);
+      if (command[2] == 'clr') {
+        clearCalls++;
+        if (clearCalls == 1) throw error;
+      }
+    });
+
+    await expectLater(
+      executor.apply(
+        Anime4kAction.enableQuality,
+        shaderPaths: const <String>['quality.glsl'],
+      ),
+      throwsA(same(error)),
+    );
+    expect(commands, <List<String>>[
+      <String>['change-list', 'glsl-shaders', 'clr', ''],
+      <String>['change-list', 'glsl-shaders', 'clr', ''],
+    ]);
+  });
+
+  test('回滚清空失败时不会覆盖首次追加错误', () async {
+    final commands = <List<String>>[];
+    final appendError = StateError('append failed');
+    final cleanupError = StateError('cleanup failed');
+    var clearCalls = 0;
+    final executor = Anime4kShaderExecutor(command: (command) async {
+      commands.add(command);
+      if (command[2] == 'clr') {
+        clearCalls++;
+        if (clearCalls == 2) throw cleanupError;
+      }
+      if (command[2] == 'append') throw appendError;
+    });
+
+    await expectLater(
+      executor.apply(
+        Anime4kAction.enableQuality,
+        shaderPaths: const <String>['quality.glsl'],
+      ),
+      throwsA(same(appendError)),
+    );
+    expect(commands, <List<String>>[
+      <String>['change-list', 'glsl-shaders', 'clr', ''],
+      <String>['change-list', 'glsl-shaders', 'append', 'quality.glsl'],
+      <String>['change-list', 'glsl-shaders', 'clr', ''],
+    ]);
+  });
 }

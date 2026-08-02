@@ -14,7 +14,7 @@
 
 1. 保留 Flutter Modular、MobX、ChangeNotifier、现有路由以及控制器供页面使用的公开 API。
 2. 页面仍只通过控制器读取状态和触发动作；控制器不再直接编排多仓储事务或创建底层服务。
-3. 本地与网盘控制器不直接导入 `repositories` 和具体 `services`；依赖由应用协调器和强类型端口承接。
+3. 本地与网盘控制器不得构造 Repository/具体 Service，也不得直接编排跨多个仓储的事务；稳定数据类型和单一策略接口可以保留，底层实现由应用协调器和强类型端口承接。
 4. `PlayerController` 不再通过 `Modular.get` 解析依赖；media-kit 创建、打开、刷新和释放由专用运行时边界负责。
 5. 保持目录导航、扫描取消、过期结果丢弃、TMDB 离线降级、播放器生命周期、字幕、音轨、硬件解码和 Anime4K 行为不变。
 6. 删除来源、索引或缓存仍不得删除用户本地或远端原始媒体。
@@ -131,7 +131,7 @@ Widget / Route
 1. 在移动逻辑前补齐公开行为的特征测试，先证明测试可以捕获错误实现。
 2. 为每个 Coordinator 建立纯单元测试，覆盖成功、失败、取消、并发和过期结果。
 3. 扩展 `architecture_dependency_test.dart`：
-   - 本地和网盘 Controller 禁止直接导入 Repository 和具体 Service。
+   - 本地和网盘 Controller 禁止构造 Repository/具体 Service，禁止保留已提取事务的底层实现字段。
    - Controller 禁止使用 `Modular.get`。
    - Application Coordinator 禁止依赖页面和 Flutter Modular。
    - Player 的 media-kit 创建与释放只能出现在运行时实现。

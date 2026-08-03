@@ -45,9 +45,8 @@ class CloudRangeRelayService {
   }) {
     if (!capabilities.isAndroid) return CloudRangeRelayTuning.windows;
     return switch (providerType) {
-      CloudSourceType.quark ||
-      CloudSourceType.baidu =>
-        CloudRangeRelayTuning.androidHighThroughput,
+      CloudSourceType.quark => CloudRangeRelayTuning.androidQuarkAdaptive,
+      CloudSourceType.baidu => CloudRangeRelayTuning.androidHighThroughput,
       _ => CloudRangeRelayTuning.android,
     };
   }

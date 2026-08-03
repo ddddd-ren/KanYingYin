@@ -8,7 +8,7 @@ import 'package:kanyingyin/services/cloud/range/cloud_range_relay_session.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
-  test('Android 仅为夸克和百度启用六路高吞吐参数', () {
+  test('Android 仅为夸克启用八路自适应上限和192MiB缓存', () {
     final quark = CloudRangeRelayService.tuningFor(
       capabilities: AppPlatformCapabilities.android,
       providerType: CloudSourceType.quark,
@@ -22,12 +22,17 @@ void main() {
       providerType: CloudSourceType.xunlei,
     );
 
-    for (final tuning in <CloudRangeRelayTuning>[quark, baidu]) {
-      expect(tuning.maxConcurrentReads, 6);
-      expect(tuning.maxConcurrentPrefetch, 5);
-      expect(tuning.prefetchAheadChunks, 10);
-      expect(tuning.chunkSize * tuning.maxChunks, 128 * 1024 * 1024);
-    }
+    expect(quark.maxConcurrentReads, 6);
+    expect(quark.maxConcurrentPrefetch, 5);
+    expect(quark.prefetchAheadChunks, 10);
+    expect(quark.chunkSize * quark.maxChunks, 192 * 1024 * 1024);
+    expect(quark.adaptivePolicy?.maxConcurrentReads, 8);
+    expect(quark.adaptivePolicy?.maxConcurrentPrefetch, 7);
+    expect(quark.adaptivePolicy?.prefetchAheadChunks, 14);
+
+    expect(baidu, same(CloudRangeRelayTuning.androidHighThroughput));
+    expect(baidu.adaptivePolicy, isNull);
+    expect(baidu.chunkSize * baidu.maxChunks, 128 * 1024 * 1024);
     expect(xunlei, same(CloudRangeRelayTuning.android));
   });
 

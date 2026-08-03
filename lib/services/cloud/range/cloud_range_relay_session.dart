@@ -9,6 +9,21 @@ import 'package:kanyingyin/services/cloud/range/cloud_range_chunk_cache.dart';
 import 'package:kanyingyin/services/cloud/range/cloud_range_relay_protocol.dart';
 import 'package:kanyingyin/services/cloud/range/cloud_range_remote_reader.dart';
 
+class CloudRangeRelayAdaptivePolicy {
+  const CloudRangeRelayAdaptivePolicy({
+    required this.maxConcurrentReads,
+    required this.maxConcurrentPrefetch,
+    required this.prefetchAheadChunks,
+  })  : assert(maxConcurrentReads > 0),
+        assert(maxConcurrentPrefetch > 0),
+        assert(maxConcurrentPrefetch < maxConcurrentReads),
+        assert(prefetchAheadChunks >= maxConcurrentPrefetch);
+
+  final int maxConcurrentReads;
+  final int maxConcurrentPrefetch;
+  final int prefetchAheadChunks;
+}
+
 class CloudRangeRelayTuning {
   const CloudRangeRelayTuning({
     required this.chunkSize,
@@ -16,6 +31,7 @@ class CloudRangeRelayTuning {
     required this.maxConcurrentReads,
     required this.maxConcurrentPrefetch,
     required this.prefetchAheadChunks,
+    this.adaptivePolicy,
   })  : assert(chunkSize > 0),
         assert(maxChunks > 0),
         assert(maxConcurrentReads > 0),
@@ -47,11 +63,25 @@ class CloudRangeRelayTuning {
     prefetchAheadChunks: 10,
   );
 
+  static const androidQuarkAdaptive = CloudRangeRelayTuning(
+    chunkSize: 4 * 1024 * 1024,
+    maxChunks: 48,
+    maxConcurrentReads: 6,
+    maxConcurrentPrefetch: 5,
+    prefetchAheadChunks: 10,
+    adaptivePolicy: CloudRangeRelayAdaptivePolicy(
+      maxConcurrentReads: 8,
+      maxConcurrentPrefetch: 7,
+      prefetchAheadChunks: 14,
+    ),
+  );
+
   final int chunkSize;
   final int maxChunks;
   final int maxConcurrentReads;
   final int maxConcurrentPrefetch;
   final int prefetchAheadChunks;
+  final CloudRangeRelayAdaptivePolicy? adaptivePolicy;
 
   static CloudRangeRelayTuning forPlatform(
     AppPlatformCapabilities capabilities,

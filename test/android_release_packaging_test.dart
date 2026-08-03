@@ -56,6 +56,41 @@ void main() {
     expect(script, contains('com.kanyingyin.player'));
   });
 
+  test('Android 发布逐 ABI 验证 APK 和 AAB 的 Full libmpv', () {
+    final verifier = File(
+      'tool/android/verify_full_media_bundle.ps1',
+    ).readAsStringSync();
+    final release = File(
+      'tool/android/build_signed_release.ps1',
+    ).readAsStringSync();
+
+    for (final abi in const <String>[
+      'arm64-v8a',
+      'armeabi-v7a',
+      'x86',
+      'x86_64',
+    ]) {
+      expect(verifier, contains(abi));
+    }
+    expect(verifier, contains("ValidateSet('apk', 'aab')"));
+    expect(verifier, contains("'base/lib'"));
+    expect(verifier, contains("'lib'"));
+    expect(verifier, contains('libmpv.so'));
+    expect(verifier, contains('Get-FileHash'));
+    expect(
+      release,
+      contains(
+        "& \$fullBundleVerifier -PackagePath \$apk -PackageKind 'apk'",
+      ),
+    );
+    expect(
+      release,
+      contains(
+        "& \$fullBundleVerifier -PackagePath \$aab -PackageKind 'aab'",
+      ),
+    );
+  });
+
   test('仓库忽略发布密钥且不包含实际密钥文件', () {
     final ignore = File('.gitignore').readAsStringSync();
     expect(ignore, contains('/android/key.properties'));

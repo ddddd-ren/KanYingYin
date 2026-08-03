@@ -261,6 +261,7 @@ class CloudSeriesMatchService {
       id: id,
       mediaType: mediaType,
       title: title,
+      genres: record.genres,
       originalTitle: record.originalTitle,
       overview: record.overview,
       releaseDate: record.releaseDate,
@@ -287,6 +288,7 @@ class CloudSeriesMatchService {
       tmdbRating: metadata.rating,
       tmdbPosterUrl: metadata.posterUrl,
       tmdbBackdropUrl: metadata.backdropUrl,
+      tmdbGenres: metadata.genres,
       posterCachePath: posterCachePath,
     );
   }

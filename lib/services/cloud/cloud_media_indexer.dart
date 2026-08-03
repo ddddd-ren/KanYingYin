@@ -384,6 +384,7 @@ class CloudMediaIndexer {
           tmdbRating: metadata.rating,
           tmdbPosterUrl: metadata.posterUrl,
           tmdbBackdropUrl: metadata.backdropUrl,
+          tmdbGenres: metadata.genres,
           posterCachePath: rule.posterCachePath,
         );
       }

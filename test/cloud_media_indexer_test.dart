@@ -287,6 +287,7 @@ void main() {
             id: 42,
             mediaType: TmdbMediaType.tv,
             title: '回魂计',
+            genres: const <String>['悬疑'],
             language: 'zh-CN',
             matchedAt: DateTime.utc(2026, 7, 20),
             matchConfidence: 1,
@@ -316,6 +317,7 @@ void main() {
       final item = (await repository.getBySource(source.id)).single;
       expect(item.tmdbId, 42);
       expect(item.tmdbTitle, '回魂计');
+      expect(item.tmdbGenres, <String>['悬疑']);
     });
 
     test('没有季集证据的 OVA 和 Special 作为独立电影作品', () async {

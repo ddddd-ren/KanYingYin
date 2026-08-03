@@ -453,6 +453,7 @@ class CloudResourceTmdbService {
       tmdbRating: metadata.rating,
       tmdbPosterUrl: metadata.posterUrl,
       tmdbBackdropUrl: metadata.backdropUrl,
+      tmdbGenres: metadata.genres,
       posterCachePath: posterCachePath,
     );
   }

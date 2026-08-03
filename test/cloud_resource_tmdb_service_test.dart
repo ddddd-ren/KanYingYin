@@ -110,6 +110,7 @@ void main() {
     expect(await File(outcome.selected!.posterCachePath!).exists(), isTrue);
     final indexed = await indexRepository.getBySource('source-a');
     expect(indexed[0].tmdbId, 42);
+    expect(indexed[0].tmdbGenres, <String>['科幻']);
     expect(indexed[1].tmdbId, isNull);
     expect(client.searchedTypes, <TmdbMediaType>[
       TmdbMediaType.movie,
@@ -589,6 +590,7 @@ TmdbMetadata _candidate(TmdbMediaType type) {
     id: 42,
     mediaType: type,
     title: type == TmdbMediaType.tv ? '流浪地球' : '独立视频',
+    genres: const <String>['科幻'],
     releaseDate: '2019-01-01',
     language: 'zh-CN',
     matchedAt: DateTime.utc(2026, 7, 19),

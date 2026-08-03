@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/library/application/local_library_metadata_coordinator.dart';
 import 'package:kanyingyin/features/library/application/local_library_preferences.dart';
+import 'package:kanyingyin/features/library/application/library_genre_backfill_service.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
@@ -1178,6 +1179,82 @@ void main() {
       'https://image.tmdb.org/t/p/w780/show.jpg',
     );
   });
+
+  test('类型补齐期间暴露进度且部分失败保留重试提示', () async {
+    final service = _ControlledGenreBackfillService();
+    final controller = LocalController(
+      scanner: _ImmediateScanner(const <LocalFileItem>[]),
+      mediaIndexRepository: _MemoryMediaIndexRepository(),
+      mediaSourceRepository: _MemoryMediaSourceRepository(),
+      preferences: _preferences(),
+      tmdbApiKeyProvider: TmdbApiKeyProvider(userKeyReader: () => 'key'),
+      genreBackfillService: service,
+    );
+
+    final refresh = controller.refreshLibraryGenres();
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.isRefreshingLibraryGenres, isTrue);
+    expect(controller.libraryGenreRefreshProgress, '正在补齐类型 1/1');
+
+    service.complete(
+      const LibraryGenreBackfillResult(updatedWorks: 1, failedWorks: 1),
+    );
+    final result = await refresh;
+
+    expect(result.updatedWorks, 1);
+    expect(controller.isRefreshingLibraryGenres, isFalse);
+    expect(controller.libraryGenreRefreshProgress, '已更新 1 个作品类型');
+    expect(controller.libraryGenreRefreshError, '1 个作品暂时无法更新');
+  });
+}
+
+class _ControlledGenreBackfillService extends LibraryGenreBackfillService {
+  _ControlledGenreBackfillService()
+      : super(
+          localRepository: _MemoryMediaIndexRepository(),
+          cloudRepository: CloudMediaIndexRepository(
+            storage: MemoryCloudMediaIndexStorage(),
+          ),
+          clientFactory: (_) => _NeverTmdbClient(),
+        );
+
+  final Completer<LibraryGenreBackfillResult> _completer =
+      Completer<LibraryGenreBackfillResult>();
+
+  @override
+  Future<LibraryGenreBackfillResult> backfill({
+    required String apiKey,
+    required List<LocalMediaIndexItem> localItems,
+    required List<CloudMediaIndexItem> cloudItems,
+    void Function(int current, int total)? onProgress,
+  }) {
+    onProgress?.call(1, 1);
+    return _completer.future;
+  }
+
+  void complete(LibraryGenreBackfillResult result) {
+    _completer.complete(result);
+  }
+}
+
+class _NeverTmdbClient implements ITmdbClient {
+  @override
+  Future<TmdbMetadata> details(
+    int id,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<TmdbMetadata>> search(
+    String query,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) {
+    throw UnimplementedError();
+  }
 }
 
 LocalFileItem _item({required String path}) {

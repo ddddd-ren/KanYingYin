@@ -723,8 +723,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
             PopupMenuButton<String>(
               key: const ValueKey<String>('cloud-genre-filter'),
               tooltip: '筛选 TMDB 类型',
-              enabled:
-                  selected != null && _controller.availableGenres.isNotEmpty,
+              enabled: selected != null,
               onSelected: (value) {
                 if (value == '__clear__') {
                   _controller.clearGenres();
@@ -733,6 +732,11 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
                 }
               },
               itemBuilder: (_) => <PopupMenuEntry<String>>[
+                if (_controller.availableGenres.isEmpty)
+                  const PopupMenuItem<String>(
+                    enabled: false,
+                    child: Text('暂无类型标签'),
+                  ),
                 if (_controller.selectedGenres.isNotEmpty)
                   const PopupMenuItem<String>(
                     value: '__clear__',

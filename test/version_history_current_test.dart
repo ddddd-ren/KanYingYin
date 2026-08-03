@@ -5,58 +5,53 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一零三测试版展示安卓夸克、自适应系统栏和 TrueHD 更新', () {
-    final entries = versionHistoryForCurrent('2.1.103');
+  test('一点零五正式版综合二点一零一至二点一零三更新', () {
+    final entries = versionHistoryForCurrent('1.0.5');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.isPrerelease, isTrue);
+    expect(entry.version, '1.0.5');
+    expect(entry.isPrerelease, isFalse);
     for (final text in <String>[
       'Windows',
       'Android',
+      '2.1.101',
+      '2.1.103',
+      '诊断日志',
       '夸克',
       '自适应',
-      '八路',
-      '192 MiB',
       '系统栏',
-      '黑边',
       'TrueHD',
-      'Full',
-      '立体声',
       '沉浸',
-      '待实机验证',
-      '测试版',
+      '正式版',
       '不会修改或删除',
     ]) {
       expect(changes, contains(text));
     }
   });
 
-  test('Android 二点一零三测试版只展示移动端读取、系统栏和 TrueHD 更新', () {
+  test('Android 一点零二正式版只展示近期移动端功能更新', () {
     final entries = versionHistoryForCurrent(
-      '2.1.103',
+      '1.0.5',
       platform: AppPlatformKind.android,
     );
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.version, '2.1.103');
-    expect(entry.isPrerelease, isTrue);
+    expect(entry.version, '1.0.2');
+    expect(entry.isPrerelease, isFalse);
     for (final text in <String>[
+      '2.1.101',
+      '2.1.103',
+      '诊断日志',
       'TrueHD',
-      'Full',
-      '立体声',
       '夸克',
       '自适应',
-      '八路',
-      '192 MiB',
       '系统栏',
-      '黑边',
       '沉浸',
-      '待实机验证',
-      '测试版',
+      '正式版',
       '不会修改或删除',
     ]) {
       expect(changes, contains(text));

@@ -5,11 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('二点一零三测试版双平台版本和发布文案保持一致', () {
-    const expectedVersion = '2.1.103';
-    const expectedBuildNumber = '20103';
-    const expectedAndroidVersion = '2.1.103';
-    const expectedAndroidVersionCode = '20103';
+  test('一点零五正式版双平台版本和发布文案保持一致', () {
+    const expectedVersion = '1.0.5';
+    const expectedBuildNumber = '10005';
+    const expectedAndroidVersion = '1.0.2';
+    const expectedAndroidVersionCode = '10002';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final androidGradle =
@@ -84,11 +84,11 @@ void main() {
     expect(updateDialogCopy, contains('应用版本：$version'));
     expect(updateDialogCopy, contains('安装包版本：$version.0'));
     expect(updateDialogCopy, contains('Android 应用版本：$expectedAndroidVersion'));
-    expect(updateDialogCopy, contains('看影音 $version 测试版'));
+    expect(updateDialogCopy, contains('看影音 $version 正式版'));
     expect(updateDialogCopy, contains('Android 弹窗正文'));
     expect(
       updateDialogCopy,
-      contains('看影音 Android $expectedAndroidVersion 测试版'),
+      contains('看影音 Android $expectedAndroidVersion 正式版'),
     );
     final versionHistoryListStart = versionHistory.indexOf(
       'const List<VersionHistory> versionHistoryList',
@@ -135,26 +135,23 @@ void main() {
       for (final text in <String>[
         'Windows',
         'Android',
+        '2.1.101',
+        '2.1.103',
+        '诊断日志',
         '夸克',
         '自适应',
-        '八路',
-        '192 MiB',
-        '系统栏',
-        '黑边',
         'TrueHD',
-        'Full',
-        '立体声',
         '沉浸',
-        '待实机验证',
-        '测试版',
+        '系统栏',
+        '正式版',
         '不会修改或删除',
       ]) {
         expect(currentCopy, contains(text));
       }
     }
-    expect(currentReleaseNotes, contains('测试版'));
-    expect(updateDialogCopy, contains('测试版'));
-    expect(currentVersionHistory, contains('isPrerelease: true'));
+    expect(currentReleaseNotes, contains('正式版'));
+    expect(updateDialogCopy, contains('正式版'));
+    expect(currentVersionHistory, isNot(contains('isPrerelease: true')));
   });
 }
 

@@ -44,6 +44,20 @@ const VersionHistory _androidSecondRelease = VersionHistory(
   ],
 );
 
+const VersionHistory _androidThirdRelease = VersionHistory(
+  version: '1.0.2',
+  date: '2026-08-03',
+  changes: [
+    'Android 1.0.2 正式版综合 2.1.101 至 2.1.103 的移动端功能更新',
+    '诊断日志页面支持导出完整脱敏诊断包，并通过系统分享面板发送或保存；网盘凭据、Token、请求头和远程媒体完整地址不会进入导出内容',
+    '为只有 TrueHD/MLP 音轨的视频提供软件解码和立体声输出，同时继续保留 MediaCodec 视频硬件解码',
+    '横屏播放器保持沉浸显示，旋转、恢复前台或重新获得焦点后会继续隐藏系统栏；普通页面的状态栏和底部手势区与界面同色',
+    '夸克原画播放会根据缓存压力自适应提速，最多使用八路读取和七路后台预取，临时缓存上限为 192 MiB；重新连接后会先回到稳健档位，缓存恢复后再按实际压力提速',
+    '百度及迅雷网盘读取策略保持不变',
+    '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+  ],
+);
+
 const VersionHistory _androidAdaptiveQuarkSystemBarsPrerelease = VersionHistory(
   version: '2.1.103',
   date: '2026-08-03',
@@ -135,6 +149,20 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 );
 
 const List<VersionHistory> versionHistoryList = [
+  VersionHistory(
+    version: '1.0.5',
+    date: '2026-08-03',
+    changes: [
+      '本轮同步提供 Windows 1.0.5 与 Android 1.0.2 正式版，分别使用 MSIX、APK 和 AAB 交付',
+      '本次正式版综合 2.1.101 至 2.1.103 测试版成果，重点完善 Android 诊断日志、音频兼容、沉浸显示和网盘原画播放体验',
+      'Android 诊断日志页面支持导出完整脱敏诊断包，并通过系统分享面板发送或保存；网盘凭据、Token、请求头和远程媒体完整地址不会进入导出内容',
+      'Android 为只有 TrueHD/MLP 音轨的视频提供软件解码和立体声输出，同时继续保留 MediaCodec 视频硬件解码',
+      'Android 横屏播放器保持沉浸显示，旋转、恢复前台或重新获得焦点后会继续隐藏系统栏；普通页面的状态栏和底部手势区与界面同色',
+      'Android 夸克原画播放会根据缓存压力自适应提速，最多使用八路读取和七路后台预取，临时缓存上限为 192 MiB；重新连接后会先回到稳健档位',
+      'Windows 继续提供稳定的本地与个人网盘媒体库、播放、字幕、Anime4K 和脱敏日志能力',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
   VersionHistory(
     version: '2.1.103',
     date: '2026-08-03',
@@ -1957,20 +1985,15 @@ const List<VersionHistory> versionHistoryList = [
       '关于页面已移除不属于看影音的外部链接',
     ],
   ),
-  VersionHistory(
-    version: '1.0.5',
-    date: '2026-07-14',
-    changes: [
-      '修复代理检测仍依赖旧在线服务导致 TMDB 无法连接的问题',
-      '代理检测现在直接验证 TMDB，并加强凭据日志保护',
-    ],
-  ),
 ];
 
 List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '1.0.5' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[_androidThirdRelease];
+  }
   if (currentVersion == '2.1.103' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[
       _androidAdaptiveQuarkSystemBarsPrerelease,

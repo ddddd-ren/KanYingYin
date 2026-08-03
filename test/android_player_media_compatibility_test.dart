@@ -7,6 +7,8 @@ void main() {
   late String mainActivity;
   late String manifest;
   late String windowUtils;
+  late String immersiveModeController;
+  late String immersiveModeApplier;
 
   setUpAll(() {
     controller =
@@ -17,6 +19,14 @@ void main() {
     manifest =
         File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
     windowUtils = File('lib/utils/window_utils.dart').readAsStringSync();
+    immersiveModeController = File(
+      'android/app/src/main/kotlin/com/kanyingyin/player/'
+      'ImmersiveModeController.kt',
+    ).readAsStringSync();
+    immersiveModeApplier = File(
+      'android/app/src/main/kotlin/com/kanyingyin/player/'
+      'AndroidImmersiveModeApplier.kt',
+    ).readAsStringSync();
   });
 
   test('Android 平板启动即固定为双向横屏且退出全屏不切回竖屏', () {
@@ -110,6 +120,56 @@ void main() {
         '      await player.setAudioTrack(track);',
       ),
     );
+  });
+
+  test('Android 全屏保持彻底沉浸并在退出时恢复系统栏', () {
+    expect(immersiveModeController, contains('var isRequested: Boolean'));
+    expect(
+      immersiveModeApplier,
+      contains('BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE'),
+    );
+    expect(
+      immersiveModeApplier,
+      contains('window.setDecorFitsSystemWindows(false)'),
+    );
+    expect(immersiveModeApplier, contains('Color.TRANSPARENT'));
+    expect(
+      immersiveModeApplier,
+      contains('window.isNavigationBarContrastEnforced = false'),
+    );
+    expect(
+      immersiveModeApplier,
+      contains('controller.hide(WindowInsets.Type.systemBars())'),
+    );
+    expect(
+      immersiveModeApplier,
+      contains('window.setDecorFitsSystemWindows(true)'),
+    );
+    expect(
+      immersiveModeApplier,
+      contains('controller.show(WindowInsets.Type.systemBars())'),
+    );
+    expect(mainActivity, contains('override fun onResume()'));
+    expect(mainActivity, contains('override fun onWindowFocusChanged'));
+    expect(
+      mainActivity,
+      contains('immersiveModeController.reapplyIfRequested()'),
+    );
+    expect(
+      mainActivity,
+      contains('immersiveModeController.setEnabled(enabled)'),
+    );
+    expect(windowUtils, contains('setImmersive(true)'));
+    expect(windowUtils, contains('setImmersive(false)'));
+  });
+
+  test('Android TrueHD 无兼容音轨时保持视频并提示导出日志', () {
+    expect(
+      controller,
+      contains('当前播放器组件无法解码此音轨，请导出诊断日志'),
+    );
+    expect(controller, contains('_truehdAudioTrackFallbackAttempted = true'));
+    expect(controller, isNot(contains('_retryWithSoftwareDecodingForTrueHd')));
   });
 
   test('Android 视频硬解打开失败时只重载视频轨并降级软解', () {

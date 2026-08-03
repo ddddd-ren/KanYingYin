@@ -5,6 +5,7 @@ import 'package:kanyingyin/features/library/application/local_library_metadata_c
 import 'package:kanyingyin/features/library/application/local_library_preferences.dart';
 import 'package:kanyingyin/features/library/application/local_library_source_coordinator.dart';
 import 'package:kanyingyin/features/library/application/local_library_tmdb_coordinator.dart';
+import 'package:kanyingyin/features/library/application/library_genre_backfill_service.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/local_media_source.dart';
@@ -80,6 +81,7 @@ abstract class _LocalController with Store {
     TmdbApiKeyProvider? tmdbApiKeyProvider,
     TmdbScrapeOptions Function()? tmdbScrapeOptionsProvider,
     bool Function()? tmdbAutoScrapeProvider,
+    LibraryGenreBackfillService? genreBackfillService,
   }) : this._(
           scanner: scanner,
           mediaIndexer: mediaIndexer,
@@ -100,6 +102,7 @@ abstract class _LocalController with Store {
               tmdbApiKeyProvider ?? TmdbApiKeyProvider(userKeyReader: () => ''),
           tmdbScrapeOptionsProvider: tmdbScrapeOptionsProvider,
           tmdbAutoScrapeProvider: tmdbAutoScrapeProvider,
+          genreBackfillService: genreBackfillService,
         );
 
   _LocalController._({
@@ -120,6 +123,7 @@ abstract class _LocalController with Store {
     required TmdbApiKeyProvider tmdbApiKeyProvider,
     TmdbScrapeOptions Function()? tmdbScrapeOptionsProvider,
     bool Function()? tmdbAutoScrapeProvider,
+    LibraryGenreBackfillService? genreBackfillService,
   })  : _scanner = scanner ?? LocalMediaScanner(),
         _mediaIndexRepository = mediaIndexRepository,
         _mediaIndexer =
@@ -154,7 +158,8 @@ abstract class _LocalController with Store {
         _cloudCacheRootProvider =
             cloudCacheRootProvider ?? defaultCloudCacheRoot,
         _scanCloudSource = scanCloudSource,
-        _cloudTmdbMetadataService = cloudTmdbMetadataService;
+        _cloudTmdbMetadataService = cloudTmdbMetadataService,
+        _providedGenreBackfillService = genreBackfillService;
 
   final ILocalMediaScanner _scanner;
   final ILocalMediaIndexRepository _mediaIndexRepository;
@@ -175,6 +180,14 @@ abstract class _LocalController with Store {
   final CloudCacheRootProvider _cloudCacheRootProvider;
   final Future<void> Function(String sourceId)? _scanCloudSource;
   CloudTmdbMetadataService? _cloudTmdbMetadataService;
+  final LibraryGenreBackfillService? _providedGenreBackfillService;
+  late final LibraryGenreBackfillService _genreBackfillService =
+      _providedGenreBackfillService ??
+          LibraryGenreBackfillService(
+            localRepository: _mediaIndexRepository,
+            cloudRepository: _cloudMediaIndexRepository,
+            clientFactory: (apiKey) => TmdbClient(apiKey: apiKey),
+          );
   final ObservableMap<String, bool> _sourceAccessibility = ObservableMap();
   late final LocalLibrarySourceCoordinator _sourceCoordinator =
       LocalLibrarySourceCoordinator(
@@ -271,6 +284,15 @@ abstract class _LocalController with Store {
   String? cloudRefreshError;
 
   @observable
+  bool isRefreshingLibraryGenres = false;
+
+  @observable
+  String libraryGenreRefreshProgress = '';
+
+  @observable
+  String? libraryGenreRefreshError;
+
+  @observable
   bool isScrapingTmdb = false;
 
   @observable
@@ -321,7 +343,7 @@ abstract class _LocalController with Store {
     _reloadMediaSourcesSafe();
     await _refreshLocalLibraryDerivedMetadataSafe();
     _reloadLocalLibraryIndexSafe();
-    unawaited(reloadCloudLibraryIndex());
+    unawaited(_reloadCloudAndBackfillGenres());
     final lastDir = _preferences.lastLocalDirectory;
     final userDefaultPath = _preferences.defaultPath;
 
@@ -783,6 +805,54 @@ abstract class _LocalController with Store {
         stackTrace: stackTrace,
       );
       if (throwOnFailure) rethrow;
+    }
+  }
+
+  Future<void> _reloadCloudAndBackfillGenres() async {
+    await reloadCloudLibraryIndex();
+    await refreshLibraryGenres();
+  }
+
+  @action
+  Future<LibraryGenreBackfillResult> refreshLibraryGenres() async {
+    if (isRefreshingLibraryGenres) {
+      return const LibraryGenreBackfillResult(
+        updatedWorks: 0,
+        failedWorks: 0,
+      );
+    }
+    isRefreshingLibraryGenres = true;
+    libraryGenreRefreshProgress = '正在检查类型标签';
+    libraryGenreRefreshError = null;
+    try {
+      final result = await _genreBackfillService.backfill(
+        apiKey: _tmdbApiKey,
+        localItems: localLibraryItems.toList(growable: false),
+        cloudItems: cloudLibraryItems.toList(growable: false),
+        onProgress: (current, total) => runInAction(() {
+          libraryGenreRefreshProgress = '正在补齐类型 $current/$total';
+        }),
+      );
+      _reloadLocalLibraryIndexSafe();
+      await reloadCloudLibraryIndex();
+      libraryGenreRefreshProgress = '已更新 ${result.updatedWorks} 个作品类型';
+      if (result.failedWorks > 0) {
+        libraryGenreRefreshError = '${result.failedWorks} 个作品暂时无法更新';
+      }
+      return result;
+    } on Object catch (error, stackTrace) {
+      libraryGenreRefreshError = '类型标签更新失败，请稍后重试';
+      AppLogger().w(
+        'LocalController: genre backfill failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return const LibraryGenreBackfillResult(
+        updatedWorks: 0,
+        failedWorks: 1,
+      );
+    } finally {
+      isRefreshingLibraryGenres = false;
     }
   }
 

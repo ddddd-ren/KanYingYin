@@ -410,6 +410,57 @@ mixin _$LocalController on _LocalController, Store {
     });
   }
 
+  late final _$isRefreshingLibraryGenresAtom = Atom(
+      name: '_LocalController.isRefreshingLibraryGenres', context: context);
+
+  @override
+  bool get isRefreshingLibraryGenres {
+    _$isRefreshingLibraryGenresAtom.reportRead();
+    return super.isRefreshingLibraryGenres;
+  }
+
+  @override
+  set isRefreshingLibraryGenres(bool value) {
+    _$isRefreshingLibraryGenresAtom
+        .reportWrite(value, super.isRefreshingLibraryGenres, () {
+      super.isRefreshingLibraryGenres = value;
+    });
+  }
+
+  late final _$libraryGenreRefreshProgressAtom = Atom(
+      name: '_LocalController.libraryGenreRefreshProgress', context: context);
+
+  @override
+  String get libraryGenreRefreshProgress {
+    _$libraryGenreRefreshProgressAtom.reportRead();
+    return super.libraryGenreRefreshProgress;
+  }
+
+  @override
+  set libraryGenreRefreshProgress(String value) {
+    _$libraryGenreRefreshProgressAtom
+        .reportWrite(value, super.libraryGenreRefreshProgress, () {
+      super.libraryGenreRefreshProgress = value;
+    });
+  }
+
+  late final _$libraryGenreRefreshErrorAtom =
+      Atom(name: '_LocalController.libraryGenreRefreshError', context: context);
+
+  @override
+  String? get libraryGenreRefreshError {
+    _$libraryGenreRefreshErrorAtom.reportRead();
+    return super.libraryGenreRefreshError;
+  }
+
+  @override
+  set libraryGenreRefreshError(String? value) {
+    _$libraryGenreRefreshErrorAtom
+        .reportWrite(value, super.libraryGenreRefreshError, () {
+      super.libraryGenreRefreshError = value;
+    });
+  }
+
   late final _$isScrapingTmdbAtom =
       Atom(name: '_LocalController.isScrapingTmdb', context: context);
 
@@ -765,6 +816,15 @@ mixin _$LocalController on _LocalController, Store {
         .run(() => super.removeUnavailableMediaSources());
   }
 
+  late final _$refreshLibraryGenresAsyncAction =
+      AsyncAction('_LocalController.refreshLibraryGenres', context: context);
+
+  @override
+  Future<LibraryGenreBackfillResult> refreshLibraryGenres() {
+    return _$refreshLibraryGenresAsyncAction
+        .run(() => super.refreshLibraryGenres());
+  }
+
   late final _$refreshLocalLibraryIndexAsyncAction = AsyncAction(
       '_LocalController.refreshLocalLibraryIndex',
       context: context);
@@ -925,6 +985,9 @@ thumbnailCurrentFile: ${thumbnailCurrentFile},
 thumbnailCurrent: ${thumbnailCurrent},
 thumbnailTotal: ${thumbnailTotal},
 localLibraryItems: ${localLibraryItems},
+isRefreshingLibraryGenres: ${isRefreshingLibraryGenres},
+libraryGenreRefreshProgress: ${libraryGenreRefreshProgress},
+libraryGenreRefreshError: ${libraryGenreRefreshError},
 isScrapingTmdb: ${isScrapingTmdb},
 tmdbScrapeProgress: ${tmdbScrapeProgress},
 tmdbScrapeCurrent: ${tmdbScrapeCurrent},

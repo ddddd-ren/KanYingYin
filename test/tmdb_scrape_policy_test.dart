@@ -85,6 +85,23 @@ void main() {
     expect(plan.mediaTypes, <TmdbMediaType>[TmdbMediaType.tv]);
   });
 
+  test('本地搜索计划清理 REMUX 版本杜比视界和多音轨后缀', () {
+    const subject = TmdbScrapeSubject(
+      stableKey: 'remux-release-title',
+      titleCandidates: <String>[
+        '流浪地球 V3 UHD REMUX DoVi TrueHD7 1 14Audio.mkv',
+      ],
+      mediaEvidence: TmdbMediaEvidence.movie,
+    );
+
+    final plan = policy.build(
+      subject,
+      const TmdbScrapeOptions.defaults(),
+    );
+
+    expect(plan.queries, <String>['流浪地球']);
+  });
+
   test('纯年份数字作品名不会被清空', () {
     const subject = TmdbScrapeSubject(
       stableKey: 'numeric-title',

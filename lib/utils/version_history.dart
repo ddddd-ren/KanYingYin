@@ -44,6 +44,19 @@ const VersionHistory _androidSecondRelease = VersionHistory(
   ],
 );
 
+const VersionHistory _androidDiagnosticLogSharePrerelease = VersionHistory(
+  version: '2.1.101',
+  date: '2026-08-03',
+  isPrerelease: true,
+  changes: [
+    'Android 2.1.101 测试版在错误日志页面新增“导出诊断日志”入口，遇到播放问题时可直接生成完整诊断包',
+    '导出完整脱敏诊断包后会打开系统分享面板，可发送到其他应用或保存到文件，无需申请全盘存储权限',
+    '诊断包包含应用、系统、解码设置和播放器底层日志，并继续隐藏网盘凭据、Token、请求头与远程媒体完整地址',
+    '导出不会清空原日志；日志为空或页面读取失败时仍可尝试取得底层诊断文件',
+    '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+  ],
+);
+
 const VersionHistory _androidAnime4kShaderListRelease = VersionHistory(
   version: '2.1.98',
   date: '2026-08-02',
@@ -94,6 +107,19 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 );
 
 const List<VersionHistory> versionHistoryList = [
+  VersionHistory(
+    version: '2.1.101',
+    date: '2026-08-03',
+    isPrerelease: true,
+    changes: [
+      '本轮同步提供 Windows 与 Android 2.1.101 测试版，分别使用 MSIX、APK 和 AAB 交付',
+      '错误日志页面新增诊断日志导出入口，Android 可直接通过系统分享面板发送或保存完整脱敏日志',
+      '诊断包继续包含应用、系统、解码设置和播放器底层日志，便于定位 TrueHD 等播放兼容问题',
+      '网盘凭据、Token、请求头和远程媒体完整地址不会进入导出内容，导出也不会清空原日志',
+      'Windows 设置页原有下载目录导出行为保持不变，播放器、媒体库和网盘文件处理逻辑不变',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
   VersionHistory(
     version: '1.0.4',
     date: '2026-08-02',
@@ -1891,6 +1917,9 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '2.1.101' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[_androidDiagnosticLogSharePrerelease];
+  }
   if (currentVersion == '1.0.4' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[_androidSecondRelease];
   }

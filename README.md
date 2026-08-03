@@ -85,7 +85,7 @@ OpenList、夸克、百度和迅雷网盘在本项目中仅作为用户自有媒
 ### 诊断
 
 - 自动记录脱敏运行日志，最多保留 10 个日志文件。
-- 支持导出脱敏诊断 ZIP，用于排查播放问题。
+- 错误日志页面支持导出完整脱敏诊断 ZIP；Android 会打开系统分享面板，用于保存或发送日志并排查播放问题。
 
 ## 系统要求
 
@@ -93,16 +93,16 @@ OpenList、夸克、百度和迅雷网盘在本项目中仅作为用户自有媒
 | --- | --- |
 | 支持平台 | Windows 10/11 x64；Android 7.0+（API 24+） |
 | 安装格式 | MSIX / APK |
-| 当前版本 | 1.0.4 |
-| 本轮交付 | Windows 正式版 MSIX；Android 正式版 APK/AAB |
-| Android 版本 | 1.0.1 |
+| 当前版本 | 2.1.101 |
+| 本轮交付 | Windows 测试版 MSIX；Android 测试版 APK/AAB |
+| Android 版本 | 2.1.101 |
 | Dart 包名 | `kanyingyin` |
 | Windows 包标识 | `com.kanyingyin.player` |
 | Android 应用标识 | `com.kanyingyin.player` |
 | Flutter | 3.41.9 |
 
-项目同时支持 Windows 与 Android。1.0.4 本轮构建并交付 Windows 正式版 MSIX
-和 Android 1.0.1 正式版签名 APK/AAB；APK 用于直接安装，AAB 用于 Android
+项目同时支持 Windows 与 Android。2.1.101 本轮构建并交付 Windows 测试版 MSIX
+和 Android 2.1.101 测试版签名 APK/AAB；APK 用于直接安装，AAB 用于 Android
 应用商店交付。
 
 ## 安装

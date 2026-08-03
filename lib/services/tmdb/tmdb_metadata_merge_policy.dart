@@ -50,6 +50,7 @@ class TmdbMetadataMergePolicy {
       language: fetched.language,
       matchedAt: fetched.matchedAt,
       matchConfidence: matchConfidence,
+      genres: fetched.genres,
       seasons: resolvedSeasons,
     );
   }

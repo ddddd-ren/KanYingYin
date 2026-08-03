@@ -28,6 +28,7 @@ void main() {
         language: 'zh-CN',
         matchedAt: DateTime(2026),
         matchConfidence: 0.95,
+        genres: const <String>['动作', '科幻'],
       ),
       titleLocked: true,
       posterLocked: true,
@@ -38,10 +39,17 @@ void main() {
     final restored = LocalMediaIndexItem.fromJson(item.toJson());
     expect(restored.tmdb?.id, 123);
     expect(restored.tmdb?.title, '电影');
+    expect(restored.tmdb?.genres, const <String>['动作', '科幻']);
     expect(restored.titleLocked, isTrue);
     expect(restored.posterLocked, isTrue);
     expect(restored.overviewLocked, isTrue);
     expect(restored.scrapeStatus, TmdbScrapeStatus.matched);
+
+    final dirtyGenres = TmdbMetadata.fromJson(<String, dynamic>{
+      ...item.tmdb!.toJson(),
+      'genres': <Object?>['动作', '', '动作', 42, ' 科幻 '],
+    });
+    expect(dirtyGenres.genres, const <String>['动作', '科幻']);
   });
 
   test('领域模型只解析当前 TMDB 结构', () {

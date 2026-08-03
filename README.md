@@ -93,15 +93,15 @@ OpenList、夸克、百度和迅雷网盘在本项目中仅作为用户自有媒
 | --- | --- |
 | 支持平台 | Windows 10/11 x64；Android 7.0+（API 24+） |
 | 安装格式 | MSIX / APK |
-| 当前版本 | 2.1.104 |
-| 本轮交付 | Windows 正式版 MSIX；Android 正式版 APK/AAB |
+| 当前版本 | 2.1.105 |
+| 本轮交付 | Windows 测试版 MSIX；Android 本轮不构建或测试 |
 | Android 版本 | 1.0.2 |
 | Dart 包名 | `kanyingyin` |
 | Windows 包标识 | `com.kanyingyin.player` |
 | Android 应用标识 | `com.kanyingyin.player` |
 | Flutter | 3.41.9 |
 
-项目同时支持 Windows 与 Android。2.1.104 本轮只构建并交付 Windows 测试版 MSIX；
+项目同时支持 Windows 与 Android。2.1.105 本轮只构建并交付 Windows 测试版 MSIX；
 Android 保持 1.0.2 正式版，本轮不构建 APK/AAB，也不进行 Android 平台测试。
 应用商店交付。
 

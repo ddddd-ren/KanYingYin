@@ -150,6 +150,19 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.107',
+    date: '2026-08-03',
+    isPrerelease: true,
+    changes: [
+      '本轮只提供 Windows 2.1.107 测试版 MSIX，不构建或测试 Android 安装包',
+      '网盘标签菜单在没有类型标签时提供“刮削当前来源生成标签”，可直接为当前网盘资源生成 TMDB 类型',
+      '当前网盘还没有标签时，菜单会显示“暂无类型标签”，不再让用户面对无法筛选的空入口',
+      '类型筛选多选时匹配任一类型，并且只筛选当前网盘资源',
+      '本地媒体库严格只显示本地资源，不再混入网盘资源或提供网盘来源入口',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.106',
     date: '2026-08-04',
     isPrerelease: true,

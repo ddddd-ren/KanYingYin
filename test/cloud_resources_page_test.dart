@@ -818,6 +818,7 @@ void main() {
     await tester.tap(find.byTooltip('筛选 TMDB 类型'));
     await tester.pumpAndSettle();
     expect(find.text('暂无类型标签'), findsOneWidget);
+    expect(find.text('刮削当前来源生成标签'), findsOneWidget);
     await tester.tapAt(const Offset(2, 2));
     await tester.pumpAndSettle();
     expect(find.text('自动整理当前来源'), findsNothing);
@@ -920,6 +921,30 @@ void main() {
     await tester.tap(find.text('清除'));
     await tester.pumpAndSettle();
     expect(fixture.controller.selectedGenres, isEmpty);
+    fixture.controller.dispose();
+  });
+
+  testWidgets('没有类型标签时可从标签菜单直接刮削当前来源', (tester) async {
+    final coordinator = _ManualTmdbCoordinator();
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      entries: <CloudFileEntry>[
+        _pageVideo('untagged', '/影视/未刮削.mkv', '未刮削.mkv'),
+      ],
+      tmdbCoordinator: coordinator,
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: CloudResourcesPage(controller: fixture.controller)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('筛选 TMDB 类型'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('刮削当前来源生成标签'));
+    await tester.pumpAndSettle();
+
+    expect(coordinator.scrapedTarget?.remote.id, 'untagged');
+    expect(find.textContaining('当前来源刮削完成'), findsOneWidget);
     fixture.controller.dispose();
   });
 

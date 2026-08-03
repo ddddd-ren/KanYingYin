@@ -3,19 +3,19 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('当前发布配置固定为 Windows 一点零五和 Android 一点零二正式版', () {
+  test('当前发布配置固定为 Windows 二点一零四测试版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
 
-    expect(pubspec, contains('version: 1.0.5+10005'));
-    expect(pubspec, contains('msix_version: 1.0.5.0'));
+    expect(pubspec, contains('version: 2.1.104+20104'));
+    expect(pubspec, contains('msix_version: 2.1.104.0'));
     for (final source in <String>[releaseNotes, updateDialogCopy]) {
-      expect(source, contains('Windows 正式版'));
+      expect(source, contains('Windows 测试版'));
       expect(source, contains('Android'));
-      expect(source, contains('1.0.5'));
+      expect(source, contains('2.1.104'));
       expect(source, contains('1.0.2'));
-      expect(source, contains('正式版'));
+      expect(source, contains('测试版'));
     }
   });
 

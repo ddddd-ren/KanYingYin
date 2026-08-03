@@ -142,6 +142,104 @@ void main() {
     }
   });
 
+  test('夸克前台缓存压力升为八路且重连后退回六路', () async {
+    final adaptiveDirectory =
+        await Directory.systemTemp.createTemp('cloud-relay-adaptive-');
+    final adaptiveReader = _AdaptiveRangeReader(
+      totalLength: 512,
+      delay: const Duration(milliseconds: 100),
+    );
+    final logs = <String>[];
+    final adaptiveSession = await CloudRangeRelaySession.start(
+      reader: adaptiveReader,
+      directory: adaptiveDirectory,
+      providerName: '夸克',
+      tuning: CloudRangeRelayTuning.androidQuarkAdaptive,
+      chunkSize: 4,
+      maxChunks: 48,
+      log: logs.add,
+    );
+    final client = HttpClient()..findProxy = (_) => 'DIRECT';
+    try {
+      expect(adaptiveSession.adaptiveMode, CloudRangeRelayAdaptiveMode.base);
+      expect(adaptiveSession.currentMaxConcurrentReads, 6);
+
+      final request = await client.getUrl(adaptiveSession.uri);
+      request.headers.set(HttpHeaders.rangeHeader, 'bytes=64-95');
+      await (await request.close()).drain<void>();
+
+      expect(
+        adaptiveSession.adaptiveMode,
+        CloudRangeRelayAdaptiveMode.boosted,
+      );
+      expect(adaptiveSession.currentMaxConcurrentReads, 8);
+      expect(adaptiveSession.currentMaxConcurrentPrefetch, 7);
+      final combined = logs.join('\n');
+      expect(combined, contains('foreground_cache_pressure'));
+      expect(combined, isNot(contains(_AdaptiveRangeReader.secretUri)));
+      expect(combined, isNot(contains(_AdaptiveRangeReader.secretCookie)));
+      expect(combined, isNot(contains('chunk-private-path')));
+
+      adaptiveReader.emit(CloudRangeReaderEvent.reconnecting);
+      expect(adaptiveSession.adaptiveMode, CloudRangeRelayAdaptiveMode.base);
+      expect(adaptiveSession.currentMaxConcurrentReads, 6);
+      expect(logs.join('\n'), contains('reconnecting'));
+    } finally {
+      client.close(force: true);
+      await adaptiveSession.close();
+    }
+
+    expect(logs.join('\n'), contains('event=session_closed'));
+    expect(logs.join('\n'), contains('receivedBytes='));
+  });
+
+  test('夸克降档后再次出现前台缓存压力可以重新升档', () async {
+    final adaptiveDirectory =
+        await Directory.systemTemp.createTemp('cloud-relay-readaptive-');
+    final adaptiveReader = _AdaptiveRangeReader(
+      totalLength: 512,
+      delay: const Duration(milliseconds: 100),
+    );
+    final logs = <String>[];
+    final adaptiveSession = await CloudRangeRelaySession.start(
+      reader: adaptiveReader,
+      directory: adaptiveDirectory,
+      providerName: '夸克',
+      tuning: CloudRangeRelayTuning.androidQuarkAdaptive,
+      chunkSize: 4,
+      maxChunks: 48,
+      log: logs.add,
+    );
+    final client = HttpClient()..findProxy = (_) => 'DIRECT';
+    try {
+      final first = await client.getUrl(adaptiveSession.uri);
+      first.headers.set(HttpHeaders.rangeHeader, 'bytes=64-95');
+      await (await first.close()).drain<void>();
+      expect(
+        adaptiveSession.adaptiveMode,
+        CloudRangeRelayAdaptiveMode.boosted,
+      );
+
+      adaptiveReader.emit(CloudRangeReaderEvent.refreshing);
+      expect(adaptiveSession.adaptiveMode, CloudRangeRelayAdaptiveMode.base);
+
+      final second = await client.getUrl(adaptiveSession.uri);
+      second.headers.set(HttpHeaders.rangeHeader, 'bytes=256-287');
+      await (await second.close()).drain<void>();
+
+      expect(
+        adaptiveSession.adaptiveMode,
+        CloudRangeRelayAdaptiveMode.boosted,
+      );
+      expect(adaptiveSession.currentMaxConcurrentReads, 8);
+      expect(adaptiveReader.maxActiveReads, lessThanOrEqualTo(8));
+      expect(logs.join('\n'), contains('refreshing'));
+    } finally {
+      client.close(force: true);
+      await adaptiveSession.close();
+    }
+  });
+
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('cloud-relay-test-');
     remoteServer = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -414,6 +512,32 @@ class _DelayedRangeReader implements CloudRangeRemoteReader {
 
   @override
   Future<void> close() async {}
+}
+
+class _AdaptiveRangeReader extends _DelayedRangeReader {
+  _AdaptiveRangeReader({
+    required super.totalLength,
+    required super.delay,
+  });
+
+  final StreamController<CloudRangeReaderEvent> eventController =
+      StreamController<CloudRangeReaderEvent>.broadcast(sync: true);
+
+  static const secretUri = 'https://secret.example/video?id=private';
+  static const secretCookie = 'Cookie: secret-cookie';
+
+  @override
+  Stream<CloudRangeReaderEvent> get events => eventController.stream;
+
+  void emit(CloudRangeReaderEvent event) => eventController.add(event);
+
+  @override
+  String toString() => '$secretUri $secretCookie chunk-private-path';
+
+  @override
+  Future<void> close() async {
+    await eventController.close();
+  }
 }
 
 class _SequentialOnlyReader implements CloudRangeRemoteReader {

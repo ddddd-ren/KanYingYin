@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:kanyingyin/features/logs/application/diagnostic_log_share_service.dart';
 import 'package:kanyingyin/pages/logs/logs_page.dart';
 import 'package:kanyingyin/utils/log_archive_reader.dart';
 import 'package:kanyingyin/utils/storage.dart';
@@ -31,12 +33,20 @@ void main() {
     WidgetTester tester,
     LogArchiveReader reader, {
     double width = 900,
+    Future<DiagnosticLogShareOutcome> Function()? shareDiagnosticLogs,
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = Size(width, 900);
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(MaterialApp(home: LogsPage(reader: reader)));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LogsPage(
+          reader: reader,
+          shareDiagnosticLogs: shareDiagnosticLogs,
+        ),
+      ),
+    );
     for (var frame = 0; frame < 50; frame++) {
       await tester.pump(const Duration(milliseconds: 20));
       if (find.byType(CircularProgressIndicator).evaluate().isEmpty) break;
@@ -155,6 +165,73 @@ void main() {
   testWidgets('读取异常显示失败状态', (tester) async {
     await pumpLogs(tester, _ThrowingLogArchiveReader());
     expect(find.byKey(const ValueKey('log-state-error')), findsOneWidget);
+  });
+
+  testWidgets('正常、空白和读取失败状态都能导出诊断日志', (tester) async {
+    var calls = 0;
+    for (final reader in <LogArchiveReader>[
+      await readerWith('[2026-08-03T04:15:42.075] WARNING\nTrueHD 解码失败'),
+      await readerWith(''),
+      _ThrowingLogArchiveReader(),
+    ]) {
+      await pumpLogs(
+        tester,
+        reader,
+        shareDiagnosticLogs: () async {
+          calls += 1;
+          return DiagnosticLogShareOutcome.dismissed;
+        },
+      );
+
+      expect(find.byTooltip('导出诊断日志'), findsOneWidget);
+      await tester.tap(find.byTooltip('导出诊断日志'));
+      await tester.pumpAndSettle();
+    }
+    expect(calls, 3);
+  });
+
+  testWidgets('导出期间禁用按钮并阻止重复分享', (tester) async {
+    final completer = Completer<DiagnosticLogShareOutcome>();
+    var calls = 0;
+    await pumpLogs(
+      tester,
+      await readerWith('[2026-08-03T04:15:42.075] ERROR\n播放器失败'),
+      shareDiagnosticLogs: () {
+        calls += 1;
+        return completer.future;
+      },
+    );
+
+    await tester.tap(find.byTooltip('导出诊断日志'));
+    await tester.pump();
+
+    expect(calls, 1);
+    final button = tester.widget<IconButton>(
+      find.byKey(const ValueKey('export-diagnostic-logs')),
+    );
+    expect(button.onPressed, isNull);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('export-diagnostic-logs')));
+    await tester.pump();
+    expect(calls, 1);
+
+    completer.complete(DiagnosticLogShareOutcome.dismissed);
+    await tester.pumpAndSettle();
+    expect(find.text('导出诊断日志失败，请稍后重试'), findsNothing);
+  });
+
+  testWidgets('导出异常显示明确提示', (tester) async {
+    await pumpLogs(
+      tester,
+      await readerWith(''),
+      shareDiagnosticLogs: () async => throw StateError('fixture'),
+    );
+
+    await tester.tap(find.byTooltip('导出诊断日志'));
+    await tester.pump();
+
+    expect(find.text('导出诊断日志失败，请稍后重试'), findsOneWidget);
   });
 }
 

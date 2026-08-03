@@ -10,14 +10,16 @@ internal class ImmersiveModeController(
     var isRequested: Boolean = false
         private set
 
+    fun initialize() {
+        applier.apply(false)
+    }
+
     fun setEnabled(enabled: Boolean) {
         isRequested = enabled
         applier.apply(enabled)
     }
 
-    fun reapplyIfRequested() {
-        if (isRequested) {
-            applier.apply(true)
-        }
+    fun reapplyCurrent() {
+        applier.apply(isRequested)
     }
 }

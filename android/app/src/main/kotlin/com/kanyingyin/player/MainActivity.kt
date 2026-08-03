@@ -37,25 +37,26 @@ class MainActivity : AudioServiceActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        immersiveModeController.initialize()
         applyTabletLandscapePolicy(resources.configuration)
     }
 
     override fun onResume() {
         super.onResume()
-        immersiveModeController.reapplyIfRequested()
+        immersiveModeController.reapplyCurrent()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
-            immersiveModeController.reapplyIfRequested()
+            immersiveModeController.reapplyCurrent()
         }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         applyTabletLandscapePolicy(newConfig)
-        immersiveModeController.reapplyIfRequested()
+        immersiveModeController.reapplyCurrent()
     }
 
     private fun applyTabletLandscapePolicy(configuration: Configuration) {

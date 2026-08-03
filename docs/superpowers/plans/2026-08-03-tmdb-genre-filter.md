@@ -2,11 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 为已有本地和个人网盘媒体补齐 TMDB 类型并提供可组合的多选筛选，同时安全清理截图中的发布规格词。
+**Goal:** 为 Windows 版已有本地和个人网盘媒体补齐 TMDB 类型并提供可组合的多选筛选，同时安全清理截图中的发布规格词。
 
 **Architecture:** 以 `TmdbMetadata.genres` 作为类型数据的权威来源，网盘平铺索引保存其投影供统一媒体库快速读取。纯 Dart 查询组件负责筛选，独立补齐服务负责去重请求和仓储更新，`LocalController` 只暴露状态与命令，现有媒体库面板负责交互。
 
 **Tech Stack:** Flutter 3.41.9、Dart、MobX、Flutter Modular、Dio、flutter_test、PowerShell、MSIX。
+
+**Platform Scope:** 只构建、打包和验收 Windows x64 MSIX。不构建 APK/AAB，不启动 Android 模拟器，不连接 Android 设备，不执行 Android 安装或实机测试。共享的 Dart/Flutter 单元与组件测试仍执行，用于验证跨平台媒体库公共逻辑。
 
 ---
 
@@ -903,7 +905,7 @@ msix_config:
   msix_version: 2.1.104.0
 ```
 
-`AppVersion.current` 设为 `2.1.104`。`RELEASE_NOTES.md`、`UPDATE_DIALOG_COPY.md` 和 `VersionHistory` 新增日期 `2026-08-03` 的测试版条目，使用 Step 1 的三条用户文案，并明确不会修改或删除本地及网盘原始文件。
+`AppVersion.current` 设为 `2.1.104`。`RELEASE_NOTES.md`、`UPDATE_DIALOG_COPY.md` 和 `VersionHistory` 新增日期 `2026-08-03` 的 Windows 测试版条目，使用 Step 1 的三条用户文案，并明确不会修改或删除本地及网盘原始文件。Android 正式版版本号和 Android 更新内容保持不变。
 
 - [ ] **Step 4: 运行版本测试并确认 GREEN**
 
@@ -923,6 +925,8 @@ git commit -m "发布：准备2.1.104类型筛选测试版"
 **Files:**
 - Verify all changed files
 - Generated artifact: desktop `看影音-2.1.104.msix`
+
+本任务不执行任何 Android 构建、打包、安装、模拟器或实机命令。
 
 - [ ] **Step 1: 检查差异和 UTF-8 内容**
 

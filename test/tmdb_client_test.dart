@@ -97,6 +97,7 @@ void main() {
     expect(metadata.seasons.first.episodeCount, 8);
     expect(metadata.seasons.first.posterUrl, '/season-1-zh.jpg');
     expect(metadata.seasons.last.posterUrl, '/season-2-en.jpg');
+    expect(metadata.genres, const <String>['动画', '科幻']);
     expect(
         metadata.seasons.map((item) => item.seasonNumber), isNot(contains(0)));
   });
@@ -423,6 +424,11 @@ class _SeasonDetailsAdapter implements HttpClientAdapter {
             "overview": "中文简介",
             "poster_path": "/show-zh.jpg",
             "backdrop_path": "/show-backdrop-zh.jpg",
+            "genres": [
+              {"id": 16, "name": "动画"},
+              {"id": 878, "name": "科幻"},
+              {"id": 999, "name": "动画"}
+            ],
             "seasons": [
               {
                 "id": 1,

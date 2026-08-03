@@ -147,6 +147,27 @@ void main() {
       '/existing.jpg',
     );
   });
+
+  test('合并元数据时始终采用详情返回的类型', () {
+    final existing = _metadata(
+      title: '旧标题',
+      genres: const <String>['剧情'],
+    );
+    final fetched = _metadata(
+      title: '新标题',
+      genres: const <String>['动画', '科幻'],
+    );
+
+    final merged = mergePolicy.merge(
+      existing: existing,
+      fetched: fetched,
+      options: const TmdbScrapeOptions.defaults(),
+      locks: const TmdbFieldLocks(title: true, overview: true, poster: true),
+      matchConfidence: 0.9,
+    );
+
+    expect(merged.genres, const <String>['动画', '科幻']);
+  });
 }
 
 TmdbMetadata _metadata({
@@ -155,6 +176,7 @@ TmdbMetadata _metadata({
   String? overview,
   String? posterUrl,
   String? backdropUrl,
+  List<String> genres = const <String>[],
   List<TmdbSeasonMetadata> seasons = const <TmdbSeasonMetadata>[],
 }) {
   return TmdbMetadata(
@@ -170,6 +192,7 @@ TmdbMetadata _metadata({
     language: 'zh-CN',
     matchedAt: DateTime(2026),
     matchConfidence: 0,
+    genres: genres,
     seasons: seasons,
   );
 }

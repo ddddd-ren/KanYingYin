@@ -96,6 +96,7 @@ class TmdbClient implements ITmdbClient {
         (_hasText(primary.overview) &&
             _hasText(primary.posterUrl) &&
             _hasText(primary.backdropUrl) &&
+            primary.genres.isNotEmpty &&
             _hasCompleteSeasonArtwork(primary.seasons))) {
       return primary;
     }
@@ -108,6 +109,7 @@ class TmdbClient implements ITmdbClient {
       backdropUrl: _hasText(primary.backdropUrl)
           ? primary.backdropUrl
           : fallback.backdropUrl,
+      genres: primary.genres.isNotEmpty ? primary.genres : fallback.genres,
       seasons: _mergeSeasons(primary.seasons, fallback.seasons),
     );
   }
@@ -152,8 +154,19 @@ class TmdbClient implements ITmdbClient {
       language: language,
       matchedAt: DateTime.now(),
       matchConfidence: 0,
+      genres: _genreNames(json['genres']),
       seasons: _seasonsFromJson(json, mediaType),
     );
+  }
+
+  List<String> _genreNames(Object? value) {
+    if (value is! List) return const <String>[];
+    final result = <String>[];
+    for (final raw in value.whereType<Map<Object?, Object?>>()) {
+      final name = _asString(raw['name']);
+      if (name != null && !result.contains(name)) result.add(name);
+    }
+    return List<String>.unmodifiable(result);
   }
 
   List<TmdbSeasonMetadata> _seasonsFromJson(

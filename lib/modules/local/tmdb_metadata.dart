@@ -107,6 +107,7 @@ class TmdbMetadata {
   final String language;
   final DateTime matchedAt;
   final double matchConfidence;
+  final List<String> genres;
   final List<TmdbSeasonMetadata> seasons;
 
   const TmdbMetadata({
@@ -122,6 +123,7 @@ class TmdbMetadata {
     this.rating,
     this.posterUrl,
     this.backdropUrl,
+    this.genres = const <String>[],
     this.seasons = const <TmdbSeasonMetadata>[],
   });
 
@@ -144,6 +146,7 @@ class TmdbMetadata {
         _asInt(json['matchedAtMillis']),
       ),
       matchConfidence: _asDouble(json['matchConfidence']) ?? 0,
+      genres: _asStringList(json['genres']),
       seasons: json['seasons'] is List
           ? (json['seasons'] as List)
               .whereType<Map<Object?, Object?>>()
@@ -171,6 +174,7 @@ class TmdbMetadata {
       'language': language,
       'matchedAtMillis': matchedAt.millisecondsSinceEpoch,
       'matchConfidence': matchConfidence,
+      if (genres.isNotEmpty) 'genres': genres,
       if (seasons.isNotEmpty)
         'seasons': seasons.map((item) => item.toJson()).toList(growable: false),
     };
@@ -187,6 +191,7 @@ class TmdbMetadata {
     String? language,
     DateTime? matchedAt,
     double? matchConfidence,
+    List<String>? genres,
     List<TmdbSeasonMetadata>? seasons,
   }) {
     return TmdbMetadata(
@@ -202,6 +207,7 @@ class TmdbMetadata {
       language: language ?? this.language,
       matchedAt: matchedAt ?? this.matchedAt,
       matchConfidence: matchConfidence ?? this.matchConfidence,
+      genres: genres ?? this.genres,
       seasons: seasons ?? this.seasons,
     );
   }
@@ -221,4 +227,14 @@ double? _asDouble(Object? value) {
 String? _asString(Object? value) {
   final text = value?.toString().trim();
   return text == null || text.isEmpty ? null : text;
+}
+
+List<String> _asStringList(Object? value) {
+  if (value is! List) return const <String>[];
+  final result = <String>[];
+  for (final item in value.whereType<String>()) {
+    final text = item.trim();
+    if (text.isNotEmpty && !result.contains(text)) result.add(text);
+  }
+  return List<String>.unmodifiable(result);
 }

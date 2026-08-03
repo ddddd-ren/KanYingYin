@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:kanyingyin/core/app_version.dart';
+import 'package:kanyingyin/platform/android/android_media_bundle.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/utils/log_sanitizer.dart';
 import 'package:kanyingyin/utils/logger.dart';
@@ -103,12 +104,14 @@ class DiagnosticLogExporter {
     } on Object {
       // 存储尚未初始化时仍可导出基础诊断信息。
     }
+    final platform = detectAppPlatform();
     return <String>[
       '应用版本: ${AppVersion.current}',
       '系统版本: ${Platform.operatingSystemVersion}',
       '处理器架构: ${Platform.environment['PROCESSOR_ARCHITECTURE'] ?? '未知'}',
       '硬件解码: $hardwareEnabled',
       '解码器: $decoder',
+      ...AndroidMediaBundle.diagnosticLines(platform),
       '生成时间: ${DateTime.now().toIso8601String()}',
     ].join('\n');
   }

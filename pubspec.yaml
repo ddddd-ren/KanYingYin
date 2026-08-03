@@ -89,6 +89,8 @@ dependencies:
 
 dependency_overrides:
   image: 4.5.4
+  media_kit_libs_android_video:
+    path: third_party/media_kit_libs_android_video_full
   media_kit_libs_windows_video:
     git:
       url: https://github.com/Predidit/media-kit.git

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:kanyingyin/features/library/application/media_library_query.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
@@ -51,6 +52,8 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
   String _query = '';
   String _sortBy = 'modified';
   String? _openingCloudStableId;
+  final Set<String> _selectedGenres = <String>{};
+  final MediaLibraryQuery _libraryQuery = const MediaLibraryQuery();
 
   @override
   void dispose() {
@@ -117,12 +120,22 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
             final library = widget.controller.combinedMediaLibrary;
             if (library.series.isEmpty) return _empty(context, cs, tt);
             final selected = widget.controller.selectedLibrarySourceId;
+            final genreFiltered = _libraryQuery.apply(
+              series: library.series,
+              sourceId: selected,
+              selectedGenres: _selectedGenres,
+            );
+            final localSeriesKeys = genreFiltered
+                .where((item) => item.sourceKind == MediaSourceKind.local)
+                .map((item) => item.seriesKey)
+                .toSet();
             final all = selected == 'all' || selected == 'local'
                 ? widget.controller.localLibrarySeries
+                    .where((item) => localSeriesKeys.contains(item.key))
+                    .toList(growable: false)
                 : <LocalMediaSeries>[];
             final series = _filtered(all);
-            final cloudSeries = library
-                .filterBySource(selected)
+            final cloudSeries = genreFiltered
                 .where((item) => item.sourceKind == MediaSourceKind.cloud)
                 .where((item) =>
                     _query.isEmpty ||
@@ -281,38 +294,129 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
 
   Widget _sourceRow(ColorScheme cs, TextTheme tt, CloudMediaLibrary library) {
     final selected = widget.controller.selectedLibrarySourceId;
+    final availableGenres = _libraryQuery.availableGenres(
+      library.series,
+      sourceId: selected,
+    );
     var current = library.filters.first;
     for (final filter in library.filters) {
       if (filter.id == selected) current = filter;
     }
+    final genreStatus = widget.controller.libraryGenreRefreshError;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-      child: Row(children: [
-        Icon(
-          current.kind == MediaSourceKind.cloud
-              ? Icons.cloud_outlined
-              : current.kind == MediaSourceKind.local
-                  ? Icons.folder_outlined
-                  : Icons.video_library_outlined,
-          size: 18,
-          color: cs.primary,
-        ),
-        const SizedBox(width: 6),
-        PopupMenuButton<String>(
-          tooltip: '筛选媒体来源',
-          initialValue: selected,
-          onSelected: (value) => setState(() {
-            widget.controller.selectLibrarySource(value);
-          }),
-          itemBuilder: (_) => library.filters
-              .map((filter) => PopupMenuItem<String>(
-                    value: filter.id,
-                    child: Text(filter.label),
-                  ))
-              .toList(growable: false),
-          child: Text(current.label, style: tt.bodySmall),
-        ),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(
+              current.kind == MediaSourceKind.cloud
+                  ? Icons.cloud_outlined
+                  : current.kind == MediaSourceKind.local
+                      ? Icons.folder_outlined
+                      : Icons.video_library_outlined,
+              size: 18,
+              color: cs.primary,
+            ),
+            const SizedBox(width: 6),
+            PopupMenuButton<String>(
+              tooltip: '筛选媒体来源',
+              initialValue: selected,
+              onSelected: (value) {
+                final nextAvailable = _libraryQuery.availableGenres(
+                  library.series,
+                  sourceId: value,
+                );
+                final retained = _libraryQuery.retainAvailableGenres(
+                  _selectedGenres,
+                  nextAvailable,
+                );
+                setState(() {
+                  widget.controller.selectLibrarySource(value);
+                  _selectedGenres
+                    ..clear()
+                    ..addAll(retained);
+                });
+              },
+              itemBuilder: (_) => library.filters
+                  .map((filter) => PopupMenuItem<String>(
+                        value: filter.id,
+                        child: Text(filter.label),
+                      ))
+                  .toList(growable: false),
+              child: Text(current.label, style: tt.bodySmall),
+            ),
+            if (availableGenres.isNotEmpty) ...[
+              const SizedBox(width: 16),
+              Icon(Icons.sell_outlined, size: 17, color: cs.primary),
+              const SizedBox(width: 4),
+              PopupMenuButton<String>(
+                tooltip: '筛选 TMDB 类型',
+                onSelected: (value) => setState(() {
+                  if (value == '__clear__') {
+                    _selectedGenres.clear();
+                  } else if (!_selectedGenres.remove(value)) {
+                    _selectedGenres.add(value);
+                  }
+                }),
+                itemBuilder: (_) => <PopupMenuEntry<String>>[
+                  if (_selectedGenres.isNotEmpty)
+                    const PopupMenuItem<String>(
+                      value: '__clear__',
+                      child: Text('清除'),
+                    ),
+                  ...availableGenres.map(
+                    (genre) => CheckedPopupMenuItem<String>(
+                      value: genre,
+                      checked: _selectedGenres.contains(genre),
+                      child: Text(genre),
+                    ),
+                  ),
+                ],
+                child: Text(
+                  _selectedGenres.isEmpty
+                      ? '类型'
+                      : '类型 ${_selectedGenres.length}',
+                  style: tt.bodySmall,
+                ),
+              ),
+            ],
+          ]),
+          if (widget.controller.isRefreshingLibraryGenres) ...[
+            const SizedBox(height: 5),
+            Row(children: [
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  widget.controller.libraryGenreRefreshProgress,
+                  style: tt.labelSmall?.copyWith(color: cs.outline),
+                ),
+              ),
+            ]),
+          ] else if (genreStatus != null) ...[
+            const SizedBox(height: 3),
+            Row(children: [
+              Expanded(
+                child: Text(
+                  genreStatus,
+                  style: tt.labelSmall?.copyWith(color: cs.error),
+                ),
+              ),
+              IconButton(
+                tooltip: '刷新类型标签',
+                visualDensity: VisualDensity.compact,
+                onPressed: widget.controller.refreshLibraryGenres,
+                icon: const Icon(Icons.refresh, size: 18),
+              ),
+            ]),
+          ],
+        ],
+      ),
     );
   }
 

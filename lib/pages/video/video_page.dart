@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/pages/player/player_controller.dart';
+import 'package:kanyingyin/platform/android/android_system_ui_surface.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/pages/player/player_item.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
@@ -335,78 +337,82 @@ class _VideoPageState extends State<VideoPage>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       openTabBodyAnimated();
     });
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (didPop) {
-          return;
-        }
-        onBackPressed(context);
-      },
-      child: OrientationBuilder(builder: (context, orientation) {
-        if (!Utils.isDesktop()) {
-          if (orientation == Orientation.landscape &&
-              !localVideoController.isFullscreen) {
-            localVideoController.enterFullScreen();
-          } else if (orientation == Orientation.portrait &&
-              localVideoController.isFullscreen) {
-            localVideoController.exitFullScreen();
-            menuJumpToCurrentEpisode();
-            localVideoController.showTabBody = true;
+    return AndroidPlaybackSystemUiSurface(
+      capabilities: detectAppPlatform(),
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (bool didPop, Object? result) {
+          if (didPop) {
+            return;
           }
-        }
-        return Observer(builder: (context) {
-          return Scaffold(
-            appBar: null,
-            body: SafeArea(
-                top: !localVideoController.isFullscreen,
-                // set iOS and Android navigation bar to immersive
-                bottom: false,
-                left: !localVideoController.isFullscreen,
-                right: !localVideoController.isFullscreen,
-                child: Stack(
-                  alignment: Alignment.centerRight,
-                  children: [
-                    Column(
-                      children: [
-                        Flexible(
-                          // make it unflexible when not wideScreen.
-                          flex: (islandScape) ? 1 : 0,
-                          child: Container(
-                            color: Colors.black,
-                            height: (islandScape)
-                                ? MediaQuery.sizeOf(context).height
-                                : MediaQuery.sizeOf(context).width * 9 / 16,
-                            width: MediaQuery.sizeOf(context).width,
-                            child: playerBody,
+          onBackPressed(context);
+        },
+        child: OrientationBuilder(builder: (context, orientation) {
+          if (!Utils.isDesktop()) {
+            if (orientation == Orientation.landscape &&
+                !localVideoController.isFullscreen) {
+              localVideoController.enterFullScreen();
+            } else if (orientation == Orientation.portrait &&
+                localVideoController.isFullscreen) {
+              localVideoController.exitFullScreen();
+              menuJumpToCurrentEpisode();
+              localVideoController.showTabBody = true;
+            }
+          }
+          return Observer(builder: (context) {
+            return Scaffold(
+              appBar: null,
+              backgroundColor: Colors.black,
+              body: SafeArea(
+                  top: !localVideoController.isFullscreen,
+                  // set iOS and Android navigation bar to immersive
+                  bottom: false,
+                  left: !localVideoController.isFullscreen,
+                  right: !localVideoController.isFullscreen,
+                  child: Stack(
+                    alignment: Alignment.centerRight,
+                    children: [
+                      Column(
+                        children: [
+                          Flexible(
+                            // make it unflexible when not wideScreen.
+                            flex: (islandScape) ? 1 : 0,
+                            child: Container(
+                              color: Colors.black,
+                              height: (islandScape)
+                                  ? MediaQuery.sizeOf(context).height
+                                  : MediaQuery.sizeOf(context).width * 9 / 16,
+                              width: MediaQuery.sizeOf(context).width,
+                              child: playerBody,
+                            ),
                           ),
-                        ),
-                        // when not wideScreen, show tabBody on the bottom
-                        if (!islandScape) Expanded(child: tabBody),
-                      ],
-                    ),
+                          // when not wideScreen, show tabBody on the bottom
+                          if (!islandScape) Expanded(child: tabBody),
+                        ],
+                      ),
 
-                    // when is wideScreen, show tabBody on the right side with SlideTransition or direct visibility
-                    if (islandScape && localVideoController.showTabBody) ...[
-                      if (disableAnimations) ...[
-                        sideTabMask,
-                        sideTabBody,
-                      ] else ...[
-                        FadeTransition(
-                          opacity: _maskOpacityAnimation,
-                          child: sideTabMask,
-                        ),
-                        SlideTransition(
-                          position: _rightOffsetAnimation,
-                          child: sideTabBody,
-                        ),
+                      // when is wideScreen, show tabBody on the right side with SlideTransition or direct visibility
+                      if (islandScape && localVideoController.showTabBody) ...[
+                        if (disableAnimations) ...[
+                          sideTabMask,
+                          sideTabBody,
+                        ] else ...[
+                          FadeTransition(
+                            opacity: _maskOpacityAnimation,
+                            child: sideTabMask,
+                          ),
+                          SlideTransition(
+                            position: _rightOffsetAnimation,
+                            child: sideTabBody,
+                          ),
+                        ],
                       ],
                     ],
-                  ],
-                )),
-          );
-        });
-      }),
+                  )),
+            );
+          });
+        }),
+      ),
     );
   }
 

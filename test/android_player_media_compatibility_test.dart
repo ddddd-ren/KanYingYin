@@ -9,6 +9,7 @@ void main() {
   late String windowUtils;
   late String immersiveModeController;
   late String immersiveModeApplier;
+  late String videoPage;
 
   setUpAll(() {
     controller =
@@ -27,6 +28,7 @@ void main() {
       'android/app/src/main/kotlin/com/kanyingyin/player/'
       'AndroidImmersiveModeApplier.kt',
     ).readAsStringSync();
+    videoPage = File('lib/pages/video/video_page.dart').readAsStringSync();
   });
 
   test('Android 平板启动即固定为双向横屏且退出全屏不切回竖屏', () {
@@ -120,6 +122,11 @@ void main() {
         '      await player.setAudioTrack(track);',
       ),
     );
+  });
+
+  test('Android 播放页使用黑色系统栏表面', () {
+    expect(videoPage, contains('AndroidPlaybackSystemUiSurface('));
+    expect(videoPage, contains('backgroundColor: Colors.black'));
   });
 
   test('Android 全屏保持彻底沉浸并在退出时恢复系统栏', () {

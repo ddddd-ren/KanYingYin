@@ -69,6 +69,11 @@ $definitions = [ordered]@{
     Sha256 = '848936cfd7333077f21759adaca4a9e1a5647891da2e42ab211c5bdc30f4535d'
   }
 }
+$packageAbis = @(
+  'arm64-v8a',
+  'armeabi-v7a',
+  'x86_64'
+)
 
 $resolvedPackage = (Resolve-Path -LiteralPath $PackagePath).Path
 $packagePrefix = if ($PackageKind -eq 'aab') { 'base/lib' } else { 'lib' }
@@ -83,7 +88,11 @@ foreach ($abi in $definitions.Keys) {
   if ($jarFileHash.ToLowerInvariant() -ne $definition.Sha256) {
     throw "Full 原生 JAR 哈希错误：$jarPath"
   }
+}
 
+foreach ($abi in $packageAbis) {
+  $definition = $definitions[$abi]
+  $jarPath = Join-Path $NativeCacheRoot $definition.Jar
   $jarEntry = "lib/$abi/libmpv.so"
   $packageEntry = "$packagePrefix/$abi/libmpv.so"
   $jarLibHash = Get-ZipEntrySha256 -ZipPath $jarPath -EntryName $jarEntry

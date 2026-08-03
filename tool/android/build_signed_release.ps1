@@ -7,8 +7,8 @@ chcp 65001 > $null
 
 $projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $flutter = 'D:\flutter\bin\flutter.bat'
-$androidVersion = '2.1.101'
-$androidVersionCode = 20101
+$androidVersion = '2.1.102'
+$androidVersionCode = 20102
 $requiredVariables = @(
     'KANYINGYIN_ANDROID_KEYSTORE',
     'KANYINGYIN_ANDROID_STORE_PASSWORD',
@@ -46,8 +46,8 @@ try {
     }
     $windowsVersion = $Matches[1]
     $windowsBuildNumber = $Matches[2]
-    if ($windowsVersion -ne '2.1.101' -or $windowsBuildNumber -ne '20101') {
-        throw "Windows pubspec 版本必须为 2.1.101+20101，实际为 $windowsVersion+$windowsBuildNumber"
+    if ($windowsVersion -ne '2.1.102' -or $windowsBuildNumber -ne '20102') {
+        throw "Windows pubspec 版本必须为 2.1.102+20102，实际为 $windowsVersion+$windowsBuildNumber"
     }
     $expectedPackage = 'com.kanyingyin.player'
 

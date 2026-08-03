@@ -811,10 +811,15 @@ void main() {
     expect(find.byTooltip('管理网盘来源'), findsOneWidget);
     expect(find.byTooltip('刷新当前来源'), findsOneWidget);
     expect(find.byTooltip('更多网盘操作'), findsOneWidget);
-    final disabledGenreFilter = tester.widget<PopupMenuButton<String>>(
+    final emptyGenreFilter = tester.widget<PopupMenuButton<String>>(
       find.byKey(const ValueKey<String>('cloud-genre-filter')),
     );
-    expect(disabledGenreFilter.enabled, isFalse);
+    expect(emptyGenreFilter.enabled, isTrue);
+    await tester.tap(find.byTooltip('筛选 TMDB 类型'));
+    await tester.pumpAndSettle();
+    expect(find.text('暂无类型标签'), findsOneWidget);
+    await tester.tapAt(const Offset(2, 2));
+    await tester.pumpAndSettle();
     expect(find.text('自动整理当前来源'), findsNothing);
     expect(find.text('刮削当前来源'), findsNothing);
     expect(find.text('移除当前来源'), findsNothing);

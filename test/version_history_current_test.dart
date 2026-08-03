@@ -5,18 +5,20 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一零四说明 TMDB 类型筛选和发布词清理', () {
-    final entries = versionHistoryForCurrent('2.1.104');
+  test('二点一零五说明网盘标签边界和本地媒体库隔离', () {
+    final entries = versionHistoryForCurrent('2.1.105');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.version, '2.1.104');
+    expect(entry.version, '2.1.105');
     expect(entry.isPrerelease, isTrue);
     for (final text in <String>[
       'Windows',
       'TMDB 类型',
-      '多个类型',
+      '当前网盘',
+      '本地媒体库',
+      '网盘资源',
       '后台补齐',
       'REMUX',
       '不会修改或删除',

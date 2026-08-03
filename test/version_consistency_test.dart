@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('二点一零四 Windows 测试版与 Android 正式版版本保持独立一致', () {
-    const expectedVersion = '2.1.104';
-    const expectedBuildNumber = '20104';
+  test('二点一零五 Windows 测试版与 Android 正式版版本保持独立一致', () {
+    const expectedVersion = '2.1.105';
+    const expectedBuildNumber = '20105';
     const expectedAndroidVersion = '1.0.2';
     const expectedAndroidVersionCode = '10002';
     final pubspec = File('pubspec.yaml').readAsStringSync();
@@ -132,7 +132,9 @@ void main() {
       for (final text in <String>[
         'Windows',
         'TMDB 类型',
-        '多个类型',
+        '当前网盘',
+        '本地媒体库',
+        '网盘资源',
         '后台补齐',
         'REMUX',
         '不会修改或删除',

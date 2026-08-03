@@ -4,13 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kanyingyin/bean/appbar/sys_app_bar.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
+import 'package:kanyingyin/features/logs/application/diagnostic_log_share_service.dart';
 import 'package:kanyingyin/features/logs/presentation/logs_presentation.dart';
 import 'package:kanyingyin/utils/log_archive_reader.dart';
 
 class LogsPage extends StatefulWidget {
-  const LogsPage({super.key, this.reader});
+  const LogsPage({
+    super.key,
+    this.reader,
+    this.shareDiagnosticLogs,
+  });
 
   final LogArchiveReader? reader;
+  final Future<DiagnosticLogShareOutcome> Function()? shareDiagnosticLogs;
 
   @override
   State<LogsPage> createState() => _LogsPageState();
@@ -21,9 +27,11 @@ class _LogsPageState extends State<LogsPage> {
   final TextEditingController _searchController = TextEditingController();
   final Set<int> _expandedEventIds = <int>{};
   late final LogArchiveReader _reader;
+  late final Future<DiagnosticLogShareOutcome> Function() _shareDiagnosticLogs;
 
   bool _isLoading = true;
   bool _hasError = false;
+  bool _isExporting = false;
   String _fullContent = '';
   List<LogEventViewData> _allEvents = const [];
   LogEventFilter _filter = LogEventFilter.all;
@@ -43,6 +51,8 @@ class _LogsPageState extends State<LogsPage> {
   void initState() {
     super.initState();
     _reader = widget.reader ?? LogArchiveReader();
+    _shareDiagnosticLogs =
+        widget.shareDiagnosticLogs ?? DiagnosticLogShareService().share;
     _scrollController.addListener(_onScroll);
     unawaited(_loadLogs());
   }
@@ -169,10 +179,46 @@ class _LogsPageState extends State<LogsPage> {
     }
   }
 
+  Future<void> _exportDiagnosticLogs() async {
+    if (_isExporting) return;
+    setState(() => _isExporting = true);
+    try {
+      await _shareDiagnosticLogs();
+    } on Object {
+      if (mounted) {
+        AppDialog.showToast(
+          context: context,
+          message: '导出诊断日志失败，请稍后重试',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const SysAppBar(title: Text('运行记录')),
+      appBar: SysAppBar(
+        title: const Text('运行记录'),
+        actions: [
+          Tooltip(
+            message: '导出诊断日志',
+            child: IconButton(
+              key: const ValueKey('export-diagnostic-logs'),
+              onPressed: _isExporting
+                  ? null
+                  : () => unawaited(_exportDiagnosticLogs()),
+              icon: _isExporting
+                  ? const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.share_outlined),
+            ),
+          ),
+        ],
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1100),

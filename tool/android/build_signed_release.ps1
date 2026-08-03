@@ -67,6 +67,10 @@ try {
     if (-not (Test-Path -LiteralPath $apk -PathType Leaf)) { throw 'Release APK was not generated' }
     if (-not (Test-Path -LiteralPath $aab -PathType Leaf)) { throw 'Release AAB was not generated' }
 
+    $fullBundleVerifier = Join-Path $PSScriptRoot 'verify_full_media_bundle.ps1'
+    & $fullBundleVerifier -PackagePath $apk -PackageKind 'apk'
+    & $fullBundleVerifier -PackagePath $aab -PackageKind 'aab'
+
     $sdk = Join-Path $env:LOCALAPPDATA 'Android\Sdk'
     $buildTools = Get-ChildItem -LiteralPath (Join-Path $sdk 'build-tools') -Directory |
         Sort-Object { [version]$_.Name } -Descending |

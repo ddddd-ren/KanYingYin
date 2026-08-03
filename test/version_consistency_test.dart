@@ -5,11 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('二点一零一测试版双平台版本和发布文案保持一致', () {
-    const expectedVersion = '2.1.101';
-    const expectedBuildNumber = '20101';
-    const expectedAndroidVersion = '2.1.101';
-    const expectedAndroidVersionCode = '20101';
+  test('二点一零二测试版双平台版本和发布文案保持一致', () {
+    const expectedVersion = '2.1.102';
+    const expectedBuildNumber = '20102';
+    const expectedAndroidVersion = '2.1.102';
+    const expectedAndroidVersionCode = '20102';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final androidGradle =
@@ -133,11 +133,13 @@ void main() {
       currentVersionHistory,
     ]) {
       for (final text in <String>[
-        '诊断日志',
-        '系统分享',
-        '脱敏',
-        'Android',
         'Windows',
+        'Android',
+        'TrueHD',
+        'Full',
+        '立体声',
+        '沉浸',
+        '待实机验证',
         '测试版',
         '不会修改或删除',
       ]) {

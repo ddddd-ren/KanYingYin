@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -18,8 +19,8 @@ void main() {
     expect(gradle, contains('isShrinkResources = true'));
     expect(gradle, contains('proguard-rules.pro'));
     expect(gradle, isNot(contains('signingConfigs.getByName("debug")')));
-    expect(gradle, contains('val androidVersionName = "2.1.101"'));
-    expect(gradle, contains('val androidVersionCode = 20101'));
+    expect(gradle, contains('val androidVersionName = "2.1.102"'));
+    expect(gradle, contains('val androidVersionCode = 20102'));
   });
 
   test('Android Release 忽略未启用的 Play Core 延迟组件引用', () {
@@ -50,13 +51,13 @@ void main() {
     );
     expect(script, contains(r'$appName-$androidVersion.apk'));
     expect(script, contains(r'$appName-$androidVersion.aab'));
-    expect(script, contains(r"$androidVersion = '2.1.101'"));
-    expect(script, contains(r'$androidVersionCode = 20101'));
+    expect(script, contains(r"$androidVersion = '2.1.102'"));
+    expect(script, contains(r'$androidVersionCode = 20102'));
     expect(script, contains('[char]0x770B'));
     expect(script, contains('com.kanyingyin.player'));
   });
 
-  test('Android 发布逐 ABI 验证 APK 和 AAB 的 Full libmpv', () {
+  test('Android 发布验证四个源 JAR 和 Flutter 支持 ABI 的 Full libmpv', () {
     final verifier = File(
       'tool/android/verify_full_media_bundle.ps1',
     ).readAsStringSync();
@@ -64,14 +65,28 @@ void main() {
       'tool/android/build_signed_release.ps1',
     ).readAsStringSync();
 
-    for (final abi in const <String>[
+    for (final sourceAbi in const <String>[
       'arm64-v8a',
       'armeabi-v7a',
       'x86',
       'x86_64',
     ]) {
-      expect(verifier, contains(abi));
+      expect(verifier, contains(sourceAbi));
     }
+    final packageAbis = RegExp(
+      r'\$packageAbis\s*=\s*@\(([\s\S]*?)\)',
+    ).firstMatch(verifier)?.group(1);
+    expect(packageAbis, isNotNull);
+    for (final packageAbi in const <String>[
+      'arm64-v8a',
+      'armeabi-v7a',
+      'x86_64',
+    ]) {
+      expect(packageAbis, contains("'$packageAbi'"));
+    }
+    expect(packageAbis, isNot(contains("'x86'")));
+    expect(verifier, contains('foreach (\$abi in \$definitions.Keys)'));
+    expect(verifier, contains('foreach (\$abi in \$packageAbis)'));
     expect(verifier, contains("ValidateSet('apk', 'aab')"));
     expect(verifier, contains("'base/lib'"));
     expect(verifier, contains("'lib'"));
@@ -98,11 +113,16 @@ void main() {
     expect(ignore, contains('*.keystore'));
     expect(ignore, contains('/tool/android/private-output/'));
 
-    final keys = Directory.current
-        .listSync(recursive: true, followLinks: false)
-        .whereType<File>()
-        .where((file) =>
-            file.path.endsWith('.jks') || file.path.endsWith('.keystore'));
+    final trackedFiles = Process.runSync(
+      'git',
+      ['ls-files', '-z'],
+      stdoutEncoding: null,
+    );
+    expect(trackedFiles.exitCode, 0);
+    final keys =
+        utf8.decode(trackedFiles.stdout as List<int>).split('\u0000').where(
+              (path) => path.endsWith('.jks') || path.endsWith('.keystore'),
+            );
     expect(keys, isEmpty);
   });
 }

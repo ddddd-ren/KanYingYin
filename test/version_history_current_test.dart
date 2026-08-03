@@ -5,8 +5,8 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一零一测试版展示诊断日志双平台更新', () {
-    final entries = versionHistoryForCurrent('2.1.101');
+  test('二点一零二测试版展示安卓 TrueHD 和沉浸更新', () {
+    final entries = versionHistoryForCurrent('2.1.102');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
@@ -14,10 +14,12 @@ void main() {
     expect(entry.isPrerelease, isTrue);
     for (final text in <String>[
       'Windows',
-      'Android 2.1.101',
-      '诊断日志',
-      '系统分享',
-      '脱敏',
+      'Android',
+      'TrueHD',
+      'Full',
+      '立体声',
+      '沉浸',
+      '待实机验证',
       '测试版',
       '不会修改或删除',
     ]) {
@@ -25,21 +27,23 @@ void main() {
     }
   });
 
-  test('Android 二点一零一测试版只展示移动端诊断日志更新', () {
+  test('Android 二点一零二测试版只展示移动端 TrueHD 和沉浸更新', () {
     final entries = versionHistoryForCurrent(
-      '2.1.101',
+      '2.1.102',
       platform: AppPlatformKind.android,
     );
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.version, '2.1.101');
+    expect(entry.version, '2.1.102');
     expect(entry.isPrerelease, isTrue);
     for (final text in <String>[
-      '诊断日志',
-      '系统分享',
-      '脱敏',
+      'TrueHD',
+      'Full',
+      '立体声',
+      '沉浸',
+      '待实机验证',
       '测试版',
       '不会修改或删除',
     ]) {

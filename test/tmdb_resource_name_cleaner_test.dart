@@ -70,4 +70,23 @@ void main() {
     expect(cleaner.clean('The 100.mkv'), 'The 100');
     expect(cleaner.clean('作品【导演收藏】.mkv'), '作品【导演收藏】');
   });
+
+  test('清除新增 REMUX 发布片段但保留正常短片名', () {
+    const suffixes = <String>[
+      'REMUX -HD MA TrueHD 7 1',
+      'PROPER US REMUX -HD MA TrueHD 7 1',
+      'UHD REMUX TrueHD7 1-DreamHD',
+      'V4 UHD REMUX TrueHD7 1 Multi Audio-D',
+      'V3 UHD REMUX DoVi TrueHD7 1 14Audio',
+    ];
+    for (final suffix in suffixes) {
+      expect(
+        cleaner.clean('流浪地球 $suffix.mkv'),
+        '流浪地球',
+        reason: suffix,
+      );
+    }
+    expect(cleaner.clean('Us (2019).mkv'), 'Us (2019)');
+    expect(cleaner.clean('V字仇杀队.mkv'), 'V字仇杀队');
+  });
 }

@@ -12,11 +12,12 @@ class TmdbResourceNameCleaner {
     r'dsnp|hbo[ ._-]*max|hami|tving|netflix|nf|kktv|hq|'
     r'hybrid|proper|2audio|black[ ._-]*tv|'
     r'2160p|1440p|1080[pi]|720p|480p|4k|8k|uhd|'
-    r'dolby[ ._-]*vision|hdr(?:10\+?)?|dv|hlg|sdr|'
+    r'dolby[ ._-]*vision|dovi|hdr(?:10\+?)?|dv|hlg|sdr|'
     r'字幕组|字幕|中字|内嵌|内封|国配|台剧|美剧|日剧|韩剧|'
-    r'dts(?:[ ._-]*hd(?:[ ._-]*ma)?)?(?:[ ._-]*(?:2\.0|5\.1|7\.1))?|'
+    r'dts(?:[ ._-]*hd(?:[ ._-]*ma)?)?(?:[ ._-]*(?:2[ .]0|5[ .]1|7[ .]1))?|'
+    r'hd[ ._-]*ma|multi[ ._-]*audio|\d{1,2}[ ._-]*audio|'
     r'(?:true[ ._-]*hd|eac[ ._-]*3|ac[ ._-]*3|ddp|dd\+?|aac|flac|lpcm|pcm|opus|vorbis|wma|ape|alac)'
-    r'(?:[ ._-]*(?:2\.0|5\.1|7\.1))?|atmos'
+    r'(?:[ ._-]*(?:2[ .]0|5[ .]1|7[ .]1))?|atmos'
     r')(?![A-Za-z0-9])',
     caseSensitive: false,
   );
@@ -49,6 +50,11 @@ class TmdbResourceNameCleaner {
     r'(?:[-._ ](?:SGF|FGT|LeloveTV|BlackTV|DreamHD|HotWEB|ColorTV|ZeroTV|Huawei|Xiaomi))\s*$',
     caseSensitive: false,
   );
+  static final RegExp _remuxSuffixPattern = RegExp(
+    r'(?<![A-Za-z0-9])(?:(?:v\d{1,2}|proper|us|uhd)[ ._-]+)*'
+    r'remux(?=[ ._-]|$).*$',
+    caseSensitive: false,
+  );
 
   String clean(String value) {
     var result = value.trim().replaceFirst(_knownExtensionPattern, '');
@@ -64,6 +70,7 @@ class TmdbResourceNameCleaner {
         .replaceAll(_collectionSuffixPattern, ' ')
         .replaceAll(_chineseReleasePhrasePattern, ' ')
         .replaceAll(_languageTokenPattern, ' ')
+        .replaceAll(_remuxSuffixPattern, ' ')
         .replaceAll(_releaseGroupPattern, ' ')
         .replaceAll(_releaseTokenPattern, ' ')
         .replaceAll(RegExp(r'[._]+'), ' ')

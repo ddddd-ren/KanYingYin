@@ -150,6 +150,18 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.104',
+    date: '2026-08-03',
+    isPrerelease: true,
+    changes: [
+      '本轮只提供 Windows 2.1.104 测试版 MSIX，不构建或测试 Android 安装包',
+      '媒体库新增 TMDB 类型标签筛选，可同时选择多个类型，并与来源和名称搜索一起使用',
+      '已有本地和网盘资源会在后台补齐类型信息，断网或 TMDB 不可用时不影响浏览和播放',
+      '改进复杂 REMUX 文件名的 TMDB 匹配，减少画质、音轨和发布组信息干扰',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '1.0.5',
     date: '2026-08-03',
     changes: [

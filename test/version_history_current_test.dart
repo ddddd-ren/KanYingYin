@@ -5,8 +5,8 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一零二测试版展示安卓 TrueHD 和沉浸更新', () {
-    final entries = versionHistoryForCurrent('2.1.102');
+  test('二点一零三测试版展示安卓夸克、自适应系统栏和 TrueHD 更新', () {
+    final entries = versionHistoryForCurrent('2.1.103');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
@@ -15,6 +15,12 @@ void main() {
     for (final text in <String>[
       'Windows',
       'Android',
+      '夸克',
+      '自适应',
+      '八路',
+      '192 MiB',
+      '系统栏',
+      '黑边',
       'TrueHD',
       'Full',
       '立体声',
@@ -27,21 +33,27 @@ void main() {
     }
   });
 
-  test('Android 二点一零二测试版只展示移动端 TrueHD 和沉浸更新', () {
+  test('Android 二点一零三测试版只展示移动端读取、系统栏和 TrueHD 更新', () {
     final entries = versionHistoryForCurrent(
-      '2.1.102',
+      '2.1.103',
       platform: AppPlatformKind.android,
     );
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.version, '2.1.102');
+    expect(entry.version, '2.1.103');
     expect(entry.isPrerelease, isTrue);
     for (final text in <String>[
       'TrueHD',
       'Full',
       '立体声',
+      '夸克',
+      '自适应',
+      '八路',
+      '192 MiB',
+      '系统栏',
+      '黑边',
       '沉浸',
       '待实机验证',
       '测试版',

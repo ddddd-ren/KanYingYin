@@ -44,6 +44,20 @@ const VersionHistory _androidSecondRelease = VersionHistory(
   ],
 );
 
+const VersionHistory _androidAdaptiveQuarkSystemBarsPrerelease = VersionHistory(
+  version: '2.1.103',
+  date: '2026-08-03',
+  isPrerelease: true,
+  changes: [
+    'Android 2.1.103 测试版为夸克原画播放新增自适应高速调度：缓存跟不上时最多启用八路读取和七路后台预取，当前播放临时缓存上限为 192 MiB',
+    '网络重新连接或播放地址刷新时会自动回到稳健档位，缓存恢复后再按实际压力提速，避免固定高并发造成额外抖动',
+    '普通页面的状态栏和底部手势区现在与界面同色，消除底部黑边；播放页系统栏随画面变黑，全屏继续保持彻底沉浸',
+    '继续使用官方 Full 原生媒体包，为只有 TrueHD/MLP 音轨的视频提供软件解码和立体声输出；当前测试版待实机验证',
+    'Android 百度及迅雷读取策略保持不变',
+    '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+  ],
+);
+
 const VersionHistory _androidImmersiveTrueHdPrerelease = VersionHistory(
   version: '2.1.102',
   date: '2026-08-03',
@@ -121,6 +135,19 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 );
 
 const List<VersionHistory> versionHistoryList = [
+  VersionHistory(
+    version: '2.1.103',
+    date: '2026-08-03',
+    isPrerelease: true,
+    changes: [
+      '本轮同步提供 Windows 与 Android 2.1.103 测试版，分别使用 MSIX、APK 和 AAB 交付',
+      'Android 夸克原画播放新增自适应高速调度：缓存跟不上时最多启用八路读取和七路后台预取，当前播放临时缓存上限为 192 MiB',
+      '网络重新连接或播放地址刷新时会自动回到稳健档位；Windows、Android 百度及迅雷读取策略保持不变',
+      'Android 普通页面的状态栏和底部手势区现在与界面同色，消除底部黑边；播放页系统栏随画面变黑，全屏继续保持彻底沉浸',
+      'Android 继续使用官方 Full 原生媒体包，为只有 TrueHD/MLP 音轨的视频提供软件解码和立体声输出；当前测试版待实机验证',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
   VersionHistory(
     version: '2.1.102',
     date: '2026-08-03',
@@ -1944,6 +1971,11 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '2.1.103' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[
+      _androidAdaptiveQuarkSystemBarsPrerelease,
+    ];
+  }
   if (currentVersion == '2.1.102' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[_androidImmersiveTrueHdPrerelease];
   }

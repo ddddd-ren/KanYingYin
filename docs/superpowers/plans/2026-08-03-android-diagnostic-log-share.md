@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 在错误日志页面生成完整脱敏诊断 ZIP，并在 Android 打开系统分享面板，同时交付 Windows 1.0.5 MSIX 与 Android 1.0.2 APK/AAB。
+**Goal:** 在错误日志页面生成完整脱敏诊断 ZIP，并在 Android 打开系统分享面板，同时交付 Windows 与 Android 2.1.101 测试版安装包。
 
 **Architecture:** 继续由 `DiagnosticLogExporter` 负责刷新、脱敏和归档日志；新增独立的 `DiagnosticLogShareService`，只负责选择临时目录并把 ZIP 交给 `share_plus`。错误日志页面通过可注入回调调用服务，因此正常、空白和读取失败状态都能导出，同时组件测试不会打开真实系统面板。
 
@@ -18,7 +18,7 @@
 - Modify: `test/logs_page_test.dart`：验证所有页面状态、重复点击、取消和失败反馈。
 - Modify: `pubspec.yaml`、`pubspec.lock`：加入与现有 AGP 8.11.1 兼容的 `share_plus ^11.1.0`。
 - Generated: `windows/flutter/generated_plugin_registrant.cc`、`windows/flutter/generated_plugins.cmake`：由 Flutter 依赖解析更新，不手工编辑。
-- Modify: `pubspec.yaml`、`lib/core/app_version.dart`、`android/app/build.gradle.kts`、`tool/android/build_signed_release.ps1`：同步 Windows 1.0.5 与 Android 1.0.2 版本。
+- Modify: `pubspec.yaml`、`lib/core/app_version.dart`、`android/app/build.gradle.kts`、`tool/android/build_signed_release.ps1`：同步 Windows 与 Android 2.1.101 测试版本。
 - Modify: `lib/utils/version_history.dart`、`RELEASE_NOTES.md`、`UPDATE_DIALOG_COPY.md`、`README.md`：面向用户说明与当前版本展示。
 - Modify: `test/version_consistency_test.dart`、`test/release_config_contract_test.dart`、`test/identity_v2_zero_residue_test.dart`、`test/android_release_packaging_test.dart`、`test/version_history_current_test.dart`：锁定版本和发布文案。
 
@@ -481,7 +481,7 @@ git commit -m "功能：在错误日志页分享诊断包"
 
 Expected: Android 插件清单包含 `share_plus`；提交只包含错误日志页和组件测试。
 
-### Task 3: 同步正式版本与用户文案
+### Task 3: 同步测试版本与用户文案
 
 **Files:**
 - Modify: `test/version_consistency_test.dart`
@@ -503,35 +503,35 @@ Expected: Android 插件清单包含 `share_plus`；提交只包含错误日志�
 在发布测试中统一使用：
 
 ```dart
-const expectedVersion = '1.0.5';
-const expectedBuildNumber = '10005';
-const expectedAndroidVersion = '1.0.2';
-const expectedAndroidVersionCode = '10002';
+const expectedVersion = '2.1.101';
+const expectedBuildNumber = '20101';
+const expectedAndroidVersion = '2.1.101';
+const expectedAndroidVersionCode = '20101';
 ```
 
 具体修改：
 
 ```text
 test/version_consistency_test.dart:
-  测试名改为“一点零五正式版双平台版本和发布文案保持一致”
+  测试名改为“二点一零一测试版双平台版本和发布文案保持一致”
   当前文案关键词改为：诊断日志、系统分享、脱敏、Windows、Android、不会修改或删除
 
 test/release_config_contract_test.dart:
-  1.0.4+10004 -> 1.0.5+10005
-  1.0.4.0 -> 1.0.5.0
-  当前 Android 版本 1.0.1 -> 1.0.2
+  1.0.4+10004 -> 2.1.101+20101
+  1.0.4.0 -> 2.1.101.0
+  当前 Android 版本 1.0.1 -> 2.1.101
 
 test/identity_v2_zero_residue_test.dart:
-  currentVersion 1.0.4 -> 1.0.5
-  buildNumber 10004 -> 10005
+  currentVersion 1.0.4 -> 2.1.101
+  buildNumber 10004 -> 20101
 
 test/android_release_packaging_test.dart:
-  androidVersionName 1.0.1 -> 1.0.2
-  androidVersionCode 10001 -> 10002
+  androidVersionName 1.0.1 -> 2.1.101
+  androidVersionCode 10001 -> 20101
 
 test/version_history_current_test.dart:
-  Windows 当前版本查询 1.0.4 -> 1.0.5
-  Android 平台映射期望 1.0.2
+  Windows 当前版本查询 1.0.4 -> 2.1.101
+  Android 平台映射期望 2.1.101
   关键词包含“诊断日志”“系统分享”“脱敏”“不会修改或删除”
   Android 文案不得包含 Windows
 ```
@@ -557,43 +557,44 @@ Expected: FAIL，明确显示当前源码仍为 Windows 1.0.4 / Android 1.0.1，
 
 ```yaml
 # pubspec.yaml
-version: 1.0.5+10005
+version: 2.1.101+20101
 
 msix_config:
-  msix_version: 1.0.5.0
+  msix_version: 2.1.101.0
 ```
 
 ```dart
 // lib/core/app_version.dart
-static const String current = '1.0.5';
+static const String current = '2.1.101';
 ```
 
 ```kotlin
 // android/app/build.gradle.kts
-val androidVersionName = "1.0.2"
-val androidVersionCode = 10002
+val androidVersionName = "2.1.101"
+val androidVersionCode = 20101
 ```
 
 ```powershell
 # tool/android/build_signed_release.ps1
-$androidVersion = '1.0.2'
-$androidVersionCode = 10002
+$androidVersion = '2.1.101'
+$androidVersionCode = 20101
 
-if ($windowsVersion -ne '1.0.5' -or $windowsBuildNumber -ne '10005') {
-    throw "Windows pubspec 版本必须为 1.0.5+10005，实际为 $windowsVersion+$windowsBuildNumber"
+if ($windowsVersion -ne '2.1.101' -or $windowsBuildNumber -ne '20101') {
+    throw "Windows pubspec 版本必须为 2.1.101+20101，实际为 $windowsVersion+$windowsBuildNumber"
 }
 ```
 
 - [ ] **Step 4: 增加当前版本历史与 Android 映射**
 
-在 `lib/utils/version_history.dart` 顶部 Android 正式版区域加入：
+在 `lib/utils/version_history.dart` 顶部 Android 版本区域加入：
 
 ```dart
-const VersionHistory _androidThirdRelease = VersionHistory(
-  version: '1.0.2',
+const VersionHistory _androidDiagnosticLogSharePrerelease = VersionHistory(
+  version: '2.1.101',
   date: '2026-08-03',
+  isPrerelease: true,
   changes: [
-    '错误日志页面新增“导出诊断日志”入口，遇到播放问题时可直接生成完整诊断包',
+    'Android 2.1.101 测试版在错误日志页面新增“导出诊断日志”入口，遇到播放问题时可直接生成完整诊断包',
     'Android 导出后会打开系统分享面板，可发送到其他应用或保存到文件，无需申请全盘存储权限',
     '诊断包包含应用、系统、解码设置和播放器底层日志，并继续隐藏网盘凭据、Token、请求头与远程媒体完整地址',
     '导出不会清空原日志；日志为空或页面读取失败时仍可尝试取得底层诊断文件',
@@ -602,14 +603,15 @@ const VersionHistory _androidThirdRelease = VersionHistory(
 );
 ```
 
-在 `versionHistoryList` 首位加入 Windows 1.0.5：
+在 `versionHistoryList` 首位加入 2.1.101 测试版：
 
 ```dart
 VersionHistory(
-  version: '1.0.5',
+  version: '2.1.101',
   date: '2026-08-03',
+  isPrerelease: true,
   changes: [
-    '本轮同步提供 Windows 1.0.5 与 Android 1.0.2 正式版，分别使用 MSIX、APK 和 AAB 交付',
+    '本轮同步提供 Windows 与 Android 2.1.101 测试版，分别使用 MSIX、APK 和 AAB 交付',
     '错误日志页面新增诊断包导出入口，Android 可直接通过系统分享面板发送或保存完整脱敏日志',
     '诊断包继续包含应用、系统、解码设置和播放器底层日志，便于定位 TrueHD 等播放兼容问题',
     '网盘凭据、Token、请求头和远程媒体完整地址不会进入导出内容，导出也不会清空原日志',
@@ -622,8 +624,8 @@ VersionHistory(
 在 `versionHistoryForCurrent` 的 Android 映射首位加入：
 
 ```dart
-if (currentVersion == '1.0.5' && platform == AppPlatformKind.android) {
-  return const <VersionHistory>[_androidThirdRelease];
+if (currentVersion == '2.1.101' && platform == AppPlatformKind.android) {
+  return const <VersionHistory>[_androidDiagnosticLogSharePrerelease];
 }
 ```
 
@@ -631,38 +633,38 @@ if (currentVersion == '1.0.5' && platform == AppPlatformKind.android) {
 
 - [ ] **Step 5: 更新发布说明、弹窗和 README**
 
-在 `RELEASE_NOTES.md` 顶部新增 `1.0.5+10005` 区块，明确：
+在 `RELEASE_NOTES.md` 顶部新增 `2.1.101+20101` 区块，明确：
 
 ```markdown
-## 1.0.5+10005
+## 2.1.101+20101
 
-MSIX 版本：1.0.5.0
+MSIX 版本：2.1.101.0
 
-APK/AAB 版本：1.0.2 (10002)
+APK/AAB 版本：2.1.101 (20101)
 
-### Windows 正式版更新内容
+### Windows 测试版更新内容
 
-标题：看影音 1.0.5 正式版
+标题：看影音 2.1.101 测试版
 
-- 本轮同步提供 Windows 1.0.5 与 Android 1.0.2 正式版，分别使用 MSIX、APK 和 AAB 交付。
+- 本轮同步提供 Windows 与 Android 2.1.101 测试版，分别使用 MSIX、APK 和 AAB 交付。
 - 错误日志页面新增诊断包导出入口，Android 可直接通过系统分享面板发送或保存完整脱敏日志。
 - 诊断包继续包含应用、系统、解码设置和播放器底层日志，便于定位 TrueHD 等播放兼容问题。
 - 网盘凭据、Token、请求头和远程媒体完整地址不会进入导出内容，导出也不会清空原日志。
 - Windows 原有下载目录导出行为保持不变，播放器、媒体库和网盘文件处理逻辑不变。
 - 本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件。
 
-### Android 正式版更新内容
+### Android 测试版更新内容
 
-标题：看影音 Android 1.0.2 正式版
+标题：看影音 Android 2.1.101 测试版
 
-- 错误日志页面新增“导出诊断日志”入口，遇到播放问题时可直接生成完整诊断包。
+- Android 2.1.101 测试版在错误日志页面新增“导出诊断日志”入口，遇到播放问题时可直接生成完整诊断包。
 - 导出后会打开系统分享面板，可发送到其他应用或保存到文件，无需申请全盘存储权限。
 - 诊断包包含应用、系统、解码设置和播放器底层日志，并继续隐藏网盘凭据、Token、请求头与远程媒体完整地址。
 - 导出不会清空原日志；日志为空或页面读取失败时仍可尝试取得底层诊断文件。
 - 本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件。
 ```
 
-把 `UPDATE_DIALOG_COPY.md` 当前版本整体同步为同一组版本和文案。把 `README.md` 的当前版本更新为 Windows 1.0.5 / Android 1.0.2，并保留 OpenList 调试提示与安装格式说明。
+把 `UPDATE_DIALOG_COPY.md` 当前版本整体同步为同一组测试版本和文案。把 `README.md` 的当前版本更新为 Windows / Android 2.1.101，并保留 OpenList 调试提示与安装格式说明。
 
 - [ ] **Step 6: 运行发布契约测试并确认通过**
 
@@ -699,15 +701,15 @@ git diff -- pubspec.yaml lib/core/app_version.dart `
   lib/utils/version_history.dart RELEASE_NOTES.md UPDATE_DIALOG_COPY.md README.md
 ```
 
-Expected: 仅出现 1.0.5 / Android 1.0.2 与本轮日志分享文案；旧版本历史仍保留。版本改动等待完整构建验证后一起提交。
+Expected: 仅出现双平台 2.1.101 测试版与本轮日志分享文案；旧版本历史仍保留。版本改动等待完整构建验证后一起提交。
 
 ### Task 4: 完整质量门禁与双平台交付
 
 **Files:**
 - Verify: all tracked changes
-- Output: `C:\Users\asus\Desktop\看影音-1.0.5.msix`
-- Output: `C:\Users\asus\Desktop\看影音-1.0.2.apk`
-- Output: `C:\Users\asus\Desktop\看影音-1.0.2.aab`
+- Output: `C:\Users\asus\Desktop\看影音-2.1.101.msix`
+- Output: `C:\Users\asus\Desktop\看影音-2.1.101.apk`
+- Output: `C:\Users\asus\Desktop\看影音-2.1.101.aab`
 
 - [ ] **Step 1: 运行完整测试**
 
@@ -737,14 +739,14 @@ Run:
 powershell -ExecutionPolicy Bypass -File tool\windows\build_signed_release.ps1
 ```
 
-Expected: Windows Release 构建、MSIX 生成、签名及清单验证全部通过，桌面生成 `看影音-1.0.5.msix`。脚本不得安装包。
+Expected: Windows Release 构建、MSIX 生成、签名及清单验证全部通过，桌面生成 `看影音-2.1.101.msix`。脚本不得安装包。
 
 - [ ] **Step 4: 独立核验 Windows 包版本、签名和哈希**
 
 Run:
 
 ```powershell
-$msix = Join-Path ([Environment]::GetFolderPath('Desktop')) '看影音-1.0.5.msix'
+$msix = Join-Path ([Environment]::GetFolderPath('Desktop')) '看影音-2.1.101.msix'
 Get-Item -LiteralPath $msix | Select-Object FullName, Length, LastWriteTime
 Get-AuthenticodeSignature -LiteralPath $msix |
   Select-Object Status, StatusMessage, SignerCertificate
@@ -753,7 +755,7 @@ Get-AppxPackage -Name com.kanyingyin.player |
   Select-Object Name, Version, InstallLocation
 ```
 
-Expected: 文件存在、签名状态有效、清单版本为 1.0.5.0。未执行安装，因此已安装版本应与 Task 1 记录一致；若机器仍安装 2.1.100.0，明确记录新包未安装且较低版本不能作为覆盖升级证明。
+Expected: 文件存在、签名状态有效、清单版本为 2.1.101.0。未执行安装，因此已安装版本应与 Task 1 记录的 2.1.100.0 一致，并明确记录新测试包尚未安装。
 
 - [ ] **Step 5: 构建、签名并验证 Android APK/AAB**
 
@@ -763,7 +765,7 @@ Run:
 powershell -ExecutionPolicy Bypass -File tool\android\build_signed_release.ps1
 ```
 
-Expected: Release APK 和 AAB 构建通过；APK v2 签名有效，AAB `jarsigner -verify -strict` 有效；桌面生成 `看影音-1.0.2.apk` 与 `看影音-1.0.2.aab`。
+Expected: Release APK 和 AAB 构建通过；APK v2 签名有效，AAB `jarsigner -verify -strict` 有效；桌面生成 `看影音-2.1.101.apk` 与 `看影音-2.1.101.aab`。
 
 - [ ] **Step 6: 独立核验 Android 包身份、版本和桌面副本**
 
@@ -781,11 +783,11 @@ $aab = 'build\app\outputs\bundle\release\app-release.aab'
 & $aapt dump badging $apk | Select-String '^package:'
 & $apksigner verify --verbose --print-certs $apk
 Get-FileHash -Algorithm SHA256 $apk, $aab,
-  (Join-Path ([Environment]::GetFolderPath('Desktop')) '看影音-1.0.2.apk'),
-  (Join-Path ([Environment]::GetFolderPath('Desktop')) '看影音-1.0.2.aab')
+  (Join-Path ([Environment]::GetFolderPath('Desktop')) '看影音-2.1.101.apk'),
+  (Join-Path ([Environment]::GetFolderPath('Desktop')) '看影音-2.1.101.aab')
 ```
 
-Expected: `com.kanyingyin.player`、versionName `1.0.2`、versionCode `10002`；构建目录和桌面对应文件的 SHA256 分别一致。
+Expected: `com.kanyingyin.player`、versionName `2.1.101`、versionCode `20101`；构建目录和桌面对应文件的 SHA256 分别一致。
 
 - [ ] **Step 7: 记录实机限制**
 
@@ -818,7 +820,7 @@ git add pubspec.yaml lib/core/app_version.dart `
   test/version_consistency_test.dart test/release_config_contract_test.dart `
   test/identity_v2_zero_residue_test.dart test/android_release_packaging_test.dart `
   test/version_history_current_test.dart
-git commit -m "发布：交付1.0.5与安卓1.0.2"
+git commit -m "发布：交付2.1.101测试版"
 git status --short
 git log -4 --oneline --decorate
 ```
@@ -832,5 +834,5 @@ Expected: 只提交本轮版本、文案和发布测试；最终工作树干净�
 - 原日志不被删除，筛选条件不影响导出内容。
 - `share_plus` 固定在兼容 AGP 8.11.1 的 11.x，不升级其他依赖。
 - 完整测试、静态分析、Windows Release/MSIX 和 Android Release APK/AAB 全部通过。
-- Windows 1.0.5 MSIX 与 Android 1.0.2 APK/AAB 位于桌面并完成版本、签名和哈希核验。
+- Windows 2.1.101 MSIX 与 Android 2.1.101 APK/AAB 位于桌面并完成版本、签名和哈希核验。
 - 未连接 Android 实机时，不宣称系统分享面板已实机验证。

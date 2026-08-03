@@ -150,17 +150,18 @@ void main() {
     );
     expect(
       immersiveModeApplier,
-      contains('window.setDecorFitsSystemWindows(true)'),
+      isNot(contains('window.setDecorFitsSystemWindows(true)')),
     );
     expect(
       immersiveModeApplier,
       contains('controller.show(WindowInsets.Type.systemBars())'),
     );
+    expect(mainActivity, contains('immersiveModeController.initialize()'));
     expect(mainActivity, contains('override fun onResume()'));
     expect(mainActivity, contains('override fun onWindowFocusChanged'));
     expect(
       mainActivity,
-      contains('immersiveModeController.reapplyIfRequested()'),
+      contains('immersiveModeController.reapplyCurrent()'),
     );
     expect(
       mainActivity,

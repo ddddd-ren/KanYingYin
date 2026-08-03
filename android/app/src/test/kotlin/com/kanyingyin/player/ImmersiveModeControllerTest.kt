@@ -7,11 +7,20 @@ import org.junit.Test
 
 class ImmersiveModeControllerTest {
     @Test
+    fun initializeAppliesVisibleEdgeToEdgeMode() {
+        val calls = mutableListOf<Boolean>()
+        val controller = ImmersiveModeController { enabled -> calls += enabled }
+
+        controller.initialize()
+
+        assertFalse(controller.isRequested)
+        assertEquals(listOf(false), calls)
+    }
+
+    @Test
     fun enablingStoresRequestAndAppliesImmersiveMode() {
         val calls = mutableListOf<Boolean>()
-        val controller = ImmersiveModeController { enabled ->
-            calls += enabled
-        }
+        val controller = ImmersiveModeController { enabled -> calls += enabled }
 
         controller.setEnabled(true)
 
@@ -20,31 +29,28 @@ class ImmersiveModeControllerTest {
     }
 
     @Test
-    fun lifecycleReapplyRunsOnlyWhileImmersiveIsRequested() {
+    fun lifecycleReapplyUsesCurrentRequestedMode() {
         val calls = mutableListOf<Boolean>()
-        val controller = ImmersiveModeController { enabled ->
-            calls += enabled
-        }
+        val controller = ImmersiveModeController { enabled -> calls += enabled }
 
-        controller.reapplyIfRequested()
+        controller.initialize()
+        controller.reapplyCurrent()
         controller.setEnabled(true)
-        controller.reapplyIfRequested()
+        controller.reapplyCurrent()
 
-        assertEquals(listOf(true, true), calls)
+        assertEquals(listOf(false, false, true, true), calls)
     }
 
     @Test
-    fun disablingRestoresBarsAndStopsFutureReapply() {
+    fun disablingReturnsToVisibleEdgeToEdgeAndKeepsReapplyingIt() {
         val calls = mutableListOf<Boolean>()
-        val controller = ImmersiveModeController { enabled ->
-            calls += enabled
-        }
+        val controller = ImmersiveModeController { enabled -> calls += enabled }
 
         controller.setEnabled(true)
         controller.setEnabled(false)
-        controller.reapplyIfRequested()
+        controller.reapplyCurrent()
 
         assertFalse(controller.isRequested)
-        assertEquals(listOf(true, false), calls)
+        assertEquals(listOf(true, false, false), calls)
     }
 }

@@ -718,6 +718,42 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
                     : (sourceId) => _controller.selectSource(sourceId),
               ),
             ),
+          if (sources.isNotEmpty) ...[
+            const SizedBox(width: 4),
+            PopupMenuButton<String>(
+              key: const ValueKey<String>('cloud-genre-filter'),
+              tooltip: '筛选 TMDB 类型',
+              enabled:
+                  selected != null && _controller.availableGenres.isNotEmpty,
+              onSelected: (value) {
+                if (value == '__clear__') {
+                  _controller.clearGenres();
+                } else {
+                  _controller.toggleGenre(value);
+                }
+              },
+              itemBuilder: (_) => <PopupMenuEntry<String>>[
+                if (_controller.selectedGenres.isNotEmpty)
+                  const PopupMenuItem<String>(
+                    value: '__clear__',
+                    child: Text('清除'),
+                  ),
+                ..._controller.availableGenres.map(
+                  (genre) => CheckedPopupMenuItem<String>(
+                    value: genre,
+                    checked: _controller.selectedGenres.contains(genre),
+                    child: Text(genre),
+                  ),
+                ),
+              ],
+              icon: _controller.selectedGenres.isEmpty
+                  ? const Icon(Icons.sell_outlined)
+                  : Badge.count(
+                      count: _controller.selectedGenres.length,
+                      child: const Icon(Icons.sell_outlined),
+                    ),
+            ),
+          ],
           const Spacer(),
           PopupMenuButton<_CloudAddAction>(
             tooltip: '添加网盘',

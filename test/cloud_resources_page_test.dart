@@ -811,6 +811,10 @@ void main() {
     expect(find.byTooltip('管理网盘来源'), findsOneWidget);
     expect(find.byTooltip('刷新当前来源'), findsOneWidget);
     expect(find.byTooltip('更多网盘操作'), findsOneWidget);
+    final disabledGenreFilter = tester.widget<PopupMenuButton<String>>(
+      find.byKey(const ValueKey<String>('cloud-genre-filter')),
+    );
+    expect(disabledGenreFilter.enabled, isFalse);
     expect(find.text('自动整理当前来源'), findsNothing);
     expect(find.text('刮削当前来源'), findsNothing);
     expect(find.text('移除当前来源'), findsNothing);
@@ -858,6 +862,59 @@ void main() {
     expect(find.byTooltip('返回上级'), findsNothing);
     expect(find.text('影片 A.mkv'), findsOneWidget);
     expect(find.text('剧集 B.mkv'), findsOneWidget);
+    fixture.controller.dispose();
+  });
+
+  testWidgets('当前网盘名称右侧的类型菜单支持多选任一匹配和清除', (tester) async {
+    final entries = <CloudFileEntry>[
+      _pageVideo('science-fiction', '/影视/科幻作品.mkv', '科幻作品.mkv'),
+      _pageVideo('documentary', '/影视/纪录片作品.mkv', '纪录片作品.mkv'),
+    ];
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      entries: entries,
+      snapshotOnly: true,
+      indexedItems: <CloudMediaIndexItem>[
+        _pageIndexedVideo(entries[0], const <String>['科幻']),
+        _pageIndexedVideo(entries[1], const <String>['纪录片']),
+      ],
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: CloudResourcesPage(controller: fixture.controller)),
+    );
+    await tester.pumpAndSettle();
+
+    final sourceSelector = find.byKey(
+      const ValueKey<String>('cloud-source-selector'),
+    );
+    final genreFilter = find.byKey(
+      const ValueKey<String>('cloud-genre-filter'),
+    );
+    expect(genreFilter, findsOneWidget);
+    expect(
+      tester.getCenter(genreFilter).dx,
+      greaterThan(tester.getCenter(sourceSelector).dx),
+    );
+
+    await tester.tap(find.byTooltip('筛选 TMDB 类型'));
+    await tester.pumpAndSettle();
+    await tester.tap(_checkedCloudGenreItem('科幻'));
+    await tester.pumpAndSettle();
+    expect(find.text('科幻作品'), findsOneWidget);
+    expect(find.text('纪录片作品'), findsNothing);
+
+    await tester.tap(find.byTooltip('筛选 TMDB 类型'));
+    await tester.pumpAndSettle();
+    await tester.tap(_checkedCloudGenreItem('纪录片'));
+    await tester.pumpAndSettle();
+    expect(find.text('科幻作品'), findsOneWidget);
+    expect(find.text('纪录片作品'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('筛选 TMDB 类型'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('清除'));
+    await tester.pumpAndSettle();
+    expect(fixture.controller.selectedGenres, isEmpty);
     fixture.controller.dispose();
   });
 
@@ -1923,6 +1980,8 @@ class _PageFixture {
   static Future<_PageFixture> create({
     CloudSource? source,
     List<CloudFileEntry> entries = const <CloudFileEntry>[],
+    List<CloudMediaIndexItem> indexedItems = const <CloudMediaIndexItem>[],
+    bool snapshotOnly = false,
     Map<String, List<CloudFileEntry>>? entriesById,
     CloudResourceTmdbRecord? record,
     CloudResourceTmdbCoordinator? tmdbCoordinator,
@@ -1958,23 +2017,83 @@ class _PageFixture {
     final indexRepository = CloudMediaIndexRepository(
       storage: MemoryCloudMediaIndexStorage(),
     );
+    if (source != null && indexedItems.isNotEmpty) {
+      await indexRepository.replaceSource(
+        source.id,
+        indexedItems,
+        const <String, String>{},
+        const <String, List<CloudFileEntry>>{},
+        source.remoteRoots.map((root) => root.path).toList(growable: false),
+      );
+    }
     final minSizeProvider = minRecognizedVideoSizeBytesProvider ?? (() => 0);
-    return _PageFixture(
-      CloudResourcesController(
-        repository: repository,
-        credentialStore: credentials,
-        providerRegistry: registry,
-        mediaIndexRepository: indexRepository,
-        mediaIndexer: CloudMediaIndexer(
-          repository: indexRepository,
-          minRecognizedVideoSizeBytesProvider: minSizeProvider,
-        ),
-        tmdbCoordinator: tmdbCoordinator,
-        minRecognizedVideoSizeBytesProvider: minSizeProvider,
-      ),
-      repository,
-    );
+    final controller = snapshotOnly
+        ? _SnapshotOnlyCloudResourcesController(
+            repository: repository,
+            credentialStore: credentials,
+            mediaIndexRepository: indexRepository,
+            minRecognizedVideoSizeBytesProvider: minSizeProvider,
+          )
+        : CloudResourcesController(
+            repository: repository,
+            credentialStore: credentials,
+            providerRegistry: registry,
+            mediaIndexRepository: indexRepository,
+            mediaIndexer: CloudMediaIndexer(
+              repository: indexRepository,
+              minRecognizedVideoSizeBytesProvider: minSizeProvider,
+            ),
+            tmdbCoordinator: tmdbCoordinator,
+            minRecognizedVideoSizeBytesProvider: minSizeProvider,
+          );
+    return _PageFixture(controller, repository);
   }
+}
+
+class _SnapshotOnlyCloudResourcesController extends CloudResourcesController {
+  _SnapshotOnlyCloudResourcesController({
+    required super.repository,
+    required super.credentialStore,
+    required super.mediaIndexRepository,
+    required super.minRecognizedVideoSizeBytesProvider,
+  });
+
+  @override
+  Future<void> load() => reloadSourcesAndSnapshot();
+}
+
+CloudFileEntry _pageVideo(String id, String path, String name) {
+  return CloudFileEntry(
+    id: id,
+    remotePath: path,
+    name: name,
+    size: 1024 * 1024 * 700,
+    modifiedAt: DateTime.utc(2026, 8, 4),
+    isDirectory: false,
+  );
+}
+
+CloudMediaIndexItem _pageIndexedVideo(
+  CloudFileEntry entry,
+  List<String> genres,
+) {
+  return CloudMediaIndexItem(
+    sourceId: _quarkSource.id,
+    remoteId: entry.id,
+    remotePath: entry.remotePath,
+    name: entry.name,
+    size: entry.size,
+    modifiedAt: entry.modifiedAt,
+    seriesName: entry.name.replaceFirst('.mkv', ''),
+    mediaType: CloudMediaType.movie,
+    tmdbGenres: genres,
+  );
+}
+
+Finder _checkedCloudGenreItem(String value) {
+  return find.byWidgetPredicate(
+    (widget) => widget is CheckedPopupMenuItem<String> && widget.value == value,
+  );
 }
 
 CloudResourceTmdbRecord _matchedVideoRecord() {

@@ -1140,18 +1140,13 @@ void main() {
     expect(guard.tryAcquire('HTTP error 412 Precondition Failed'), isFalse);
   });
 
-  test('生产媒体库注入云播放回调且不再显示服务不可用', () {
+  test('本地媒体库不再注入网盘播放回调', () {
     final page = File('lib/pages/local/local_page.dart').readAsStringSync();
     final videoPage =
         File('lib/pages/video/video_page.dart').readAsStringSync();
-    expect(page, contains('onPlayCloud:'));
-    expect(page, contains('CloudPlaybackResolver'));
+    expect(page, isNot(contains('onPlayCloud:')));
+    expect(page, isNot(contains('_playCloudLibraryEpisode')));
     expect(page, isNot(contains('播放服务暂不可用')));
-    expect(
-      page.indexOf('await _playCloudLibraryEpisode(series, episode)'),
-      lessThan(page.indexOf(
-          'Navigator.of(context).pop()', page.indexOf('onPlayCloud:'))),
-    );
     expect(videoPage, contains('addPostFrameCallback((_) async'));
     expect(videoPage, contains('await changeEpisode('));
     expect(videoPage, contains("'VideoPage: failed to initialize playback'"));

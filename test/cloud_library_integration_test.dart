@@ -125,9 +125,7 @@ void main() {
         const <String>['剧情', '科幻'],
       );
       expect(
-        library.series
-            .firstWhere((item) => item.sourceId == 'openlist')
-            .genres,
+        library.series.firstWhere((item) => item.sourceId == 'openlist').genres,
         const <String>['动画', '科幻'],
       );
     });
@@ -404,7 +402,7 @@ void main() {
     expect(controller.visibleMediaLibrarySeries, hasLength(1));
   });
 
-  test('LocalController 总媒体数包含网盘并可在刷新后选中来源', () async {
+  test('LocalController 网盘资源不能启用本地媒体库入口', () async {
     final sourceRepository = CloudSourceRepository(
       storage: MemoryCloudSourceStorage(),
       credentialStore: MemoryCloudCredentialStore(),
@@ -427,7 +425,7 @@ void main() {
 
     await controller.revealCloudLibrarySource('openlist');
 
-    expect(controller.mediaLibraryVideoCount, 1);
+    expect(controller.mediaLibraryVideoCount, 0);
     expect(controller.selectedLibrarySourceId, 'openlist');
     final page = File('lib/pages/local/local_page.dart').readAsStringSync();
     expect(page, contains('LibraryPathBar('));
@@ -651,40 +649,16 @@ void main() {
     expect(drive.lastPlaybackRef?.path, '$season3FirstPath/01.mkv');
   });
 
-  testWidgets('远程系列菜单提供 TMDB 刮削和重新匹配', (tester) async {
+  testWidgets('本地媒体库不显示网盘资源和网盘来源入口', (tester) async {
     final controller = LocalController();
+    controller.localLibraryItems.add(
+      _genreLocal('local-movie', '本地作品', const <String>['剧情']),
+    );
     controller.cloudLibrarySources
         .add(_source('openlist', '家庭网盘', enabled: true));
-    controller.cloudLibraryItems
-        .add(_cloud('openlist', '/Show/Show S01E01.mkv'));
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: LibrarySheetContent(
-          controller: controller,
-          onPlay: (_, __) {},
-          onRefresh: () {},
-        ),
-      ),
-    ));
-    await tester.tap(find.byTooltip('网盘系列操作'));
-    await tester.pumpAndSettle();
-    expect(find.text('TMDB 刮削'), findsOneWidget);
-    expect(find.text('重新匹配'), findsOneWidget);
-  });
-
-  testWidgets('网盘来源为空时显示可操作的扫描诊断', (tester) async {
-    final controller = LocalController();
-    controller.cloudLibrarySources.add(CloudSource(
-      id: 'openlist',
-      type: CloudSourceType.openList,
-      name: '家庭网盘',
-      baseUrl: 'https://drive.example.com',
-      rootPaths: const <String>['/动漫'],
-      scanStatus: CloudScanStatus.completed,
-      lastScannedAt: DateTime(2026, 7, 15),
-    ));
-    controller.selectLibrarySource('openlist');
-
+    controller.cloudLibraryItems.add(
+      _genreCloud('cloud-movie', '网盘作品', const <String>['网盘独有']),
+    );
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: LibrarySheetContent(
@@ -696,21 +670,26 @@ void main() {
     ));
     await tester.pump();
 
-    expect(find.text('扫描目录中没有找到支持的视频'), findsOneWidget);
-    expect(find.text('重新扫描网盘'), findsOneWidget);
+    expect(find.text('本地作品'), findsOneWidget);
+    expect(find.text('网盘作品'), findsNothing);
+    expect(find.text('家庭网盘'), findsNothing);
+    expect(find.byTooltip('筛选媒体来源'), findsNothing);
+    expect(find.byTooltip('网盘系列操作'), findsNothing);
   });
 
-  testWidgets('云系列组件显示 TMDB 标题评分和简介', (tester) async {
+  testWidgets('只有网盘资源时本地媒体库仍显示本地空状态', (tester) async {
     final controller = LocalController();
-    controller.cloudLibrarySources
-        .add(_source('openlist', '家庭网盘', enabled: true));
+    controller.cloudLibrarySources.add(CloudSource(
+      id: 'openlist',
+      type: CloudSourceType.openList,
+      name: '家庭网盘',
+      baseUrl: 'https://drive.example.com',
+      rootPaths: const <String>['/动漫'],
+      scanStatus: CloudScanStatus.completed,
+      lastScannedAt: DateTime(2026, 7, 15),
+    ));
     controller.cloudLibraryItems.add(
-      _cloud('openlist', '/Show/Show S01E01.mkv').replaceTmdb(
-        tmdbId: 42,
-        tmdbTitle: '中文片名',
-        tmdbOverview: '这是用户可见的简介',
-        tmdbRating: 8.8,
-      ),
+      _genreCloud('cloud-only', '网盘作品', const <String>['科幻']),
     );
 
     await tester.pumpWidget(MaterialApp(
@@ -724,22 +703,24 @@ void main() {
     ));
     await tester.pump();
 
-    expect(find.text('中文片名 S01'), findsOneWidget);
-    expect(find.textContaining('8.8'), findsOneWidget);
-    await tester.tap(find.text('中文片名 S01'));
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('这是用户可见的简介'), findsOneWidget);
+    expect(find.text('媒体库还没有内容'), findsOneWidget);
+    expect(find.text('扫描已添加的本地媒体源后，可以按系列查看视频。'), findsOneWidget);
+    expect(find.text('重新扫描网盘'), findsNothing);
+    expect(find.text('网盘作品'), findsNothing);
   });
 
-  testWidgets('类型菜单支持多选任一匹配和清除', (tester) async {
+  testWidgets('本地类型菜单支持多选且不包含网盘独有标签', (tester) async {
     final controller = LocalController();
+    controller.localLibraryItems.addAll(<LocalMediaIndexItem>[
+      _genreLocal('animation', '动画作品', const <String>['动画']),
+      _genreLocal('science-fiction', '科幻作品', const <String>['科幻']),
+      _genreLocal('documentary', '纪录片作品', const <String>['纪录片']),
+    ]);
     controller.cloudLibrarySources
         .add(_source('openlist', '家庭网盘', enabled: true));
-    controller.cloudLibraryItems.addAll(<CloudMediaIndexItem>[
-      _genreCloud('animation', '动画作品', const <String>['动画']),
-      _genreCloud('science-fiction', '科幻作品', const <String>['科幻']),
-      _genreCloud('documentary', '纪录片作品', const <String>['纪录片']),
-    ]);
+    controller.cloudLibraryItems.add(
+      _genreCloud('cloud-only', '网盘作品', const <String>['网盘独有']),
+    );
 
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
@@ -753,6 +734,7 @@ void main() {
 
     await tester.tap(find.byTooltip('筛选 TMDB 类型'));
     await tester.pumpAndSettle();
+    expect(find.text('网盘独有'), findsNothing);
     await tester.tap(_checkedGenreItem('动画'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('筛选 TMDB 类型'));
@@ -774,10 +756,8 @@ void main() {
 
   testWidgets('类型补齐失败时保留轻量重试入口', (tester) async {
     final controller = LocalController();
-    controller.cloudLibrarySources
-        .add(_source('openlist', '家庭网盘', enabled: true));
-    controller.cloudLibraryItems.add(
-      _genreCloud('animation', '动画作品', const <String>['动画']),
+    controller.localLibraryItems.add(
+      _genreLocal('animation', '动画作品', const <String>['动画']),
     );
     controller.libraryGenreRefreshError = '1 个作品暂时无法更新';
 
@@ -966,10 +946,35 @@ CloudMediaIndexItem _genreCloud(
   );
 }
 
+LocalMediaIndexItem _genreLocal(
+  String id,
+  String title,
+  List<String> genres,
+) {
+  return LocalMediaIndexItem(
+    path: 'C:\\Media\\$id\\$id.mkv',
+    name: '$id.mkv',
+    parentPath: 'C:\\Media\\$id',
+    sourcePath: r'C:\Media',
+    size: 10,
+    modified: DateTime.utc(2026, 8, 4),
+    seriesName: title,
+    indexedAt: DateTime.utc(2026, 8, 4),
+    tmdb: TmdbMetadata(
+      id: id.hashCode,
+      mediaType: TmdbMediaType.movie,
+      title: title,
+      genres: genres,
+      language: 'zh-CN',
+      matchedAt: DateTime.utc(2026, 8, 4),
+      matchConfidence: 1,
+    ),
+  );
+}
+
 Finder _checkedGenreItem(String value) {
   return find.byWidgetPredicate(
-    (widget) =>
-        widget is CheckedPopupMenuItem<String> && widget.value == value,
+    (widget) => widget is CheckedPopupMenuItem<String> && widget.value == value,
   );
 }
 

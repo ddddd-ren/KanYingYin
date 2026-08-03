@@ -749,8 +749,7 @@ abstract class _LocalController with Store {
   int get localLibraryVideoCount => localLibraryItems.length;
 
   @computed
-  int get mediaLibraryVideoCount =>
-      localLibraryItems.length + cloudLibraryItems.length;
+  int get mediaLibraryVideoCount => localLibraryItems.length;
 
   @computed
   int get localLibrarySeriesCount =>
@@ -759,6 +758,13 @@ abstract class _LocalController with Store {
   @computed
   List<LocalMediaSeries> get localLibrarySeries =>
       _libraryBuilder.buildSeries(localLibraryItems);
+
+  CloudMediaLibrary get localMediaLibrary =>
+      const CloudMediaLibraryAggregator().build(
+        localItems: localLibraryItems,
+        cloudItems: const <CloudMediaIndexItem>[],
+        cloudSources: const <CloudSource>[],
+      );
 
   CloudMediaLibrary get combinedMediaLibrary =>
       const CloudMediaLibraryAggregator().build(

@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -6,7 +5,6 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:kanyingyin/features/library/application/media_library_query.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
-import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
 import 'package:kanyingyin/pages/local/local_series_detail_page.dart';
 import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
@@ -15,13 +13,6 @@ import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 
-ImageProvider<Object>? cloudSeriesCoverProvider(MediaLibrarySeries series) {
-  final cachePath = series.posterCachePath?.trim() ?? '';
-  if (cachePath.isNotEmpty) return FileImage(File(cachePath));
-  final networkUrl = TmdbMatchSheet.imageUrl(series.tmdbPosterUrl);
-  return networkUrl == null ? null : NetworkImage(networkUrl);
-}
-
 /// 带搜索、排序和 TMDB 信息展示的媒体库面板。
 class LibrarySheetContent extends StatefulWidget {
   const LibrarySheetContent({
@@ -29,7 +20,6 @@ class LibrarySheetContent extends StatefulWidget {
     required this.controller,
     required this.onPlay,
     required this.onRefresh,
-    this.onPlayCloud,
     this.headerActions = const <Widget>[],
   });
 
@@ -37,10 +27,6 @@ class LibrarySheetContent extends StatefulWidget {
   final void Function(LocalMediaSeries series, LocalMediaIndexItem episode)
       onPlay;
   final VoidCallback onRefresh;
-  final FutureOr<void> Function(
-    MediaLibrarySeries series,
-    MediaLibraryEpisode episode,
-  )? onPlayCloud;
   final List<Widget> headerActions;
 
   @override
@@ -51,7 +37,6 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
   final _searchCtrl = TextEditingController();
   String _query = '';
   String _sortBy = 'modified';
-  String? _openingCloudStableId;
   final Set<String> _selectedGenres = <String>{};
   final MediaLibraryQuery _libraryQuery = const MediaLibraryQuery();
 
@@ -117,38 +102,27 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
       builder: (context, scrollCtrl) {
         return Observer(
           builder: (_) {
-            final library = widget.controller.combinedMediaLibrary;
+            final library = widget.controller.localMediaLibrary;
             if (library.series.isEmpty) return _empty(context, cs, tt);
-            final selected = widget.controller.selectedLibrarySourceId;
             final genreFiltered = _libraryQuery.apply(
               series: library.series,
-              sourceId: selected,
+              sourceId: 'local',
               selectedGenres: _selectedGenres,
             );
-            final localSeriesKeys = genreFiltered
-                .where((item) => item.sourceKind == MediaSourceKind.local)
-                .map((item) => item.seriesKey)
-                .toSet();
-            final all = selected == 'all' || selected == 'local'
-                ? widget.controller.localLibrarySeries
-                    .where((item) => localSeriesKeys.contains(item.key))
-                    .toList(growable: false)
-                : <LocalMediaSeries>[];
-            final series = _filtered(all);
-            final cloudSeries = genreFiltered
-                .where((item) => item.sourceKind == MediaSourceKind.cloud)
-                .where((item) =>
-                    _query.isEmpty ||
-                    item.title.toLowerCase().contains(_query.toLowerCase()))
+            final localSeriesKeys =
+                genreFiltered.map((item) => item.seriesKey).toSet();
+            final all = widget.controller.localLibrarySeries
+                .where((item) => localSeriesKeys.contains(item.key))
                 .toList(growable: false);
+            final series = _filtered(all);
             return Column(
               children: [
                 _header(cs, tt, library.series.length),
                 _searchBar(cs),
-                _sourceRow(cs, tt, library),
+                _genreRow(cs, tt, library),
                 if (all.isNotEmpty) _sortRow(cs, tt),
                 Expanded(
-                  child: series.isEmpty && cloudSeries.isEmpty
+                  child: series.isEmpty
                       ? Center(
                           child: Text('没有匹配的系列',
                               style:
@@ -157,11 +131,9 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
                       : ListView.builder(
                           controller: scrollCtrl,
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                          itemCount: series.length + cloudSeries.length,
-                          itemBuilder: (ctx, i) => i < series.length
-                              ? _seriesTile(ctx, cs, tt, series[i])
-                              : _cloudSeriesTile(
-                                  ctx, cs, tt, cloudSeries[i - series.length]),
+                          itemCount: series.length,
+                          itemBuilder: (ctx, i) =>
+                              _seriesTile(ctx, cs, tt, series[i]),
                         ),
                 ),
               ],
@@ -173,27 +145,6 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
   }
 
   Widget _empty(BuildContext context, ColorScheme cs, TextTheme tt) {
-    CloudSource? selectedCloudSource;
-    final selected = widget.controller.selectedLibrarySourceId;
-    if (selected != 'all' && selected != 'local') {
-      for (final source in widget.controller.cloudLibrarySources) {
-        if (source.id == selected) {
-          selectedCloudSource = source;
-          break;
-        }
-      }
-    }
-    final cloudSource = selectedCloudSource;
-    final message = cloudSource == null
-        ? '扫描已添加的本地或网盘媒体源后，可以按系列查看视频。'
-        : switch (cloudSource.scanStatus) {
-            CloudScanStatus.never => '该网盘来源尚未扫描',
-            CloudScanStatus.scanning => '正在扫描网盘目录，请稍候',
-            CloudScanStatus.failed => '上次扫描失败，请检查连接和目录权限',
-            CloudScanStatus.completed => cloudSource.lastScanFailureCount > 0
-                ? '没有找到视频，且 ${cloudSource.lastScanFailureCount} 个目录读取失败'
-                : '扫描目录中没有找到支持的视频',
-          };
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -204,7 +155,7 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
           Text('媒体库还没有内容', style: tt.titleMedium),
           const SizedBox(height: 8),
           Text(
-            message,
+            '扫描已添加的本地媒体源后，可以按系列查看视频。',
             textAlign: TextAlign.center,
             style: tt.bodySmall?.copyWith(color: cs.outline),
           ),
@@ -217,15 +168,10 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
             const SizedBox(height: 8),
           ],
           FilledButton.icon(
-            onPressed: cloudSource == null
-                ? widget.controller.isIndexingLibrary
-                    ? null
-                    : widget.onRefresh
-                : cloudSource.scanStatus == CloudScanStatus.scanning
-                    ? null
-                    : () => _refreshCloudSource(context, cloudSource.id),
+            onPressed:
+                widget.controller.isIndexingLibrary ? null : widget.onRefresh,
             icon: const Icon(Icons.manage_search_outlined),
-            label: Text(cloudSource == null ? '扫描媒体库' : '重新扫描网盘'),
+            label: const Text('扫描媒体库'),
           ),
         ],
       ),
@@ -242,7 +188,7 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
                 Text('媒体库', style: tt.titleMedium),
                 const SizedBox(height: 2),
                 Text(
-                    '${widget.controller.combinedMediaLibrary.series.fold<int>(0, (sum, item) => sum + item.episodes.length)} 个视频 · $count 个系列',
+                    '${widget.controller.localLibraryVideoCount} 个视频 · $count 个系列',
                     style: tt.bodySmall?.copyWith(color: cs.outline)),
               ],
             ),
@@ -292,16 +238,11 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
         ),
       );
 
-  Widget _sourceRow(ColorScheme cs, TextTheme tt, CloudMediaLibrary library) {
-    final selected = widget.controller.selectedLibrarySourceId;
+  Widget _genreRow(ColorScheme cs, TextTheme tt, CloudMediaLibrary library) {
     final availableGenres = _libraryQuery.availableGenres(
       library.series,
-      sourceId: selected,
+      sourceId: 'local',
     );
-    var current = library.filters.first;
-    for (final filter in library.filters) {
-      if (filter.id == selected) current = filter;
-    }
     final genreStatus = widget.controller.libraryGenreRefreshError;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
@@ -309,45 +250,7 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Icon(
-              current.kind == MediaSourceKind.cloud
-                  ? Icons.cloud_outlined
-                  : current.kind == MediaSourceKind.local
-                      ? Icons.folder_outlined
-                      : Icons.video_library_outlined,
-              size: 18,
-              color: cs.primary,
-            ),
-            const SizedBox(width: 6),
-            PopupMenuButton<String>(
-              tooltip: '筛选媒体来源',
-              initialValue: selected,
-              onSelected: (value) {
-                final nextAvailable = _libraryQuery.availableGenres(
-                  library.series,
-                  sourceId: value,
-                );
-                final retained = _libraryQuery.retainAvailableGenres(
-                  _selectedGenres,
-                  nextAvailable,
-                );
-                setState(() {
-                  widget.controller.selectLibrarySource(value);
-                  _selectedGenres
-                    ..clear()
-                    ..addAll(retained);
-                });
-              },
-              itemBuilder: (_) => library.filters
-                  .map((filter) => PopupMenuItem<String>(
-                        value: filter.id,
-                        child: Text(filter.label),
-                      ))
-                  .toList(growable: false),
-              child: Text(current.label, style: tt.bodySmall),
-            ),
             if (availableGenres.isNotEmpty) ...[
-              const SizedBox(width: 16),
               Icon(Icons.sell_outlined, size: 17, color: cs.primary),
               const SizedBox(width: 4),
               PopupMenuButton<String>(
@@ -418,189 +321,6 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
         ],
       ),
     );
-  }
-
-  Widget _cloudSeriesTile(BuildContext context, ColorScheme cs, TextTheme tt,
-      MediaLibrarySeries series) {
-    final rating = series.tmdbRating;
-    return ExpansionTile(
-      tilePadding: const EdgeInsets.symmetric(horizontal: 4),
-      leading:
-          Tooltip(message: series.sourceName, child: _cloudCover(cs, series)),
-      title: Text(series.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(
-        [
-          '${series.episodes.length} 集',
-          series.sourceName,
-          if (rating != null && rating > 0) '${rating.toStringAsFixed(1)} ★',
-          if (!series.isAvailable) '当前不可用',
-        ].join(' · '),
-        style: tt.labelSmall?.copyWith(color: cs.outline),
-      ),
-      trailing: PopupMenuButton<String>(
-        tooltip: '网盘系列操作',
-        onSelected: (value) =>
-            _scrapeCloudSeries(context, series, force: value == 'rematch'),
-        itemBuilder: (_) => const [
-          PopupMenuItem(value: 'scrape', child: Text('TMDB 刮削')),
-          PopupMenuItem(value: 'rematch', child: Text('重新匹配')),
-        ],
-      ),
-      children: [
-        if (series.tmdbOverview?.trim().isNotEmpty == true)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-            child: Text(
-              series.tmdbOverview!.trim(),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: tt.bodySmall?.copyWith(color: cs.outline, height: 1.4),
-            ),
-          ),
-        ...series.episodes.map((episode) => ListTile(
-              dense: true,
-              leading: _openingCloudStableId == episode.stableId
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Icon(series.isAvailable
-                      ? Icons.play_circle_outline
-                      : Icons.cloud_off_outlined),
-              title: Text(episode.name,
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-              subtitle: Text(episode.remotePath ?? '',
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-              onTap: _openingCloudStableId == null
-                  ? () => _openCloudEpisode(context, series, episode)
-                  : null,
-            )),
-      ],
-    );
-  }
-
-  Widget _cloudCover(ColorScheme cs, MediaLibrarySeries series) {
-    final networkUrl = TmdbMatchSheet.imageUrl(series.tmdbPosterUrl);
-    final provider = cloudSeriesCoverProvider(series);
-    Widget fallbackIcon() => Icon(
-          series.isAvailable ? Icons.cloud_outlined : Icons.cloud_off_outlined,
-          color: series.isAvailable ? cs.primary : cs.outline,
-        );
-    Widget fallbackNetwork() => networkUrl != null
-        ? Image.network(
-            networkUrl,
-            width: 40,
-            height: 56,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => fallbackIcon(),
-          )
-        : fallbackIcon();
-    final cachePath = series.posterCachePath?.trim() ?? '';
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
-      child: provider == null
-          ? fallbackIcon()
-          : Image(
-              image: provider,
-              width: 40,
-              height: 56,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) =>
-                  cachePath.isEmpty ? fallbackIcon() : fallbackNetwork(),
-            ),
-    );
-  }
-
-  Future<void> _openCloudEpisode(
-    BuildContext context,
-    MediaLibrarySeries series,
-    MediaLibraryEpisode episode,
-  ) async {
-    if (!episode.isAvailable || widget.onPlayCloud == null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(episode.isAvailable
-            ? '网盘播放暂不可用，请稍后重试'
-            : '${episode.sourceName} 已离线或禁用，旧索引已保留'),
-        action: SnackBarAction(
-          label: widget.controller.refreshingCloudSourceIds
-                  .contains(episode.sourceId)
-              ? '刷新中'
-              : '刷新',
-          onPressed: () => _refreshCloudSource(context, episode.sourceId),
-        ),
-      ));
-      return;
-    }
-    setState(() => _openingCloudStableId = episode.stableId);
-    try {
-      await widget.onPlayCloud!(series, episode);
-    } on Object catch (error) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('网盘视频解析失败：$error')),
-      );
-    } finally {
-      if (mounted) setState(() => _openingCloudStableId = null);
-    }
-  }
-
-  Future<void> _refreshCloudSource(
-      BuildContext context, String sourceId) async {
-    if (widget.controller.refreshingCloudSourceIds.contains(sourceId)) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('该网盘来源正在刷新')));
-      return;
-    }
-    final success = await widget.controller.refreshCloudLibrarySource(sourceId);
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(success
-          ? '网盘来源已刷新'
-          : widget.controller.cloudRefreshError ?? '网盘来源暂时无法刷新'),
-    ));
-  }
-
-  Future<void> _scrapeCloudSeries(
-      BuildContext context, MediaLibrarySeries series,
-      {required bool force}) async {
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      final result = await widget.controller.scrapeCloudSeries(
-        series,
-        forceManual: force,
-      );
-      if (!context.mounted) return;
-      if (result.selected != null) {
-        messenger
-            .showSnackBar(const SnackBar(content: Text('网盘影片 TMDB 信息已更新')));
-        return;
-      }
-      if (result.candidates.isEmpty) {
-        messenger
-            .showSnackBar(const SnackBar(content: Text('没有找到匹配的 TMDB 信息')));
-        return;
-      }
-      final selected = await showModalBottomSheet<TmdbMetadata>(
-        context: context,
-        isScrollControlled: true,
-        builder: (_) => TmdbMatchSheet(
-          seriesName: series.title,
-          candidates: result.candidates,
-        ),
-      );
-      if (selected == null || !context.mounted) return;
-      await widget.controller.selectCloudTmdbCandidate(series, selected);
-      if (!context.mounted) return;
-      messenger.showSnackBar(const SnackBar(content: Text('已使用所选 TMDB 信息')));
-    } on Object catch (error) {
-      if (!context.mounted) return;
-      messenger.showSnackBar(SnackBar(
-        content: Text(error is StateError
-            ? error.message.toString()
-            : '网盘影片 TMDB 刮削失败，请稍后重试'),
-      ));
-    }
   }
 
   Widget _sortRow(ColorScheme cs, TextTheme tt) => Padding(

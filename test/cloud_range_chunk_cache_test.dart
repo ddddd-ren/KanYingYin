@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -58,6 +59,73 @@ void main() {
 
     expect(loadCalls, 1);
     expect(handles[0].file.path, handles[1].file.path);
+    await handles[0].release();
+    await handles[1].release();
+  });
+
+  test('分段获取区分新缺块和完成缓存命中', () async {
+    final accesses = <CloudRangeChunkAccess>[];
+
+    final first = await cache.acquire(
+      1,
+      loader,
+      onAccess: accesses.add,
+    );
+    await first.release();
+    final second = await cache.acquire(
+      2,
+      loader,
+      onAccess: accesses.add,
+    );
+    await second.release();
+
+    expect(
+      accesses,
+      <CloudRangeChunkAccess>[
+        CloudRangeChunkAccess.miss,
+        CloudRangeChunkAccess.cached,
+      ],
+    );
+    expect(loadCalls, 1);
+  });
+
+  test('分段获取报告进行中复用且不重复下载', () async {
+    final loadStarted = Completer<void>();
+    final allowLoad = Completer<void>();
+    final accesses = <CloudRangeChunkAccess>[];
+
+    Future<void> delayedLoader(ByteRange range, File destination) async {
+      loadCalls++;
+      loadStarted.complete();
+      await allowLoad.future;
+      await destination.writeAsBytes(
+        List<int>.generate(range.length, (index) => range.start + index),
+        flush: true,
+      );
+    }
+
+    final firstFuture = cache.acquire(
+      1,
+      delayedLoader,
+      onAccess: accesses.add,
+    );
+    await loadStarted.future;
+    final secondFuture = cache.acquire(
+      3,
+      delayedLoader,
+      onAccess: accesses.add,
+    );
+    allowLoad.complete();
+    final handles = await Future.wait([firstFuture, secondFuture]);
+
+    expect(
+      accesses,
+      <CloudRangeChunkAccess>[
+        CloudRangeChunkAccess.miss,
+        CloudRangeChunkAccess.inFlight,
+      ],
+    );
+    expect(loadCalls, 1);
     await handles[0].release();
     await handles[1].release();
   });

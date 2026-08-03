@@ -7,6 +7,12 @@ typedef CloudRangeChunkLoader = Future<void> Function(
   File destination,
 );
 
+enum CloudRangeChunkAccess { cached, inFlight, miss }
+
+typedef CloudRangeChunkAccessListener = void Function(
+  CloudRangeChunkAccess access,
+);
+
 class CloudChunkLoadException implements Exception {
   const CloudChunkLoadException(this.message);
 
@@ -49,8 +55,9 @@ class CloudRangeChunkCache {
 
   Future<CloudRangeChunkHandle> acquire(
     int byteOffset,
-    CloudRangeChunkLoader loader,
-  ) async {
+    CloudRangeChunkLoader loader, {
+    CloudRangeChunkAccessListener? onAccess,
+  }) async {
     if (_closed) throw StateError('分段缓存已关闭');
     if (byteOffset < 0 || byteOffset >= totalLength) {
       throw RangeError.range(byteOffset, 0, totalLength - 1, 'byteOffset');
@@ -58,11 +65,18 @@ class CloudRangeChunkCache {
 
     final chunkIndex = byteOffset ~/ chunkSize;
     final cached = _entries[chunkIndex];
-    if (cached != null) return _pin(cached);
+    if (cached != null) {
+      onAccess?.call(CloudRangeChunkAccess.cached);
+      return _pin(cached);
+    }
 
     final loading = _inFlight[chunkIndex];
-    if (loading != null) return _pin(await loading);
+    if (loading != null) {
+      onAccess?.call(CloudRangeChunkAccess.inFlight);
+      return _pin(await loading);
+    }
 
+    onAccess?.call(CloudRangeChunkAccess.miss);
     final future = _makeRoomAndLoad(chunkIndex, loader);
     _inFlight[chunkIndex] = future;
     try {

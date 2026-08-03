@@ -10,6 +10,14 @@ import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
 void main() {
+  test('应用根部接入 Android 系统栏表面', () {
+    final appWidgetSource = File('lib/app_widget.dart').readAsStringSync();
+
+    expect(appWidgetSource, contains('AndroidSystemUiSurface('));
+    expect(appWidgetSource, contains('builder: (context, child)'));
+    expect(appWidgetSource, contains('capabilities: detectAppPlatform()'));
+  });
+
   group('WindowsAppShellService', () {
     test('并发重复初始化只配置一次托盘和监听器', () async {
       final platform = _FakeAppShellPlatform();

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:kanyingyin/bean/widget/embedded_native_control_area.dart';
+import 'package:kanyingyin/platform/android/android_system_ui_surface.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:kanyingyin/utils/utils.dart';
 import 'package:window_manager/window_manager.dart';
@@ -100,14 +100,8 @@ class SysAppBar extends StatelessWidget implements PreferredSizeWidget {
       shape: shape,
       bottom: bottom,
       automaticallyImplyLeading: false,
-      systemOverlayStyle: SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness:
-            Theme.of(context).brightness == Brightness.light
-                ? Brightness.dark
-                : Brightness.light,
-        systemNavigationBarColor: Colors.transparent,
-        systemNavigationBarDividerColor: Colors.transparent,
+      systemOverlayStyle: androidAppSystemUiStyle(
+        Theme.of(context).brightness,
       ),
     );
     if (!Utils.isDesktop()) return appBar;

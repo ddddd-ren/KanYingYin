@@ -30,5 +30,25 @@ void main() {
       find.byKey(const ValueKey<String>('mobile-safe-content')),
       findsOneWidget,
     );
+    expect(
+      find.byKey(const ValueKey<String>('compact-bottom-navigation-surface')),
+      findsOneWidget,
+    );
+    final bottomSafeArea = tester.widget<SafeArea>(
+      find.byKey(
+        const ValueKey<String>('compact-bottom-navigation-safe-area'),
+      ),
+    );
+    expect(bottomSafeArea.top, isFalse);
+    expect(bottomSafeArea.bottom, isTrue);
+    final bottomSurface = tester.widget<ColoredBox>(
+      find.byKey(const ValueKey<String>('compact-bottom-navigation-surface')),
+    );
+    expect(
+      bottomSurface.color,
+      Theme.of(tester.element(find.byType(NavigationBar)))
+          .colorScheme
+          .surfaceContainerLow,
+    );
   });
 }

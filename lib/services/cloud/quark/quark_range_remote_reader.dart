@@ -434,7 +434,7 @@ class QuarkRangeRemoteReader implements CloudRangeRemoteReader {
   HttpClient _sharedClient() => _client ??= (_httpClientFactory()
     ..connectionTimeout = requestTimeout
     ..idleTimeout = const Duration(seconds: 30)
-    ..maxConnectionsPerHost = 6
+    ..maxConnectionsPerHost = 8
     ..autoUncompress = false
     ..findProxy = (_) => 'DIRECT');
 

@@ -730,6 +730,71 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('这是用户可见的简介'), findsOneWidget);
   });
+
+  testWidgets('类型菜单支持多选任一匹配和清除', (tester) async {
+    final controller = LocalController();
+    controller.cloudLibrarySources
+        .add(_source('openlist', '家庭网盘', enabled: true));
+    controller.cloudLibraryItems.addAll(<CloudMediaIndexItem>[
+      _genreCloud('animation', '动画作品', const <String>['动画']),
+      _genreCloud('science-fiction', '科幻作品', const <String>['科幻']),
+      _genreCloud('documentary', '纪录片作品', const <String>['纪录片']),
+    ]);
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: LibrarySheetContent(
+          controller: controller,
+          onPlay: (_, __) {},
+          onRefresh: () {},
+        ),
+      ),
+    ));
+
+    await tester.tap(find.byTooltip('筛选 TMDB 类型'));
+    await tester.pumpAndSettle();
+    await tester.tap(_checkedGenreItem('动画'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('筛选 TMDB 类型'));
+    await tester.pumpAndSettle();
+    await tester.tap(_checkedGenreItem('科幻'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('类型 2'), findsOneWidget);
+    expect(find.text('动画作品'), findsOneWidget);
+    expect(find.text('科幻作品'), findsOneWidget);
+    expect(find.text('纪录片作品'), findsNothing);
+
+    await tester.tap(find.byTooltip('筛选 TMDB 类型'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('清除'));
+    await tester.pumpAndSettle();
+    expect(find.text('纪录片作品'), findsOneWidget);
+  });
+
+  testWidgets('类型补齐失败时保留轻量重试入口', (tester) async {
+    final controller = LocalController();
+    controller.cloudLibrarySources
+        .add(_source('openlist', '家庭网盘', enabled: true));
+    controller.cloudLibraryItems.add(
+      _genreCloud('animation', '动画作品', const <String>['动画']),
+    );
+    controller.libraryGenreRefreshError = '1 个作品暂时无法更新';
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: LibrarySheetContent(
+          controller: controller,
+          onPlay: (_, __) {},
+          onRefresh: () {},
+        ),
+      ),
+    ));
+    await tester.pump();
+
+    expect(find.text('1 个作品暂时无法更新'), findsOneWidget);
+    expect(find.byTooltip('刷新类型标签'), findsOneWidget);
+  });
 }
 
 class _FakeTmdbClient implements ITmdbClient {
@@ -878,6 +943,33 @@ CloudMediaIndexItem _cloud(String sourceId, String path,
     seasonNumber: season,
     episodeNumber: episode,
     mediaType: type,
+  );
+}
+
+CloudMediaIndexItem _genreCloud(
+  String id,
+  String title,
+  List<String> genres,
+) {
+  return CloudMediaIndexItem(
+    sourceId: 'openlist',
+    remoteId: id,
+    remotePath: '/$id.mkv',
+    name: '$id.mkv',
+    size: 10,
+    modifiedAt: DateTime(2026),
+    seriesName: title,
+    mediaType: CloudMediaType.movie,
+    tmdbId: id.hashCode,
+    tmdbTitle: title,
+    tmdbGenres: genres,
+  );
+}
+
+Finder _checkedGenreItem(String value) {
+  return find.byWidgetPredicate(
+    (widget) =>
+        widget is CheckedPopupMenuItem<String> && widget.value == value,
   );
 }
 

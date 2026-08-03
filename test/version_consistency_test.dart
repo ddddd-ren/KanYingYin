@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('二点一零六 Windows 测试版与 Android 正式版版本保持独立一致', () {
-    const expectedVersion = '2.1.106';
-    const expectedBuildNumber = '20106';
+  test('二点一零七 Windows 测试版与 Android 正式版版本保持独立一致', () {
+    const expectedVersion = '2.1.107';
+    const expectedBuildNumber = '20107';
     const expectedAndroidVersion = '1.0.2';
     const expectedAndroidVersionCode = '10002';
     final pubspec = File('pubspec.yaml').readAsStringSync();
@@ -136,8 +136,7 @@ void main() {
         '当前网盘',
         '本地媒体库',
         '网盘资源',
-        '后台补齐',
-        'REMUX',
+        '刮削当前来源生成标签',
         '不会修改或删除',
       ]) {
         expect(currentCopy, contains(text));

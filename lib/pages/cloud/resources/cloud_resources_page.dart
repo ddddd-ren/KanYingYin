@@ -727,6 +727,8 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
               onSelected: (value) {
                 if (value == '__clear__') {
                   _controller.clearGenres();
+                } else if (value == '__scrape_source__') {
+                  unawaited(_scrapeSelectedSource());
                 } else {
                   _controller.toggleGenre(value);
                 }
@@ -736,6 +738,12 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
                   const PopupMenuItem<String>(
                     enabled: false,
                     child: Text('暂无类型标签'),
+                  ),
+                if (_controller.availableGenres.isEmpty)
+                  PopupMenuItem<String>(
+                    value: '__scrape_source__',
+                    enabled: toolbarState.canScrape,
+                    child: const Text('刮削当前来源生成标签'),
                   ),
                 if (_controller.selectedGenres.isNotEmpty)
                   const PopupMenuItem<String>(

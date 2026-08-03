@@ -26,6 +26,9 @@ void main() {
       seasonNumber: 3,
       episodeNumber: 1,
       mediaType: CloudMediaType.episode,
+      tmdbId: 42,
+      tmdbTitle: '规范剧名',
+      tmdbGenres: const <String>['动画', '科幻'],
       recognitionVersion: CloudMediaIndexItem.currentRecognitionVersion,
       releaseTags: const MediaReleaseTags(
         resolution: '2160p',
@@ -52,6 +55,7 @@ void main() {
     expect(restored.workRootPath, '/影视/作品');
     expect(restored.releaseTags.resolution, '2160p');
     expect(restored.releaseTags.dynamicRange, <String>['DV', 'HDR']);
+    expect(restored.tmdbGenres, const <String>['动画', '科幻']);
     expect(restored.needsRecognitionRefresh, isFalse);
   });
 
@@ -107,6 +111,7 @@ void main() {
       seasonNumber: 3,
       episodeNumber: 1,
       mediaType: CloudMediaType.episode,
+      tmdbGenres: const <String>['动画'],
       releaseTags: const MediaReleaseTags(resolution: '2160p'),
     );
 
@@ -122,6 +127,7 @@ void main() {
     expect(updated.workRootPath, item.workRootPath);
     expect(updated.recognitionVersion, item.recognitionVersion);
     expect(updated.releaseTags.resolution, '2160p');
+    expect(updated.tmdbGenres, const <String>['动画']);
   });
 }
 

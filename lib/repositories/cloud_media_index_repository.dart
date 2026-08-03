@@ -355,6 +355,11 @@ class CloudMediaIndexRepository {
       tmdbPosterUrl: json['tmdbPosterUrl'] as String?,
       tmdbBackdropUrl: json['tmdbBackdropUrl'] as String?,
       posterCachePath: json['posterCachePath'] as String?,
+      tmdbGenres: json['tmdbGenres'] is List
+          ? (json['tmdbGenres'] as List)
+              .whereType<String>()
+              .toList(growable: false)
+          : const <String>[],
       recognitionVersion: json['recognitionVersion'] is int
           ? json['recognitionVersion'] as int
           : 0,
@@ -394,6 +399,7 @@ class CloudMediaIndexRepository {
         'tmdbPosterUrl': item.tmdbPosterUrl,
         'tmdbBackdropUrl': item.tmdbBackdropUrl,
         'posterCachePath': item.posterCachePath,
+        if (item.tmdbGenres.isNotEmpty) 'tmdbGenres': item.tmdbGenres,
         'recognitionVersion': item.recognitionVersion,
         'releaseTags': item.releaseTags.toJson(),
       };

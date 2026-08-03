@@ -120,6 +120,7 @@ class MediaLibrarySeries {
     required this.sourceName,
     required this.isAvailable,
     required this.episodes,
+    this.genres = const <String>[],
     this.tmdbTitle,
     this.tmdbOverview,
     this.tmdbRating,
@@ -135,6 +136,7 @@ class MediaLibrarySeries {
   final String sourceName;
   final bool isAvailable;
   final List<MediaLibraryEpisode> episodes;
+  final List<String> genres;
   final String? tmdbTitle;
   final String? tmdbOverview;
   final double? tmdbRating;
@@ -181,6 +183,11 @@ class CloudMediaLibraryAggregator {
         sourceId: 'local',
         sourceName: '本地',
         isAvailable: true,
+        genres: _uniqueGenres(
+          local.episodes.expand(
+            (item) => item.tmdb?.genres ?? const <String>[],
+          ),
+        ),
         episodes: local.episodes
             .map((item) => MediaLibraryEpisode.local(
                   stableId: item.id,
@@ -212,6 +219,7 @@ class CloudMediaLibraryAggregator {
         sourceId: items.first.sourceId,
         sourceName: source?.name ?? items.first.sourceId,
         isAvailable: source?.enabled == true,
+        genres: _uniqueGenres(items.expand((item) => item.tmdbGenres)),
         tmdbTitle: metadata?.tmdbTitle,
         tmdbOverview: metadata?.tmdbOverview,
         tmdbRating: metadata?.tmdbRating,
@@ -302,4 +310,13 @@ class CloudMediaLibraryAggregator {
     final episode = (a.episodeNumber ?? 0).compareTo(b.episodeNumber ?? 0);
     return episode != 0 ? episode : a.name.compareTo(b.name);
   }
+}
+
+List<String> _uniqueGenres(Iterable<String> values) {
+  final result = <String>[];
+  for (final value in values) {
+    final genre = value.trim();
+    if (genre.isNotEmpty && !result.contains(genre)) result.add(genre);
+  }
+  return List<String>.unmodifiable(result);
 }

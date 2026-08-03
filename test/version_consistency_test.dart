@@ -5,11 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('二点一零二测试版双平台版本和发布文案保持一致', () {
-    const expectedVersion = '2.1.102';
-    const expectedBuildNumber = '20102';
-    const expectedAndroidVersion = '2.1.102';
-    const expectedAndroidVersionCode = '20102';
+  test('二点一零三测试版双平台版本和发布文案保持一致', () {
+    const expectedVersion = '2.1.103';
+    const expectedBuildNumber = '20103';
+    const expectedAndroidVersion = '2.1.103';
+    const expectedAndroidVersionCode = '20103';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final androidGradle =
@@ -135,6 +135,12 @@ void main() {
       for (final text in <String>[
         'Windows',
         'Android',
+        '夸克',
+        '自适应',
+        '八路',
+        '192 MiB',
+        '系统栏',
+        '黑边',
         'TrueHD',
         'Full',
         '立体声',

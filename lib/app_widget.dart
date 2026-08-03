@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
+import 'package:kanyingyin/platform/android/android_system_ui_surface.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/platform/app_shell_host.dart';
 import 'package:kanyingyin/providers/theme_provider.dart';
@@ -116,6 +117,10 @@ class _AppWidgetState extends State<AppWidget> {
       darkTheme: effectiveDarkTheme,
       themeMode: themeProvider.themeMode,
       routerConfig: Modular.routerConfig,
+      builder: (context, child) => AndroidSystemUiSurface(
+        capabilities: detectAppPlatform(),
+        child: child ?? const SizedBox.shrink(),
+      ),
     );
     return AppShellHost(
       capabilities: detectAppPlatform(),

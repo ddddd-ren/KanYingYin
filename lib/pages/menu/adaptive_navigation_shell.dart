@@ -56,6 +56,7 @@ class AdaptiveNavigationShell extends StatelessWidget {
   }
 
   Widget _bottomLayout(BuildContext context) {
+    final navigationColor = Theme.of(context).colorScheme.surfaceContainerLow;
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: SafeArea(
@@ -68,18 +69,27 @@ class AdaptiveNavigationShell extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: NavigationBar(
-        key: const ValueKey<String>('compact-bottom-navigation'),
-        selectedIndex: selectedIndex,
-        onDestinationSelected: onDestinationSelected,
-        destinations: [
-          for (final item in destinations)
-            NavigationDestination(
-              selectedIcon: Icon(item.selectedIcon),
-              icon: Icon(item.icon),
-              label: item.label,
-            ),
-        ],
+      bottomNavigationBar: ColoredBox(
+        key: const ValueKey<String>('compact-bottom-navigation-surface'),
+        color: navigationColor,
+        child: SafeArea(
+          key: const ValueKey<String>('compact-bottom-navigation-safe-area'),
+          top: false,
+          child: NavigationBar(
+            key: const ValueKey<String>('compact-bottom-navigation'),
+            backgroundColor: navigationColor,
+            selectedIndex: selectedIndex,
+            onDestinationSelected: onDestinationSelected,
+            destinations: [
+              for (final item in destinations)
+                NavigationDestination(
+                  selectedIcon: Icon(item.selectedIcon),
+                  icon: Icon(item.icon),
+                  label: item.label,
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

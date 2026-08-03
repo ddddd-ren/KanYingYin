@@ -14,6 +14,7 @@ void main() {
         id: 42,
         mediaType: TmdbMediaType.movie,
         title: '流浪地球',
+        genres: const <String>['科幻', '冒险'],
         originalTitle: 'The Wandering Earth',
         overview: '公开简介',
         rating: 8.1,
@@ -33,7 +34,9 @@ void main() {
       'quark-source|folder-fid|/影视/流浪地球',
     );
     expect(record.releaseDate, '2019-02-05');
+    expect(record.genres, <String>['科幻', '冒险']);
     expect(record.toJson()['releaseDate'], '2019-02-05');
+    expect(record.toJson()['genres'], <String>['科幻', '冒险']);
     expect(CloudResourceTmdbRecord.fromJson(record.toJson()), record);
     final serialized = record.toJson().toString().toLowerCase();
     for (final secret in <String>[
@@ -106,6 +109,7 @@ void main() {
     });
 
     expect(record.releaseDate, isNull);
+    expect(record.genres, isEmpty);
     expect(record.toJson(), isNot(contains('releaseDate')));
   });
 

@@ -87,6 +87,13 @@ void main() {
             .tmdbId,
         42,
       );
+      expect(
+        (await fixture.indexRepository.getBySource('quark'))
+            .where((item) => item.remoteId == 'episode-2')
+            .single
+            .tmdbGenres,
+        <String>['悬疑'],
+      );
       expect(await fixture.recordRepository.get(matched.stableKey), isNull);
       expect(await fixture.recordRepository.get(custom.stableKey), isNull);
       expect(
@@ -319,6 +326,7 @@ final _metadata = TmdbMetadata(
   id: 42,
   mediaType: TmdbMediaType.tv,
   title: '回魂计',
+  genres: const <String>['悬疑'],
   originalTitle: 'The Resurrected',
   overview: '简介',
   releaseDate: '2025-10-09',

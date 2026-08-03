@@ -172,6 +172,12 @@ void main() {
       isTrue,
     );
     expect(
+      indexed
+          .where((item) => item.workKey == work.workKey)
+          .every((item) => item.tmdbGenres.join() == '科幻'),
+      isTrue,
+    );
+    expect(
       indexed.singleWhere((item) => item.remoteId == 'other').tmdbId,
       isNull,
     );
@@ -447,6 +453,7 @@ TmdbMetadata _details() => TmdbMetadata(
       id: 42,
       mediaType: TmdbMediaType.tv,
       title: 'TMDB 中文标题',
+      genres: const <String>['科幻'],
       overview: '中文简介',
       posterUrl: '/poster.jpg',
       backdropUrl: '/backdrop.jpg',

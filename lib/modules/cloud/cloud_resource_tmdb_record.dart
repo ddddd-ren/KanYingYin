@@ -35,6 +35,7 @@ class CloudResourceTmdbRecord {
     this.tmdbId,
     this.mediaType,
     this.title,
+    this.genres = const <String>[],
     this.originalTitle,
     this.overview,
     this.rating,
@@ -72,6 +73,7 @@ class CloudResourceTmdbRecord {
       tmdbId: metadata.id,
       mediaType: metadata.mediaType,
       title: metadata.title,
+      genres: metadata.genres,
       originalTitle: metadata.originalTitle,
       overview: metadata.overview,
       rating: metadata.rating,
@@ -178,6 +180,7 @@ class CloudResourceTmdbRecord {
               TmdbMediaType.tv,
             ),
       title: _asString(json['title']),
+      genres: _asStringList(json['genres']),
       originalTitle: _asString(json['originalTitle']),
       overview: _asString(json['overview']),
       rating: _asDouble(json['rating']),
@@ -215,6 +218,7 @@ class CloudResourceTmdbRecord {
   final int? tmdbId;
   final TmdbMediaType? mediaType;
   final String? title;
+  final List<String> genres;
   final String? originalTitle;
   final String? overview;
   final double? rating;
@@ -272,6 +276,7 @@ class CloudResourceTmdbRecord {
       tmdbId: tmdbId,
       mediaType: mediaType,
       title: title,
+      genres: genres,
       originalTitle: originalTitle,
       overview: overview,
       rating: rating,
@@ -304,6 +309,7 @@ class CloudResourceTmdbRecord {
       tmdbId: tmdbId,
       mediaType: mediaType,
       title: title,
+      genres: genres,
       originalTitle: originalTitle,
       overview: overview,
       rating: rating,
@@ -330,6 +336,7 @@ class CloudResourceTmdbRecord {
       if (tmdbId != null) 'tmdbId': tmdbId,
       if (mediaType != null) 'mediaType': mediaType!.name,
       if (title != null) 'title': title,
+      if (genres.isNotEmpty) 'genres': genres,
       if (originalTitle != null) 'originalTitle': originalTitle,
       if (overview != null) 'overview': overview,
       if (rating != null) 'rating': rating,
@@ -360,6 +367,7 @@ class CloudResourceTmdbRecord {
             tmdbId == other.tmdbId &&
             mediaType == other.mediaType &&
             title == other.title &&
+            _stringListsEqual(genres, other.genres) &&
             originalTitle == other.originalTitle &&
             overview == other.overview &&
             rating == other.rating &&
@@ -385,6 +393,7 @@ class CloudResourceTmdbRecord {
         tmdbId,
         mediaType,
         title,
+        Object.hashAll(genres),
         originalTitle,
         overview,
         rating,
@@ -410,6 +419,7 @@ class CloudResourceTmdbRecord {
       tmdbId: tmdbId,
       mediaType: mediaType,
       title: title,
+      genres: genres,
       originalTitle: originalTitle,
       overview: overview,
       rating: rating,
@@ -429,6 +439,15 @@ bool _seasonListsEqual(
   List<TmdbSeasonMetadata> first,
   List<TmdbSeasonMetadata> second,
 ) {
+  if (identical(first, second)) return true;
+  if (first.length != second.length) return false;
+  for (var index = 0; index < first.length; index++) {
+    if (first[index] != second[index]) return false;
+  }
+  return true;
+}
+
+bool _stringListsEqual(List<String> first, List<String> second) {
   if (identical(first, second)) return true;
   if (first.length != second.length) return false;
   for (var index = 0; index < first.length; index++) {
@@ -461,4 +480,15 @@ double? _asDouble(Object? value) {
 String? _asString(Object? value) {
   final text = value?.toString();
   return text == null || text.isEmpty ? null : text;
+}
+
+List<String> _asStringList(Object? value) {
+  if (value is! List) return const <String>[];
+  final result = <String>[];
+  final seen = <String>{};
+  for (final item in value) {
+    final text = item?.toString().trim() ?? '';
+    if (text.isNotEmpty && seen.add(text)) result.add(text);
+  }
+  return List<String>.unmodifiable(result);
 }

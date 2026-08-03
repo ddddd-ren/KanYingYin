@@ -191,6 +191,108 @@ void main() {
       controller.dispose();
     });
 
+    test('标签只筛选当前来源并与搜索和目录范围组合', () async {
+      final credentials = MemoryCloudCredentialStore();
+      final sourceRepository = CloudSourceRepository(
+        storage: MemoryCloudSourceStorage(),
+        credentialStore: credentials,
+      );
+      const sourceA = CloudSource(
+        id: 'source-a',
+        type: CloudSourceType.openList,
+        name: '来源 A',
+        baseUrl: 'https://a.example.com',
+        rootPaths: <String>['/影视'],
+      );
+      const sourceB = CloudSource(
+        id: 'source-b',
+        type: CloudSourceType.openList,
+        name: '来源 B',
+        baseUrl: 'https://b.example.com',
+        rootPaths: <String>['/影视'],
+      );
+      await sourceRepository.save(sourceA);
+      await sourceRepository.save(sourceB);
+      final indexRepository = CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      );
+      await indexRepository.replaceSource(
+        sourceA.id,
+        <CloudMediaIndexItem>[
+          _scopedCloudEpisode(
+            sourceA.id,
+            'science-fiction',
+            '/影视/电影/科幻.mkv',
+            '科幻作品',
+            genres: const <String>['科幻'],
+          ),
+          _scopedCloudEpisode(
+            sourceA.id,
+            'documentary',
+            '/影视/纪录片/纪录片.mkv',
+            '纪录片作品',
+            genres: const <String>['纪录片'],
+          ),
+        ],
+        const <String, String>{},
+        const <String, List<CloudFileEntry>>{},
+        const <String>['/影视'],
+      );
+      await indexRepository.replaceSource(
+        sourceB.id,
+        <CloudMediaIndexItem>[
+          _scopedCloudEpisode(
+            sourceB.id,
+            'animation',
+            '/影视/动画/动画.mkv',
+            '动画作品',
+            genres: const <String>['动画'],
+          ),
+        ],
+        const <String, String>{},
+        const <String, List<CloudFileEntry>>{},
+        const <String>['/影视'],
+      );
+      final controller = CloudResourcesController(
+        repository: sourceRepository,
+        credentialStore: credentials,
+        mediaIndexRepository: indexRepository,
+        minRecognizedVideoSizeBytesProvider: () => 0,
+      );
+
+      await controller.reloadSourcesAndSnapshot(
+        preferredSourceId: sourceA.id,
+      );
+
+      expect(controller.availableGenres, <String>['科幻', '纪录片']);
+      controller.toggleGenre('科幻');
+      expect(controller.selectedGenres, const <String>{'科幻'});
+      expect(
+        controller.visibleIndexedItems.map((item) => item.remoteId),
+        <String>['science-fiction'],
+      );
+
+      controller.toggleGenre('纪录片');
+      expect(
+        controller.visibleIndexedItems.map((item) => item.remoteId).toSet(),
+        <String>{'science-fiction', 'documentary'},
+      );
+      controller.selectDirectoryScope('/影视/电影');
+      expect(
+        controller.visibleIndexedItems.map((item) => item.remoteId),
+        <String>['science-fiction'],
+      );
+      controller.setQuery('不存在');
+      expect(controller.collection.groups, isEmpty);
+
+      await controller.reloadSourcesAndSnapshot(
+        preferredSourceId: sourceB.id,
+      );
+      expect(controller.selectedGenres, isEmpty);
+      expect(controller.availableGenres, <String>['动画']);
+      controller.dispose();
+    });
+
     test('无扫描重载优先选择刚创建的可用来源', () async {
       final credentials = MemoryCloudCredentialStore();
       final repository = CloudSourceRepository(
@@ -1448,8 +1550,9 @@ CloudMediaIndexItem _scopedCloudEpisode(
   String sourceId,
   String remoteId,
   String remotePath,
-  String seriesName,
-) =>
+  String seriesName, {
+  List<String> genres = const <String>[],
+}) =>
     CloudMediaIndexItem(
       sourceId: sourceId,
       remoteId: remoteId,
@@ -1464,6 +1567,7 @@ CloudMediaIndexItem _scopedCloudEpisode(
       seasonNumber: 1,
       episodeNumber: 1,
       mediaType: CloudMediaType.episode,
+      tmdbGenres: genres,
     );
 
 class _HiddenVideoFixture {

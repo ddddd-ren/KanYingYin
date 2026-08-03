@@ -96,6 +96,42 @@ void main() {
           MediaSourceKind.local);
     });
 
+    test('本地和网盘系列聚合稳定去重的 TMDB 类型', () {
+      final localWithGenres = local.copyWith(
+        tmdb: TmdbMetadata(
+          id: 7,
+          mediaType: TmdbMediaType.tv,
+          title: 'Show',
+          language: 'zh-CN',
+          matchedAt: DateTime(2026),
+          matchConfidence: 1,
+          genres: const <String>['剧情', '科幻'],
+        ),
+      );
+      final cloudWithGenres = openList.replaceTmdb(
+        tmdbId: 42,
+        tmdbTitle: '中文片名',
+        tmdbGenres: const <String>['动画', '科幻', '动画'],
+      );
+
+      final library = const CloudMediaLibraryAggregator().build(
+        localItems: <LocalMediaIndexItem>[localWithGenres],
+        cloudItems: <CloudMediaIndexItem>[cloudWithGenres],
+        cloudSources: sources,
+      );
+
+      expect(
+        library.series.firstWhere((item) => item.sourceId == 'local').genres,
+        const <String>['剧情', '科幻'],
+      );
+      expect(
+        library.series
+            .firstWhere((item) => item.sourceId == 'openlist')
+            .genres,
+        const <String>['动画', '科幻'],
+      );
+    });
+
     test('同一云来源沿用季度和特别篇拆分', () {
       final library = const CloudMediaLibraryAggregator().build(
         localItems: const [],

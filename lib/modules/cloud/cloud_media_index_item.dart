@@ -33,6 +33,7 @@ class CloudMediaIndexItem {
     this.tmdbPosterUrl,
     this.tmdbBackdropUrl,
     this.posterCachePath,
+    this.tmdbGenres = const <String>[],
     this.recognitionVersion = currentRecognitionVersion,
     this.releaseTags = const MediaReleaseTags(),
   })  : remoteName = remoteName ?? name,
@@ -71,6 +72,7 @@ class CloudMediaIndexItem {
   final String? tmdbPosterUrl;
   final String? tmdbBackdropUrl;
   final String? posterCachePath;
+  final List<String> tmdbGenres;
   final int recognitionVersion;
   final MediaReleaseTags releaseTags;
 
@@ -92,6 +94,7 @@ class CloudMediaIndexItem {
     String? tmdbPosterUrl,
     String? tmdbBackdropUrl,
     String? posterCachePath,
+    List<String>? tmdbGenres,
   }) =>
       CloudMediaIndexItem(
         sourceId: sourceId,
@@ -119,6 +122,7 @@ class CloudMediaIndexItem {
         tmdbPosterUrl: tmdbPosterUrl ?? this.tmdbPosterUrl,
         tmdbBackdropUrl: tmdbBackdropUrl ?? this.tmdbBackdropUrl,
         posterCachePath: posterCachePath ?? this.posterCachePath,
+        tmdbGenres: tmdbGenres ?? this.tmdbGenres,
         recognitionVersion: recognitionVersion,
         releaseTags: releaseTags,
       );
@@ -149,6 +153,7 @@ class CloudMediaIndexItem {
     String? tmdbPosterUrl,
     String? tmdbBackdropUrl,
     String? posterCachePath,
+    List<String>? tmdbGenres,
   }) =>
       CloudMediaIndexItem(
         sourceId: sourceId,
@@ -176,6 +181,7 @@ class CloudMediaIndexItem {
         tmdbPosterUrl: tmdbPosterUrl,
         tmdbBackdropUrl: tmdbBackdropUrl,
         posterCachePath: posterCachePath,
+        tmdbGenres: tmdbGenres ?? this.tmdbGenres,
         recognitionVersion: recognitionVersion,
         releaseTags: releaseTags,
       );

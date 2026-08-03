@@ -99,6 +99,7 @@ class CloudTmdbMetadataService {
         tmdbPosterUrl: metadata.posterUrl,
         tmdbBackdropUrl: metadata.backdropUrl,
         posterCachePath: cachePath,
+        tmdbGenres: metadata.genres,
       ),
     );
     if (matchedCount == 0) {

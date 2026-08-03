@@ -8,6 +8,11 @@ import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:kanyingyin/services/cloud/range/cloud_range_chunk_cache.dart';
 import 'package:kanyingyin/services/cloud/range/cloud_range_relay_protocol.dart';
 import 'package:kanyingyin/services/cloud/range/cloud_range_remote_reader.dart';
+import 'package:kanyingyin/utils/logger.dart';
+
+enum CloudRangeRelayAdaptiveMode { base, boosted }
+
+typedef CloudRangeRelayLog = void Function(String message);
 
 class CloudRangeRelayAdaptivePolicy {
   const CloudRangeRelayAdaptivePolicy({
@@ -97,7 +102,9 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
     required this.tuning,
     required this.chunkSize,
     required this.maxChunks,
+    required CloudRangeRelayLog log,
   })  : _reader = reader,
+        _log = log,
         _scheduler = _ReadScheduler(
           maxConcurrent: tuning.maxConcurrentReads,
           maxConcurrentPrefetch: tuning.maxConcurrentPrefetch,
@@ -110,6 +117,7 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
     CloudRangeRelayTuning tuning = CloudRangeRelayTuning.windows,
     int? chunkSize,
     int? maxChunks,
+    CloudRangeRelayLog? log,
   }) async {
     final session = CloudRangeRelaySession._(
       reader: reader,
@@ -118,6 +126,7 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
       tuning: tuning,
       chunkSize: chunkSize ?? tuning.chunkSize,
       maxChunks: maxChunks ?? tuning.maxChunks,
+      log: log ?? ((message) => AppLogger().i(message)),
     );
     try {
       await session._start();
@@ -134,6 +143,7 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
   final CloudRangeRelayTuning tuning;
   final int chunkSize;
   final int maxChunks;
+  final CloudRangeRelayLog _log;
   final _ReadScheduler _scheduler;
   final StreamController<CloudRangeRelayStatus> _statuses =
       StreamController<CloudRangeRelayStatus>.broadcast(sync: true);
@@ -153,6 +163,7 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
   var _supportsRanges = false;
   var _receivedBytes = 0;
   var _prefetchGeneration = 0;
+  var _adaptiveMode = CloudRangeRelayAdaptiveMode.base;
   int? _lastForegroundChunk;
   var _closed = false;
   Future<void>? _closeFuture;
@@ -160,6 +171,9 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
   Uri get uri => _uri;
   int get totalLength => _totalLength;
   String get contentType => _reader.contentType;
+  CloudRangeRelayAdaptiveMode get adaptiveMode => _adaptiveMode;
+  int get currentMaxConcurrentReads => _scheduler.maxConcurrent;
+  int get currentMaxConcurrentPrefetch => _scheduler.maxConcurrentPrefetch;
 
   @override
   CloudRangeRelayStatus get currentStatus => _status;
@@ -171,6 +185,7 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
     _readerEvents = _reader.events.listen((event) {
       if (event == CloudRangeReaderEvent.reconnecting ||
           event == CloudRangeReaderEvent.refreshing) {
+        _returnToBase(event.name);
         _publish(
           phase: CloudRangeRelayPhase.reconnecting,
           message: '$providerName正在重新连接',
@@ -403,23 +418,71 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
     required _ReadPriority priority,
   }) async {
     final cache = _cache!;
-    final handle = await cache.acquire(offset, (range, destination) async {
-      await _scheduler.run(priority, () async {
-        final stopwatch = Stopwatch()..start();
-        await _reader.readTo(range, destination);
-        stopwatch.stop();
-        _recordTransfer(range.length, stopwatch.elapsed);
-      });
-    });
+    final handle = await cache.acquire(
+      offset,
+      (range, destination) async {
+        await _scheduler.run(priority, () async {
+          final stopwatch = Stopwatch()..start();
+          await _reader.readTo(range, destination);
+          stopwatch.stop();
+          _recordTransfer(range.length, stopwatch.elapsed);
+        });
+      },
+      onAccess: (access) {
+        if (priority == _ReadPriority.foreground &&
+            access != CloudRangeChunkAccess.cached) {
+          _boostForForegroundPressure();
+        }
+      },
+    );
     _publish(phase: CloudRangeRelayPhase.ready);
     return handle;
   }
 
   void _launchSequentialPrefetch(ByteRange current, int generation) {
-    for (var distance = 1; distance <= tuning.prefetchAheadChunks; distance++) {
+    for (var distance = 1; distance <= _prefetchAheadChunks; distance++) {
       final offset = current.start + distance * chunkSize;
       if (offset < totalLength) _launchPrefetch(offset, generation);
     }
+  }
+
+  int get _prefetchAheadChunks =>
+      _adaptiveMode == CloudRangeRelayAdaptiveMode.boosted
+          ? tuning.adaptivePolicy!.prefetchAheadChunks
+          : tuning.prefetchAheadChunks;
+
+  void _boostForForegroundPressure() {
+    final policy = tuning.adaptivePolicy;
+    if (_closed ||
+        policy == null ||
+        _adaptiveMode == CloudRangeRelayAdaptiveMode.boosted) {
+      return;
+    }
+    _adaptiveMode = CloudRangeRelayAdaptiveMode.boosted;
+    _scheduler.updateLimits(
+      maxConcurrent: policy.maxConcurrentReads,
+      maxConcurrentPrefetch: policy.maxConcurrentPrefetch,
+    );
+    _logAdaptiveTransition('foreground_cache_pressure');
+  }
+
+  void _returnToBase(String reason) {
+    if (_closed || _adaptiveMode == CloudRangeRelayAdaptiveMode.base) return;
+    _adaptiveMode = CloudRangeRelayAdaptiveMode.base;
+    _scheduler.updateLimits(
+      maxConcurrent: tuning.maxConcurrentReads,
+      maxConcurrentPrefetch: tuning.maxConcurrentPrefetch,
+    );
+    _logAdaptiveTransition(reason);
+  }
+
+  void _logAdaptiveTransition(String reason) {
+    _log(
+      'CloudRangeRelaySession: provider=$providerName '
+      'mode=${_adaptiveMode.name} '
+      'maxReads=$currentMaxConcurrentReads '
+      'maxPrefetch=$currentMaxConcurrentPrefetch reason=$reason',
+    );
   }
 
   void _launchPrefetch(int offset, int generation) {
@@ -496,6 +559,13 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
 
   Future<void> _close() async {
     _closed = true;
+    if (tuning.adaptivePolicy != null) {
+      _log(
+        'CloudRangeRelaySession: provider=$providerName '
+        'event=session_closed receivedBytes=$_receivedBytes '
+        'mode=${_adaptiveMode.name}',
+      );
+    }
     _prefetchGeneration++;
     await _server?.close(force: true);
     _scheduler.close();
@@ -527,19 +597,39 @@ enum _ReadPriority { foreground, prefetch }
 
 class _ReadScheduler {
   _ReadScheduler({
-    required this.maxConcurrent,
-    required this.maxConcurrentPrefetch,
+    required int maxConcurrent,
+    required int maxConcurrentPrefetch,
   })  : assert(maxConcurrent > 0),
         assert(maxConcurrentPrefetch >= 0),
-        assert(maxConcurrentPrefetch < maxConcurrent);
+        assert(maxConcurrentPrefetch < maxConcurrent),
+        _maxConcurrent = maxConcurrent,
+        _maxConcurrentPrefetch = maxConcurrentPrefetch;
 
-  final int maxConcurrent;
-  final int maxConcurrentPrefetch;
+  int _maxConcurrent;
+  int _maxConcurrentPrefetch;
   final Queue<_ScheduledRead> _foreground = Queue<_ScheduledRead>();
   final Queue<_ScheduledRead> _prefetch = Queue<_ScheduledRead>();
   var _active = 0;
   var _activePrefetch = 0;
   var _closed = false;
+
+  int get maxConcurrent => _maxConcurrent;
+  int get maxConcurrentPrefetch => _maxConcurrentPrefetch;
+
+  void updateLimits({
+    required int maxConcurrent,
+    required int maxConcurrentPrefetch,
+  }) {
+    if (_closed) return;
+    if (maxConcurrent <= 0 ||
+        maxConcurrentPrefetch < 0 ||
+        maxConcurrentPrefetch >= maxConcurrent) {
+      throw ArgumentError('读取并发参数无效');
+    }
+    _maxConcurrent = maxConcurrent;
+    _maxConcurrentPrefetch = maxConcurrentPrefetch;
+    _drain();
+  }
 
   Future<void> run(_ReadPriority priority, Future<void> Function() action) {
     if (_closed) return Future<void>.error(StateError('远程读取调度器已关闭'));

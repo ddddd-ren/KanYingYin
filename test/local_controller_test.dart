@@ -32,6 +32,38 @@ import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
 void main() {
+  test('本地媒体库入口计数不包含网盘资源', () {
+    final controller = LocalController();
+    controller.cloudLibraryItems.add(
+      CloudMediaIndexItem(
+        sourceId: 'cloud-source',
+        remoteId: 'cloud-video',
+        remotePath: '/cloud-video.mkv',
+        name: 'cloud-video.mkv',
+        size: 10,
+        modifiedAt: DateTime.utc(2026, 8, 4),
+        seriesName: '网盘作品',
+        mediaType: CloudMediaType.movie,
+      ),
+    );
+
+    expect(controller.mediaLibraryVideoCount, 0);
+
+    controller.localLibraryItems.add(
+      LocalMediaIndexItem(
+        path: r'C:\Media\local-video.mkv',
+        name: 'local-video.mkv',
+        parentPath: r'C:\Media',
+        sourcePath: r'C:\Media',
+        size: 10,
+        modified: DateTime.utc(2026, 8, 4),
+        seriesName: '本地作品',
+        indexedAt: DateTime.utc(2026, 8, 4),
+      ),
+    );
+    expect(controller.mediaLibraryVideoCount, 1);
+  });
+
   test('LocalController 使用偏好组件和元数据协调器', () async {
     final dir = await Directory.systemTemp.createTemp('local_components_');
     addTearDown(() async {

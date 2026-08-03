@@ -25,8 +25,6 @@ import 'package:kanyingyin/services/local_custom_cover_service.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/services/local_playback_request_builder.dart';
 import 'package:kanyingyin/services/local_series_grouper.dart';
-import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
-import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scraper.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/utils/logger.dart';
@@ -59,9 +57,6 @@ class _LocalPageState extends State<LocalPage>
   final LocalSeriesGrouper _seriesGrouper = const LocalSeriesGrouper();
   final LibraryMediaViewDataBuilder _mediaViewDataBuilder =
       const LibraryMediaViewDataBuilder();
-  final CloudPlaybackResolver _cloudPlaybackResolver = CloudPlaybackResolver();
-  final CloudPlaybackNavigationCoordinator _cloudPlaybackNavigation =
-      CloudPlaybackNavigationCoordinator();
   String _searchKeyword = '';
 
   @override
@@ -135,32 +130,6 @@ class _LocalPageState extends State<LocalPage>
       ),
     );
     Modular.to.pushNamed('/video/');
-  }
-
-  Future<void> _playCloudLibraryEpisode(
-    MediaLibrarySeries series,
-    MediaLibraryEpisode episode,
-  ) async {
-    if (!series.isAvailable || !episode.isAvailable) {
-      throw StateError('${episode.sourceName} 已离线或禁用');
-    }
-    final targets = series.episodes
-        .map((item) => CloudPlaybackTarget(
-              sourceId: item.sourceId,
-              remoteId: item.remoteId!,
-              remotePath: item.remotePath!,
-              stableId: item.stableId,
-              title: item.name,
-              subtitleRemotePath: item.subtitleRemotePaths.firstOrNull,
-              subtitleRemoteId: item.subtitleRemoteRefs.firstOrNull?.id,
-            ))
-        .toList(growable: false);
-    await localVideoController.openCloudPlayback(
-      seriesTitle: series.title,
-      targets: targets,
-      selectedStableId: episode.stableId,
-      resolver: _cloudPlaybackResolver.resolve,
-    );
   }
 
   Future<void> _enterDirectory(String path) async {
@@ -548,22 +517,6 @@ class _LocalPageState extends State<LocalPage>
               controller: Modular.get<CloudLibraryController>(),
             ),
           ],
-          onPlayCloud: (series, episode) async {
-            final request = _cloudPlaybackNavigation.tryBegin();
-            if (request == null) return;
-            try {
-              await _playCloudLibraryEpisode(series, episode);
-              if (!context.mounted ||
-                  !mounted ||
-                  !_cloudPlaybackNavigation.isCurrent(request)) {
-                return;
-              }
-              Navigator.of(context).pop();
-              Modular.to.pushNamed('/video/');
-            } finally {
-              _cloudPlaybackNavigation.finish(request);
-            }
-          },
         );
       },
     );

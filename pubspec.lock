@@ -759,13 +759,11 @@ packages:
     source: git
     version: "1.1.11"
   media_kit_libs_android_video:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      path: "libs/android/media_kit_libs_android_video"
-      ref: "21aacaf9600c4bd00f2a3c57310363bc0cc9597f"
-      resolved-ref: "21aacaf9600c4bd00f2a3c57310363bc0cc9597f"
-      url: "https://github.com/Predidit/media-kit.git"
-    source: git
+      path: "third_party/media_kit_libs_android_video_full"
+      relative: true
+    source: path
     version: "1.3.6"
   media_kit_libs_ios_video:
     dependency: transitive

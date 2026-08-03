@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:kanyingyin/features/cloud/application/cloud_directory_scope_tree.dart';
+import 'package:kanyingyin/features/cloud/application/cloud_genre_filter.dart';
 import 'package:kanyingyin/features/cloud/application/cloud_resource_tmdb_facade.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_hidden_video.dart';
@@ -148,8 +149,10 @@ class CloudResourcesController extends ChangeNotifier {
   final CloudMediaTreeResolver _mediaTreeResolver;
   final CloudDirectoryScopeTreeBuilder _directoryScopeTreeBuilder;
   final CloudResourceTmdbFacade _tmdbFacade = const CloudResourceTmdbFacade();
+  final CloudGenreFilter _genreFilter = const CloudGenreFilter();
   final Map<String, CloudMediaIndexItem> _indexedItems =
       <String, CloudMediaIndexItem>{};
+  final Set<String> _selectedGenres = <String>{};
   List<CloudHiddenVideo> _hiddenVideos = <CloudHiddenVideo>[];
   List<CloudWorkIdentity> _works = <CloudWorkIdentity>[];
   CloudMediaTree? _mediaTree;
@@ -196,6 +199,11 @@ class CloudResourcesController extends ChangeNotifier {
   List<CloudHiddenVideo> get hiddenVideos =>
       List<CloudHiddenVideo>.unmodifiable(_hiddenVideos);
 
+  Set<String> get selectedGenres => Set<String>.unmodifiable(_selectedGenres);
+
+  List<String> get availableGenres =>
+      _genreFilter.availableGenres(_indexedItems.values);
+
   Set<String> get tmdbScrapingKeys =>
       _workTmdbCoordinator?.scrapingWorkKeys ??
       _tmdbCoordinator?.scrapingKeys ??
@@ -230,7 +238,8 @@ class CloudResourcesController extends ChangeNotifier {
 
   List<CloudMediaIndexItem> get visibleIndexedItems {
     final scopeTree = _directoryScopeTree;
-    return _indexedItems.values
+    return _genreFilter
+        .apply(_indexedItems.values, _selectedGenres)
         .where(
           (item) =>
               !_isHidden(
@@ -301,6 +310,7 @@ class CloudResourcesController extends ChangeNotifier {
           .where(
             (entry) =>
                 !_isHiddenEntry(entry) &&
+                _matchesSelectedGenres(entry) &&
                 scopeTree.contains(
                   entry.remotePath,
                   currentDirectoryScope,
@@ -404,6 +414,7 @@ class CloudResourcesController extends ChangeNotifier {
     final previousMediaTree = _mediaTree;
     final previousQuery = query;
     final previousDirectoryScope = currentDirectoryScope;
+    final previousSelectedGenres = Set<String>.from(_selectedGenres);
     await _loadSources(
       startScan: false,
       preferredSourceId: preferredSourceId,
@@ -422,6 +433,9 @@ class CloudResourcesController extends ChangeNotifier {
     _mediaTree = previousMediaTree;
     query = previousQuery;
     currentDirectoryScope = previousDirectoryScope;
+    _selectedGenres
+      ..clear()
+      ..addAll(previousSelectedGenres);
     _invalidateDirectoryScopeTree();
     loading = false;
     scanning = false;
@@ -464,6 +478,7 @@ class CloudResourcesController extends ChangeNotifier {
       currentDirectory = null;
       entries = <CloudFileEntry>[];
       _indexedItems.clear();
+      _selectedGenres.clear();
       _hiddenVideos = <CloudHiddenVideo>[];
       _works = <CloudWorkIdentity>[];
       _mediaTree = null;
@@ -490,6 +505,7 @@ class CloudResourcesController extends ChangeNotifier {
     required int generation,
     required bool startScan,
   }) async {
+    final previousSourceId = selectedSource?.id;
     query = '';
     entries = <CloudFileEntry>[];
     _indexedItems.clear();
@@ -503,6 +519,7 @@ class CloudResourcesController extends ChangeNotifier {
     selectedSource = sourceId == null
         ? null
         : sources.where((source) => source.id == sourceId).firstOrNull;
+    if (previousSourceId != selectedSource?.id) _selectedGenres.clear();
     _invalidateDirectoryScopeTree();
     final source = selectedSource;
     if (source == null) {
@@ -558,6 +575,7 @@ class CloudResourcesController extends ChangeNotifier {
           (item) => MapEntry(_resourceKeyForItem(item), item),
         ),
       );
+    _reconcileSelectedGenres();
     final tree = _mediaTreeResolver.resolve(
       sourceId: source.id,
       configuredRoots:
@@ -710,6 +728,23 @@ class CloudResourcesController extends ChangeNotifier {
   void setQuery(String value) {
     if (query == value) return;
     query = value;
+    _invalidateCollection();
+    _notify();
+  }
+
+  void toggleGenre(String genre) {
+    final normalized = genre.trim();
+    if (normalized.isEmpty || !availableGenres.contains(normalized)) return;
+    if (!_selectedGenres.remove(normalized)) {
+      _selectedGenres.add(normalized);
+    }
+    _invalidateCollection();
+    _notify();
+  }
+
+  void clearGenres() {
+    if (_selectedGenres.isEmpty) return;
+    _selectedGenres.clear();
     _invalidateCollection();
     _notify();
   }
@@ -1112,6 +1147,27 @@ class CloudResourcesController extends ChangeNotifier {
       remoteId: entry.id,
       remotePath: entry.remotePath,
     )];
+  }
+
+  bool _matchesSelectedGenres(CloudFileEntry entry) {
+    if (_selectedGenres.isEmpty) return true;
+    final item = _indexedItemFor(entry);
+    return item != null &&
+        item.tmdbGenres.any(
+          (genre) => _selectedGenres.contains(genre.trim()),
+        );
+  }
+
+  void _reconcileSelectedGenres() {
+    final retained = _genreFilter.retainAvailable(
+      _selectedGenres,
+      availableGenres,
+    );
+    if (setEquals(retained, _selectedGenres)) return;
+    _selectedGenres
+      ..clear()
+      ..addAll(retained);
+    _invalidateCollection();
   }
 
   static String _resourceKeyForItem(CloudMediaIndexItem item) =>

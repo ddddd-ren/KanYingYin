@@ -124,7 +124,7 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
         Align(
           alignment: Alignment.bottomCenter,
           child: Padding(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.only(bottom: 8),
             child: SizedBox(
               width: double.infinity,
               child: GlassSurface(

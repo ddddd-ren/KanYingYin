@@ -820,6 +820,11 @@ void main() {
       find.byKey(const ValueKey<String>('cloud-custom-tag-filter')),
     );
     expect(emptyCustomTagFilter.enabled, isTrue);
+    expect(emptyGenreFilter.constraints, isNotNull);
+    expect(
+      emptyCustomTagFilter.constraints?.maxHeight,
+      emptyGenreFilter.constraints?.maxHeight,
+    );
     await tester.tap(find.byTooltip('筛选 TMDB 类型'));
     await tester.pumpAndSettle();
     expect(find.text('暂无类型标签'), findsOneWidget);
@@ -934,6 +939,45 @@ void main() {
     await tester.tap(find.text('清除'));
     await tester.pumpAndSettle();
     expect(fixture.controller.selectedGenres, isEmpty);
+    fixture.controller.dispose();
+  });
+
+  testWidgets('网盘标签菜单超出首屏高度时支持内部滚动', (tester) async {
+    final entries = List<CloudFileEntry>.generate(
+      20,
+      (index) => _pageVideo(
+        'genre-$index',
+        '/影视/类型-$index.mkv',
+        '类型-$index.mkv',
+      ),
+    );
+    final indexedItems = List<CloudMediaIndexItem>.generate(
+      entries.length,
+      (index) => _pageIndexedVideo(entries[index], <String>['类型 $index']),
+    );
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      entries: entries,
+      snapshotOnly: true,
+      indexedItems: indexedItems,
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: CloudResourcesPage(controller: fixture.controller)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('筛选 TMDB 类型'));
+    await tester.pumpAndSettle();
+    final menuScrollable = find.ancestor(
+      of: find.text('类型 19'),
+      matching: find.byType(Scrollable),
+    );
+    expect(menuScrollable, findsOneWidget);
+    final state = tester.state<ScrollableState>(menuScrollable);
+    expect(state.position.maxScrollExtent, greaterThan(0));
+    await tester.drag(menuScrollable, const Offset(0, -220));
+    await tester.pumpAndSettle();
+    expect(state.position.pixels, greaterThan(0));
     fixture.controller.dispose();
   });
 

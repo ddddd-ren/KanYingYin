@@ -742,6 +742,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
               key: const ValueKey<String>('cloud-genre-filter'),
               tooltip: '筛选 TMDB 类型',
               enabled: selected != null,
+              constraints: _cloudFilterMenuConstraints(context),
               onSelected: _handleCloudFilterSelection,
               itemBuilder: (_) => _cloudGenreMenuEntries(
                 canScrape: toolbarState.canScrape,
@@ -756,6 +757,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
               key: const ValueKey<String>('cloud-custom-tag-filter'),
               tooltip: '筛选自定义标签',
               enabled: selected != null,
+              constraints: _cloudFilterMenuConstraints(context),
               onSelected: _handleCloudFilterSelection,
               itemBuilder: (_) => _cloudCustomTagMenuEntries(),
               icon: _cloudFilterIcon(
@@ -847,6 +849,18 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
           ),
         ],
       ),
+    );
+  }
+
+  BoxConstraints _cloudFilterMenuConstraints(BuildContext context) {
+    // 菜单高度控制在首屏首行海报附近，超出标签由菜单内部滚动展示。
+    final maxHeight = (MediaQuery.sizeOf(context).height * 0.56)
+        .clamp(320.0, 480.0)
+        .toDouble();
+    return BoxConstraints(
+      minWidth: 112,
+      maxWidth: 280,
+      maxHeight: maxHeight,
     );
   }
 

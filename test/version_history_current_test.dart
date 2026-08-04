@@ -5,23 +5,23 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一一七修正版调整海报毛玻璃并提升安装版本', () {
-    final entries = versionHistoryForCurrent('2.1.117');
+  test('二点一一八修复 TMDB 类型、季度海报和作品归并', () {
+    final entries = versionHistoryForCurrent('2.1.118');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.version, '2.1.117');
+    expect(entry.version, '2.1.118');
     expect(entry.isPrerelease, isTrue);
     for (final text in <String>[
       'Windows',
       'Android',
       '版本',
+      'TMDB',
+      '类型',
+      '季度',
       '海报',
-      '毛玻璃',
-      '诊断',
-      '脱敏',
-      '路径',
+      '合并',
       '不会修改或删除',
     ]) {
       expect(changes, contains(text));

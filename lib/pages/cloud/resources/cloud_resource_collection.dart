@@ -6,6 +6,7 @@ import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/cloud/cloud_series_identity_resolver.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 import 'package:path/path.dart' as p;
 
 class CloudResourceCollection {
@@ -45,6 +46,7 @@ class CloudResourceMediaGroup {
     int? uniqueEpisodeCount,
     String? workKey,
     String? displayName,
+    List<String>? workKeys,
     this.seasonNumber,
     this.workRecord,
     this.seasonMetadata,
@@ -54,11 +56,13 @@ class CloudResourceMediaGroup {
         uniqueEpisodeCount =
             uniqueEpisodeCount ?? seasonMetadata?.episodeCount ?? videos.length,
         workKey = workKey ?? stableKey,
+        workKeys = _normalizedWorkKeys(workKey ?? stableKey, workKeys),
         displayName = displayName ?? seriesName;
 
   final String stableKey;
   final String workKey;
   final String displayName;
+  final List<String> workKeys;
   final String seriesName;
   final bool isSeries;
   final int? seasonNumber;
@@ -208,25 +212,54 @@ class CloudResourceCollectionGrouper {
             item,
           );
     }
-    final groups = <CloudResourceMediaGroup>[];
     final uniqueWorks = <String, CloudWorkIdentity>{
       for (final work in works) work.workKey: work,
     };
+    final aggregates = <String, _CloudWorkAggregate>{};
     for (final work in uniqueWorks.values) {
       final workItems = itemsByWorkKey[work.workKey];
       if (workItems == null || workItems.isEmpty) continue;
       final record = recordsByWorkKey[work.workKey];
-      final title =
-          record?.effectiveTitle(work.displayTitle) ?? work.displayTitle;
-      if (work.seasons.isEmpty) {
+      final aggregateKey =
+          _matchedWorkGroupKey(work.sourceId, record) ?? work.workKey;
+      final aggregate = aggregates.putIfAbsent(
+        aggregateKey,
+        () => _CloudWorkAggregate(key: aggregateKey),
+      );
+      aggregate.works.add(work);
+      aggregate.items.addAll(workItems);
+      if (record != null) aggregate.records.add(record);
+    }
+
+    final groups = <CloudResourceMediaGroup>[];
+    for (final aggregate in aggregates.values) {
+      final representative = aggregate.works.first;
+      final record = _mergeWorkRecords(
+        representative,
+        aggregate.records,
+      );
+      final title = record?.effectiveTitle(representative.displayTitle) ??
+          representative.displayTitle;
+      final workKeys = aggregate.works.map((work) => work.workKey).toList(
+            growable: false,
+          );
+      final seasonNumbers = aggregate.items
+          .map((item) => item.seasonNumber)
+          .whereType<int>()
+          .where((season) => season > 0)
+          .toSet()
+          .toList(growable: false)
+        ..sort();
+      if (seasonNumbers.isEmpty) {
         final videos = _virtualEntries(
-          workItems,
+          aggregate.items,
           labelMovieVariants: true,
         );
         if (videos.isEmpty) continue;
         final group = CloudResourceMediaGroup(
-          stableKey: work.workKey,
-          workKey: work.workKey,
+          stableKey: aggregate.key,
+          workKey: representative.workKey,
+          workKeys: workKeys,
           displayName: title,
           seriesName: title,
           isSeries: false,
@@ -236,36 +269,42 @@ class CloudResourceCollectionGrouper {
           workRecord: record,
           isWorkScoped: true,
         );
-        if (_matchesWork(group, work, workItems, query)) groups.add(group);
+        if (_matchesWork(group, aggregate.works, aggregate.items, query)) {
+          groups.add(group);
+        }
         continue;
       }
+
+      final declaredSeasonNumbers = aggregate.works
+          .expand((work) => work.seasons.map((season) => season.seasonNumber))
+          .where((season) => season > 0)
+          .toSet();
+      final displaySeasonNumbers =
+          declaredSeasonNumbers.isEmpty ? seasonNumbers : declaredSeasonNumbers;
       final omitOnlyFirstSeasonSuffix =
-          work.seasons.length == 1 && work.seasons.single.seasonNumber == 1;
-      for (final season in work.seasons) {
-        final seasonItems = workItems
-            .where((item) => item.seasonNumber == season.seasonNumber)
+          displaySeasonNumbers.length == 1 && displaySeasonNumbers.single == 1;
+      for (final seasonNumber in seasonNumbers) {
+        final seasonItems = aggregate.items
+            .where((item) => item.seasonNumber == seasonNumber)
             .toList(growable: false);
         if (seasonItems.isEmpty) continue;
-        final seasonMetadata = _seasonMetadata(
-          record,
-          season.seasonNumber,
-        );
+        final seasonMetadata = _seasonMetadata(record, seasonNumber);
         final videos = _virtualEntries(seasonItems);
         final seasonGroup = CloudResourceSeasonGroup(
-          seasonNumber: season.seasonNumber,
+          seasonNumber: seasonNumber,
           videos: videos,
           uniqueEpisodeCount: _uniqueEpisodeCount(seasonItems),
           metadata: seasonMetadata,
         );
         final group = CloudResourceMediaGroup(
-          stableKey: '${work.workKey}|season:${season.seasonNumber}',
-          workKey: work.workKey,
-          displayName: omitOnlyFirstSeasonSuffix
-              ? title
-              : '$title 第 ${season.seasonNumber} 季',
+          stableKey: '${aggregate.key}|season:$seasonNumber',
+          workKey: representative.workKey,
+          workKeys: workKeys,
+          displayName:
+              omitOnlyFirstSeasonSuffix ? title : '$title 第 $seasonNumber 季',
           seriesName: title,
           isSeries: true,
-          seasonNumber: season.seasonNumber,
+          seasonNumber: seasonNumber,
           videos: videos,
           seasons: <CloudResourceSeasonGroup>[seasonGroup],
           record: null,
@@ -274,7 +313,9 @@ class CloudResourceCollectionGrouper {
           seasonMetadata: seasonMetadata,
           isWorkScoped: true,
         );
-        if (_matchesWork(group, work, seasonItems, query)) groups.add(group);
+        if (_matchesWork(group, aggregate.works, seasonItems, query)) {
+          groups.add(group);
+        }
       }
     }
     groups.sort((first, second) {
@@ -377,7 +418,7 @@ class CloudResourceCollectionGrouper {
 
   bool _matchesWork(
     CloudResourceMediaGroup group,
-    CloudWorkIdentity work,
+    List<CloudWorkIdentity> works,
     List<CloudMediaIndexItem> items,
     String query,
   ) {
@@ -389,8 +430,9 @@ class CloudResourceCollectionGrouper {
       group.seriesName,
       metadata?.title,
       metadata?.originalTitle,
-      work.remoteName,
-      ...work.titleCandidates,
+      ...works.expand(
+        (work) => <String?>[work.remoteName, ...work.titleCandidates],
+      ),
       ...items.expand((item) => <String>[item.remoteName, item.displayName]),
     ];
     return values.any(
@@ -428,6 +470,151 @@ class CloudResourceCollectionGrouper {
           (video) => video.name.toLowerCase().contains(keyword),
         );
   }
+
+  static String? _matchedWorkGroupKey(
+    String sourceId,
+    CloudWorkTmdbRecord? record,
+  ) {
+    final metadata = record?.metadata;
+    if (record?.status != CloudWorkTmdbStatus.matched || metadata == null) {
+      return null;
+    }
+    return '$sourceId|tmdb|${metadata.mediaType.name}|${metadata.id}';
+  }
+
+  CloudWorkTmdbRecord? _mergeWorkRecords(
+    CloudWorkIdentity representative,
+    List<CloudWorkTmdbRecord> records,
+  ) {
+    if (records.isEmpty) return null;
+    final matched = records
+        .where(
+          (record) =>
+              record.status == CloudWorkTmdbStatus.matched &&
+              record.metadata != null,
+        )
+        .toList(growable: false);
+    if (matched.isEmpty) return records.first;
+
+    final base = matched.reduce((first, second) {
+      final firstPriority = _workRecordPriority(first);
+      final secondPriority = _workRecordPriority(second);
+      return secondPriority > firstPriority ? second : first;
+    });
+    final metadata = base.metadata!;
+    final genres = <String>[];
+    final seasonsByNumber = <int, TmdbSeasonMetadata>{};
+    for (final record in matched) {
+      final current = record.metadata!;
+      for (final genre in current.genres) {
+        final normalized = genre.trim();
+        if (normalized.isNotEmpty && !genres.contains(normalized)) {
+          genres.add(normalized);
+        }
+      }
+      for (final season in current.seasons) {
+        final previous = seasonsByNumber[season.seasonNumber];
+        seasonsByNumber[season.seasonNumber] =
+            previous == null ? season : _mergeSeasonMetadata(previous, season);
+      }
+    }
+    final seasons = seasonsByNumber.values.toList(growable: false)
+      ..sort(
+        (first, second) => first.seasonNumber.compareTo(second.seasonNumber),
+      );
+    final mergedMetadata = metadata.copyWith(
+      genres: genres,
+      seasons: seasons,
+    );
+    final customTitle = matched
+        .map((record) => record.scrapeTitleOverride?.trim())
+        .whereType<String>()
+        .firstWhere(
+          (value) => value.isNotEmpty,
+          orElse: () => '',
+        );
+    final checkedAt = matched
+        .map((record) => record.checkedAt)
+        .reduce((first, second) => first.isAfter(second) ? first : second);
+    final posterCachePath = matched
+        .map((record) => record.posterCachePath?.trim())
+        .whereType<String>()
+        .firstWhere(
+          (value) => value.isNotEmpty,
+          orElse: () => '',
+        );
+    final origin = matched.any(
+      (record) => record.tmdbMatchOrigin == TmdbMatchOrigin.manual,
+    )
+        ? TmdbMatchOrigin.manual
+        : base.tmdbMatchOrigin;
+    return CloudWorkTmdbRecord.matched(
+      sourceId: representative.sourceId,
+      workKey: representative.workKey,
+      workRootId: representative.root.id,
+      workRootPath: representative.root.remotePath,
+      remoteName: representative.remoteName,
+      metadata: mergedMetadata,
+      checkedAt: checkedAt,
+      scrapeTitleOverride: customTitle.isEmpty ? null : customTitle,
+      posterCachePath: posterCachePath.isEmpty ? null : posterCachePath,
+      tmdbMatchOrigin: origin,
+      tmdbRuleVersion: matched
+          .map((record) => record.tmdbRuleVersion)
+          .reduce((first, second) => first < second ? first : second),
+    );
+  }
+
+  static int _workRecordPriority(CloudWorkTmdbRecord record) {
+    final customTitle = record.scrapeTitleOverride?.trim();
+    if (customTitle != null && customTitle.isNotEmpty) return 2;
+    if (record.tmdbMatchOrigin == TmdbMatchOrigin.manual) return 1;
+    return 0;
+  }
+
+  static TmdbSeasonMetadata _mergeSeasonMetadata(
+    TmdbSeasonMetadata primary,
+    TmdbSeasonMetadata fallback,
+  ) {
+    return primary.copyWith(
+      name: primary.name.trim().isNotEmpty ? primary.name : fallback.name,
+      episodeCount: primary.episodeCount > 0
+          ? primary.episodeCount
+          : fallback.episodeCount,
+      overview: primary.overview?.trim().isNotEmpty == true
+          ? primary.overview
+          : fallback.overview,
+      airDate: primary.airDate?.trim().isNotEmpty == true
+          ? primary.airDate
+          : fallback.airDate,
+      posterUrl: primary.posterUrl?.trim().isNotEmpty == true
+          ? primary.posterUrl
+          : fallback.posterUrl,
+      posterCachePath: primary.posterCachePath?.trim().isNotEmpty == true
+          ? primary.posterCachePath
+          : fallback.posterCachePath,
+    );
+  }
+}
+
+List<String> _normalizedWorkKeys(String primary, List<String>? values) {
+  final result = <String>[];
+  for (final value in <String>[primary, ...?values]) {
+    final normalized = value.trim();
+    if (normalized.isNotEmpty && !result.contains(normalized)) {
+      result.add(normalized);
+    }
+  }
+  return List<String>.unmodifiable(result);
+}
+
+class _CloudWorkAggregate {
+  _CloudWorkAggregate({required this.key});
+
+  final String key;
+  final List<CloudWorkIdentity> works = <CloudWorkIdentity>[];
+  final List<CloudMediaIndexItem> items = <CloudMediaIndexItem>[];
+  final List<CloudWorkTmdbRecord> records = <CloudWorkTmdbRecord>[];
 }
 
 class _CloudResourceCandidate {

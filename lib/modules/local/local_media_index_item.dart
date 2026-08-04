@@ -34,6 +34,7 @@ class LocalMediaIndexItem {
   final String? source;
   final String? codec;
   final TmdbMetadata? tmdb;
+  final String? tmdbIdentity;
   final bool titleLocked;
   final bool posterLocked;
   final bool overviewLocked;
@@ -70,6 +71,7 @@ class LocalMediaIndexItem {
     this.source,
     this.codec,
     this.tmdb,
+    this.tmdbIdentity,
     this.titleLocked = false,
     this.posterLocked = false,
     this.overviewLocked = false,
@@ -163,6 +165,7 @@ class LocalMediaIndexItem {
       source: _asNullableString(json['source']),
       codec: _asNullableString(json['codec']),
       tmdb: _parseTmdb(json),
+      tmdbIdentity: _asNullableString(json['tmdbIdentity']),
       titleLocked: json['titleLocked'] == true,
       posterLocked: json['posterLocked'] == true,
       overviewLocked: json['overviewLocked'] == true,
@@ -211,6 +214,8 @@ class LocalMediaIndexItem {
       if (source != null && source!.isNotEmpty) 'source': source,
       if (codec != null && codec!.isNotEmpty) 'codec': codec,
       if (tmdb != null) 'tmdb': tmdb!.toJson(),
+      if (tmdbIdentity != null && tmdbIdentity!.isNotEmpty)
+        'tmdbIdentity': tmdbIdentity,
       if (titleLocked) 'titleLocked': true,
       if (posterLocked) 'posterLocked': true,
       if (overviewLocked) 'overviewLocked': true,
@@ -262,6 +267,14 @@ class LocalMediaIndexItem {
     );
   }
 
+  String? get effectiveTmdbIdentity {
+    final explicit = tmdbIdentity?.trim();
+    if (explicit != null && explicit.isNotEmpty) return explicit;
+    final metadata = tmdb;
+    if (metadata == null || metadata.id <= 0) return null;
+    return '${metadata.mediaType.name}:${metadata.id}';
+  }
+
   bool isSameFile(FileStat stat) {
     return size == stat.size &&
         modified.millisecondsSinceEpoch ==
@@ -289,6 +302,7 @@ class LocalMediaIndexItem {
       resolution: resolution,
       source: source,
       codec: codec,
+      tmdbIdentity: effectiveTmdbIdentity,
     );
   }
 
@@ -316,6 +330,7 @@ class LocalMediaIndexItem {
     String? source,
     String? codec,
     TmdbMetadata? tmdb,
+    String? tmdbIdentity,
     bool? titleLocked,
     bool? posterLocked,
     bool? overviewLocked,
@@ -356,6 +371,7 @@ class LocalMediaIndexItem {
       source: source ?? this.source,
       codec: codec ?? this.codec,
       tmdb: tmdb ?? this.tmdb,
+      tmdbIdentity: tmdbIdentity ?? this.tmdbIdentity,
       titleLocked: titleLocked ?? this.titleLocked,
       posterLocked: posterLocked ?? this.posterLocked,
       overviewLocked: overviewLocked ?? this.overviewLocked,

@@ -229,6 +229,43 @@ void main() {
     expect(groups.map((group) => group.title), ['黑天鹅', '黑镜']);
   });
 
+  test('LocalSeriesGrouper 按 TMDB 身份合并同季度不同发布组并保留季度边界', () {
+    final groups = const LocalSeriesGrouper().group([
+      _video(
+        path: r'D:\Anime\Isekai S02\Isekai Nonbiri Nouka 2 - 01.mkv',
+        name: 'Isekai Nonbiri Nouka 2 - 01.mkv',
+        seriesName: 'Isekai Nonbiri Nouka 2',
+        seasonNumber: 2,
+        episodeNumber: 1,
+        tmdbIdentity: 'tv:123',
+      ),
+      _video(
+        path: r'D:\Anime\Isekai S02\Isekai Nonbiri Nouka - 01.mkv',
+        name: 'Isekai Nonbiri Nouka - 01.mkv',
+        seriesName: 'Isekai Nonbiri Nouka',
+        seasonNumber: 2,
+        episodeNumber: 1,
+        tmdbIdentity: 'tv:123',
+      ),
+      _video(
+        path: r'D:\Anime\Isekai S01\Isekai Nonbiri Nouka - 01.mkv',
+        name: 'Isekai Nonbiri Nouka - 01.mkv',
+        seriesName: 'Isekai Nonbiri Nouka',
+        seasonNumber: 1,
+        episodeNumber: 1,
+        tmdbIdentity: 'tv:123',
+      ),
+    ]);
+
+    expect(groups, hasLength(2));
+    expect(groups.map((group) => group.title), [
+      'Isekai Nonbiri Nouka S02',
+      'Isekai Nonbiri Nouka S01',
+    ]);
+    expect(groups.first.episodeCount, 2);
+    expect(groups.last.episodeCount, 1);
+  });
+
   test('LocalSeriesGrouper 不合并名称前缀相同的独立 TMDB 影片', () {
     final groups = const LocalSeriesGrouper().group([
       _video(
@@ -344,6 +381,7 @@ LocalFileItem _video({
   int? episodeNumber,
   String? episodeTitle,
   String? seriesTitleOverride,
+  String? tmdbIdentity,
 }) {
   return LocalFileItem(
     path: path,
@@ -353,6 +391,7 @@ LocalFileItem _video({
     isDirectory: false,
     isVideo: true,
     seriesTitleOverride: seriesTitleOverride,
+    tmdbIdentity: tmdbIdentity,
     episodeInfo: episodeNumber == null || seriesName == null
         ? null
         : LocalEpisodeInfo(

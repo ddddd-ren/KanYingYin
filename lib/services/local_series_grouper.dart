@@ -61,11 +61,34 @@ class LocalSeriesGrouper {
   }
 
   bool _sameCollection(_SeriesDescriptor left, _SeriesDescriptor right) {
+    final leftIdentity = left.tmdbIdentity;
+    final rightIdentity = right.tmdbIdentity;
+    if (leftIdentity != null && leftIdentity == rightIdentity) {
+      final leftSeason = _seasonFromCollectionKey(left.collectionKey);
+      final rightSeason = _seasonFromCollectionKey(right.collectionKey);
+      if (leftSeason != null &&
+          rightSeason != null &&
+          leftSeason != rightSeason) {
+        return false;
+      }
+      if (leftSeason == null && rightSeason == null) return true;
+      return _collectionTypeKey(left.collectionKey) ==
+          _collectionTypeKey(right.collectionKey);
+    }
     if (left.collectionKey != right.collectionKey) return false;
     if (left.directoryKey == right.directoryKey) return true;
     if (left.key == right.key) return true;
     if (_isVariantKey(left.key, right.key)) return true;
     return _isVariantKey(right.key, left.key);
+  }
+
+  int? _seasonFromCollectionKey(String value) {
+    final match = RegExp(r'^s(\d+)(?:-|$)').firstMatch(value);
+    return match == null ? null : int.tryParse(match.group(1)!);
+  }
+
+  String _collectionTypeKey(String value) {
+    return value.replaceFirst(RegExp(r'^s\d+-?'), '');
   }
 
   bool _isVariantKey(String base, String variant) {
@@ -284,6 +307,7 @@ class _SeriesDescriptor {
     required this.collectionKey,
     required this.collectionLabel,
     required this.hasTitleOverride,
+    required this.tmdbIdentity,
   });
 
   final String baseTitle;
@@ -292,6 +316,7 @@ class _SeriesDescriptor {
   final String collectionKey;
   final String collectionLabel;
   final bool hasTitleOverride;
+  final String? tmdbIdentity;
 
   String get displayTitle => hasTitleOverride || collectionLabel.isEmpty
       ? baseTitle
@@ -310,6 +335,7 @@ class _SeriesDescriptor {
       collectionKey: collection.key,
       collectionLabel: collection.label,
       hasTitleOverride: hasTitleOverride,
+      tmdbIdentity: item.tmdbIdentity,
     );
   }
 
@@ -321,6 +347,7 @@ class _SeriesDescriptor {
       collectionKey: collectionKey,
       collectionLabel: collectionLabel,
       hasTitleOverride: other.hasTitleOverride,
+      tmdbIdentity: other.tmdbIdentity ?? tmdbIdentity,
     );
   }
 

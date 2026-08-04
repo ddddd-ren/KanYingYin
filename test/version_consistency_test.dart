@@ -5,11 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('二点一一五 Windows 测试版与 Android 正式版版本保持独立一致', () {
-    const expectedVersion = '2.1.115';
-    const expectedBuildNumber = '20115';
-    const expectedAndroidVersion = '1.0.2';
-    const expectedAndroidVersionCode = '10002';
+  test('二点一一六 Flutter、Windows 与 Android 版本保持一致', () {
+    const expectedVersion = '2.1.116';
+    const expectedBuildNumber = '20116';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final androidGradle =
@@ -46,33 +44,33 @@ void main() {
     expect(msixVersion!.group(1), version);
     expect(
       androidGradle,
-      contains('val androidVersionName = "$expectedAndroidVersion"'),
+      contains(
+        'val androidVersionName = pubspecVersionMatch.groupValues[1]',
+      ),
     );
     expect(
       androidGradle,
-      contains('val androidVersionCode = $expectedAndroidVersionCode'),
+      contains(
+        'val androidVersionCode = '
+        'pubspecVersionMatch.groupValues[2].toIntOrNull()',
+      ),
     );
     expect(androidGradle, contains('versionCode = androidVersionCode'));
     expect(androidGradle, contains('versionName = androidVersionName'));
     expect(
       androidReleaseScript,
-      contains("\$androidVersion = '$expectedAndroidVersion'"),
+      contains(r'$androidVersion = $pubspecVersion.Name'),
     );
     expect(
       androidReleaseScript,
-      contains("\$androidVersionCode = $expectedAndroidVersionCode"),
+      contains(r'$androidVersionCode = $pubspecVersion.Code'),
     );
     expect(msixIdentity, AppIdentity.windowsIdentity);
     expect(readmeIdentity, AppIdentity.windowsIdentity);
     expect(appVersion, contains("current = '$version'"));
     expect(releaseNotes, contains('## $version+$buildNumber'));
     expect(releaseNotes, contains('MSIX 版本：$version.0'));
-    expect(
-      releaseNotes,
-      contains(
-        'APK/AAB 版本：$expectedAndroidVersion ($expectedAndroidVersionCode)',
-      ),
-    );
+    expect(releaseNotes, contains('APK/AAB 版本：$version ($buildNumber)'));
     expect(readme, contains('| 当前版本 | $version |'));
     expect(
       readme,
@@ -83,13 +81,11 @@ void main() {
     expect(versionHistory, contains("version: '$version'"));
     expect(updateDialogCopy, contains('应用版本：$version'));
     expect(updateDialogCopy, contains('安装包版本：$version.0'));
-    expect(updateDialogCopy, contains('Android 应用版本：$expectedAndroidVersion'));
+    expect(updateDialogCopy, contains('Android 应用版本：$version'));
+    expect(updateDialogCopy, contains('Android versionCode：$buildNumber'));
     expect(updateDialogCopy, contains('看影音 $version 测试版'));
     expect(updateDialogCopy, contains('Android 弹窗正文'));
-    expect(
-      updateDialogCopy,
-      contains('看影音 Android $expectedAndroidVersion 正式版'),
-    );
+    expect(updateDialogCopy, contains('看影音 Android $version 测试版'));
     final versionHistoryListStart = versionHistory.indexOf(
       'const List<VersionHistory> versionHistoryList',
     );
@@ -131,10 +127,10 @@ void main() {
     ]) {
       for (final text in <String>[
         'Windows',
-        '毛玻璃',
-        '海报墙',
-        '封面',
-        '信息面板',
+        'Android',
+        '统一版本配置',
+        '诊断日志',
+        '本地文件路径',
         '不会修改或删除',
       ]) {
         expect(currentCopy, contains(text));

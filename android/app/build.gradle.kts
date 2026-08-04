@@ -26,8 +26,25 @@ if (releaseRequested && !releaseSigningReady) {
     throw GradleException("Android Release 缺少 KANYINGYIN_ANDROID_* 签名环境变量")
 }
 
-val androidVersionName = "1.0.2"
-val androidVersionCode = 10002
+val pubspecVersionLines =
+    rootProject
+        .file("../pubspec.yaml")
+        .readLines(Charsets.UTF_8)
+        .filter { it.startsWith("version:") }
+if (pubspecVersionLines.size != 1) {
+    throw GradleException("pubspec.yaml 必须包含唯一的 version 字段")
+}
+val pubspecVersionPattern =
+    Regex("""^version:\s*(\d+\.\d+\.\d+)\+([1-9]\d*)\s*$""")
+val pubspecVersionMatch =
+    pubspecVersionPattern.matchEntire(pubspecVersionLines.single())
+        ?: throw GradleException("pubspec.yaml 的 version 格式无效")
+val androidVersionName = pubspecVersionMatch.groupValues[1]
+val androidVersionCode = pubspecVersionMatch.groupValues[2].toIntOrNull()
+    ?: throw GradleException("pubspec.yaml 的 build number 超出 Android 整数范围")
+if (androidVersionCode > 2100000000) {
+    throw GradleException("pubspec.yaml 的 build number 超出 Android versionCode 上限")
+}
 
 android {
     namespace = "com.kanyingyin.player"

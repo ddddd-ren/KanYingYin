@@ -20,6 +20,7 @@ import 'package:kanyingyin/pages/cloud/resources/cloud_resource_poster_wall.dart
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_page.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
+import 'package:kanyingyin/repositories/cloud_media_tag_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
@@ -945,6 +946,53 @@ void main() {
 
     expect(coordinator.scrapedTarget?.remote.id, 'untagged');
     expect(find.textContaining('当前来源刮削完成'), findsOneWidget);
+    fixture.controller.dispose();
+  });
+
+  testWidgets('资源菜单支持新增自定义标签并可从当前来源筛选', (tester) async {
+    final entries = <CloudFileEntry>[
+      _pageVideo('custom-tag-video', '/影视/收藏.mkv', '收藏.mkv'),
+    ];
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      entries: entries,
+      snapshotOnly: true,
+      indexedItems: <CloudMediaIndexItem>[
+        _pageIndexedVideo(entries.single, const <String>[]),
+      ],
+      mediaTagRepository: CloudMediaTagRepository(
+        storage: MemoryCloudMediaTagStorage(),
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: CloudResourcesPage(controller: fixture.controller)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('资源操作'));
+    await tester.pumpAndSettle();
+    expect(find.text('管理标签'), findsOneWidget);
+    await tester.tap(find.text('管理标签'));
+    await tester.pumpAndSettle();
+    expect(find.text('管理标签 · 收藏'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('cloud-tag-input')),
+      '收藏',
+    );
+    await tester.tap(find.byKey(const ValueKey<String>('cloud-tag-add')));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(InputChip, '收藏'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey<String>('cloud-tag-save')));
+    await tester.pumpAndSettle();
+
+    expect(fixture.controller.availableCustomTags, <String>['收藏']);
+    await tester.tap(find.byTooltip('筛选 TMDB 类型'));
+    await tester.pumpAndSettle();
+    expect(find.text('自定义标签'), findsOneWidget);
+    await tester.tap(_checkedCloudGenreItem('收藏'));
+    await tester.pumpAndSettle();
+    expect(find.text('收藏.mkv'), findsOneWidget);
     fixture.controller.dispose();
   });
 
@@ -2016,6 +2064,7 @@ class _PageFixture {
     CloudResourceTmdbRecord? record,
     CloudResourceTmdbCoordinator? tmdbCoordinator,
     CloudDriveClient? client,
+    ICloudMediaTagRepository? mediaTagRepository,
     int Function()? minRecognizedVideoSizeBytesProvider,
   }) async {
     final credentials = MemoryCloudCredentialStore();
@@ -2062,6 +2111,7 @@ class _PageFixture {
             repository: repository,
             credentialStore: credentials,
             mediaIndexRepository: indexRepository,
+            mediaTagRepository: mediaTagRepository,
             minRecognizedVideoSizeBytesProvider: minSizeProvider,
           )
         : CloudResourcesController(
@@ -2069,6 +2119,7 @@ class _PageFixture {
             credentialStore: credentials,
             providerRegistry: registry,
             mediaIndexRepository: indexRepository,
+            mediaTagRepository: mediaTagRepository,
             mediaIndexer: CloudMediaIndexer(
               repository: indexRepository,
               minRecognizedVideoSizeBytesProvider: minSizeProvider,
@@ -2085,6 +2136,7 @@ class _SnapshotOnlyCloudResourcesController extends CloudResourcesController {
     required super.repository,
     required super.credentialStore,
     required super.mediaIndexRepository,
+    super.mediaTagRepository,
     required super.minRecognizedVideoSizeBytesProvider,
   });
 

@@ -150,6 +150,19 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.110',
+    date: '2026-08-04',
+    isPrerelease: true,
+    changes: [
+      '本轮只提供 Windows 2.1.110 测试版 MSIX，不构建或测试 Android 安装包',
+      '网盘资源菜单新增“管理标签”，可为普通资源或作品级季度卡添加、删除和保存自定义标签',
+      '网盘筛选入口同时提供 TMDB 类型和自定义标签，多选时匹配任一标签',
+      '自定义标签按网盘来源隔离，只筛选当前选择的网盘，不会混入其他网盘或本地媒体库',
+      '标签保存在看影音本地设置中，重启和重新扫描后仍可用；删除网盘来源时同步清理该来源标签',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.109',
     date: '2026-08-04',
     isPrerelease: true,

@@ -16,14 +16,20 @@ class CloudGenreFilter {
 
   List<CloudMediaIndexItem> apply(
     Iterable<CloudMediaIndexItem> items,
-    Set<String> selectedGenres,
-  ) {
+    Set<String> selectedGenres, {
+    Iterable<String> Function(CloudMediaIndexItem item)? customTagsFor,
+  }) {
     if (selectedGenres.isEmpty) return items.toList(growable: false);
     return items
         .where(
-          (item) => item.tmdbGenres.any(
-            (genre) => selectedGenres.contains(genre.trim()),
-          ),
+          (item) =>
+              item.tmdbGenres.any(
+                (genre) => selectedGenres.contains(genre.trim()),
+              ) ||
+              customTagsFor?.call(item).any(
+                        (tag) => selectedGenres.contains(tag.trim()),
+                      ) ==
+                  true,
         )
         .toList(growable: false);
   }

@@ -89,6 +89,7 @@ class SettingBoxKey {
       localMediaDirectoryFingerprints = 'localMediaDirectoryFingerprints',
       localSeriesTitleOverrides = 'localSeriesTitleOverrides',
       localMediaLibraryTags = 'localMediaLibraryTags',
+      cloudMediaLibraryTags = 'cloudMediaLibraryTags',
       cloudSources = 'cloudSources',
       cloudMediaIndex = 'cloudMediaIndex',
       cloudPosterHiddenVideos = 'cloudPosterHiddenVideos',

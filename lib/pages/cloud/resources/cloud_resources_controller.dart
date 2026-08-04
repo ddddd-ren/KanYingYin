@@ -15,6 +15,7 @@ import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/repositories/cloud_hidden_video_repository.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
+import 'package:kanyingyin/repositories/cloud_media_tag_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
@@ -96,6 +97,7 @@ class CloudResourcesController extends ChangeNotifier {
     int Function()? minRecognizedVideoSizeBytesProvider,
     CloudResourceCollectionGrouper? collectionGrouper,
     CloudMediaIndexRepository? mediaIndexRepository,
+    ICloudMediaTagRepository? mediaTagRepository,
     ICloudHiddenVideoRepository? hiddenVideoRepository,
     CloudMediaIndexer? mediaIndexer,
     CloudMediaTreeResolver? mediaTreeResolver,
@@ -104,6 +106,7 @@ class CloudResourcesController extends ChangeNotifier {
         _credentialStore = credentialStore,
         _mediaIndexRepository =
             mediaIndexRepository ?? CloudMediaIndexRepository(),
+        _mediaTagRepository = mediaTagRepository ?? CloudMediaTagRepository(),
         _hiddenVideoRepository =
             hiddenVideoRepository ?? CloudHiddenVideoRepository(),
         _providerRegistry = providerRegistry ?? CloudProviderRegistry(),
@@ -138,6 +141,7 @@ class CloudResourcesController extends ChangeNotifier {
   final CloudSourceRepository _repository;
   final CloudCredentialStore _credentialStore;
   final CloudMediaIndexRepository _mediaIndexRepository;
+  final ICloudMediaTagRepository _mediaTagRepository;
   final ICloudHiddenVideoRepository _hiddenVideoRepository;
   late final CloudMediaIndexer _mediaIndexer;
   final CloudProviderRegistry _providerRegistry;
@@ -152,6 +156,8 @@ class CloudResourcesController extends ChangeNotifier {
   final CloudGenreFilter _genreFilter = const CloudGenreFilter();
   final Map<String, CloudMediaIndexItem> _indexedItems =
       <String, CloudMediaIndexItem>{};
+  final Map<String, List<String>> _customTagsByResourceKey =
+      <String, List<String>>{};
   final Set<String> _selectedGenres = <String>{};
   List<CloudHiddenVideo> _hiddenVideos = <CloudHiddenVideo>[];
   List<CloudWorkIdentity> _works = <CloudWorkIdentity>[];
@@ -204,6 +210,22 @@ class CloudResourcesController extends ChangeNotifier {
   List<String> get availableGenres =>
       _genreFilter.availableGenres(_indexedItems.values);
 
+  List<String> get availableCustomTags {
+    final tags = <String>{};
+    for (final item in _indexedItems.values) {
+      tags.addAll(_customTagsForItem(item));
+    }
+    return tags.toList(growable: false)..sort();
+  }
+
+  List<String> get availableTags {
+    final tags = <String>{
+      ...availableGenres,
+      ...availableCustomTags,
+    };
+    return tags.toList(growable: false)..sort();
+  }
+
   Set<String> get tmdbScrapingKeys =>
       _workTmdbCoordinator?.scrapingWorkKeys ??
       _tmdbCoordinator?.scrapingKeys ??
@@ -239,7 +261,11 @@ class CloudResourcesController extends ChangeNotifier {
   List<CloudMediaIndexItem> get visibleIndexedItems {
     final scopeTree = _directoryScopeTree;
     return _genreFilter
-        .apply(_indexedItems.values, _selectedGenres)
+        .apply(
+          _indexedItems.values,
+          _selectedGenres,
+          customTagsFor: _customTagsForItem,
+        )
         .where(
           (item) =>
               !_isHidden(
@@ -415,6 +441,10 @@ class CloudResourcesController extends ChangeNotifier {
     final previousQuery = query;
     final previousDirectoryScope = currentDirectoryScope;
     final previousSelectedGenres = Set<String>.from(_selectedGenres);
+    final previousCustomTags = <String, List<String>>{
+      for (final entry in _customTagsByResourceKey.entries)
+        entry.key: List<String>.unmodifiable(entry.value),
+    };
     await _loadSources(
       startScan: false,
       preferredSourceId: preferredSourceId,
@@ -436,6 +466,9 @@ class CloudResourcesController extends ChangeNotifier {
     _selectedGenres
       ..clear()
       ..addAll(previousSelectedGenres);
+    _customTagsByResourceKey
+      ..clear()
+      ..addAll(previousCustomTags);
     _invalidateDirectoryScopeTree();
     loading = false;
     scanning = false;
@@ -478,6 +511,7 @@ class CloudResourcesController extends ChangeNotifier {
       currentDirectory = null;
       entries = <CloudFileEntry>[];
       _indexedItems.clear();
+      _customTagsByResourceKey.clear();
       _selectedGenres.clear();
       _hiddenVideos = <CloudHiddenVideo>[];
       _works = <CloudWorkIdentity>[];
@@ -509,6 +543,7 @@ class CloudResourcesController extends ChangeNotifier {
     query = '';
     entries = <CloudFileEntry>[];
     _indexedItems.clear();
+    _customTagsByResourceKey.clear();
     _hiddenVideos = <CloudHiddenVideo>[];
     _works = <CloudWorkIdentity>[];
     _mediaTree = null;
@@ -560,6 +595,12 @@ class CloudResourcesController extends ChangeNotifier {
   Future<void> _loadSnapshot(CloudSource source, int generation) async {
     final snapshot = await _mediaIndexRepository.snapshot(source.id);
     if (!_isCurrent(generation) || selectedSource?.id != source.id) return;
+    Map<String, List<String>> customTags;
+    try {
+      customTags = await _mediaTagRepository.getBySource(source.id);
+    } on Object {
+      customTags = <String, List<String>>{};
+    }
     final scopedItems = snapshot.items
         .where(
           (item) => CloudSourcePathScope.containsSourcePath(
@@ -575,6 +616,9 @@ class CloudResourcesController extends ChangeNotifier {
           (item) => MapEntry(_resourceKeyForItem(item), item),
         ),
       );
+    _customTagsByResourceKey
+      ..clear()
+      ..addAll(customTags);
     _reconcileSelectedGenres();
     final tree = _mediaTreeResolver.resolve(
       sourceId: source.id,
@@ -734,7 +778,7 @@ class CloudResourcesController extends ChangeNotifier {
 
   void toggleGenre(String genre) {
     final normalized = genre.trim();
-    if (normalized.isEmpty || !availableGenres.contains(normalized)) return;
+    if (normalized.isEmpty || !availableTags.contains(normalized)) return;
     if (!_selectedGenres.remove(normalized)) {
       _selectedGenres.add(normalized);
     }
@@ -745,6 +789,31 @@ class CloudResourcesController extends ChangeNotifier {
   void clearGenres() {
     if (_selectedGenres.isEmpty) return;
     _selectedGenres.clear();
+    _invalidateCollection();
+    _notify();
+  }
+
+  List<String> customTagsForGroup(CloudResourceMediaGroup group) {
+    final key = _customTagKeyForGroup(group);
+    return List<String>.unmodifiable(
+      _customTagsByResourceKey[key] ?? const <String>[],
+    );
+  }
+
+  Future<void> saveCustomTags(
+    CloudResourceMediaGroup group,
+    Iterable<String> tags,
+  ) async {
+    final source = selectedSource;
+    if (source == null) throw StateError('尚未选择网盘来源');
+    final key = _customTagKeyForGroup(group);
+    await _mediaTagRepository.saveForResource(source.id, key, tags);
+    if (selectedSource?.id != source.id) return;
+    final saved = await _mediaTagRepository.getBySource(source.id);
+    _customTagsByResourceKey
+      ..clear()
+      ..addAll(saved);
+    _reconcileSelectedGenres();
     _invalidateCollection();
     _notify();
   }
@@ -1152,16 +1221,18 @@ class CloudResourcesController extends ChangeNotifier {
   bool _matchesSelectedGenres(CloudFileEntry entry) {
     if (_selectedGenres.isEmpty) return true;
     final item = _indexedItemFor(entry);
-    return item != null &&
-        item.tmdbGenres.any(
-          (genre) => _selectedGenres.contains(genre.trim()),
-        );
+    if (item == null) return false;
+    return _genreFilter.apply(
+      <CloudMediaIndexItem>[item],
+      _selectedGenres,
+      customTagsFor: _customTagsForItem,
+    ).isNotEmpty;
   }
 
   void _reconcileSelectedGenres() {
     final retained = _genreFilter.retainAvailable(
       _selectedGenres,
-      availableGenres,
+      availableTags,
     );
     if (setEquals(retained, _selectedGenres)) return;
     _selectedGenres
@@ -1176,6 +1247,22 @@ class CloudResourcesController extends ChangeNotifier {
         remoteId: item.remoteId,
         remotePath: item.remotePath,
       );
+
+  Iterable<String> _customTagsForItem(CloudMediaIndexItem item) sync* {
+    final tags = <String>{};
+    tags.addAll(
+      _customTagsByResourceKey[_resourceKeyForItem(item)] ?? const <String>[],
+    );
+    final workKey = item.workKey?.trim();
+    if (workKey != null && workKey.isNotEmpty) {
+      tags.addAll(_customTagsByResourceKey[workKey] ?? const <String>[]);
+    }
+    yield* tags;
+  }
+
+  String _customTagKeyForGroup(CloudResourceMediaGroup group) {
+    return group.isWorkScoped ? group.workKey : group.stableKey;
+  }
 
   bool _isCurrent(int generation) => !_disposed && generation == _generation;
 

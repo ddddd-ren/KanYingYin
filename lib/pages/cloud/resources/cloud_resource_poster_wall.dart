@@ -24,6 +24,7 @@ class CloudResourcePosterWall extends StatelessWidget {
     this.hiddenVideoCount = 0,
     required this.onOpenGroup,
     required this.onEditTitle,
+    this.onEditTags,
     required this.onScrape,
     required this.onRematch,
     this.onManualMatch,
@@ -38,6 +39,7 @@ class CloudResourcePosterWall extends StatelessWidget {
   final int hiddenVideoCount;
   final CloudResourceGroupAction onOpenGroup;
   final CloudResourceGroupAction onEditTitle;
+  final CloudResourceGroupAction? onEditTags;
   final CloudResourceGroupAction onScrape;
   final CloudResourceGroupAction onRematch;
   final CloudResourceGroupAction? onManualMatch;
@@ -138,6 +140,9 @@ class CloudResourcePosterWall extends StatelessWidget {
             case _ResourceAction.editTitle:
               onEditTitle(group);
               return;
+            case _ResourceAction.editTags:
+              onEditTags?.call(group);
+              return;
             case _ResourceAction.scrape:
               onScrape(group);
               return;
@@ -162,6 +167,18 @@ class CloudResourcePosterWall extends StatelessWidget {
               group.isWorkScoped ? '修改刮削名称' : '修改剧名',
             ),
           ),
+          if (onEditTags != null)
+            const PopupMenuItem(
+              value: _ResourceAction.editTags,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.sell_outlined, size: 18),
+                  SizedBox(width: 8),
+                  Text('管理标签'),
+                ],
+              ),
+            ),
           const PopupMenuItem(
             value: _ResourceAction.scrape,
             child: Text('TMDB 刮削'),
@@ -302,4 +319,12 @@ class CloudResourcePosterWall extends StatelessWidget {
       );
 }
 
-enum _ResourceAction { editTitle, scrape, rematch, manualMatch, details, hide }
+enum _ResourceAction {
+  editTitle,
+  editTags,
+  scrape,
+  rematch,
+  manualMatch,
+  details,
+  hide,
+}

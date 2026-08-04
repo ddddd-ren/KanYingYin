@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/bean/widget/glass_surface.dart';
 
 /// 设置项语义分区。
 class KSettingsSection extends StatelessWidget {
@@ -48,37 +49,33 @@ class KSettingsSection extends StatelessWidget {
               ],
             ),
           ),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: scheme.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: scheme.outlineVariant.withValues(alpha: 0.62),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: scheme.shadow.withValues(alpha: 0.06),
-                blurRadius: 18,
-                offset: const Offset(0, 6),
-              ),
-            ],
+        GlassSurface(
+          borderRadius: BorderRadius.circular(14),
+          blurSigma: 16,
+          color: scheme.surfaceContainerLow.withValues(alpha: 0.62),
+          border: Border.all(
+            color: scheme.outlineVariant.withValues(alpha: 0.62),
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(13),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (var index = 0; index < tiles.length; index++) ...[
-                  tiles[index],
-                  if (index != tiles.length - 1)
-                    Divider(
-                      height: 1,
-                      indent: 64,
-                      color: scheme.outlineVariant.withValues(alpha: 0.5),
-                    ),
-                ],
-              ],
+          boxShadow: [
+            BoxShadow(
+              color: scheme.shadow.withValues(alpha: 0.06),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
             ),
+          ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var index = 0; index < tiles.length; index++) ...[
+                tiles[index],
+                if (index != tiles.length - 1)
+                  Divider(
+                    height: 1,
+                    indent: 64,
+                    color: scheme.outlineVariant.withValues(alpha: 0.5),
+                  ),
+              ],
+            ],
           ),
         ),
         if (bottomInfo != null)

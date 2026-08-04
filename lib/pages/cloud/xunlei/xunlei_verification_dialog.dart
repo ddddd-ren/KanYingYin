@@ -3,6 +3,7 @@ import 'dart:collection';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_models.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_verification_bridge.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_verification_profile.dart';
@@ -437,9 +438,8 @@ class _XunleiVerificationDialogState extends State<XunleiVerificationDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
+    return GlassDialog(
       insetPadding: const EdgeInsets.all(24),
-      clipBehavior: Clip.antiAlias,
       child: SizedBox(
         width: 760,
         height: 560,

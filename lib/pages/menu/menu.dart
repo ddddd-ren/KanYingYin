@@ -8,6 +8,7 @@ import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/utils/utils.dart';
 import 'package:kanyingyin/bean/appbar/desktop_window_controls.dart';
 import 'package:kanyingyin/bean/appbar/drag_to_move_bar.dart';
+import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:provider/provider.dart';
 import 'package:kanyingyin/pages/menu/adaptive_navigation_shell.dart';
 
@@ -95,8 +96,21 @@ class _ScaffoldMenu extends State<ScaffoldMenu> {
       );
 
   Widget _desktopTitleBar(BuildContext context) {
-    return ColoredBox(
-      color: Theme.of(context).colorScheme.surfaceContainer,
+    return GlassSurface(
+      key: const ValueKey<String>('desktop-title-bar-glass'),
+      borderRadius: BorderRadius.zero,
+      blurSigma: 20,
+      color: Theme.of(context).colorScheme.surfaceContainer.withValues(
+            alpha: 0.76,
+          ),
+      border: Border(
+        bottom: BorderSide(
+          color: Theme.of(context)
+              .colorScheme
+              .outlineVariant
+              .withValues(alpha: 0.32),
+        ),
+      ),
       child: Row(
         children: [
           const Expanded(

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/utils/constants.dart';
 
 // A simple dialog helper class to show dialogs and toasts based on flutter native implementation (replace flutter_smart_dialog)
@@ -230,8 +231,7 @@ class AppDialog {
         progressNotifier.dispose();
         onComplete();
       },
-      builder: (context) => Dialog(
-        clipBehavior: Clip.antiAlias,
+      builder: (context) => GlassDialog(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
           child: SizedBox(

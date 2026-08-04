@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
@@ -153,63 +154,79 @@ class _TmdbMatchDialogState<TResult> extends State<TmdbMatchDialog<TResult>> {
     return Dialog(
       key: const ValueKey<String>('tmdb-match-dialog'),
       clipBehavior: Clip.antiAlias,
-      child: CallbackShortcuts(
-        bindings: <ShortcutActivator, VoidCallback>{
-          const SingleActivator(LogicalKeyboardKey.escape): _close,
-        },
-        child: Focus(
-          autofocus: true,
-          child: SizedBox(
-            width: width,
-            height: height,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _header(context),
-                const Divider(height: 1),
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      if (constraints.maxWidth < 720) {
-                        return SingleChildScrollView(
-                          key: const ValueKey<String>('tmdb-stacked'),
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _preparation(context),
-                              const SizedBox(height: 20),
-                              SizedBox(height: 300, child: _results(context)),
-                            ],
-                          ),
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      child: GlassSurface(
+        borderRadius: BorderRadius.circular(12),
+        blurSigma: 24,
+        color: Theme.of(context).colorScheme.surfaceContainerHigh.withValues(
+              alpha: 0.72,
+            ),
+        border: Border.all(
+          color: Theme.of(context)
+              .colorScheme
+              .outlineVariant
+              .withValues(alpha: 0.48),
+        ),
+        child: CallbackShortcuts(
+          bindings: <ShortcutActivator, VoidCallback>{
+            const SingleActivator(LogicalKeyboardKey.escape): _close,
+          },
+          child: Focus(
+            autofocus: true,
+            child: SizedBox(
+              width: width,
+              height: height,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _header(context),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        if (constraints.maxWidth < 720) {
+                          return SingleChildScrollView(
+                            key: const ValueKey<String>('tmdb-stacked'),
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _preparation(context),
+                                const SizedBox(height: 20),
+                                SizedBox(height: 300, child: _results(context)),
+                              ],
+                            ),
+                          );
+                        }
+                        return Row(
+                          key: const ValueKey<String>('tmdb-two-column'),
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SizedBox(
+                              width: 340,
+                              child: SingleChildScrollView(
+                                padding: const EdgeInsets.all(20),
+                                child: _preparation(context),
+                              ),
+                            ),
+                            const VerticalDivider(width: 1),
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.all(20),
+                                child: _results(context),
+                              ),
+                            ),
+                          ],
                         );
-                      }
-                      return Row(
-                        key: const ValueKey<String>('tmdb-two-column'),
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          SizedBox(
-                            width: 340,
-                            child: SingleChildScrollView(
-                              padding: const EdgeInsets.all(20),
-                              child: _preparation(context),
-                            ),
-                          ),
-                          const VerticalDivider(width: 1),
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.all(20),
-                              child: _results(context),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
+                      },
+                    ),
                   ),
-                ),
-                const Divider(height: 1),
-                _actions(),
-              ],
+                  const Divider(height: 1),
+                  _actions(),
+                ],
+              ),
             ),
           ),
         ),

@@ -79,6 +79,14 @@ abstract final class AppTheme {
       pageTransitionsTheme: pageTransitionsTheme2024,
     );
     return base.copyWith(
+      appBarTheme: AppBarThemeData(
+        backgroundColor:
+            colorScheme.surfaceContainerLow.withValues(alpha: 0.82),
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        shadowColor: Colors.transparent,
+      ),
       cardTheme: CardThemeData(
         margin: EdgeInsets.zero,
         color: colorScheme.surfaceContainerLow,
@@ -88,7 +96,10 @@ abstract final class AppTheme {
         ),
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: colorScheme.surfaceContainerHigh,
+        backgroundColor:
+            colorScheme.surfaceContainerHigh.withValues(alpha: 0.86),
+        surfaceTintColor: Colors.transparent,
+        shadowColor: colorScheme.shadow.withValues(alpha: 0.28),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),

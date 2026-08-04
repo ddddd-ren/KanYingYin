@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
@@ -9,15 +10,38 @@ class VersionChangelogDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('版本更新日志'),
-      content: VersionChangelogContent(versions: versions),
-      actions: [
-        TextButton(
-          onPressed: () => AppDialog.dismiss<void>(),
-          child: const Text('知道了'),
+    return GlassDialog(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 640,
+          maxHeight: MediaQuery.sizeOf(context).height * 0.78,
         ),
-      ],
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 22, 24, 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '版本更新日志',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: VersionChangelogContent(versions: versions),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => AppDialog.dismiss<void>(),
+                  child: const Text('知道了'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

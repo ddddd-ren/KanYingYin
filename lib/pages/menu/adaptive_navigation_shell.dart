@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/pages/navigation/navigation_config.dart';
 
 const double compactNavigationBreakpoint = 640;
@@ -69,15 +70,26 @@ class AdaptiveNavigationShell extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: ColoredBox(
+      bottomNavigationBar: GlassSurface(
         key: const ValueKey<String>('compact-bottom-navigation-surface'),
-        color: navigationColor,
+        borderRadius: BorderRadius.zero,
+        blurSigma: 18,
+        color: navigationColor.withValues(alpha: 0.78),
+        border: Border(
+          top: BorderSide(
+            color: Theme.of(context)
+                .colorScheme
+                .outlineVariant
+                .withValues(alpha: 0.32),
+          ),
+        ),
         child: SafeArea(
           key: const ValueKey<String>('compact-bottom-navigation-safe-area'),
           top: false,
           child: NavigationBar(
             key: const ValueKey<String>('compact-bottom-navigation'),
-            backgroundColor: navigationColor,
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
             selectedIndex: selectedIndex,
             onDestinationSelected: onDestinationSelected,
             destinations: [
@@ -135,19 +147,15 @@ class AdaptiveNavigationShell extends StatelessWidget {
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.only(right: 8, bottom: 8),
-                    child: DecoratedBox(
+                    child: GlassSurface(
                       key: const ValueKey<String>('navigation-content-surface'),
-                      decoration: BoxDecoration(
-                        color: colors.surface,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: colors.outlineVariant.withValues(alpha: 0.45),
-                        ),
+                      borderRadius: BorderRadius.circular(12),
+                      blurSigma: 14,
+                      color: colors.surface.withValues(alpha: 0.66),
+                      border: Border.all(
+                        color: colors.outlineVariant.withValues(alpha: 0.45),
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: content,
-                      ),
+                      child: content,
                     ),
                   ),
                 ),
@@ -179,8 +187,13 @@ class _ExpandedSidebar extends StatelessWidget {
     final utilityIndex = destinations.length - 1;
     return SizedBox(
       width: 216,
-      child: Material(
-        color: colors.surfaceContainerLowest,
+      child: GlassSurface(
+        borderRadius: BorderRadius.circular(14),
+        blurSigma: 16,
+        color: colors.surfaceContainerLowest.withValues(alpha: 0.76),
+        border: Border.all(
+          color: colors.outlineVariant.withValues(alpha: 0.24),
+        ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
           child: Column(

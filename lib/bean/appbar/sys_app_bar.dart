@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/bean/widget/embedded_native_control_area.dart';
+import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/platform/android/android_system_ui_surface.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:kanyingyin/utils/utils.dart';
@@ -65,6 +66,25 @@ class SysAppBar extends StatelessWidget implements PreferredSizeWidget {
     final appBar = AppBar(
       toolbarHeight: preferredSize.height,
       scrolledUnderElevation: 0.0,
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.transparent,
+      flexibleSpace: GlassSurface(
+        borderRadius: BorderRadius.zero,
+        blurSigma: 20,
+        color: (backgroundColor ??
+                Theme.of(context).colorScheme.surfaceContainerLow)
+            .withValues(alpha: 0.78),
+        border: Border(
+          bottom: BorderSide(
+            color: Theme.of(context)
+                .colorScheme
+                .outlineVariant
+                .withValues(alpha: 0.32),
+          ),
+        ),
+        child: const SizedBox.expand(),
+      ),
       title: title != null
           ? EmbeddedNativeControlArea(
               requireOffset: needTopOffset,
@@ -95,7 +115,6 @@ class SysAppBar extends StatelessWidget implements PreferredSizeWidget {
                 )
               : null,
       leadingWidth: leadingWidth,
-      backgroundColor: backgroundColor,
       elevation: elevation,
       shape: shape,
       bottom: bottom,

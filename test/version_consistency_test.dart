@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('二点一一一 Windows 测试版与 Android 正式版版本保持独立一致', () {
-    const expectedVersion = '2.1.111';
-    const expectedBuildNumber = '20111';
+  test('二点一一二 Windows 测试版与 Android 正式版版本保持独立一致', () {
+    const expectedVersion = '2.1.112';
+    const expectedBuildNumber = '20112';
     const expectedAndroidVersion = '1.0.2';
     const expectedAndroidVersionCode = '10002';
     final pubspec = File('pubspec.yaml').readAsStringSync();
@@ -131,11 +131,9 @@ void main() {
     ]) {
       for (final text in <String>[
         'Windows',
-        '网盘资源',
-        '海报卡',
+        '筛选入口',
+        'TMDB 类型',
         '自定义标签',
-        '来源隔离',
-        'TMDB 合并分组',
         '不会修改或删除',
       ]) {
         expect(currentCopy, contains(text));

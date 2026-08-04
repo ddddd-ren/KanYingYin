@@ -150,6 +150,17 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.112',
+    date: '2026-08-04',
+    isPrerelease: true,
+    changes: [
+      '本轮只提供 Windows 2.1.112 测试版 MSIX，不构建或测试 Android 安装包',
+      'TMDB 类型和自定义标签拆分为两个独立筛选入口，减少长菜单并改善操作',
+      '两个入口分别显示各自的选中数量；标签筛选和 TMDB 类型筛选仍可同时生效',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.111',
     date: '2026-08-04',
     isPrerelease: true,

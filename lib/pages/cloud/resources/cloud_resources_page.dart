@@ -742,24 +742,26 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
               key: const ValueKey<String>('cloud-genre-filter'),
               tooltip: '筛选 TMDB 类型',
               enabled: selected != null,
-              onSelected: (value) {
-                if (value == '__clear__') {
-                  _controller.clearGenres();
-                } else if (value == '__scrape_source__') {
-                  unawaited(_scrapeSelectedSource());
-                } else {
-                  _controller.toggleGenre(value);
-                }
-              },
+              onSelected: _handleCloudFilterSelection,
               itemBuilder: (_) => _cloudGenreMenuEntries(
                 canScrape: toolbarState.canScrape,
               ),
-              icon: _controller.selectedGenres.isEmpty
-                  ? const Icon(Icons.sell_outlined)
-                  : Badge.count(
-                      count: _controller.selectedGenres.length,
-                      child: const Icon(Icons.sell_outlined),
-                    ),
+              icon: _cloudFilterIcon(
+                icon: Icons.movie_outlined,
+                availableTags: _controller.availableGenres,
+              ),
+            ),
+            const SizedBox(width: 2),
+            PopupMenuButton<String>(
+              key: const ValueKey<String>('cloud-custom-tag-filter'),
+              tooltip: '筛选自定义标签',
+              enabled: selected != null,
+              onSelected: _handleCloudFilterSelection,
+              itemBuilder: (_) => _cloudCustomTagMenuEntries(),
+              icon: _cloudFilterIcon(
+                icon: Icons.label_outline,
+                availableTags: _controller.availableCustomTags,
+              ),
             ),
           ],
           const Spacer(),
@@ -852,7 +854,6 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     required bool canScrape,
   }) {
     final genres = _controller.availableGenres;
-    final customTags = _controller.availableCustomTags;
     final entries = <PopupMenuEntry<String>>[];
     if (genres.isEmpty) {
       entries.add(
@@ -886,16 +887,20 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       );
       entries.addAll(genres.map(_checkedCloudTagItem));
     }
-    if (customTags.isNotEmpty) {
-      if (entries.isNotEmpty) {
-        entries.add(
-          const PopupMenuItem<String>(
-            enabled: false,
-            height: 8,
-            child: SizedBox.shrink(),
-          ),
-        );
-      }
+    return entries;
+  }
+
+  List<PopupMenuEntry<String>> _cloudCustomTagMenuEntries() {
+    final customTags = _controller.availableCustomTags;
+    final entries = <PopupMenuEntry<String>>[];
+    if (customTags.isEmpty) {
+      entries.add(
+        const PopupMenuItem<String>(
+          enabled: false,
+          child: Text('暂无自定义标签'),
+        ),
+      );
+    } else {
       entries.add(
         const PopupMenuItem<String>(
           enabled: false,
@@ -904,7 +909,40 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       );
       entries.addAll(customTags.map(_checkedCloudTagItem));
     }
+    if (_controller.selectedGenres.isNotEmpty) {
+      entries.insert(
+        0,
+        const PopupMenuItem<String>(
+          value: '__clear__',
+          child: Text('清除'),
+        ),
+      );
+    }
     return entries;
+  }
+
+  void _handleCloudFilterSelection(String value) {
+    if (value == '__clear__') {
+      _controller.clearGenres();
+    } else if (value == '__scrape_source__') {
+      unawaited(_scrapeSelectedSource());
+    } else {
+      _controller.toggleGenre(value);
+    }
+  }
+
+  Widget _cloudFilterIcon({
+    required IconData icon,
+    required Iterable<String> availableTags,
+  }) {
+    final available = availableTags.toSet();
+    final selectedCount =
+        _controller.selectedGenres.where(available.contains).length;
+    if (selectedCount == 0) return Icon(icon);
+    return Badge.count(
+      count: selectedCount,
+      child: Icon(icon),
+    );
   }
 
   PopupMenuEntry<String> _checkedCloudTagItem(String value) {

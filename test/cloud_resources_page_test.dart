@@ -816,6 +816,10 @@ void main() {
       find.byKey(const ValueKey<String>('cloud-genre-filter')),
     );
     expect(emptyGenreFilter.enabled, isTrue);
+    final emptyCustomTagFilter = tester.widget<PopupMenuButton<String>>(
+      find.byKey(const ValueKey<String>('cloud-custom-tag-filter')),
+    );
+    expect(emptyCustomTagFilter.enabled, isTrue);
     await tester.tap(find.byTooltip('筛选 TMDB 类型'));
     await tester.pumpAndSettle();
     expect(find.text('暂无类型标签'), findsOneWidget);
@@ -897,10 +901,18 @@ void main() {
     final genreFilter = find.byKey(
       const ValueKey<String>('cloud-genre-filter'),
     );
+    final customTagFilter = find.byKey(
+      const ValueKey<String>('cloud-custom-tag-filter'),
+    );
     expect(genreFilter, findsOneWidget);
+    expect(customTagFilter, findsOneWidget);
     expect(
       tester.getCenter(genreFilter).dx,
       greaterThan(tester.getCenter(sourceSelector).dx),
+    );
+    expect(
+      tester.getCenter(customTagFilter).dx,
+      greaterThan(tester.getCenter(genreFilter).dx),
     );
 
     await tester.tap(find.byTooltip('筛选 TMDB 类型'));
@@ -988,6 +1000,12 @@ void main() {
 
     expect(fixture.controller.availableCustomTags, <String>['收藏']);
     await tester.tap(find.byTooltip('筛选 TMDB 类型'));
+    await tester.pumpAndSettle();
+    expect(find.text('自定义标签'), findsNothing);
+    await tester.tapAt(const Offset(2, 2));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('筛选自定义标签'));
     await tester.pumpAndSettle();
     expect(find.text('自定义标签'), findsOneWidget);
     await tester.tap(_checkedCloudGenreItem('收藏'));

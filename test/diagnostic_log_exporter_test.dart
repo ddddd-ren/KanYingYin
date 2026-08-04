@@ -35,6 +35,18 @@ void main() {
       r'media="D:\Users\local-user\Private Media\active.mkv"',
     );
     await writer.write('Authorization: Basic active-basic-value');
+    await writer.write(
+      'headers={Cookie: sid=zip-cookie-one; user=zip-cookie-two, status: ok}',
+    );
+    await writer.write(
+      'Authorization: AWS4-HMAC-SHA256 Credential=zip-aws-credential '
+      'SignedHeaders=host;x-amz-date Signature=zip-aws-signature',
+    );
+    await writer.write(
+      'headers={Authorization: Digest username=zip-map-user, '
+      'response=zip-map-response, status: ok}',
+    );
+    await writer.write('password=zip-password-secret 状态=登录失败');
     await File(
       '${tempDir.path}${Platform.pathSeparator}kanyingyin-history.log',
     ).writeAsString(
@@ -80,6 +92,13 @@ void main() {
       'active-token-value',
       'active-cookie-value',
       'active-basic-value',
+      'zip-cookie-one',
+      'zip-cookie-two',
+      'zip-aws-credential',
+      'zip-aws-signature',
+      'zip-map-user',
+      'zip-map-response',
+      'zip-password-secret',
       'history-token-value',
       'history-secret-value',
       'history-second',
@@ -94,6 +113,8 @@ void main() {
     ]) {
       expect(content, isNot(contains(forbidden)), reason: forbidden);
     }
+    expect(content, contains('status: ok'));
+    expect(content, contains('状态=登录失败'));
     expect(content, contains('[LOCAL_PATH]'));
     expect(await original.exists(), isTrue);
   });

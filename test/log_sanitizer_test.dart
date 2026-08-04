@@ -124,6 +124,59 @@ password=query-secret&public=query-visible
     expect(result, contains('&public=query-visible'));
   });
 
+  test('对外脱敏完整隐藏 Map 中含分号的 Cookie 并保留后续字段', () {
+    const input =
+        'headers={Cookie: sid=secret-one; user=secret-two, status: ok}';
+
+    final result = sanitizer.sanitizeForExport(input);
+
+    expect(result, 'headers={Cookie: [REDACTED], status: ok}');
+  });
+
+  test('对外脱敏完整隐藏 Digest 和 AWS4 Authorization 请求头', () {
+    const input = '''
+Authorization: Digest username=alice response=digest-secret
+Authorization: AWS4-HMAC-SHA256 Credential=aws-credential SignedHeaders=host;x-amz-date Signature=aws-signature
+''';
+
+    final result = sanitizer.sanitizeForExport(input);
+
+    expect(
+      result,
+      'Authorization: [REDACTED]\nAuthorization: [REDACTED]\n',
+    );
+  });
+
+  test('对外脱敏完整隐藏 Map 中的参数化 Authorization', () {
+    const input =
+        'headers={Authorization: Digest username=alice, realm=private, '
+        'response=map-secret, status: ok}';
+
+    final result = sanitizer.sanitizeForExport(input);
+
+    expect(result, 'headers={Authorization: [REDACTED], status: ok}');
+  });
+
+  test('对外脱敏将逗号前缀的 Authorization 识别为 Map 字段', () {
+    const input = 'headers=present, Authorization: Digest username=alice, '
+        'response=map-secret, status: ok';
+
+    final result = sanitizer.sanitizeForExport(input);
+
+    expect(
+      result,
+      'headers=present, Authorization: [REDACTED], status: ok',
+    );
+  });
+
+  test('对外脱敏识别中文普通字段边界', () {
+    const input = 'password=secret 状态=登录失败';
+
+    final result = sanitizer.sanitizeForExport(input);
+
+    expect(result, 'password=[REDACTED] 状态=登录失败');
+  });
+
   test('对外脱敏隐藏 Windows、UNC、macOS 和 Linux 本地路径', () {
     const input = r'''
 windows="D:\Users\local-user\Private Library\movie.mkv"

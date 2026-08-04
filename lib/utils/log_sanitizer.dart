@@ -8,7 +8,12 @@ class LogSanitizer {
 
   static final List<RegExp> _headerPatterns = [
     RegExp(
-      r'\b(authorization\s*:\s*)(?:\[REDACTED\]|[^\s,;&}\]\r\n]+)(?:[ \t]+(?![a-z_][a-z0-9_.-]*\s*[:=])(?:\[REDACTED\]|[^\s,;&}\]\r\n]+))*',
+      r'^([^\{,\r\n]*\bauthorization\s*:\s*)(?:digest|aws4-[^\s,]+)\b[^\r\n]*',
+      caseSensitive: false,
+      multiLine: true,
+    ),
+    RegExp(
+      r'\b(authorization\s*:\s*)(?:\[REDACTED\]|[^\s,;&}\]\r\n]+)(?:[ \t]+(?![^\s,:=;&{}\[\]]+\s*[:=])(?:\[REDACTED\]|[^\s,;&}\]\r\n]+))*',
       caseSensitive: false,
     ),
     // Cookie 请求头可能带日志前缀；Map 和 JSON 则交给字段规则按边界处理。
@@ -20,12 +25,22 @@ class LogSanitizer {
   ];
 
   static final RegExp _keyValuePattern = RegExp(
-    r'''\b((?:access[_-]?token|refresh[_-]?token|captcha[_-]?token|credit[_-]?key|creditkey|token|api[_-]?key|client[_-]?secret|cookie|authorization|signature|password|passwd|secret)\s*[:=]\s*)(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*'|(?:\[REDACTED\]|[^\s,;&}\]\r\n]+)(?:[ \t]+(?![a-z_][a-z0-9_.-]*\s*[:=])(?:\[REDACTED\]|[^\s,;&}\]\r\n]+))*)''',
+    r'''\b((?:access[_-]?token|refresh[_-]?token|captcha[_-]?token|credit[_-]?key|creditkey|token|api[_-]?key|client[_-]?secret|cookie|authorization|signature|password|passwd|secret)\s*[:=]\s*)(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*'|(?:\[REDACTED\]|[^\s,;&}\]\r\n]+)(?:[ \t]+(?![^\s,:=;&{}\[\]]+\s*[:=])(?:\[REDACTED\]|[^\s,;&}\]\r\n]+))*)''',
+    caseSensitive: false,
+  );
+
+  static final RegExp _exportStructuredCookiePattern = RegExp(
+    r'''(["']?\bcookie\b["']?\s*:\s*)(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*'|\[REDACTED\][^,}\]\r\n]*|[^,}\]\r\n]+)''',
+    caseSensitive: false,
+  );
+
+  static final RegExp _exportStructuredAuthorizationPattern = RegExp(
+    r'''(["']?\bauthorization\b["']?\s*:\s*)(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*'|\[REDACTED\][^}\]\r\n]*?|[^}\]\r\n]*?)(?=,\s*[^,\s:=;&{}\[\]]+\s*:|[}\]\r\n]|$)''',
     caseSensitive: false,
   );
 
   static final RegExp _exportCredentialPattern = RegExp(
-    r'''(["']?\b(?:access[_-]?token|refresh[_-]?token|captcha[_-]?token|credit[_-]?key|creditkey|token|api[_-]?key|client[_-]?secret|cookie|authorization|signature|password|passwd|secret)\b["']?\s*[:=]\s*)(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*'|(?:\[REDACTED\]|[^\s,;&}\]\r\n]+)(?:[ \t]+(?![a-z_][a-z0-9_.-]*\s*[:=])(?:\[REDACTED\]|[^\s,;&}\]\r\n]+))*)''',
+    r'''(["']?\b(?:access[_-]?token|refresh[_-]?token|captcha[_-]?token|credit[_-]?key|creditkey|token|api[_-]?key|client[_-]?secret|cookie|authorization|signature|password|passwd|secret)\b["']?\s*[:=]\s*)(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*'|(?:\[REDACTED\]|[^\s,;&}\]\r\n]+)(?:[ \t]+(?![^\s,:=;&{}\[\]]+\s*[:=])(?:\[REDACTED\]|[^\s,;&}\]\r\n]+))*)''',
     caseSensitive: false,
   );
 
@@ -62,6 +77,14 @@ class LogSanitizer {
 
   String sanitizeForExport(String input) {
     var result = sanitize(input).replaceAllMapped(
+      _exportStructuredCookiePattern,
+      (match) => '${match.group(1)}[REDACTED]',
+    );
+    result = result.replaceAllMapped(
+      _exportStructuredAuthorizationPattern,
+      (match) => '${match.group(1)}[REDACTED]',
+    );
+    result = result.replaceAllMapped(
       _exportCredentialPattern,
       (match) => '${match.group(1)}[REDACTED]',
     );

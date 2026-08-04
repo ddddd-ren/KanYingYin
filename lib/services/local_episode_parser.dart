@@ -49,13 +49,19 @@ class LocalEpisodeParser {
     caseSensitive: false,
   );
 
+  static final _delimitedEpisodePattern = RegExp(
+    r'^(?<series>.+?)\s+[-–—]\s+(?<episode>\d{1,3})(?!\d)(?<title>.*)$',
+    caseSensitive: false,
+    unicode: true,
+  );
+
   static final _bracketedEpisodePattern = RegExp(
     r'^(?<series>.+?)\[(?<episode>\d{1,3})\](?<title>.*)$',
     caseSensitive: false,
   );
 
   static final _bareEpisodePattern = RegExp(
-    r'^(?<series>.+?)[\s._\-\[](?<episode>\d{1,3})(?!\d)(?<title>.*)$',
+    r'^(?<series>.+?)[\s._\-\[](?<episode>\d{1,3})(?!\d|[kK]\b|bit\b)(?<title>.*)$',
     caseSensitive: false,
   );
 
@@ -64,6 +70,7 @@ class LocalEpisodeParser {
     _chineseSeasonEpisodePattern,
     _chineseEpisodePattern,
     _englishEpisodePattern,
+    _delimitedEpisodePattern,
     _bracketedEpisodePattern,
     _bareEpisodePattern,
   ];
@@ -78,8 +85,7 @@ class LocalEpisodeParser {
       isDirectory: false,
     );
     final seasonFromDirectory = _seasonFromDirectory(filePath);
-    final releaseGroup =
-        _extractNamed(normalized, _releaseGroupPattern, 'group');
+    final releaseGroup = _extractNamed(fileName, _releaseGroupPattern, 'group');
     final resolution = shared.releaseTags.resolution ??
         _extractNamed(normalized, _resolutionPattern, 'resolution');
     final source = shared.releaseTags.source ??
@@ -95,13 +101,23 @@ class LocalEpisodeParser {
       if (episodeNumber == null || episodeNumber <= 0) continue;
 
       final rawSeries = _namedGroup(match, 'series') ?? '';
-      final title = _cleanEpisodeTitle(_namedGroup(match, 'title') ?? '');
+      final rawTitle = _namedGroup(match, 'title') ?? '';
+      final title = _cleanEpisodeTitle(rawTitle);
+      final releaseWrappedBareEpisode =
+          identical(pattern, _bareEpisodePattern) &&
+              _isReleaseWrappedBareEpisode(
+                releaseGroup: releaseGroup,
+                rawSeries: rawSeries,
+                rawTitle: rawTitle,
+              );
       if (shared.role == MediaNodeRole.work &&
           seasonFromDirectory == null &&
-          title.isEmpty) {
+          title.isEmpty &&
+          !releaseWrappedBareEpisode) {
         continue;
       }
       if (identical(pattern, _bareEpisodePattern) &&
+          !releaseWrappedBareEpisode &&
           _shouldSkipBareEpisode(
             rawSeries: rawSeries,
             normalized: normalized,
@@ -132,6 +148,24 @@ class LocalEpisodeParser {
       );
     }
     return null;
+  }
+
+  bool _isReleaseWrappedBareEpisode({
+    required String? releaseGroup,
+    required String rawSeries,
+    required String rawTitle,
+  }) {
+    if (releaseGroup == null || releaseGroup.trim().isEmpty) return false;
+    final hasLeadingReleaseSpec = RegExp(
+      r'\b(?:4k|8k|480p|720p|1080p|1440p|2160p|web-dl|webrip|bdrip|bluray|bd)\b',
+      caseSensitive: false,
+    ).hasMatch(rawSeries);
+    final hasTrailingReleaseSpec = RegExp(
+      r'[\[【].*\b(?:4k|8k|480p|720p|1080p|1440p|2160p|web-dl|webrip|bdrip|bluray|bd)\b.*[\]】]',
+      caseSensitive: false,
+      unicode: true,
+    ).hasMatch(rawTitle);
+    return hasLeadingReleaseSpec && hasTrailingReleaseSpec;
   }
 
   bool _shouldSkipBareEpisode({
@@ -243,6 +277,11 @@ class LocalEpisodeParser {
   String _removeLeadingReleaseGroup(String value, String? releaseGroup) {
     final group = releaseGroup?.trim();
     if (group == null || group.isEmpty) return value;
+    final normalizedGroup = group.replaceAll(RegExp(r'[\s._-]+'), ' ').trim();
+    if (normalizedGroup.isNotEmpty &&
+        value.toLowerCase().startsWith(normalizedGroup.toLowerCase())) {
+      return value.substring(normalizedGroup.length).trim();
+    }
     return value
         .replaceFirst(
           RegExp(

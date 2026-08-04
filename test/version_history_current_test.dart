@@ -5,24 +5,24 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一一九修复季度数字搜索、季度海报和作品归并', () {
-    final entries = versionHistoryForCurrent('2.1.119');
+  test('二点一二三按旧根路径恢复目录改名后的手动刮削', () {
+    final entries = versionHistoryForCurrent('2.1.123');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.version, '2.1.119');
+    expect(entry.version, '2.1.123');
     expect(entry.isPrerelease, isTrue);
     for (final text in <String>[
       'Windows',
       'Android',
       '版本',
       'TMDB',
-      '类型',
-      '季度',
-      '海报',
+      '未匹配',
+      '旧根路径',
+      '手动匹配',
+      '季度海报',
       '合并',
-      '第二季度',
       '不会修改或删除',
     ]) {
       expect(changes, contains(text));

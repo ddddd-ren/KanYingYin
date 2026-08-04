@@ -855,6 +855,80 @@ void main() {
       );
     });
 
+    test('平铺媒体根中的 4K 裸集号归为剧集且不吞并电影', () {
+      const rootPath = '/视频';
+      final tree = resolver.resolve(
+        sourceId: 'quark-a',
+        configuredRoots: const <String>[rootPath],
+        directoryEntries: <String, List<CloudFileEntry>>{
+          rootPath: <CloudFileEntry>[
+            _video(
+              'episode-1',
+              '$rootPath/【熊猫】最强阴阳师的异世界转生记 BD 4K 1.mkv',
+              '【熊猫】最强阴阳师的异世界转生记 BD 4K 1.mkv',
+            ),
+            _video(
+              'episode-9',
+              '$rootPath/【熊猫】最强阴阳师的异世界转生记 BD 4K 9.mkv',
+              '【熊猫】最强阴阳师的异世界转生记 BD 4K 9.mkv',
+            ),
+            _video('movie', '$rootPath/独立电影.mkv', '独立电影.mkv'),
+          ],
+        },
+        minSizeBytes: 100,
+      );
+
+      expect(tree.works, hasLength(2));
+      final series = tree.works.singleWhere((work) => work.seasons.isNotEmpty);
+      expect(series.displayTitle, '最强阴阳师的异世界转生记');
+      expect(series.seasons.single.seasonNumber, 1);
+      expect(
+        series.seasons.single.episodes.map((episode) => episode.episodeNumber),
+        <int>[1, 9],
+      );
+      expect(
+        tree.works.singleWhere((work) => work.seasons.isEmpty).displayTitle,
+        '独立电影',
+      );
+    });
+
+    test('作品目录 S02 季号传递给短横线分集', () {
+      const rootPath = '/视频';
+      const workPath = '$rootPath/异世界悠闲农家S02';
+      final tree = resolver.resolve(
+        sourceId: 'quark-a',
+        configuredRoots: const <String>[rootPath],
+        directoryEntries: <String, List<CloudFileEntry>>{
+          rootPath: <CloudFileEntry>[
+            _dir('work-s02', workPath, '异世界悠闲农家S02'),
+          ],
+          workPath: <CloudFileEntry>[
+            for (var episode = 1; episode <= 2; episode++)
+              _video(
+                's2e$episode',
+                '$workPath/[LoliHouse] Isekai Nonbiri Nouka 2 - '
+                    '${episode.toString().padLeft(2, '0')} '
+                    '[WebRip 1080p HEVC-10bit AAC SRTx2].mkv',
+                '[LoliHouse] Isekai Nonbiri Nouka 2 - '
+                    '${episode.toString().padLeft(2, '0')} '
+                    '[WebRip 1080p HEVC-10bit AAC SRTx2].mkv',
+              ),
+          ],
+        },
+        minSizeBytes: 100,
+      );
+
+      expect(tree.works, hasLength(1));
+      final work = tree.works.single;
+      expect(work.displayTitle, 'Isekai Nonbiri Nouka 2');
+      expect(work.standaloneVideos, isEmpty);
+      expect(work.seasons.single.seasonNumber, 2);
+      expect(
+        work.seasons.single.episodes.map((episode) => episode.episodeNumber),
+        <int>[1, 2],
+      );
+    });
+
     test('生产识别与刮削代码不包含样例作品和固定 TMDB 分支', () {
       for (final path in <String>[
         'lib/services/media_name_analyzer.dart',

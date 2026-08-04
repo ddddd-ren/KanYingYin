@@ -452,7 +452,8 @@ class CloudMediaIndexer {
                 'subtitle',
                 'subtitles',
                 '字幕',
-                '字幕文件'
+                '字幕文件',
+                '外挂字幕',
               }.contains(parentName);
       if (!sameDirectory && !inDirectSubtitleDirectory) continue;
       final sameName =

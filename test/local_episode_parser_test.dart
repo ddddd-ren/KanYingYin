@@ -48,6 +48,17 @@ void main() {
     expect(info.releaseGroup, 'SumiSora');
   });
 
+  test('LocalEpisodeParser 清除带短横线的发布组前缀', () {
+    final info = parser.parse(
+      '[VCB-Studio] Isekai Nonbiri Nouka '
+      '[01][Ma10p_1080p][x265_flac].mkv',
+    );
+
+    expect(info, isNotNull);
+    expect(info!.seriesName, 'Isekai Nonbiri Nouka');
+    expect(info.episodeNumber, 1);
+  });
+
   test('LocalEpisodeParser uses season directory for bare episode files', () {
     final info = parser.parse(r'D:\Anime\Frieren\Season 2\Frieren - 03.mkv');
 
@@ -115,6 +126,33 @@ void main() {
     final info = parser.parse('interstellar 2014 imax 4K-kc.mkv');
 
     expect(info, isNull);
+  });
+
+  test('LocalEpisodeParser 跳过 4K 标记并识别后续真实集号', () {
+    final first = parser.parse(
+      '【熊猫】最强阴阳师的异世界转生记 BD 4K 1 [4K BD].mkv',
+    );
+    final ninth = parser.parse(
+      '【熊猫】最强阴阳师的异世界转生记 BD 4K 9 [4K BD].mkv',
+    );
+
+    expect(first, isNotNull);
+    expect(first!.seriesName, '最强阴阳师的异世界转生记');
+    expect(first.episodeNumber, 1);
+    expect(ninth, isNotNull);
+    expect(ninth!.seriesName, '最强阴阳师的异世界转生记');
+    expect(ninth.episodeNumber, 9);
+  });
+
+  test('LocalEpisodeParser 识别标题季度数字后的短横线集号', () {
+    final info = parser.parse(
+      '[LoliHouse] Isekai Nonbiri Nouka 2 - 07 '
+      '[WebRip 1080p HEVC-10bit AAC SRTx2].mkv',
+    );
+
+    expect(info, isNotNull);
+    expect(info!.seriesName, 'Isekai Nonbiri Nouka 2');
+    expect(info.episodeNumber, 7);
   });
 
   test('LocalEpisodeParser 复用共享动态范围和音轨清理', () {

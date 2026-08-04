@@ -25,6 +25,7 @@ class LocalSubtitleMatcher {
     'subtitles',
     '字幕',
     '字幕文件',
+    '外挂字幕',
   };
 
   static bool isSupportedSubtitlePath(String path) {

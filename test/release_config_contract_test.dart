@@ -3,18 +3,18 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('当前发布配置统一为二点一一八双平台测试版', () {
+  test('当前发布配置统一为二点一二三双平台测试版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
 
-    expect(pubspec, contains('version: 2.1.119+20119'));
-    expect(pubspec, contains('msix_version: 2.1.119.0'));
+    expect(pubspec, contains('version: 2.1.123+20123'));
+    expect(pubspec, contains('msix_version: 2.1.123.0'));
     for (final source in <String>[releaseNotes, updateDialogCopy]) {
       expect(source, contains('Windows 测试版'));
       expect(source, contains('Android 测试版'));
-      expect(source, contains('2.1.119'));
-      expect(source, contains('20119'));
+      expect(source, contains('2.1.123'));
+      expect(source, contains('20123'));
       expect(source, contains('测试版'));
     }
   });

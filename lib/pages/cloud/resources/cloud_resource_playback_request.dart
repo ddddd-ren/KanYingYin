@@ -35,6 +35,12 @@ CloudResourcePlaybackRequest buildCloudResourcePlaybackRequest({
   final videos = seasonVideos ?? group.videos;
   final targets = videos.map((video) {
     final subtitle = subtitleFor(video);
+    final posterUrl = group.seasonMetadata?.posterUrl ??
+        group.workRecord?.metadata?.posterUrl ??
+        group.record?.posterUrl;
+    final posterCachePath = group.seasonMetadata?.posterCachePath ??
+        group.workRecord?.posterCachePath ??
+        group.record?.posterCachePath;
     return CloudPlaybackTarget(
       sourceId: sourceId,
       remoteId: video.id,
@@ -43,6 +49,8 @@ CloudResourcePlaybackRequest buildCloudResourcePlaybackRequest({
       title: video.name,
       subtitleRemoteId: subtitle?.id,
       subtitleRemotePath: subtitle?.path,
+      posterUrl: posterUrl,
+      posterCachePath: posterCachePath,
     );
   }).toList(growable: false);
   final selectedTargets = targets

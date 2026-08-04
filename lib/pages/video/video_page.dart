@@ -8,6 +8,8 @@ import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/pages/player/player_item.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:mobx/mobx.dart';
+import 'package:kanyingyin/features/history/application/playback_history_controller.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/utils/utils.dart';
 import 'package:kanyingyin/utils/pip_utils.dart';
@@ -37,12 +39,15 @@ class _VideoPageState extends State<VideoPage>
   final PlayerController playerController = Modular.get<PlayerController>();
   final LocalVideoController localVideoController =
       Modular.get<LocalVideoController>();
+  final PlaybackHistoryController historyController =
+      Modular.get<PlaybackHistoryController>();
   bool showDebugLog = false;
   bool _relayStatusHidden = false;
   bool _relayVisibilityResetScheduled = false;
   Timer? _relayStableTimer;
   final FocusNode keyboardFocus = FocusNode();
   final PlayerExitCoordinator _exitCoordinator = PlayerExitCoordinator();
+  ReactionDisposer? _historyDisposer;
 
   ScrollController scrollController = ScrollController();
   late ListObserverController observerController;
@@ -94,11 +99,27 @@ class _VideoPageState extends State<VideoPage>
     localVideoController.activatePlayerLifecycle();
     localVideoController.showTabBody = true;
     currentRoad = localVideoController.currentRoad;
+    _historyDisposer = reaction<List<Object?>>(
+      (_) => <Object?>[
+        playerController.currentPosition,
+        playerController.duration,
+        playerController.completed,
+        localVideoController.currentEpisode,
+        localVideoController.loading,
+        localVideoController.errorMessage,
+      ],
+      (_) => unawaited(_recordPlaybackHistory()),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
+        await historyController.ensureLoaded();
+        final key = localVideoController.currentPlaybackHistoryKey;
+        final offset =
+            key == null ? 0 : historyController.resumePosition(key).inSeconds;
         await changeEpisode(
           localVideoController.currentEpisode,
           currentRoad: localVideoController.currentRoad,
+          offset: offset,
         );
       } on Object catch (error, stackTrace) {
         AppLogger().e(
@@ -116,6 +137,8 @@ class _VideoPageState extends State<VideoPage>
   @override
   void dispose() {
     _relayStableTimer?.cancel();
+    _historyDisposer?.call();
+    unawaited(_recordPlaybackHistory(forcePersist: true));
     _exitCoordinator.beginExit();
     if (Utils.isDesktop()) {
       try {
@@ -191,6 +214,7 @@ class _VideoPageState extends State<VideoPage>
 
   Future<void> changeEpisode(int episode,
       {int currentRoad = 0, int offset = 0}) async {
+    await _recordPlaybackHistory(forcePersist: true);
     _resetRelayVisibility();
     clearPlayerLog();
     hideDebugConsole();
@@ -201,6 +225,36 @@ class _VideoPageState extends State<VideoPage>
     await localVideoController.changeEpisode(episode,
         currentRoad: currentRoad, offset: offset);
     if (mounted) setState(() {});
+  }
+
+  Future<void> _recordPlaybackHistory({bool forcePersist = false}) async {
+    if (!localVideoController.hasSession ||
+        localVideoController.loading ||
+        localVideoController.errorMessage != null) {
+      return;
+    }
+    final duration = playerController.duration;
+    final position = playerController.completed
+        ? duration
+        : playerController.currentPosition;
+    if (duration <= Duration.zero ||
+        (position <= Duration.zero && !playerController.completed)) {
+      return;
+    }
+    final entry = localVideoController.buildPlaybackHistoryEntry(
+      position: position,
+      duration: duration,
+    );
+    if (entry == null) return;
+    try {
+      await historyController.record(entry, forcePersist: forcePersist);
+    } on Object catch (error, stackTrace) {
+      AppLogger().w(
+        'VideoPage: failed to persist playback history',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
   }
 
   CloudRelayStatusPresentation? _relayPresentation({

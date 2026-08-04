@@ -26,12 +26,12 @@ void main() {
     }
   });
 
-  test('设置页不再提供历史记录和隐身模式', () {
+  test('设置页提供观看历史但不提供隐身模式', () {
     final myPage = File('lib/pages/my/my_page.dart').readAsStringSync();
     final playerSettings =
         File('lib/pages/settings/player_settings.dart').readAsStringSync();
 
-    expect(myPage, isNot(contains('历史记录')));
+    expect(myPage, contains('观看历史'));
     expect(playerSettings, isNot(contains('隐身模式')));
     expect(playerSettings, isNot(contains('privateMode')));
   });

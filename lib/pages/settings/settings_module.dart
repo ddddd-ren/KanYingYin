@@ -28,6 +28,7 @@ import 'package:kanyingyin/services/media_recognition_settings.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_motion.dart';
+import 'package:kanyingyin/features/history/presentation/history_page.dart';
 
 void _child(
   RouteManager r,
@@ -87,6 +88,7 @@ class SettingsModule extends Module {
       child: (_) => const RendererSettingsPage(),
     );
     _child(r, "/interface", child: (_) => const InterfaceSettingsPage());
+    _child(r, "/history", child: (_) => const HistoryPage());
     _child(
       r,
       "/player/super",

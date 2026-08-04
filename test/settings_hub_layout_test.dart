@@ -29,7 +29,7 @@ void main() {
     for (final width in <double>[1280, 900, 640]) {
       await pumpHub(tester, width: width);
       expect(find.byType(KSettingsSection), findsNWidgets(4));
-      expect(find.byType(KSettingsNavigationTile), findsNWidgets(8));
+      expect(find.byType(KSettingsNavigationTile), findsNWidgets(9));
       for (final section in <String>[
         '本地媒体库',
         '播放器设置',

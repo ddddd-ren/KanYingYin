@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('二点一一四 Windows 测试版与 Android 正式版版本保持独立一致', () {
-    const expectedVersion = '2.1.114';
-    const expectedBuildNumber = '20114';
+  test('二点一一五 Windows 测试版与 Android 正式版版本保持独立一致', () {
+    const expectedVersion = '2.1.115';
+    const expectedBuildNumber = '20115';
     const expectedAndroidVersion = '1.0.2';
     const expectedAndroidVersionCode = '10002';
     final pubspec = File('pubspec.yaml').readAsStringSync();
@@ -132,9 +132,9 @@ void main() {
       for (final text in <String>[
         'Windows',
         '毛玻璃',
-        '导航',
-        '媒体卡片',
-        '弹窗',
+        '海报墙',
+        '封面',
+        '信息面板',
         '不会修改或删除',
       ]) {
         expect(currentCopy, contains(text));

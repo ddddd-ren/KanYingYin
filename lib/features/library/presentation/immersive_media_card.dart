@@ -74,15 +74,6 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
             fit: StackFit.expand,
             children: [
               widget.cover,
-              GlassSurface(
-                borderRadius: BorderRadius.zero,
-                blurSigma: 3.5,
-                color: colors.surfaceContainerHighest.withValues(alpha: 0.12),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.16),
-                ),
-                child: const SizedBox.expand(),
-              ),
               AnimatedOpacity(
                 opacity: overlayVisible ? 1 : 0,
                 duration: const Duration(milliseconds: 160),
@@ -113,75 +104,97 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
 
   Widget _buildOverlay(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.transparent,
-            Colors.black.withValues(alpha: 0.2),
-            Colors.black.withValues(alpha: 0.82),
-          ],
-          stops: const [0, 0.42, 1],
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.transparent,
+                Colors.black.withValues(alpha: 0.2),
+                Colors.black.withValues(alpha: 0.82),
+              ],
+              stops: const [0, 0.42, 1],
+            ),
+          ),
         ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Text(
-              widget.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: textTheme.titleMedium?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-                height: 1.15,
-                shadows: const <Shadow>[
-                  Shadow(color: Colors.black54, blurRadius: 4),
-                ],
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: SizedBox(
+              width: double.infinity,
+              child: GlassSurface(
+                borderRadius: BorderRadius.circular(8),
+                blurSigma: 10,
+                color: Colors.black.withValues(alpha: 0.28),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.16),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        widget.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.titleMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          height: 1.15,
+                          shadows: const <Shadow>[
+                            Shadow(color: Colors.black54, blurRadius: 4),
+                          ],
+                        ),
+                      ),
+                      if (widget.subtitle.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          widget.subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.labelMedium?.copyWith(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                      if (widget.details.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.details,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.labelSmall?.copyWith(
+                            color: Colors.white.withValues(alpha: 0.78),
+                            height: 1.25,
+                          ),
+                        ),
+                      ],
+                      if (widget.badges.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: widget.badges
+                              .map((badge) => _buildBadge(context, badge))
+                              .toList(growable: false),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ),
             ),
-            if (widget.subtitle.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                widget.subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: textTheme.labelMedium?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-            if (widget.details.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                widget.details,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: textTheme.labelSmall?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.78),
-                  height: 1.25,
-                ),
-              ),
-            ],
-            if (widget.badges.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: widget.badges
-                    .map((badge) => _buildBadge(context, badge))
-                    .toList(growable: false),
-              ),
-            ],
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 

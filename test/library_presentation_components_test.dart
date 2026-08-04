@@ -8,6 +8,7 @@ import 'package:flutter/gestures.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/features/library/presentation/directory_address_dropdown.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
@@ -568,6 +569,11 @@ void main() {
       expect(find.textContaining('2025'), findsOneWidget);
       expect(find.text('有字幕'), findsOneWidget);
       expect(find.text('已刮削'), findsOneWidget);
+      final cardRect = tester.getRect(find.byType(ImmersiveMediaCard));
+      final glassRect = tester.getRect(find.byType(GlassSurface));
+      expect(glassRect.top, greaterThan(cardRect.top));
+      expect(glassRect.bottom, closeTo(cardRect.bottom - 8, 0.1));
+      expect(glassRect.height, lessThan(cardRect.height));
       await tester.tap(find.byType(InkWell));
       expect(tapped, isTrue);
     });

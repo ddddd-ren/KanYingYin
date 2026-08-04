@@ -5,18 +5,20 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一一六统一双平台版本并加强诊断隐私', () {
-    final entries = versionHistoryForCurrent('2.1.116');
+  test('二点一一七修正版调整海报毛玻璃并提升安装版本', () {
+    final entries = versionHistoryForCurrent('2.1.117');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.version, '2.1.116');
+    expect(entry.version, '2.1.117');
     expect(entry.isPrerelease, isTrue);
     for (final text in <String>[
       'Windows',
       'Android',
       '版本',
+      '海报',
+      '毛玻璃',
       '诊断',
       '脱敏',
       '路径',

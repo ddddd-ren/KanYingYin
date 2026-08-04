@@ -5,6 +5,7 @@ import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
 import 'package:kanyingyin/modules/media/media_name_analysis.dart';
 import 'package:kanyingyin/services/cloud/cloud_series_identity_resolver.dart';
+import 'package:kanyingyin/services/local_episode_parser.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
 import 'package:kanyingyin/services/media_name_analyzer.dart';
 import 'package:path/path.dart' as p;
@@ -35,6 +36,7 @@ class CloudMediaTreeResolver {
       },
       minSizeBytes: minSizeBytes,
       nameAnalyzer: nameAnalyzer,
+      episodeParser: LocalEpisodeParser(nameAnalyzer: nameAnalyzer),
     );
     final roots = configuredRoots
         .map(CloudSeriesIdentityResolver.normalizeRemotePath)
@@ -62,18 +64,25 @@ class _ResolutionContext {
     required this.directoryEntries,
     required this.minSizeBytes,
     required this.nameAnalyzer,
+    required this.episodeParser,
   });
 
   final String sourceId;
   final Map<String, List<CloudFileEntry>> directoryEntries;
   final int minSizeBytes;
   final MediaNameAnalyzer nameAnalyzer;
+  final LocalEpisodeParser episodeParser;
   final List<CloudWorkIdentity> _works = <CloudWorkIdentity>[];
   final List<CloudFileEntry> _ignored = <CloudFileEntry>[];
   final List<CloudMediaTreeConflict> _conflicts = <CloudMediaTreeConflict>[];
   final Set<String> _visitedDirectories = <String>{};
   final Set<String> _resolvedWorkRoots = <String>{};
   final Set<String> _ignoredKeys = <String>{};
+
+  static final RegExp _trailingEpisodePattern = RegExp(
+    r'^(.*?)[\s._-]+(\d{1,3})$',
+    unicode: true,
+  );
 
   void discoverConfiguredRoot(String directoryPath) {
     final directoryName = p.posix.basename(directoryPath);
@@ -124,14 +133,7 @@ class _ResolutionContext {
     final videos = (directoryEntries[directoryPath] ?? const <CloudFileEntry>[])
         .where((entry) => !entry.isDirectory && _isRecognizedVideo(entry))
         .toList(growable: false);
-    return videos.isNotEmpty &&
-        videos.every(
-          (entry) =>
-              nameAnalyzer
-                  .analyze(entry.name, isDirectory: false)
-                  .episodeNumber !=
-              null,
-        );
+    return videos.isNotEmpty && videos.every(_hasEpisodeEvidence);
   }
 
   bool _containsOnlyStructuralDirectories(String directoryPath) {
@@ -186,8 +188,7 @@ class _ResolutionContext {
       }
       if (!_isRecognizedVideo(entry)) continue;
       foundVideo = true;
-      final analysis = nameAnalyzer.analyze(entry.name, isDirectory: false);
-      if (analysis.episodeNumber == null) return false;
+      if (!_hasEpisodeEvidence(entry)) return false;
     }
     return foundVideo;
   }
@@ -195,6 +196,7 @@ class _ResolutionContext {
   void discover(String directoryPath) {
     if (!_visitedDirectories.add(directoryPath)) return;
     final entries = directoryEntries[directoryPath] ?? const <CloudFileEntry>[];
+    final directVideos = <CloudFileEntry>[];
     for (final entry in entries) {
       final analysis = nameAnalyzer.analyze(
         entry.name,
@@ -218,11 +220,196 @@ class _ResolutionContext {
         continue;
       }
       if (_isRecognizedVideo(entry)) {
-        _resolveStandaloneFile(entry);
+        directVideos.add(entry);
       } else {
         _ignore(entry);
       }
     }
+    final promotedPaths = _resolveFlatEpisodeWorks(
+      directoryPath,
+      directVideos,
+    );
+    for (final video in directVideos) {
+      if (!promotedPaths.contains(_pathOf(video))) {
+        _resolveStandaloneFile(video);
+      }
+    }
+  }
+
+  _FlatEpisodeCandidate? _episodeCandidate(CloudFileEntry entry) {
+    final analysis = nameAnalyzer.analyze(entry.name, isDirectory: false);
+    final parsed = episodeParser.parse(entry.name);
+    final episodeNumber = analysis.episodeNumber ?? parsed?.episodeNumber;
+    if (episodeNumber == null || episodeNumber <= 0) return null;
+    final titles = <String>[];
+    final parsedTitle = parsed?.seriesName.trim();
+    if (parsedTitle != null && parsedTitle.isNotEmpty) {
+      _addUnique(titles, parsedTitle);
+    }
+    for (final candidate in analysis.titleCandidates) {
+      _addUnique(titles, candidate);
+    }
+    if (titles.isEmpty) return null;
+    return _FlatEpisodeCandidate(
+      entry: entry,
+      seriesName: titles.first,
+      titleCandidates: titles,
+      seasonNumber: analysis.seasonNumber ?? parsed?.seasonNumber ?? 1,
+      episodeNumber: episodeNumber,
+      releaseTags: analysis.releaseTags,
+      strongEvidence: analysis.episodeNumber != null,
+    );
+  }
+
+  bool _hasEpisodeEvidence(CloudFileEntry entry) {
+    final analysis = nameAnalyzer.analyze(entry.name, isDirectory: false);
+    return analysis.episodeNumber != null ||
+        episodeParser.parse(entry.name)?.episodeNumber != null;
+  }
+
+  Set<String> _resolveFlatEpisodeWorks(
+    String directoryPath,
+    List<CloudFileEntry> videos,
+  ) {
+    final groups = <String, List<_FlatEpisodeCandidate>>{};
+    for (final video in videos) {
+      final candidate =
+          _episodeCandidate(video) ?? _trailingEpisodeCandidate(video);
+      if (candidate == null) continue;
+      final identity = CloudSeriesIdentityResolver.normalizeSeriesName(
+        candidate.seriesName,
+      );
+      if (identity.isEmpty) continue;
+      groups.putIfAbsent(identity, () => <_FlatEpisodeCandidate>[]).add(
+            candidate,
+          );
+    }
+    final promoted = <String>{};
+    for (final groupEntry in groups.entries) {
+      final candidates = groupEntry.value;
+      final distinctEpisodes =
+          candidates.map((candidate) => candidate.episodeNumber).toSet().length;
+      final hasStrongEvidence = candidates.any(
+        (candidate) => candidate.strongEvidence,
+      );
+      if (!hasStrongEvidence && distinctEpisodes < 2) continue;
+
+      final digest = sha256
+          .convert(
+            utf8.encode('$sourceId|$directoryPath|${groupEntry.key}'),
+          )
+          .toString();
+      final rootId = 'flat-${digest.substring(0, 24)}';
+      final workKey = '$sourceId|work|$rootId';
+      final titleCandidates = <String>[];
+      for (final candidate in candidates) {
+        for (final title in candidate.titleCandidates) {
+          _addUnique(titleCandidates, title);
+        }
+      }
+      final displayTitle = titleCandidates.first;
+      final seasons = <int, List<_FlatEpisodeCandidate>>{};
+      for (final candidate in candidates) {
+        seasons
+            .putIfAbsent(
+              candidate.seasonNumber,
+              () => <_FlatEpisodeCandidate>[],
+            )
+            .add(candidate);
+        final path = _pathOf(candidate.entry);
+        promoted.add(path);
+        _resolvedWorkRoots.add(path);
+      }
+      final seasonNumbers = seasons.keys.toList(growable: false)..sort();
+      _works.add(
+        CloudWorkIdentity(
+          sourceId: sourceId,
+          workKey: workKey,
+          root: CloudFileEntry(
+            id: rootId,
+            remotePath: directoryPath,
+            name: displayTitle,
+            size: 0,
+            modifiedAt: null,
+            isDirectory: true,
+          ),
+          remoteName: displayTitle,
+          displayTitle: displayTitle,
+          titleCandidates: List<String>.unmodifiable(titleCandidates),
+          seasons: <CloudSeasonIdentity>[
+            for (final seasonNumber in seasonNumbers)
+              _flatSeason(
+                workKey: workKey,
+                displayTitle: displayTitle,
+                seasonNumber: seasonNumber,
+                candidates: seasons[seasonNumber]!,
+              ),
+          ],
+        ),
+      );
+    }
+    return promoted;
+  }
+
+  _FlatEpisodeCandidate? _trailingEpisodeCandidate(CloudFileEntry entry) {
+    final baseName = p.basenameWithoutExtension(entry.name).trim();
+    final match = _trailingEpisodePattern.firstMatch(baseName);
+    if (match == null) return null;
+    final episodeNumber = int.tryParse(match.group(2)!);
+    if (episodeNumber == null || episodeNumber <= 0) return null;
+    final prefix = match.group(1)!.trim();
+    final analysis = nameAnalyzer.analyze('$prefix.mkv', isDirectory: false);
+    final tags = analysis.releaseTags;
+    final hasReleaseEvidence = tags.releaseGroup != null ||
+        tags.resolution != null ||
+        tags.source != null ||
+        tags.codec != null;
+    if (!hasReleaseEvidence || analysis.titleCandidates.isEmpty) return null;
+    return _FlatEpisodeCandidate(
+      entry: entry,
+      seriesName: analysis.titleCandidates.first,
+      titleCandidates: List<String>.from(analysis.titleCandidates),
+      seasonNumber: 1,
+      episodeNumber: episodeNumber,
+      releaseTags: tags,
+      strongEvidence: false,
+    );
+  }
+
+  CloudSeasonIdentity _flatSeason({
+    required String workKey,
+    required String displayTitle,
+    required int seasonNumber,
+    required List<_FlatEpisodeCandidate> candidates,
+  }) {
+    candidates.sort((first, second) {
+      final episode = first.episodeNumber.compareTo(second.episodeNumber);
+      return episode != 0
+          ? episode
+          : first.entry.remotePath.compareTo(second.entry.remotePath);
+    });
+    return CloudSeasonIdentity(
+      workKey: workKey,
+      seasonNumber: seasonNumber,
+      displayName: '$displayTitle 第 $seasonNumber 季',
+      remoteDirectories: const <CloudFileEntry>[],
+      episodes: <CloudEpisodeIdentity>[
+        for (final candidate in candidates)
+          CloudEpisodeIdentity(
+            entry: candidate.entry,
+            remoteName: candidate.entry.name,
+            displayName: _episodeDisplayName(
+              displayTitle,
+              seasonNumber,
+              candidate.episodeNumber,
+              candidate.entry.name,
+            ),
+            seasonNumber: seasonNumber,
+            episodeNumber: candidate.episodeNumber,
+            releaseTags: candidate.releaseTags,
+          ),
+      ],
+    );
   }
 
   CloudMediaTree build() {
@@ -292,6 +479,7 @@ class _ResolutionContext {
   }) {
     final rootPath = _pathOf(root);
     if (!_resolvedWorkRoots.add(rootPath)) return;
+    final rootAnalysis = nameAnalyzer.analyze(root.name, isDirectory: true);
     final workKey = workKeyFor(sourceId, root);
     final builders = <int, _SeasonBuilder>{};
     final standaloneVideos = <CloudFileEntry>[];
@@ -376,10 +564,10 @@ class _ResolutionContext {
         releaseTagsByEntry: standaloneReleaseTags,
         transparentDirectories: transparentDirectories,
         aliases: aliases,
+        defaultSeasonNumber: rootAnalysis.seasonNumber,
       );
     }
 
-    final rootAnalysis = nameAnalyzer.analyze(root.name, isDirectory: true);
     final seasonNumbers = builders.keys.toList(growable: false)..sort();
     final titleCandidates = _workTitleCandidates(
       root,
@@ -551,6 +739,7 @@ class _ResolutionContext {
     required Map<String, MediaReleaseTags> releaseTagsByEntry,
     required List<CloudFileEntry> transparentDirectories,
     required List<String> aliases,
+    int? defaultSeasonNumber,
   }) {
     if (builders.isNotEmpty || standaloneVideos.length < 2) return;
     final parsed = <({
@@ -561,14 +750,23 @@ class _ResolutionContext {
     })>[];
     for (final video in standaloneVideos) {
       final analysis = nameAnalyzer.analyze(video.name, isDirectory: false);
-      final episodeNumber = analysis.episodeNumber;
+      final parsedEpisode = episodeParser.parse(video.name);
+      final episodeNumber =
+          analysis.episodeNumber ?? parsedEpisode?.episodeNumber;
       if (episodeNumber == null || episodeNumber <= 0) continue;
+      final parsedTitle = parsedEpisode?.seriesName.trim();
+      if (parsedTitle != null && parsedTitle.isNotEmpty) {
+        _addUnique(aliases, parsedTitle);
+      }
       for (final candidate in analysis.titleCandidates) {
         _addUnique(aliases, candidate);
       }
       parsed.add((
         entry: video,
-        seasonNumber: analysis.seasonNumber ?? 1,
+        seasonNumber: analysis.seasonNumber ??
+            parsedEpisode?.seasonNumber ??
+            defaultSeasonNumber ??
+            1,
         episodeNumber: episodeNumber,
         releaseTags: releaseTagsByEntry[_pathOf(video)] ?? analysis.releaseTags,
       ));
@@ -636,7 +834,8 @@ class _ResolutionContext {
         _ignore(entry);
         continue;
       }
-      final detectedSeason = analysis.seasonNumber;
+      final parsed = episodeParser.parse(entry.name);
+      final detectedSeason = analysis.seasonNumber ?? parsed?.seasonNumber;
       if (detectedSeason != null && detectedSeason != folderSeasonNumber) {
         _conflicts.add(
           CloudMediaTreeConflict(
@@ -647,13 +846,17 @@ class _ResolutionContext {
         );
         continue;
       }
-      final episodeNumber = analysis.episodeNumber;
+      final episodeNumber = analysis.episodeNumber ?? parsed?.episodeNumber;
       if (episodeNumber == null || episodeNumber <= 0) {
         _ignore(entry);
         continue;
       }
       for (final candidate in analysis.titleCandidates) {
         _addUnique(aliases, candidate);
+      }
+      final parsedTitle = parsed?.seriesName.trim();
+      if (parsedTitle != null && parsedTitle.isNotEmpty) {
+        _addUnique(aliases, parsedTitle);
       }
       episodes.add(
         _ParsedEpisode(
@@ -885,4 +1088,24 @@ class _ParsedEpisode {
   final CloudFileEntry entry;
   final int episodeNumber;
   final MediaReleaseTags releaseTags;
+}
+
+class _FlatEpisodeCandidate {
+  const _FlatEpisodeCandidate({
+    required this.entry,
+    required this.seriesName,
+    required this.titleCandidates,
+    required this.seasonNumber,
+    required this.episodeNumber,
+    required this.releaseTags,
+    required this.strongEvidence,
+  });
+
+  final CloudFileEntry entry;
+  final String seriesName;
+  final List<String> titleCandidates;
+  final int seasonNumber;
+  final int episodeNumber;
+  final MediaReleaseTags releaseTags;
+  final bool strongEvidence;
 }

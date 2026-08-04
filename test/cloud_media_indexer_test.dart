@@ -193,6 +193,79 @@ void main() {
       expect(refreshed.displayName, '规范剧名 S03E01.mkv');
     });
 
+    test('目录指纹未变化时把最强阴阳师旧电影索引重算为同一季度剧集', () async {
+      final repository =
+          CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());
+      final videos = <CloudFileEntry>[
+        for (var episode = 1; episode <= 13; episode++)
+          _file(
+            'episode-$episode',
+            '/动漫/【熊猫】最强阴阳师的异世界转生记 BD 4K $episode.mkv',
+            size: 200,
+          ),
+      ];
+      final directories = <String, List<CloudFileEntry>>{
+        '/动漫': videos,
+      };
+      final indexer = CloudMediaIndexer(
+        repository: repository,
+        minRecognizedVideoSizeBytesProvider: () => 100,
+      );
+      await indexer.scan(
+        source: source,
+        client: _FakeCloudClient(directories),
+      );
+      final snapshot = await repository.snapshot(source.id);
+      await repository.replaceSource(
+        source.id,
+        <CloudMediaIndexItem>[
+          for (var episode = 1; episode <= 13; episode++)
+            CloudMediaIndexItem(
+              sourceId: source.id,
+              remoteId: 'episode-$episode',
+              remotePath: '/动漫/【熊猫】最强阴阳师的异世界转生记 BD 4K $episode.mkv',
+              name: '【熊猫】最强阴阳师的异世界转生记 BD 4K $episode.mkv',
+              size: 200,
+              modifiedAt: null,
+              seriesName: '最强阴阳师的异世界转生记 BD 4K $episode',
+              mediaType: CloudMediaType.movie,
+              recognitionVersion:
+                  CloudMediaIndexItem.currentRecognitionVersion - 1,
+            ),
+        ],
+        snapshot.fingerprints,
+        snapshot.directoryEntries,
+        snapshot.indexedRoots,
+      );
+
+      final result = await indexer.scan(
+        source: source,
+        client: _FakeCloudClient(directories),
+      );
+      final refreshed = await repository.getBySource(source.id);
+
+      expect(result.skipped, 1);
+      expect(refreshed, hasLength(13));
+      expect(refreshed.map((item) => item.workKey).toSet(), hasLength(1));
+      expect(
+        refreshed.map((item) => item.mediaType).toSet(),
+        <CloudMediaType>{CloudMediaType.episode},
+      );
+      expect(refreshed.map((item) => item.seasonNumber).toSet(), <int?>{1});
+      expect(
+        refreshed.map((item) => item.episodeNumber).toList()..sort(),
+        <int?>[for (var episode = 1; episode <= 13; episode++) episode],
+      );
+      expect(
+        refreshed.map((item) => item.seriesName).toSet(),
+        <String>{'最强阴阳师的异世界转生记'},
+      );
+      expect(
+        refreshed.every((item) => item.workRootPath == '/动漫'),
+        isTrue,
+      );
+    });
+
     test('从剧名和季度文件夹索引纯集数视频', () async {
       final repository =
           CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());
@@ -688,6 +761,44 @@ void main() {
 
       expect((await repository.getBySource(source.id)).single.subtitlePaths,
           <String>['/动漫/Season 1/Subs/Show S01E02.srt']);
+    });
+
+    test('外挂字幕子目录按同名分集关联远程 ASS', () async {
+      final repository =
+          CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());
+      const seasonPath = '/动漫/异世界悠闲农家S01';
+      const subtitlePath = '$seasonPath/外挂字幕';
+      const videoName =
+          '[VCB-Studio] Isekai Nonbiri Nouka [01][Ma10p_1080p][x265_flac].mkv';
+      const subtitleName =
+          '[VCB-Studio] Isekai Nonbiri Nouka [01][Ma10p_1080p][x265_flac].ass';
+      final client = _FakeCloudClient(<String, List<CloudFileEntry>>{
+        '/动漫': <CloudFileEntry>[_dir('season', seasonPath)],
+        seasonPath: <CloudFileEntry>[
+          _dir('subtitles', subtitlePath),
+          _file('video', '$seasonPath/$videoName', size: 200),
+        ],
+        subtitlePath: <CloudFileEntry>[
+          _file('subtitle', '$subtitlePath/$subtitleName', size: 20),
+        ],
+      });
+
+      final result = await CloudMediaIndexer(
+        repository: repository,
+        minRecognizedVideoSizeBytesProvider: () => 100,
+      ).scan(source: source, client: client);
+      final item = (await repository.getBySource(source.id)).single;
+
+      expect(result.matchedSubtitleCount, 1);
+      expect(
+        item.subtitleRefs,
+        const <CloudRemoteRef>[
+          CloudRemoteRef(
+            id: 'subtitle',
+            path: '$subtitlePath/$subtitleName',
+          ),
+        ],
+      );
     });
 
     test('字幕目录变化或删除时重新匹配复用视频', () async {

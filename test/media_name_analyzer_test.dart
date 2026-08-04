@@ -119,6 +119,22 @@ void main() {
       expect(result.releaseTags.releaseGroup, 'KRL');
     });
 
+    test('短横线集号不会被标题末尾季度数字抢占', () {
+      final result = analyzer.analyze(
+        '[LoliHouse] Isekai Nonbiri Nouka 2 - 07 '
+        '[WebRip 1080p HEVC-10bit AAC SRTx2].mkv',
+        isDirectory: false,
+      );
+
+      expect(result.role, MediaNodeRole.episode);
+      expect(result.titleCandidates, <String>['Isekai Nonbiri Nouka 2']);
+      expect(result.episodeNumber, 7);
+    });
+
+    test('外挂字幕目录属于透明附属资源目录', () {
+      expect(analyzer.isTransparentDirectoryName('外挂字幕'), isTrue);
+    });
+
     test('中文剧名紧接两位数字时识别为分集', () {
       final result = analyzer.analyze(
         '迪迦奥特曼03.mp4',
@@ -188,6 +204,18 @@ void main() {
       expect(theatrical.releaseTags.resolution, '2160p');
       expect(ova.contentHint, MediaContentHint.ova);
       expect(ova.titleCandidates, contains('摇曳露营 OVA'));
+    });
+
+    test('剧场版发布规格中的位深数字不作为集号', () {
+      final result = analyzer.analyze(
+        "[KRSUB][Kamen Rider × Kamen Rider OOO & W feat. Skull Movie War "
+        "Core Director's Cut][BDrip][1080p][HEVC-10bit][FLAC][CHS].mkv",
+        isDirectory: false,
+      );
+
+      expect(result.role, isNot(MediaNodeRole.episode),
+          reason: result.evidence.toString());
+      expect(result.episodeNumber, isNull, reason: result.evidence.toString());
     });
 
     test('明确季集号优先于特别篇电影提示', () {

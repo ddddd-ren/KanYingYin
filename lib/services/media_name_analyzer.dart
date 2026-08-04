@@ -51,6 +51,11 @@ class MediaNameAnalyzer {
     r'(?:^|[\s._-])(?:EP?|Episode)\s*(\d{1,3})(?!\d)',
     caseSensitive: false,
   );
+  static final RegExp _delimitedEpisodePattern = RegExp(
+    r'\s+[-–—]\s+(\d{1,3})(?!\d)',
+    caseSensitive: false,
+    unicode: true,
+  );
   static final RegExp _bracketedEpisodePattern = RegExp(
     r'\[(\d{1,3})\]',
   );
@@ -112,6 +117,11 @@ class MediaNameAnalyzer {
     caseSensitive: false,
     unicode: true,
   );
+  static final RegExp _subtitleTrackCountPattern = RegExp(
+    r'\b(?:SRT|ASS|SSA|VTT)\s*[x×]\s*\d+\b',
+    caseSensitive: false,
+    unicode: true,
+  );
   static final RegExp _languagePattern = RegExp(
     r'国语|国配|日语|粤语|英语|双语',
     caseSensitive: false,
@@ -121,12 +131,12 @@ class MediaNameAnalyzer {
     r'(?:^|[\s._（(])((?:19|20)\d{2})(?=$|[\s._）)])',
   );
   static final RegExp _leadingReleaseGroupPattern = RegExp(
-    r'^\[([^\]]{2,32})\]',
+    r'^(?:\[([^\]]{2,32})\]|【([^】]{2,32})】)',
     unicode: true,
   );
   static final RegExp _transparentDirectoryPattern = RegExp(
     r'^(?:(?:内嵌|内封)[\s._-]*)?'
-    r'(?:中字|中文字幕|简中|繁中|简体中字|繁体中字|字幕|双语字幕)'
+    r'(?:中字|中文字幕|简中|繁中|简体中字|繁体中字|字幕|外挂字幕|双语字幕)'
     r'(?:版|版本)?$|^(?:sub|subs|subtitle|subtitles)$|'
     r'^(?:高码率|低码率|原画|超清)$',
     caseSensitive: false,
@@ -159,12 +169,14 @@ class MediaNameAnalyzer {
     final season = _seasonPattern.firstMatch(normalized);
     final chineseEpisode = _chineseEpisodePattern.firstMatch(normalized);
     final englishEpisode = _englishEpisodePattern.firstMatch(normalized);
+    final delimitedEpisode = _delimitedEpisodePattern.firstMatch(normalized);
     final bracketedEpisode = _bracketedEpisodePattern.firstMatch(normalized);
     final standaloneEpisode = _standaloneEpisodePattern.firstMatch(normalized);
     final hasExplicitEpisode = seasonEpisode != null ||
         chineseSeasonEpisode != null ||
         chineseEpisode != null ||
         englishEpisode != null ||
+        delimitedEpisode != null ||
         bracketedEpisode != null ||
         standaloneEpisode != null;
     final concatenatedEpisode = isDirectory || hasExplicitEpisode
@@ -183,6 +195,7 @@ class MediaNameAnalyzer {
       chineseSeasonEpisode?.group(2),
       chineseEpisode?.group(1),
       englishEpisode?.group(1),
+      delimitedEpisode?.group(1),
       bracketedEpisode?.group(1),
       standaloneEpisode?.group(1),
       concatenatedEpisode?.group(2),
@@ -258,6 +271,7 @@ class MediaNameAnalyzer {
         .replaceAll(_atmosPattern, ' ')
         .replaceAll(_bitratePattern, ' ')
         .replaceAll(_subtitlePattern, ' ')
+        .replaceAll(_subtitleTrackCountPattern, ' ')
         .replaceAll(_languagePattern, ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
@@ -329,7 +343,7 @@ class MediaNameAnalyzer {
 
   String? _releaseGroup(String value) {
     final match = _leadingReleaseGroupPattern.firstMatch(value);
-    final group = match?.group(1)?.trim();
+    final group = (match?.group(1) ?? match?.group(2))?.trim();
     if (group == null || group.isEmpty) return null;
     if (_isReleaseNoise(group)) return null;
     return group;
@@ -376,6 +390,7 @@ class MediaNameAnalyzer {
         _seasonPattern.hasMatch(value) ||
         _chineseEpisodePattern.hasMatch(value) ||
         _englishEpisodePattern.hasMatch(value) ||
+        _delimitedEpisodePattern.hasMatch(value) ||
         _bracketedEpisodePattern.hasMatch(value) ||
         _standaloneEpisodePattern.hasMatch(value) ||
         hasConcatenatedEpisode ||
@@ -407,6 +422,7 @@ class MediaNameAnalyzer {
         .replaceAll(_seasonPattern, ' ')
         .replaceAll(_chineseEpisodePattern, ' ')
         .replaceAll(_englishEpisodePattern, ' ')
+        .replaceAll(_delimitedEpisodePattern, ' ')
         .replaceAll(_bracketedEpisodePattern, ' ')
         .replaceAll(_standaloneEpisodePattern, ' ')
         .replaceAll(_versionPattern, ' ')

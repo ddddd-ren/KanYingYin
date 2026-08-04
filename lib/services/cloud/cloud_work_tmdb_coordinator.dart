@@ -11,6 +11,8 @@ import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_tmdb_service.dart';
+import 'package:kanyingyin/services/local_episode_parser.dart';
+import 'package:kanyingyin/services/media_name_analyzer.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
@@ -39,6 +41,10 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
 
   static const int maximumConcurrentScrapes = 2;
   static const Duration unmatchedRetryInterval = Duration(days: 7);
+  static const MediaNameAnalyzer _nameAnalyzer = MediaNameAnalyzer();
+  static final LocalEpisodeParser _episodeParser = LocalEpisodeParser(
+    nameAnalyzer: _nameAnalyzer,
+  );
 
   final CloudWorkTmdbRepository _repository;
   final CloudResourceTmdbRepository _legacyRepository;
@@ -86,6 +92,16 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
     _completedCount = 0;
     _totalCount = 0;
 
+    final reclassifiedMigrations = _migrateReclassifiedWorkRecords(
+      uniqueWorks.values,
+      stored,
+    );
+    if (reclassifiedMigrations.isNotEmpty) {
+      await _repository.upsertAll(reclassifiedMigrations);
+      for (final record in reclassifiedMigrations) {
+        _records[record.workKey] = record;
+      }
+    }
     final migrations = await _migrateLegacyRecords(
       tree.sourceId,
       uniqueWorks.values,
@@ -139,6 +155,127 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
       List<Future<void>>.generate(workerCount, (_) => worker()),
     );
   }
+
+  List<CloudWorkTmdbRecord> _migrateReclassifiedWorkRecords(
+    Iterable<CloudWorkIdentity> works,
+    List<CloudWorkTmdbRecord> stored,
+  ) {
+    final migrations = <CloudWorkTmdbRecord>[];
+    for (final work in works) {
+      final existing = _records[work.workKey];
+      if (work.seasons.isEmpty ||
+          existing?.status == CloudWorkTmdbStatus.matched ||
+          existing?.status == CloudWorkTmdbStatus.conflict) {
+        continue;
+      }
+      final workRoot = _normalizePath(work.root.remotePath);
+      final existingRoot =
+          existing == null ? null : _normalizePath(existing.workRootPath);
+      final prefix = workRoot == '/' ? '/' : '$workRoot/';
+      final candidates = stored.where((record) {
+        final metadata = record.metadata;
+        if (record.workKey == work.workKey ||
+            record.status != CloudWorkTmdbStatus.matched ||
+            metadata?.mediaType != TmdbMediaType.tv) {
+          return false;
+        }
+        final recordRoot = _normalizePath(record.workRootPath);
+        if (recordRoot == workRoot) return true;
+        if (existingRoot != null && recordRoot == existingRoot) return true;
+        return recordRoot.startsWith(prefix) &&
+            _workTitlesOverlap(work, record);
+      }).toList(growable: false);
+      if (candidates.isEmpty) continue;
+
+      final identities = candidates
+          .map((record) => record.metadata)
+          .whereType<TmdbMetadata>()
+          .map((metadata) => '${metadata.mediaType.name}:${metadata.id}')
+          .toSet();
+      final checkedAt = <CloudWorkTmdbRecord>[
+        ...candidates,
+        if (existing != null) existing,
+      ]
+          .map((record) => record.checkedAt)
+          .reduce((first, second) => first.isAfter(second) ? first : second);
+      if (identities.length != 1) {
+        migrations.add(
+          CloudWorkTmdbRecord.conflict(
+            sourceId: work.sourceId,
+            workKey: work.workKey,
+            workRootId: work.root.id,
+            workRootPath: work.root.remotePath,
+            remoteName: work.remoteName,
+            checkedAt: checkedAt,
+          ),
+        );
+        continue;
+      }
+      candidates.sort((first, second) {
+        final manual = _manualPriority(second).compareTo(
+          _manualPriority(first),
+        );
+        return manual != 0
+            ? manual
+            : second.checkedAt.compareTo(first.checkedAt);
+      });
+      final anchor = candidates.first;
+      migrations.add(
+        CloudWorkTmdbRecord.matched(
+          sourceId: work.sourceId,
+          workKey: work.workKey,
+          workRootId: work.root.id,
+          workRootPath: work.root.remotePath,
+          remoteName: work.remoteName,
+          metadata: anchor.metadata!,
+          checkedAt: checkedAt,
+          scrapeTitleOverride:
+              existing?.scrapeTitleOverride ?? anchor.scrapeTitleOverride,
+          posterCachePath: anchor.posterCachePath,
+          tmdbMatchOrigin: anchor.tmdbMatchOrigin,
+          tmdbRuleVersion: anchor.tmdbRuleVersion,
+        ),
+      );
+    }
+    return migrations;
+  }
+
+  int _manualPriority(CloudWorkTmdbRecord record) =>
+      record.tmdbMatchOrigin == TmdbMatchOrigin.manual ? 1 : 0;
+
+  bool _workTitlesOverlap(
+    CloudWorkIdentity work,
+    CloudWorkTmdbRecord record,
+  ) {
+    final workTitles = <String>{
+      for (final value in <String>[work.displayTitle, ...work.titleCandidates])
+        if (_normalizeTitle(value).isNotEmpty) _normalizeTitle(value),
+    };
+    final metadata = record.metadata;
+    final recognizedTitles = _nameAnalyzer
+        .analyze(record.remoteName, isDirectory: false)
+        .titleCandidates;
+    final parsedTitle = _episodeParser.parse(record.remoteName)?.seriesName;
+    final recordTitles = <String>{
+      for (final value in <String?>[
+        metadata?.title,
+        metadata?.originalTitle,
+        record.scrapeTitleOverride,
+        parsedTitle,
+        ...recognizedTitles,
+      ])
+        if (_normalizeTitle(value).isNotEmpty) _normalizeTitle(value),
+    };
+    return workTitles.intersection(recordTitles).isNotEmpty;
+  }
+
+  String _normalizeTitle(String? value) =>
+      value
+          ?.toLowerCase()
+          .replaceAll(RegExp(r'\[[^\]]*\]|【[^】]*】'), ' ')
+          .replaceAll(RegExp(r'[\s._\-:：·!！?？,，、~～()（）]+'), '')
+          .trim() ??
+      '';
 
   Future<CloudWorkTmdbRecord> saveScrapeTitle(
     CloudWorkIdentity work,

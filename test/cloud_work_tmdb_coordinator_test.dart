@@ -37,6 +37,172 @@ void main() {
     expect(fixture.client.detailCalls, 0);
   });
 
+  test('错误电影键上的手动电视剧记录迁移到重新识别的季度作品', () async {
+    final fixture = _Fixture(apiKey: '');
+    final work = _work('reclassified', displayTitle: 'Isekai Nonbiri Nouka 2');
+    await fixture.repository.upsert(
+      CloudWorkTmdbRecord.matched(
+        sourceId: work.sourceId,
+        workKey: 'quark-a|movie|old-episode-07',
+        workRootId: work.root.id,
+        workRootPath: work.root.remotePath,
+        remoteName: '[LoliHouse] Isekai Nonbiri Nouka 2 - 07 [1080p SRTx2].mkv',
+        metadata: TmdbMetadata(
+          id: 157004,
+          mediaType: TmdbMediaType.tv,
+          title: '异世界悠闲农家',
+          language: 'zh-CN',
+          matchedAt: DateTime.utc(2026, 8, 5),
+          matchConfidence: 1,
+          seasons: <TmdbSeasonMetadata>[
+            TmdbSeasonMetadata(
+              id: 2,
+              seasonNumber: 2,
+              name: '第 2 季',
+              episodeCount: 12,
+              posterUrl: '/season-2.jpg',
+            ),
+          ],
+        ),
+        checkedAt: DateTime.utc(2026, 8, 5),
+        posterCachePath: 'work-poster.jpg',
+        tmdbMatchOrigin: TmdbMatchOrigin.manual,
+        tmdbRuleVersion: currentTmdbRuleVersion,
+      ),
+    );
+
+    await fixture.coordinator.loadAndSchedule(_tree(<CloudWorkIdentity>[work]));
+
+    final rebound = fixture.coordinator.recordsByWorkKey[work.workKey];
+    expect(rebound, isNotNull);
+    expect(rebound!.metadata?.id, 157004);
+    expect(rebound.tmdbMatchOrigin, TmdbMatchOrigin.manual);
+    expect(rebound.seasons.single.posterUrl, '/season-2.jpg');
+    expect(rebound.posterCachePath, 'work-poster.jpg');
+  });
+
+  test('当前作品存在旧未匹配记录时仍从英文文件名错误电影键恢复手动刮削', () async {
+    final fixture = _Fixture(apiKey: '');
+    final work = _work('farm-s01', displayTitle: 'Isekai Nonbiri Nouka');
+    await fixture.repository.upsert(
+      CloudWorkTmdbRecord.unmatched(
+        sourceId: work.sourceId,
+        workKey: work.workKey,
+        workRootId: 'stale-root',
+        workRootPath: '/影视/[VCB-Studio] 异世界悠闲农家 10-bit 1080p HEVC BDRip [Fin]',
+        remoteName: '[VCB-Studio] 异世界悠闲农家 10-bit 1080p HEVC BDRip [Fin]',
+        checkedAt: DateTime.utc(2026, 8, 4),
+        tmdbRuleVersion: currentTmdbRuleVersion,
+      ),
+    );
+    await fixture.repository.upsert(
+      CloudWorkTmdbRecord.matched(
+        sourceId: work.sourceId,
+        workKey: 'quark-a|movie|old-farm-s01e01',
+        workRootId: 'old-farm-s01e01',
+        workRootPath:
+            '${work.root.remotePath}/[VCB-Studio] Isekai Nonbiri Nouka '
+            '[01][Ma10p_1080p][x265_flac].mkv',
+        remoteName: '[VCB-Studio] Isekai Nonbiri Nouka '
+            '[01][Ma10p_1080p][x265_flac].mkv',
+        metadata: TmdbMetadata(
+          id: 196285,
+          mediaType: TmdbMediaType.tv,
+          title: '异世界悠闲农家',
+          originalTitle: '異世界のんびり農家',
+          language: 'zh-CN',
+          matchedAt: DateTime.utc(2026, 8, 4),
+          matchConfidence: 1,
+          seasons: const <TmdbSeasonMetadata>[
+            TmdbSeasonMetadata(
+              id: 1,
+              seasonNumber: 1,
+              name: '第 1 季',
+              episodeCount: 12,
+              posterUrl: '/season-1.jpg',
+              posterCachePath: 'season-1.jpg',
+            ),
+          ],
+        ),
+        checkedAt: DateTime.utc(2026, 8, 5),
+        posterCachePath: 'work-poster.jpg',
+        tmdbMatchOrigin: TmdbMatchOrigin.manual,
+        tmdbRuleVersion: currentTmdbRuleVersion,
+      ),
+    );
+
+    await fixture.coordinator.loadAndSchedule(_tree(<CloudWorkIdentity>[work]));
+
+    final rebound = fixture.coordinator.recordsByWorkKey[work.workKey];
+    expect(rebound, isNotNull);
+    expect(rebound!.status, CloudWorkTmdbStatus.matched);
+    expect(rebound.metadata?.id, 196285);
+    expect(rebound.tmdbMatchOrigin, TmdbMatchOrigin.manual);
+    expect(rebound.workRootPath, work.root.remotePath);
+    expect(rebound.seasons.single.posterCachePath, 'season-1.jpg');
+  });
+
+  test('作品目录改名后按旧未匹配根路径恢复同路径手动刮削', () async {
+    final fixture = _Fixture(apiKey: '');
+    final work =
+        _work('renamed-farm-s01', displayTitle: 'Isekai Nonbiri Nouka');
+    const staleRootPath =
+        '/影视/[VCB-Studio] 异世界悠闲农家 10-bit 1080p HEVC BDRip [Fin]';
+    await fixture.repository.upsert(
+      CloudWorkTmdbRecord.unmatched(
+        sourceId: work.sourceId,
+        workKey: work.workKey,
+        workRootId: 'stale-root',
+        workRootPath: staleRootPath,
+        remoteName: '[VCB-Studio] 异世界悠闲农家 10-bit 1080p HEVC BDRip [Fin]',
+        checkedAt: DateTime.utc(2026, 8, 4),
+        tmdbRuleVersion: currentTmdbRuleVersion,
+      ),
+    );
+    await fixture.repository.upsert(
+      CloudWorkTmdbRecord.matched(
+        sourceId: work.sourceId,
+        workKey: 'quark-a|movie|old-renamed-farm-s01',
+        workRootId: 'old-renamed-farm-s01',
+        workRootPath: staleRootPath,
+        remoteName: '[VCB-Studio] 异世界悠闲农家 10-bit 1080p HEVC BDRip [Fin]',
+        metadata: TmdbMetadata(
+          id: 196285,
+          mediaType: TmdbMediaType.tv,
+          title: '异世界悠闲农家',
+          originalTitle: '異世界のんびり農家',
+          language: 'zh-CN',
+          matchedAt: DateTime.utc(2026, 8, 4),
+          matchConfidence: 1,
+          seasons: const <TmdbSeasonMetadata>[
+            TmdbSeasonMetadata(
+              id: 1,
+              seasonNumber: 1,
+              name: '第 1 季',
+              episodeCount: 12,
+              posterUrl: '/season-1.jpg',
+              posterCachePath: 'season-1.jpg',
+            ),
+          ],
+        ),
+        checkedAt: DateTime.utc(2026, 8, 5),
+        posterCachePath: 'work-poster.jpg',
+        tmdbMatchOrigin: TmdbMatchOrigin.manual,
+        tmdbRuleVersion: currentTmdbRuleVersion,
+      ),
+    );
+
+    await fixture.coordinator.loadAndSchedule(_tree(<CloudWorkIdentity>[work]));
+
+    final rebound = fixture.coordinator.recordsByWorkKey[work.workKey];
+    expect(rebound, isNotNull);
+    expect(rebound!.status, CloudWorkTmdbStatus.matched);
+    expect(rebound.metadata?.id, 196285);
+    expect(rebound.tmdbMatchOrigin, TmdbMatchOrigin.manual);
+    expect(rebound.workRootPath, work.root.remotePath);
+    expect(rebound.seasons.single.posterCachePath, 'season-1.jpg');
+  });
+
   test('同作品旧记录 TMDB 冲突时不自动选择', () async {
     final legacyRepository = CloudResourceTmdbRepository(
       storage: MemoryCloudResourceTmdbStorage(),

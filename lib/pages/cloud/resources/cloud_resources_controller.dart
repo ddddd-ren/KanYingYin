@@ -24,6 +24,7 @@ import 'package:kanyingyin/services/cloud/cloud_media_tree_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_auto_organizer.dart';
+import 'package:kanyingyin/services/cloud/cloud_series_identity_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
@@ -1250,14 +1251,51 @@ class CloudResourcesController extends ChangeNotifier {
 
   Iterable<String> _customTagsForItem(CloudMediaIndexItem item) sync* {
     final tags = <String>{};
-    tags.addAll(
-      _customTagsByResourceKey[_resourceKeyForItem(item)] ?? const <String>[],
-    );
-    final workKey = item.workKey?.trim();
-    if (workKey != null && workKey.isNotEmpty) {
-      tags.addAll(_customTagsByResourceKey[workKey] ?? const <String>[]);
+    for (final key in _customTagKeysForItem(item)) {
+      tags.addAll(_customTagsByResourceKey[key] ?? const <String>[]);
     }
     yield* tags;
+  }
+
+  Iterable<String> _customTagKeysForItem(CloudMediaIndexItem item) sync* {
+    final resourceKey = _resourceKeyForItem(item);
+    yield resourceKey;
+    final workKey = item.workKey?.trim();
+    if (workKey != null && workKey.isNotEmpty) {
+      yield workKey;
+    }
+
+    final record = tmdbRecords[resourceKey];
+    final tmdbId = record?.status == CloudResourceTmdbStatus.matched
+        ? record?.tmdbId
+        : record == null
+            ? item.tmdbId
+            : null;
+    final mediaType = record?.status == CloudResourceTmdbStatus.matched
+        ? record?.mediaType
+        : record == null
+            ? _tmdbMediaTypeForItem(item)
+            : null;
+    if (tmdbId != null && mediaType != null) {
+      yield '${item.sourceId}|tmdb|${mediaType.name}|$tmdbId';
+    }
+
+    final normalizedSeriesName =
+        CloudSeriesIdentityResolver.normalizeSeriesName(item.seriesName);
+    if (normalizedSeriesName.isNotEmpty && item.episodeNumber != null) {
+      yield '${item.sourceId}|series|$normalizedSeriesName';
+    }
+  }
+
+  TmdbMediaType? _tmdbMediaTypeForItem(CloudMediaIndexItem item) {
+    return switch (item.mediaType) {
+      CloudMediaType.movie => TmdbMediaType.movie,
+      CloudMediaType.series ||
+      CloudMediaType.episode ||
+      CloudMediaType.special =>
+        TmdbMediaType.tv,
+      CloudMediaType.unknown => null,
+    };
   }
 
   String _customTagKeyForGroup(CloudResourceMediaGroup group) {

@@ -5,21 +5,21 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一一零说明网盘资源自定义标签', () {
-    final entries = versionHistoryForCurrent('2.1.110');
+  test('二点一一一修复网盘合并资源标签筛选', () {
+    final entries = versionHistoryForCurrent('2.1.111');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.version, '2.1.110');
+    expect(entry.version, '2.1.111');
     expect(entry.isPrerelease, isTrue);
     for (final text in <String>[
       'Windows',
-      '筛选入口',
-      'TMDB 类型',
-      '自定义标签',
       '网盘资源',
-      '本地媒体库',
+      '海报卡',
+      '自定义标签',
+      '来源隔离',
+      'TMDB 合并分组',
       '不会修改或删除',
     ]) {
       expect(changes, contains(text));

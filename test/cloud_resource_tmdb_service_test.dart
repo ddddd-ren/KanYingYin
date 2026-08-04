@@ -118,6 +118,49 @@ void main() {
     ]);
   });
 
+  test('索引同步重试保留资源记录中的类型标签', () async {
+    final indexRepository = CloudMediaIndexRepository(
+      storage: MemoryCloudMediaIndexStorage(),
+    );
+    await indexRepository.replaceSource(
+      'source-a',
+      <CloudMediaIndexItem>[_item('/影视/待同步.mkv')],
+      const <String, String>{},
+      const <String, List<CloudFileEntry>>{},
+      const <String>[],
+    );
+    final service = CloudResourceTmdbService(
+      repository: CloudResourceTmdbRepository(
+        storage: MemoryCloudResourceTmdbStorage(),
+      ),
+      indexRepository: indexRepository,
+      client: _FakeTmdbClient(
+        searches: const <TmdbMediaType, List<TmdbMetadata>>{},
+        detail: _candidate(TmdbMediaType.movie),
+      ),
+    );
+    final target = _target(
+      path: '/影视/待同步.mkv',
+      name: '待同步.mkv',
+      kind: CloudResourceKind.standaloneVideo,
+    );
+    final record = CloudResourceTmdbRecord.matched(
+      sourceId: target.sourceId,
+      remoteId: target.remote.id,
+      remotePath: target.remote.path,
+      displayName: target.displayName,
+      resourceKind: target.resourceKind,
+      metadata: _candidate(TmdbMediaType.movie),
+      checkedAt: DateTime.utc(2026, 8, 4),
+    );
+
+    expect(await service.syncRecordToIndex(target, record), isTrue);
+    expect(
+      (await indexRepository.getBySource('source-a')).single.tmdbGenres,
+      <String>['科幻'],
+    );
+  });
+
   test('无季集证据的独立视频只按电影搜索', () async {
     final service = _service(
       _FakeTmdbClient(

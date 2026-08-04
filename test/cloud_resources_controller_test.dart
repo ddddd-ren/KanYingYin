@@ -293,6 +293,80 @@ void main() {
       controller.dispose();
     });
 
+    test('TMDB 刮削通知后立即更新当前来源类型标签', () async {
+      final credentials = MemoryCloudCredentialStore();
+      final sourceRepository = CloudSourceRepository(
+        storage: MemoryCloudSourceStorage(),
+        credentialStore: credentials,
+      );
+      const source = CloudSource(
+        id: 'tmdb-label-refresh',
+        type: CloudSourceType.openList,
+        name: '标签刷新来源',
+        baseUrl: 'https://labels.example.com',
+        rootPaths: <String>['/影视'],
+      );
+      await sourceRepository.save(source);
+      final indexRepository = CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      );
+      await indexRepository.replaceSource(
+        source.id,
+        <CloudMediaIndexItem>[
+          CloudMediaIndexItem(
+            sourceId: source.id,
+            remoteId: 'label-video',
+            remotePath: '/影视/待刮削.mkv',
+            name: '待刮削.mkv',
+            size: 1024,
+            modifiedAt: null,
+            seriesName: '待刮削',
+            mediaType: CloudMediaType.movie,
+          ),
+        ],
+        const <String, String>{},
+        const <String, List<CloudFileEntry>>{},
+        const <String>['/影视'],
+      );
+      final coordinator = _NotifyingResourceTmdbCoordinator();
+      final controller = CloudResourcesController(
+        repository: sourceRepository,
+        credentialStore: credentials,
+        mediaIndexRepository: indexRepository,
+        tmdbCoordinator: coordinator,
+        minRecognizedVideoSizeBytesProvider: () => 0,
+      );
+
+      await controller.reloadSourcesAndSnapshot(
+        preferredSourceId: source.id,
+      );
+      expect(controller.availableGenres, isEmpty);
+
+      coordinator.publish(
+        CloudResourceTmdbRecord.matched(
+          sourceId: source.id,
+          remoteId: 'label-video',
+          remotePath: '/影视/待刮削.mkv',
+          displayName: '待刮削.mkv',
+          resourceKind: CloudResourceKind.standaloneVideo,
+          metadata: TmdbMetadata(
+            id: 42,
+            mediaType: TmdbMediaType.movie,
+            title: '中文标题',
+            language: 'zh-CN',
+            matchedAt: _matchedAt,
+            matchConfidence: 1,
+            genres: const <String>['科幻'],
+          ),
+          checkedAt: _matchedAt,
+        ),
+      );
+
+      expect(controller.availableGenres, <String>['科幻']);
+      expect(controller.visibleIndexedItems.single.tmdbGenres, <String>['科幻']);
+      controller.dispose();
+    });
+
     test('无扫描重载优先选择刚创建的可用来源', () async {
       final credentials = MemoryCloudCredentialStore();
       final repository = CloudSourceRepository(
@@ -1712,6 +1786,36 @@ class _FailingCloudHiddenVideoStorage extends MemoryCloudHiddenVideoStorage {
       throw StateError('模拟隐藏记录写入失败');
     }
     return super.write(records);
+  }
+}
+
+class _NotifyingResourceTmdbCoordinator extends CloudResourceTmdbCoordinator {
+  _NotifyingResourceTmdbCoordinator()
+      : super(
+          repository: CloudResourceTmdbRepository(
+            storage: MemoryCloudResourceTmdbStorage(),
+          ),
+          serviceFactory: (_) => throw UnimplementedError(),
+          apiKeyProvider: () => '',
+        );
+
+  final Map<String, CloudResourceTmdbRecord> publishedRecords =
+      <String, CloudResourceTmdbRecord>{};
+  int _publishedRevision = 0;
+
+  @override
+  Map<String, CloudResourceTmdbRecord> get records => publishedRecords;
+
+  @override
+  int get recordsRevision => _publishedRevision;
+
+  @override
+  Future<void> loadAndSchedule(CloudResourceDirectoryContext context) async {}
+
+  void publish(CloudResourceTmdbRecord record) {
+    publishedRecords[record.stableKey] = record;
+    _publishedRevision++;
+    notifyListeners();
   }
 }
 

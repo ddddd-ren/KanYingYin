@@ -5,22 +5,22 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一零七说明网盘标签可直接生成', () {
-    final entries = versionHistoryForCurrent('2.1.107');
+  test('二点一零八说明网盘刮削后标签立即可用', () {
+    final entries = versionHistoryForCurrent('2.1.108');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.version, '2.1.107');
+    expect(entry.version, '2.1.108');
     expect(entry.isPrerelease, isTrue);
     for (final text in <String>[
       'Windows',
       'TMDB 类型',
-      '暂无类型标签',
       '当前网盘',
       '本地媒体库',
       '网盘资源',
-      '刮削当前来源生成标签',
+      '刮削完成后类型标签',
+      '索引重试路径',
       '不会修改或删除',
     ]) {
       expect(changes, contains(text));

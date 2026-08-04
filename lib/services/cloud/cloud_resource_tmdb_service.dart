@@ -365,6 +365,7 @@ class CloudResourceTmdbService {
       language: 'zh-CN',
       matchedAt: record.checkedAt,
       matchConfidence: 1,
+      genres: record.genres,
     );
     try {
       await _syncIndex(target, metadata, record.posterCachePath);

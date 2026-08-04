@@ -1,14 +1,62 @@
 [CmdletBinding()]
-param()
+param(
+    [switch]$VersionOnly,
+    [string]$VersionFixturePath
+)
 
 $ErrorActionPreference = 'Stop'
 $OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 chcp 65001 > $null
 
+function Get-PubspecVersion {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    $lines = @(Get-Content -LiteralPath $Path -Encoding UTF8)
+    $versionLines = @($lines | Where-Object { $_ -match '^version:' })
+    if ($versionLines.Count -ne 1) {
+        throw 'pubspec.yaml must contain exactly one version field'
+    }
+    $versionMatch = [regex]::Match(
+        $versionLines[0],
+        '^version:\s*(\d+\.\d+\.\d+)\+([1-9]\d*)\s*$'
+    )
+    if (-not $versionMatch.Success) {
+        throw 'pubspec.yaml version must use x.y.z+build format'
+    }
+    $versionCode = 0
+    $validVersionCode = [int]::TryParse(
+        $versionMatch.Groups[2].Value,
+        [ref]$versionCode
+    )
+    if (-not $validVersionCode -or $versionCode -gt 2100000000) {
+        throw 'pubspec.yaml build number exceeds the Android versionCode limit'
+    }
+    return [PSCustomObject]@{
+        Name = $versionMatch.Groups[1].Value
+        Code = $versionCode
+    }
+}
+
 $projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $flutter = 'D:\flutter\bin\flutter.bat'
-$androidVersion = '1.0.2'
-$androidVersionCode = 10002
+$pubspecPath = Join-Path $projectRoot 'pubspec.yaml'
+if (-not [string]::IsNullOrWhiteSpace($VersionFixturePath)) {
+    if (-not $VersionOnly) {
+        throw 'VersionFixturePath is only available with VersionOnly'
+    }
+    $pubspecPath = $VersionFixturePath
+}
+$pubspecVersion = Get-PubspecVersion -Path $pubspecPath
+$androidVersion = $pubspecVersion.Name
+$androidVersionCode = $pubspecVersion.Code
+if ($VersionOnly) {
+    Write-Output "$androidVersion+$androidVersionCode"
+    return
+}
 $requiredVariables = @(
     'KANYINGYIN_ANDROID_KEYSTORE',
     'KANYINGYIN_ANDROID_STORE_PASSWORD',
@@ -39,16 +87,6 @@ try {
         throw 'D:\flutter 3.41.9 was not found'
     }
 
-    $pubspec = Get-Content -LiteralPath (Join-Path $projectRoot 'pubspec.yaml') -Encoding UTF8
-    $versionLine = $pubspec | Where-Object { $_ -match '^version:\s*' } | Select-Object -First 1
-    if ($versionLine -notmatch '^version:\s*(\d+\.\d+\.\d+)\+(\d+)\s*$') {
-        throw 'Unable to read Android version from pubspec.yaml'
-    }
-    $windowsVersion = $Matches[1]
-    $windowsBuildNumber = $Matches[2]
-    if ($windowsVersion -ne '1.0.5' -or $windowsBuildNumber -ne '10005') {
-        throw "Windows pubspec 版本必须为 1.0.5+10005，实际为 $windowsVersion+$windowsBuildNumber"
-    }
     $expectedPackage = 'com.kanyingyin.player'
 
     Push-Location $projectRoot

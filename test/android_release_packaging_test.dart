@@ -4,8 +4,10 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Android Release 只使用本机环境签名并启用压缩', () {
+  test('Android Release 从 pubspec 读取版本并使用本机环境签名', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
     final gradle = File('android/app/build.gradle.kts').readAsStringSync();
+    final version = _parsePubspecVersion(pubspec);
 
     for (final variable in const <String>[
       'KANYINGYIN_ANDROID_KEYSTORE',
@@ -19,8 +21,19 @@ void main() {
     expect(gradle, contains('isShrinkResources = true'));
     expect(gradle, contains('proguard-rules.pro'));
     expect(gradle, isNot(contains('signingConfigs.getByName("debug")')));
-    expect(gradle, contains('val androidVersionName = "1.0.2"'));
-    expect(gradle, contains('val androidVersionCode = 10002'));
+    expect(gradle, contains('.file("../pubspec.yaml")'));
+    expect(gradle, contains('readLines(Charsets.UTF_8)'));
+    expect(gradle, contains('pubspecVersionLines.size != 1'));
+    expect(gradle, contains('pubspecVersionPattern.matchEntire('));
+    expect(gradle, contains('.toIntOrNull()'));
+    expect(gradle, contains('androidVersionCode > 2100000000'));
+    expect(gradle, contains('versionCode = androidVersionCode'));
+    expect(gradle, contains('versionName = androidVersionName'));
+    expect(gradle, isNot(contains('val androidVersionName = "')));
+    expect(gradle, isNot(contains('1.0.2')));
+    expect(gradle, isNot(contains('10002')));
+    expect(version.name, isNotEmpty);
+    expect(version.code, greaterThan(0));
   });
 
   test('Android Release 忽略未启用的 Play Core 延迟组件引用', () {
@@ -51,11 +64,94 @@ void main() {
     );
     expect(script, contains(r'$appName-$androidVersion.apk'));
     expect(script, contains(r'$appName-$androidVersion.aab'));
-    expect(script, contains(r"$androidVersion = '1.0.2'"));
-    expect(script, contains(r'$androidVersionCode = 10002'));
+    expect(script, contains('function Get-PubspecVersion'));
+    expect(
+      script,
+      contains(r"$pubspecPath = Join-Path $projectRoot 'pubspec.yaml'"),
+    );
+    expect(script, contains(r'$pubspecVersion = Get-PubspecVersion'));
+    expect(script, contains(r'$androidVersion = $pubspecVersion.Name'));
+    expect(script, contains(r'$androidVersionCode = $pubspecVersion.Code'));
+    expect(script, contains('2100000000'));
+    expect(script, isNot(contains('1.0.2')));
+    expect(script, isNot(contains('10002')));
+    expect(script, isNot(contains('1.0.5+10005')));
     expect(script, contains('[char]0x770B'));
     expect(script, contains('com.kanyingyin.player'));
   });
+
+  test('Android Gradle 版本正则严格校验 fixture', () {
+    final gradle = File('android/app/build.gradle.kts').readAsStringSync();
+    final patternSource = RegExp(
+      r'val pubspecVersionPattern\s*=\s*Regex\("""([^"\r\n]+)"""\)',
+    ).firstMatch(gradle)?.group(1);
+
+    expect(patternSource, isNotNull);
+    final pattern = RegExp(patternSource!);
+    final valid = pattern.firstMatch('version: 9.8.7+90807');
+    expect(valid, isNotNull);
+    expect(valid!.group(1), '9.8.7');
+    expect(valid.group(2), '90807');
+    for (final invalid in <String>[
+      'version: 9.8.7',
+      'version: 9.8.7+0',
+      ' version: 9.8.7+90807',
+      'version: 9.8.7+90807 # comment',
+      'version: 9.8+90807',
+    ]) {
+      expect(pattern.hasMatch(invalid), isFalse, reason: invalid);
+    }
+  });
+
+  test(
+    'Android 发布脚本严格解析版本 fixture',
+    () async {
+      final tempDirectory = await Directory.systemTemp.createTemp(
+        'android_version_fixture_',
+      );
+      addTearDown(() => tempDirectory.delete(recursive: true));
+      final fixture = File(
+        '${tempDirectory.path}${Platform.pathSeparator}pubspec.yaml',
+      );
+      final script = File(
+        'tool/android/build_signed_release.ps1',
+      ).absolute.path;
+
+      Future<ProcessResult> parse(String source) async {
+        await fixture.writeAsString(source, encoding: utf8, flush: true);
+        return Process.run(
+          'powershell.exe',
+          <String>[
+            '-NoProfile',
+            '-ExecutionPolicy',
+            'Bypass',
+            '-File',
+            script,
+            '-VersionOnly',
+            '-VersionFixturePath',
+            fixture.path,
+          ],
+        );
+      }
+
+      final valid = await parse('version: 9.8.7+90807\n');
+      expect(valid.exitCode, 0, reason: valid.stderr.toString());
+      expect(valid.stdout.toString().trim(), '9.8.7+90807');
+      for (final invalid in <String>[
+        'version: 9.8.7\n',
+        'version: 9.8.7+0\n',
+        ' version: 9.8.7+90807\n',
+        'version: 9.8.7+90807 # comment\n',
+        'version: 9.8.7+90807\nversion: 9.8.8+90808\n',
+        'version: 9.8.7+2100000001\n',
+        'version: 9.8.7+999999999999999999999\n',
+      ]) {
+        final result = await parse(invalid);
+        expect(result.exitCode, isNot(0), reason: invalid);
+      }
+    },
+    skip: !Platform.isWindows,
+  );
 
   test('Android 发布验证四个源 JAR 和 Flutter 支持 ABI 的 Full libmpv', () {
     final verifier = File(
@@ -125,4 +221,16 @@ void main() {
             );
     expect(keys, isEmpty);
   });
+}
+
+({String name, int code}) _parsePubspecVersion(String source) {
+  final matches = RegExp(
+    r'^version:\s*(\d+\.\d+\.\d+)\+([1-9]\d*)\s*$',
+    multiLine: true,
+  ).allMatches(source).toList(growable: false);
+  expect(matches, hasLength(1), reason: 'pubspec.yaml 必须包含唯一合法版本');
+  return (
+    name: matches.single.group(1)!,
+    code: int.parse(matches.single.group(2)!),
+  );
 }

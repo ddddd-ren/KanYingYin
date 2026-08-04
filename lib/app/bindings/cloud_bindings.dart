@@ -6,6 +6,7 @@ import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/repositories/cloud_hidden_video_repository.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
+import 'package:kanyingyin/repositories/cloud_media_tag_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_series_match_rule_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
@@ -30,6 +31,7 @@ void registerCloudBindings(Injector i) {
     CloudHiddenVideoRepository.new,
   );
   i.addSingleton<CloudMediaIndexRepository>(CloudMediaIndexRepository.new);
+  i.addSingleton<CloudMediaTagRepository>(CloudMediaTagRepository.new);
   i.addSingleton<CloudResourceTmdbRepository>(
     CloudResourceTmdbRepository.new,
   );
@@ -65,6 +67,7 @@ void registerCloudBindings(Injector i) {
       repository: Modular.get<CloudSourceRepository>(),
       credentialStore: Modular.get<CloudCredentialStore>(),
       mediaIndexRepository: Modular.get<CloudMediaIndexRepository>(),
+      mediaTagRepository: Modular.get<CloudMediaTagRepository>(),
       hiddenVideoRepository: Modular.get<CloudHiddenVideoRepository>(),
       resourceTmdbRepository: Modular.get<CloudResourceTmdbRepository>(),
       workTmdbRepository: Modular.get<CloudWorkTmdbRepository>(),
@@ -114,6 +117,7 @@ void registerCloudBindings(Injector i) {
       tmdbCoordinator: Modular.get<CloudResourceTmdbCoordinator>(),
       workTmdbCoordinator: Modular.get<CloudWorkTmdbCoordinator>(),
       mediaIndexRepository: Modular.get<CloudMediaIndexRepository>(),
+      mediaTagRepository: Modular.get<CloudMediaTagRepository>(),
       hiddenVideoRepository: Modular.get<CloudHiddenVideoRepository>(),
       mediaIndexer: Modular.get<CloudMediaIndexer>(),
       minRecognizedVideoSizeBytesProvider: () =>

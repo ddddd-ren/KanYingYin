@@ -7,6 +7,7 @@ import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/repositories/cloud_hidden_video_repository.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
+import 'package:kanyingyin/repositories/cloud_media_tag_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/repositories/cloud_series_match_rule_repository.dart';
@@ -45,6 +46,7 @@ class CloudLibraryController extends ChangeNotifier {
     CloudProviderRegistry? providerRegistry,
     CloudMediaIndexer? mediaIndexer,
     CloudMediaIndexRepository? mediaIndexRepository,
+    ICloudMediaTagRepository? mediaTagRepository,
     ICloudHiddenVideoRepository? hiddenVideoRepository,
     CloudResourceTmdbRepository? resourceTmdbRepository,
     CloudWorkTmdbRepository? workTmdbRepository,
@@ -56,6 +58,7 @@ class CloudLibraryController extends ChangeNotifier {
         _repository = repository ?? CloudSourceRepository(),
         _mediaIndexRepository =
             mediaIndexRepository ?? CloudMediaIndexRepository(),
+        _mediaTagRepository = mediaTagRepository,
         _hiddenVideoRepository =
             hiddenVideoRepository ?? CloudHiddenVideoRepository(),
         _resourceTmdbRepository = resourceTmdbRepository,
@@ -81,6 +84,7 @@ class CloudLibraryController extends ChangeNotifier {
   final CloudSourceRepository _repository;
   final CloudCredentialStore _credentialStore;
   final CloudMediaIndexRepository _mediaIndexRepository;
+  final ICloudMediaTagRepository? _mediaTagRepository;
   final ICloudHiddenVideoRepository _hiddenVideoRepository;
   final CloudResourceTmdbRepository? _resourceTmdbRepository;
   final CloudWorkTmdbRepository? _workTmdbRepository;
@@ -324,6 +328,11 @@ class CloudLibraryController extends ChangeNotifier {
       await _repository.delete(sourceId);
       try {
         await _hiddenVideoRepository.clearSource(sourceId);
+      } on Object {
+        localDataCleanupFailed = true;
+      }
+      try {
+        await _mediaTagRepository?.removeSource(sourceId);
       } on Object {
         localDataCleanupFailed = true;
       }

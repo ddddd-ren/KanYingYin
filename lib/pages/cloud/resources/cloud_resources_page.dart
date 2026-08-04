@@ -16,6 +16,7 @@ import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart
 import 'package:kanyingyin/pages/cloud/resources/cloud_tmdb_match_dialog.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
+import 'package:kanyingyin/repositories/cloud_media_tag_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
@@ -445,6 +446,23 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     }
   }
 
+  Future<void> _editTags(CloudResourceMediaGroup group) async {
+    final tags = await showDialog<List<String>>(
+      context: context,
+      builder: (_) => _CloudMediaTagEditorDialog(
+        title: group.displayName,
+        initialTags: _controller.customTagsForGroup(group),
+      ),
+    );
+    if (!mounted || tags == null) return;
+    try {
+      await _controller.saveCustomTags(group, tags);
+      if (mounted) _showMessage('标签已保存');
+    } on Object {
+      if (mounted) _showMessage('标签保存失败，请稍后重试');
+    }
+  }
+
   Future<void> _showMediaDetails(CloudResourceMediaGroup group) {
     return showCloudMediaDetailsDialog(
       context: context,
@@ -733,31 +751,9 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
                   _controller.toggleGenre(value);
                 }
               },
-              itemBuilder: (_) => <PopupMenuEntry<String>>[
-                if (_controller.availableGenres.isEmpty)
-                  const PopupMenuItem<String>(
-                    enabled: false,
-                    child: Text('暂无类型标签'),
-                  ),
-                if (_controller.availableGenres.isEmpty)
-                  PopupMenuItem<String>(
-                    value: '__scrape_source__',
-                    enabled: toolbarState.canScrape,
-                    child: const Text('刮削当前来源生成标签'),
-                  ),
-                if (_controller.selectedGenres.isNotEmpty)
-                  const PopupMenuItem<String>(
-                    value: '__clear__',
-                    child: Text('清除'),
-                  ),
-                ..._controller.availableGenres.map(
-                  (genre) => CheckedPopupMenuItem<String>(
-                    value: genre,
-                    checked: _controller.selectedGenres.contains(genre),
-                    child: Text(genre),
-                  ),
-                ),
-              ],
+              itemBuilder: (_) => _cloudGenreMenuEntries(
+                canScrape: toolbarState.canScrape,
+              ),
               icon: _controller.selectedGenres.isEmpty
                   ? const Icon(Icons.sell_outlined)
                   : Badge.count(
@@ -849,6 +845,73 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
           ),
         ],
       ),
+    );
+  }
+
+  List<PopupMenuEntry<String>> _cloudGenreMenuEntries({
+    required bool canScrape,
+  }) {
+    final genres = _controller.availableGenres;
+    final customTags = _controller.availableCustomTags;
+    final entries = <PopupMenuEntry<String>>[];
+    if (genres.isEmpty) {
+      entries.add(
+        const PopupMenuItem<String>(
+          enabled: false,
+          child: Text('暂无类型标签'),
+        ),
+      );
+      entries.add(
+        PopupMenuItem<String>(
+          value: '__scrape_source__',
+          enabled: canScrape,
+          child: const Text('刮削当前来源生成标签'),
+        ),
+      );
+    }
+    if (_controller.selectedGenres.isNotEmpty) {
+      entries.add(
+        const PopupMenuItem<String>(
+          value: '__clear__',
+          child: Text('清除'),
+        ),
+      );
+    }
+    if (genres.isNotEmpty) {
+      entries.add(
+        const PopupMenuItem<String>(
+          enabled: false,
+          child: Text('TMDB 类型'),
+        ),
+      );
+      entries.addAll(genres.map(_checkedCloudTagItem));
+    }
+    if (customTags.isNotEmpty) {
+      if (entries.isNotEmpty) {
+        entries.add(
+          const PopupMenuItem<String>(
+            enabled: false,
+            height: 8,
+            child: SizedBox.shrink(),
+          ),
+        );
+      }
+      entries.add(
+        const PopupMenuItem<String>(
+          enabled: false,
+          child: Text('自定义标签'),
+        ),
+      );
+      entries.addAll(customTags.map(_checkedCloudTagItem));
+    }
+    return entries;
+  }
+
+  PopupMenuEntry<String> _checkedCloudTagItem(String value) {
+    return CheckedPopupMenuItem<String>(
+      value: value,
+      checked: _controller.selectedGenres.contains(value),
+      child: Text(value),
     );
   }
 
@@ -1018,6 +1081,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
               ),
               onOpenGroup: _openGroup,
               onEditTitle: _editTitle,
+              onEditTags: _editTags,
               onScrape: _scrapeEntry,
               onRematch: _rematchEntry,
               onManualMatch: _manualMatchEntry,
@@ -1048,6 +1112,120 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _CloudMediaTagEditorDialog extends StatefulWidget {
+  const _CloudMediaTagEditorDialog({
+    required this.title,
+    required this.initialTags,
+  });
+
+  final String title;
+  final List<String> initialTags;
+
+  @override
+  State<_CloudMediaTagEditorDialog> createState() =>
+      _CloudMediaTagEditorDialogState();
+}
+
+class _CloudMediaTagEditorDialogState
+    extends State<_CloudMediaTagEditorDialog> {
+  late final TextEditingController _inputController;
+  late final List<String> _tags;
+
+  @override
+  void initState() {
+    super.initState();
+    _inputController = TextEditingController();
+    _tags = List<String>.from(widget.initialTags);
+  }
+
+  @override
+  void dispose() {
+    _inputController.dispose();
+    super.dispose();
+  }
+
+  void _addTag() {
+    final value = _inputController.text.trim();
+    if (value.isEmpty || value.length > CloudMediaTagRepository.maxTagLength) {
+      return;
+    }
+    if (_tags.any((tag) => tag.toLowerCase() == value.toLowerCase())) {
+      _inputController.clear();
+      return;
+    }
+    if (_tags.length >= CloudMediaTagRepository.maxTagsPerResource) return;
+    setState(() {
+      _tags.add(value);
+      _inputController.clear();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('管理标签 · ${widget.title}'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    key: const ValueKey<String>('cloud-tag-input'),
+                    controller: _inputController,
+                    maxLength: CloudMediaTagRepository.maxTagLength,
+                    decoration: const InputDecoration(
+                      labelText: '新增标签',
+                      hintText: '例如：收藏、待看',
+                      isDense: true,
+                    ),
+                    onSubmitted: (_) => _addTag(),
+                  ),
+                ),
+                IconButton(
+                  key: const ValueKey<String>('cloud-tag-add'),
+                  tooltip: '添加标签',
+                  onPressed: _addTag,
+                  icon: const Icon(Icons.add),
+                ),
+              ],
+            ),
+            if (_tags.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: _tags
+                    .map(
+                      (tag) => InputChip(
+                        label: Text(tag),
+                        onDeleted: () => setState(() => _tags.remove(tag)),
+                      ),
+                    )
+                    .toList(growable: false),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          key: const ValueKey<String>('cloud-tag-save'),
+          onPressed: () => Navigator.of(context).pop(List<String>.from(_tags)),
+          child: const Text('保存'),
+        ),
+      ],
     );
   }
 }

@@ -5,21 +5,20 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一一三限制网盘标签菜单高度并支持滑动', () {
-    final entries = versionHistoryForCurrent('2.1.113');
+  test('二点一一四统一主要界面的毛玻璃视觉层', () {
+    final entries = versionHistoryForCurrent('2.1.114');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.version, '2.1.113');
+    expect(entry.version, '2.1.114');
     expect(entry.isPrerelease, isTrue);
     for (final text in <String>[
       'Windows',
-      '筛选菜单',
-      'TMDB 类型',
-      '自定义标签',
-      '首行海报',
-      '内部滑动',
+      '毛玻璃',
+      '导航',
+      '媒体卡片',
+      '弹窗',
       '不会修改或删除',
     ]) {
       expect(changes, contains(text));

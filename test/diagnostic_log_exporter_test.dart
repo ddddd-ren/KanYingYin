@@ -30,12 +30,25 @@ void main() {
       'captcha_token=captcha-token-fixture '
       'url=https://download.xunlei.com/private-fixture?token=download-secret',
     );
+    await writer.write(
+      r'{"accessToken":"active-token-value","cookie":"active-cookie-value"} '
+      r'media="D:\Users\local-user\Private Media\active.mkv"',
+    );
+    await File(
+      '${tempDir.path}${Platform.pathSeparator}kanyingyin-history.log',
+    ).writeAsString(
+      r'{refreshToken: history-token-value, '
+      r'clientSecret: history-secret-value} '
+      r'source="\\media-server\local-user\Private Share\history.mkv"',
+    );
     final original = File(
       '${tempDir.path}${Platform.pathSeparator}${RotatingLogWriter.activeFileName}',
     );
     final exporter = DiagnosticLogExporter(
       writer: writer,
-      summaryProvider: () async => 'version=1.4.7 token=secret',
+      summaryProvider: () async => r'version=1.4.7 apiKey=summary-token-value '
+          r'password=summary-secret-value '
+          r'profile="/Users/local-user/Private Profile/settings.json"',
     );
 
     final zip = await exporter.exportTo(outputDir);
@@ -48,6 +61,7 @@ void main() {
 
     expect(names, contains('diagnostic.txt'));
     expect(names, contains(RotatingLogWriter.activeFileName));
+    expect(names, contains('kanyingyin-history.log'));
     expect(content, contains('https://drive.example.com'));
     expect(content, isNot(contains('/private/video.mkv')));
     expect(content, isNot(contains('secret')));
@@ -61,9 +75,20 @@ void main() {
       'credit-key-fixture',
       'captcha-token-fixture',
       'https://download.xunlei.com/private-fixture',
+      'active-token-value',
+      'active-cookie-value',
+      'history-token-value',
+      'history-secret-value',
+      'summary-token-value',
+      'summary-secret-value',
+      'local-user',
+      'Private Media',
+      'Private Share',
+      'Private Profile',
     ]) {
       expect(content, isNot(contains(forbidden)), reason: forbidden);
     }
+    expect(content, contains('[LOCAL_PATH]'));
     expect(await original.exists(), isTrue);
   });
 }

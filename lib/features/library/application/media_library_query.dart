@@ -1,4 +1,5 @@
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
+import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 
 class MediaLibraryQuery {
   const MediaLibraryQuery();
@@ -8,6 +9,9 @@ class MediaLibraryQuery {
     String sourceId = 'all',
     String keyword = '',
     Set<String> selectedGenres = const <String>{},
+    Set<String> selectedTags = const <String>{},
+    Map<String, Iterable<String>> extraTagsBySeries =
+        const <String, Iterable<String>>{},
   }) {
     final query = keyword.trim().toLowerCase();
     return series.where((item) {
@@ -17,6 +21,11 @@ class MediaLibraryQuery {
       }
       if (selectedGenres.isNotEmpty &&
           !item.genres.any(selectedGenres.contains)) {
+        return false;
+      }
+      if (selectedTags.isNotEmpty &&
+          !tagsForSeries(item, extraTags: extraTagsBySeries)
+              .any(selectedTags.contains)) {
         return false;
       }
       return true;
@@ -41,5 +50,88 @@ class MediaLibraryQuery {
     Iterable<String> available,
   ) {
     return selected.intersection(available.toSet());
+  }
+
+  List<String> availableTags(
+    Iterable<MediaLibrarySeries> series, {
+    String sourceId = 'all',
+    Map<String, Iterable<String>> extraTagsBySeries =
+        const <String, Iterable<String>>{},
+  }) {
+    final values = <String>{};
+    for (final item in series) {
+      if (sourceId == 'all' || item.sourceId == sourceId) {
+        values.addAll(tagsForSeries(item, extraTags: extraTagsBySeries));
+      }
+    }
+    return values.toList(growable: false)..sort();
+  }
+
+  List<String> availableCategories(
+    Iterable<MediaLibrarySeries> series, {
+    String sourceId = 'all',
+  }) {
+    final values = <String>{};
+    for (final item in series) {
+      if (sourceId == 'all' || item.sourceId == sourceId) {
+        values.addAll(categoriesForSeries(item));
+      }
+    }
+    return values.toList(growable: false)..sort();
+  }
+
+  List<String> availableCustomTags(
+    Iterable<MediaLibrarySeries> series, {
+    String sourceId = 'all',
+    Map<String, Iterable<String>> customTagsBySeries =
+        const <String, Iterable<String>>{},
+  }) {
+    final values = <String>{};
+    for (final item in series) {
+      if (sourceId == 'all' || item.sourceId == sourceId) {
+        values.addAll(customTagsBySeries[item.seriesKey] ?? const <String>[]);
+      }
+    }
+    return values.toList(growable: false)..sort();
+  }
+
+  List<String> tagsForSeries(
+    MediaLibrarySeries item, {
+    Map<String, Iterable<String>> extraTags =
+        const <String, Iterable<String>>{},
+  }) {
+    final values = <String>{
+      ...item.genres,
+      ...categoriesForSeries(item),
+      ...(extraTags[item.seriesKey] ?? const <String>[]),
+    };
+    values.removeWhere((value) => value.trim().isEmpty);
+    return values.toList(growable: false);
+  }
+
+  List<String> categoriesForSeries(MediaLibrarySeries item) {
+    final categories = <String>{};
+    for (final episode in item.episodes) {
+      final metadata = episode.localItem?.tmdb;
+      if (metadata == null) continue;
+      switch (metadata.mediaType) {
+        case TmdbMediaType.movie:
+          categories.add('电影');
+        case TmdbMediaType.tv:
+          categories.add('电视剧');
+      }
+      if (metadata.genres.any(_isAnimationGenre)) {
+        categories.add('动漫');
+      }
+    }
+    return categories.toList(growable: false);
+  }
+
+  bool _isAnimationGenre(String value) {
+    final normalized = value.trim().toLowerCase();
+    return normalized == '动画' ||
+        normalized == '动漫' ||
+        normalized == 'animation' ||
+        normalized == 'anime';
   }
 }

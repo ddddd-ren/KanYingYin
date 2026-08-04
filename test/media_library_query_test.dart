@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/library/application/media_library_query.dart';
+import 'package:kanyingyin/modules/local/local_media_index_item.dart';
+import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 
 void main() {
@@ -37,6 +39,42 @@ void main() {
       const <String>{'科幻'},
     );
   });
+
+  test('分类包含动漫和电影且自定义标签可参与多选筛选', () {
+    final local = _localSeries(
+      'local|动漫电影',
+      '动漫电影',
+      const <String>['动画', '科幻'],
+    );
+    final other = _series('local', '其他作品', const <String>['纪录片']);
+    const query = MediaLibraryQuery();
+    final custom = <String, Iterable<String>>{
+      '动漫电影': const <String>['收藏'],
+      '其他作品': const <String>['待看'],
+    };
+
+    expect(
+      query.availableCategories(<MediaLibrarySeries>[local, other],
+          sourceId: 'local'),
+      const <String>['动漫', '电影'],
+    );
+    expect(
+      query.availableCustomTags(<MediaLibrarySeries>[local, other],
+          sourceId: 'local', customTagsBySeries: custom),
+      const <String>['待看', '收藏'],
+    );
+    expect(
+      query
+          .apply(
+            series: <MediaLibrarySeries>[local, other],
+            sourceId: 'local',
+            selectedTags: const <String>{'动漫', '收藏'},
+            extraTagsBySeries: custom,
+          )
+          .map((item) => item.title),
+      const <String>['动漫电影'],
+    );
+  });
 }
 
 MediaLibrarySeries _series(
@@ -54,6 +92,49 @@ MediaLibrarySeries _series(
     sourceName: sourceId == 'local' ? '本地' : '网盘',
     isAvailable: true,
     episodes: const <MediaLibraryEpisode>[],
+    genres: genres,
+  );
+}
+
+MediaLibrarySeries _localSeries(
+  String key,
+  String title,
+  List<String> genres,
+) {
+  final item = LocalMediaIndexItem(
+    path: 'C:\\Media\\$title\\$title.mkv',
+    name: '$title.mkv',
+    parentPath: 'C:\\Media\\$title',
+    sourcePath: r'C:\Media',
+    size: 1,
+    modified: DateTime.utc(2026, 8, 4),
+    seriesName: title,
+    indexedAt: DateTime.utc(2026, 8, 4),
+    tmdb: TmdbMetadata(
+      id: 1,
+      mediaType: TmdbMediaType.movie,
+      title: title,
+      genres: genres,
+      language: 'zh-CN',
+      matchedAt: DateTime.utc(2026, 8, 4),
+      matchConfidence: 1,
+    ),
+  );
+  return MediaLibrarySeries(
+    key: key,
+    seriesKey: title,
+    title: title,
+    sourceKind: MediaSourceKind.local,
+    sourceId: 'local',
+    sourceName: '本地',
+    isAvailable: true,
+    episodes: <MediaLibraryEpisode>[
+      MediaLibraryEpisode.local(
+        stableId: item.id,
+        name: item.name,
+        localItem: item,
+      ),
+    ],
     genres: genres,
   );
 }

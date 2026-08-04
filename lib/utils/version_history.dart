@@ -150,6 +150,18 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.109',
+    date: '2026-08-04',
+    isPrerelease: true,
+    changes: [
+      '本轮只提供 Windows 2.1.109 测试版 MSIX，不构建或测试 Android 安装包',
+      '本地媒体库新增独立标签筛选入口，自动按 TMDB 信息提供动漫、电影和电视剧分类',
+      '保留 TMDB 类型筛选，并支持在每个本地作品菜单中新增、删除和持久化自定义标签',
+      '类型和自定义标签支持多选并匹配任一标签，自定义标签只作用于本地媒体库，不会混入网盘资源',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.108',
     date: '2026-08-04',
     isPrerelease: true,

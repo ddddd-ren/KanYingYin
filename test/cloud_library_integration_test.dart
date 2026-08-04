@@ -14,6 +14,7 @@ import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
+import 'package:kanyingyin/repositories/local_media_tag_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_indexer.dart';
@@ -775,6 +776,52 @@ void main() {
     expect(find.text('1 个作品暂时无法更新'), findsOneWidget);
     expect(find.byTooltip('刷新类型标签'), findsOneWidget);
   });
+
+  testWidgets('本地标签入口显示分类并支持保存自定义标签', (tester) async {
+    final controller = LocalController();
+    controller.localLibraryItems.add(
+      _genreLocal('custom-tag', '自定义作品', const <String>['动画']),
+    );
+    final tagRepository = _MemoryLocalMediaTagRepository();
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: LibrarySheetContent(
+          controller: controller,
+          tagRepository: tagRepository,
+          onPlay: (_, __) {},
+          onRefresh: () {},
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('筛选 TMDB 类型'));
+    await tester.pumpAndSettle();
+    expect(find.text('分类'), findsOneWidget);
+    expect(find.text('动漫'), findsOneWidget);
+    expect(find.text('电影'), findsOneWidget);
+    await tester.tapAt(const Offset(2, 2));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('播放选项'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('管理标签'));
+    await tester.pumpAndSettle();
+    final tagInput = find.byType(TextField).last;
+    await tester.enterText(tagInput, '收藏');
+    await tester.tap(find.byTooltip('添加标签'));
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('收藏'), findsOneWidget);
+    await tester.tap(find.byTooltip('筛选 TMDB 类型'));
+    await tester.pumpAndSettle();
+    expect(find.text('自定义标签'), findsOneWidget);
+    await tester.tap(_checkedGenreItem('收藏'));
+    await tester.pumpAndSettle();
+    expect(find.text('自定义作品'), findsOneWidget);
+  });
 }
 
 class _FakeTmdbClient implements ITmdbClient {
@@ -976,6 +1023,27 @@ Finder _checkedGenreItem(String value) {
   return find.byWidgetPredicate(
     (widget) => widget is CheckedPopupMenuItem<String> && widget.value == value,
   );
+}
+
+class _MemoryLocalMediaTagRepository implements ILocalMediaTagRepository {
+  final Map<String, List<String>> values = <String, List<String>>{};
+
+  @override
+  Map<String, List<String>> getAll() {
+    return values.map(
+      (key, tags) => MapEntry(key, List<String>.unmodifiable(tags)),
+    );
+  }
+
+  @override
+  Future<void> saveForSeries(String seriesKey, Iterable<String> tags) async {
+    final normalized = tags.toList(growable: false);
+    if (normalized.isEmpty) {
+      values.remove(seriesKey);
+    } else {
+      values[seriesKey] = normalized;
+    }
+  }
 }
 
 CloudSource _source(String id, String name,

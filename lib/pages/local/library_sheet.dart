@@ -9,6 +9,7 @@ import 'package:kanyingyin/pages/local/local_controller.dart';
 import 'package:kanyingyin/pages/local/local_series_detail_page.dart';
 import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
 import 'package:kanyingyin/pages/local/tmdb_scrape_options_sheet.dart';
+import 'package:kanyingyin/repositories/local_media_tag_repository.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
@@ -21,6 +22,7 @@ class LibrarySheetContent extends StatefulWidget {
     required this.onPlay,
     required this.onRefresh,
     this.headerActions = const <Widget>[],
+    this.tagRepository,
   });
 
   final LocalController controller;
@@ -28,6 +30,7 @@ class LibrarySheetContent extends StatefulWidget {
       onPlay;
   final VoidCallback onRefresh;
   final List<Widget> headerActions;
+  final ILocalMediaTagRepository? tagRepository;
 
   @override
   State<LibrarySheetContent> createState() => _LibrarySheetContentState();
@@ -37,8 +40,25 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
   final _searchCtrl = TextEditingController();
   String _query = '';
   String _sortBy = 'modified';
-  final Set<String> _selectedGenres = <String>{};
+  final Set<String> _selectedTags = <String>{};
   final MediaLibraryQuery _libraryQuery = const MediaLibraryQuery();
+  late final ILocalMediaTagRepository _tagRepository;
+  Map<String, List<String>> _customTagsBySeries = <String, List<String>>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _tagRepository = widget.tagRepository ?? LocalMediaTagRepository();
+    _reloadCustomTags();
+  }
+
+  void _reloadCustomTags() {
+    try {
+      _customTagsBySeries = _tagRepository.getAll();
+    } on Object {
+      _customTagsBySeries = <String, List<String>>{};
+    }
+  }
 
   @override
   void dispose() {
@@ -104,13 +124,14 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
           builder: (_) {
             final library = widget.controller.localMediaLibrary;
             if (library.series.isEmpty) return _empty(context, cs, tt);
-            final genreFiltered = _libraryQuery.apply(
+            final tagFiltered = _libraryQuery.apply(
               series: library.series,
               sourceId: 'local',
-              selectedGenres: _selectedGenres,
+              selectedTags: _selectedTags,
+              extraTagsBySeries: _customTagsBySeries,
             );
             final localSeriesKeys =
-                genreFiltered.map((item) => item.seriesKey).toSet();
+                tagFiltered.map((item) => item.seriesKey).toSet();
             final all = widget.controller.localLibrarySeries
                 .where((item) => localSeriesKeys.contains(item.key))
                 .toList(growable: false);
@@ -119,7 +140,7 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
               children: [
                 _header(cs, tt, library.series.length),
                 _searchBar(cs),
-                _genreRow(cs, tt, library),
+                _tagRow(cs, tt, library),
                 if (all.isNotEmpty) _sortRow(cs, tt),
                 Expanded(
                   child: series.isEmpty
@@ -238,10 +259,19 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
         ),
       );
 
-  Widget _genreRow(ColorScheme cs, TextTheme tt, CloudMediaLibrary library) {
+  Widget _tagRow(ColorScheme cs, TextTheme tt, CloudMediaLibrary library) {
+    final availableCategories = _libraryQuery.availableCategories(
+      library.series,
+      sourceId: 'local',
+    );
     final availableGenres = _libraryQuery.availableGenres(
       library.series,
       sourceId: 'local',
+    );
+    final availableCustomTags = _libraryQuery.availableCustomTags(
+      library.series,
+      sourceId: 'local',
+      customTagsBySeries: _customTagsBySeries,
     );
     final genreStatus = widget.controller.libraryGenreRefreshError;
     return Padding(
@@ -250,40 +280,27 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            if (availableGenres.isNotEmpty) ...[
-              Icon(Icons.sell_outlined, size: 17, color: cs.primary),
-              const SizedBox(width: 4),
-              PopupMenuButton<String>(
-                tooltip: '筛选 TMDB 类型',
-                onSelected: (value) => setState(() {
-                  if (value == '__clear__') {
-                    _selectedGenres.clear();
-                  } else if (!_selectedGenres.remove(value)) {
-                    _selectedGenres.add(value);
-                  }
-                }),
-                itemBuilder: (_) => <PopupMenuEntry<String>>[
-                  if (_selectedGenres.isNotEmpty)
-                    const PopupMenuItem<String>(
-                      value: '__clear__',
-                      child: Text('清除'),
-                    ),
-                  ...availableGenres.map(
-                    (genre) => CheckedPopupMenuItem<String>(
-                      value: genre,
-                      checked: _selectedGenres.contains(genre),
-                      child: Text(genre),
-                    ),
-                  ),
-                ],
-                child: Text(
-                  _selectedGenres.isEmpty
-                      ? '类型'
-                      : '类型 ${_selectedGenres.length}',
-                  style: tt.bodySmall,
-                ),
+            Icon(Icons.sell_outlined, size: 17, color: cs.primary),
+            const SizedBox(width: 4),
+            PopupMenuButton<String>(
+              tooltip: '筛选 TMDB 类型',
+              onSelected: (value) => setState(() {
+                if (value == '__clear__') {
+                  _selectedTags.clear();
+                } else if (!_selectedTags.remove(value)) {
+                  _selectedTags.add(value);
+                }
+              }),
+              itemBuilder: (_) => _tagMenuEntries(
+                availableCategories,
+                availableGenres,
+                availableCustomTags,
               ),
-            ],
+              child: Text(
+                _selectedTags.isEmpty ? '类型' : '类型 ${_selectedTags.length}',
+                style: tt.bodySmall,
+              ),
+            ),
           ]),
           if (widget.controller.isRefreshingLibraryGenres) ...[
             const SizedBox(height: 5),
@@ -323,6 +340,69 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
     );
   }
 
+  List<PopupMenuEntry<String>> _tagMenuEntries(
+    List<String> categories,
+    List<String> genres,
+    List<String> customTags,
+  ) {
+    final entries = <PopupMenuEntry<String>>[];
+    if (_selectedTags.isNotEmpty) {
+      entries.add(
+        const PopupMenuItem<String>(
+          value: '__clear__',
+          child: Text('清除'),
+        ),
+      );
+    }
+    if (categories.isNotEmpty) {
+      entries.add(const PopupMenuItem<String>(
+        enabled: false,
+        child: Text('分类'),
+      ));
+      entries.addAll(categories.map(_checkedTagItem));
+    }
+    if (genres.isNotEmpty) {
+      if (entries.isNotEmpty) entries.add(_menuSpacing());
+      entries.add(const PopupMenuItem<String>(
+        enabled: false,
+        child: Text('TMDB 类型'),
+      ));
+      entries.addAll(genres.map(_checkedTagItem));
+    }
+    if (customTags.isNotEmpty) {
+      if (entries.isNotEmpty) entries.add(_menuSpacing());
+      entries.add(const PopupMenuItem<String>(
+        enabled: false,
+        child: Text('自定义标签'),
+      ));
+      entries.addAll(customTags.map(_checkedTagItem));
+    }
+    if (entries.isEmpty ||
+        (categories.isEmpty && genres.isEmpty && customTags.isEmpty)) {
+      entries.add(const PopupMenuItem<String>(
+        enabled: false,
+        child: Text('暂无标签，请在作品菜单中添加'),
+      ));
+    }
+    return entries;
+  }
+
+  PopupMenuEntry<String> _checkedTagItem(String value) {
+    return CheckedPopupMenuItem<String>(
+      value: value,
+      checked: _selectedTags.contains(value),
+      child: Text(value),
+    );
+  }
+
+  PopupMenuEntry<String> _menuSpacing() {
+    return const PopupMenuItem<String>(
+      enabled: false,
+      height: 8,
+      child: SizedBox.shrink(),
+    );
+  }
+
   Widget _sortRow(ColorScheme cs, TextTheme tt) => Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
         child: Row(children: [
@@ -356,6 +436,7 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
     final info = _infoLine(series);
     final cover = _coverUrl(series);
     final summary = _summary(series);
+    final customTags = _customTagsBySeries[series.key] ?? const <String>[];
     return ExpansionTile(
       tilePadding: const EdgeInsets.symmetric(horizontal: 4),
       childrenPadding: const EdgeInsets.only(left: 8, right: 4, bottom: 8),
@@ -376,6 +457,27 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
                 overflow: TextOverflow.ellipsis,
                 style: tt.labelSmall
                     ?.copyWith(color: cs.primary, fontWeight: FontWeight.w500)),
+          if (customTags.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Wrap(
+                spacing: 4,
+                runSpacing: 2,
+                children: customTags
+                    .map(
+                      (tag) => Chip(
+                        label: Text(tag),
+                        visualDensity: VisualDensity.compact,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        labelStyle: tt.labelSmall?.copyWith(color: cs.primary),
+                        side: BorderSide(color: cs.outlineVariant),
+                        backgroundColor:
+                            cs.surfaceContainerHighest.withValues(alpha: 0.4),
+                      ),
+                    )
+                    .toList(growable: false),
+              ),
+            ),
         ],
       ),
       trailing: PopupMenuButton<String>(
@@ -383,6 +485,10 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
         onSelected: (v) async {
           if (v == 'editTitle') {
             await _editSeriesTitle(ctx, series);
+            return;
+          }
+          if (v == 'editTags') {
+            await _editSeriesTags(ctx, series);
             return;
           }
           if (v == 'scrape' || v == 'rematch') {
@@ -401,6 +507,17 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
         },
         itemBuilder: (_) => [
           const PopupMenuItem(value: 'details', child: Text('查看详情')),
+          const PopupMenuItem(
+            value: 'editTags',
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.sell_outlined, size: 18),
+                SizedBox(width: 8),
+                Text('管理标签'),
+              ],
+            ),
+          ),
           const PopupMenuItem(value: 'scrape', child: Text('刮削信息')),
           const PopupMenuItem(value: 'rematch', child: Text('重新匹配')),
           const PopupMenuItem(value: 'editTitle', child: Text('修改剧名')),
@@ -481,6 +598,53 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
               ? '已使用所选 TMDB 信息，部分封面下载失败'
               : '已使用所选 TMDB 信息'),
     ));
+  }
+
+  Future<void> _editSeriesTags(
+    BuildContext context,
+    LocalMediaSeries series,
+  ) async {
+    final initialTags = List<String>.from(
+      _customTagsBySeries[series.key] ?? const <String>[],
+    );
+    final tags = await showDialog<List<String>>(
+      context: context,
+      builder: (_) => _LocalMediaTagEditorDialog(
+        seriesTitle: series.displayTitle,
+        initialTags: initialTags,
+      ),
+    );
+    if (!context.mounted || tags == null) return;
+
+    try {
+      await _tagRepository.saveForSeries(series.key, tags);
+      if (!context.mounted) return;
+      setState(() {
+        if (tags.isEmpty) {
+          _customTagsBySeries.remove(series.key);
+        } else {
+          _customTagsBySeries[series.key] = List<String>.unmodifiable(tags);
+        }
+        final availableTags = _libraryQuery
+            .availableTags(
+              widget.controller.localMediaLibrary.series,
+              sourceId: 'local',
+              extraTagsBySeries: _customTagsBySeries,
+            )
+            .toSet();
+        _selectedTags.removeWhere(
+          (tag) => !availableTags.contains(tag),
+        );
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('标签已保存')),
+      );
+    } on Object {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('标签保存失败，请稍后重试')),
+      );
+    }
   }
 
   Future<void> _editSeriesTitle(
@@ -637,5 +801,108 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
     final l = t.toLocal();
     String two(int v) => v.toString().padLeft(2, '0');
     return '${l.year}-${two(l.month)}-${two(l.day)} ${two(l.hour)}:${two(l.minute)}';
+  }
+}
+
+class _LocalMediaTagEditorDialog extends StatefulWidget {
+  const _LocalMediaTagEditorDialog({
+    required this.seriesTitle,
+    required this.initialTags,
+  });
+
+  final String seriesTitle;
+  final List<String> initialTags;
+
+  @override
+  State<_LocalMediaTagEditorDialog> createState() =>
+      _LocalMediaTagEditorDialogState();
+}
+
+class _LocalMediaTagEditorDialogState
+    extends State<_LocalMediaTagEditorDialog> {
+  late final TextEditingController _inputController;
+  late final List<String> _tags;
+
+  @override
+  void initState() {
+    super.initState();
+    _inputController = TextEditingController();
+    _tags = List<String>.from(widget.initialTags);
+  }
+
+  @override
+  void dispose() {
+    _inputController.dispose();
+    super.dispose();
+  }
+
+  void _addTag([String? submitted]) {
+    final value = (submitted ?? _inputController.text).trim();
+    if (value.isEmpty || value.length > LocalMediaTagRepository.maxTagLength) {
+      return;
+    }
+    if (_tags.any((tag) => tag.toLowerCase() == value.toLowerCase())) {
+      _inputController.clear();
+      return;
+    }
+    if (_tags.length >= LocalMediaTagRepository.maxTagsPerSeries) return;
+    setState(() => _tags.add(value));
+    _inputController.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('管理标签 · ${widget.seriesTitle}'),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _inputController,
+              autofocus: true,
+              maxLength: LocalMediaTagRepository.maxTagLength,
+              decoration: InputDecoration(
+                hintText: '输入标签',
+                suffixIcon: IconButton(
+                  tooltip: '添加标签',
+                  onPressed: _addTag,
+                  icon: const Icon(Icons.add),
+                ),
+              ),
+              onSubmitted: _addTag,
+            ),
+            if (_tags.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: _tags
+                      .map(
+                        (tag) => InputChip(
+                          label: Text(tag),
+                          onDeleted: () => setState(() => _tags.remove(tag)),
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(List<String>.from(_tags)),
+          child: const Text('保存'),
+        ),
+      ],
+    );
   }
 }

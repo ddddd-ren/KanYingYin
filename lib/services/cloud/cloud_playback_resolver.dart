@@ -28,6 +28,8 @@ class CloudPlaybackTarget {
     required this.title,
     this.subtitleRemotePath,
     this.subtitleRemoteId,
+    this.posterUrl,
+    this.posterCachePath,
   });
 
   final String sourceId;
@@ -37,6 +39,8 @@ class CloudPlaybackTarget {
   final String title;
   final String? subtitleRemotePath;
   final String? subtitleRemoteId;
+  final String? posterUrl;
+  final String? posterCachePath;
 
   String get subtitleOffsetKey => cloudSubtitleOffsetKey(sourceId, remotePath);
 }

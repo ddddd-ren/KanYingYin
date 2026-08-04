@@ -1,6 +1,7 @@
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/app/bindings/cloud_bindings.dart';
 import 'package:kanyingyin/app/bindings/infrastructure_bindings.dart';
+import 'package:kanyingyin/app/bindings/history_bindings.dart';
 import 'package:kanyingyin/app/bindings/library_bindings.dart';
 import 'package:kanyingyin/app/bindings/playback_bindings.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
@@ -18,6 +19,7 @@ void registerApplicationBindings(
     i,
     tmdbCredentialManager: tmdbCredentialManager,
   );
+  registerHistoryBindings(i);
   registerCloudBindings(i);
   registerLibraryBindings(i);
   registerPlaybackBindings(i);

@@ -97,6 +97,7 @@ class SettingBoxKey {
       cloudWorkTmdbRecords = 'cloudWorkTmdbRecords',
       cloudSeriesMatchRules = 'cloudSeriesMatchRules',
       quarkImportHistory = 'quarkImportHistory',
+      playbackHistory = 'playbackHistory',
       localDefaultPath = 'localDefaultPath',
       localMinRecognizedVideoSizeBytes = 'localMinRecognizedVideoSizeBytes',
       cloudMinRecognizedVideoSizeBytes = 'cloudMinRecognizedVideoSizeBytes',

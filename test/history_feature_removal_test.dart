@@ -3,70 +3,53 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('用户界面不再提供历史记录和隐身模式', () {
+  test('设置页提供统一观看历史入口', () {
     final myPage = File('lib/pages/my/my_page.dart').readAsStringSync();
     final playerSettings =
         File('lib/pages/settings/player_settings.dart').readAsStringSync();
     final settingsModule =
         File('lib/pages/settings/settings_module.dart').readAsStringSync();
 
-    expect(myPage, isNot(contains('历史记录')));
+    expect(myPage, contains('观看历史'));
     expect(playerSettings, isNot(contains('privateMode')));
     expect(playerSettings, isNot(contains('隐身模式')));
-    expect(settingsModule, isNot(contains('HistoryModule')));
-    expect(settingsModule, isNot(contains('"/history"')));
+    expect(settingsModule, contains('HistoryPage'));
+    expect(settingsModule, contains('"/history"'));
   });
 
-  test('媒体库不再提供断点续播和观看进度', () {
-    final librarySheet =
-        File('lib/pages/local/library_sheet.dart').readAsStringSync();
+  test('历史功能同时覆盖本地与网盘来源', () {
+    final entry =
+        File('lib/features/history/domain/playback_history_entry.dart')
+            .readAsStringSync();
+    final controller =
+        File('lib/pages/video/video_page.dart').readAsStringSync();
 
-    for (final text in [
-      'continueEpisodeForSeries',
-      'nextEpisodeForSeries',
-      'getLocalPlaybackProgress',
-      '继续播放',
-      '下一集',
-      '已看到',
-    ]) {
-      expect(librarySheet, isNot(contains(text)), reason: text);
-    }
+    expect(entry, contains('PlaybackHistorySource.local'));
+    expect(entry, contains('PlaybackHistorySource.cloud'));
+    expect(controller, contains('buildPlaybackHistoryEntry'));
+    expect(controller, contains('resumePosition'));
   });
 
-  test('运行时不再注册或写入观看历史', () {
-    final indexModule = File('lib/pages/index_module.dart').readAsStringSync();
-    final playerItem =
-        File('lib/pages/player/player_item.dart').readAsStringSync();
-    final storage = File('lib/utils/storage.dart').readAsStringSync();
+  test('历史使用设置盒 JSON 存储，不引入 Hive 适配器', () {
+    final repository = File(
+      'lib/features/history/application/playback_history_repository.dart',
+    ).readAsStringSync();
+    final settings =
+        File('lib/features/settings/application/typed_settings.dart')
+            .readAsStringSync();
 
-    for (final text in [
-      'HistoryController',
-      'IHistoryRepository',
-      'HistoryRepository',
-      'updateHistory(',
-      'historySource',
-      'HistorySourceType',
-    ]) {
-      expect('$indexModule\n$playerItem', isNot(contains(text)));
-    }
-    expect(storage, isNot(contains('Box<History>')));
-    expect(storage, isNot(contains('HistoryAdapter')));
-    expect(storage, isNot(contains('ProgressAdapter')));
-    expect(storage, isNot(contains("privateMode = 'privateMode'")));
+    expect(repository, contains('SettingBoxKey.playbackHistory'));
+    expect(repository, contains('toJson()'));
+    expect(settings, contains("playbackHistory = 'playbackHistory'"));
   });
 
-  test('历史领域源码已删除', () {
-    for (final path in [
-      'lib/modules/history/history_module.dart',
-      'lib/modules/history/history_module.g.dart',
-      'lib/repositories/history_repository.dart',
-      'lib/pages/history/history_controller.dart',
-      'lib/pages/history/history_controller.g.dart',
-      'lib/pages/history/history_module.dart',
-      'lib/pages/history/history_page.dart',
-      'lib/bean/card/bangumi_history_card.dart',
-    ]) {
-      expect(File(path).existsSync(), isFalse, reason: path);
-    }
+  test('历史页面和绑定已注册', () {
+    expect(
+      File('lib/features/history/presentation/history_page.dart').existsSync(),
+      isTrue,
+    );
+    final bindings =
+        File('lib/app/bindings/history_bindings.dart').readAsStringSync();
+    expect(bindings, contains('PlaybackHistoryController'));
   });
 }

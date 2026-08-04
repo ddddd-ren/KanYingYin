@@ -92,6 +92,12 @@ class SettingsHubContent extends StatelessWidget {
               title: text('媒体识别'),
               description: text('设置本地与网盘视频的识别大小限制'),
             ),
+            KSettingsTile<void>.navigation(
+              onPressed: (_) => onOpenPath('/settings/history'),
+              leading: const Icon(Icons.history_outlined),
+              title: text('观看历史'),
+              description: text('继续播放本地媒体和网盘媒体'),
+            ),
           ],
         ),
         KSettingsSection(

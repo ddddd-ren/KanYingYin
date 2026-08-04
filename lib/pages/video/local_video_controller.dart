@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:kanyingyin/features/history/domain/playback_history_entry.dart';
 import 'package:kanyingyin/modules/roads/road_module.dart';
 import 'package:kanyingyin/modules/video/local_playback_session.dart';
 import 'package:kanyingyin/modules/video/playback_media_item.dart';
@@ -125,6 +126,66 @@ class LocalVideoController implements IVideoPageController {
       throw StateError('本地播放会话尚未初始化');
     }
     return value;
+  }
+
+  /// 构造当前剧集对应的观看历史记录。
+  PlaybackHistoryEntry? buildPlaybackHistoryEntry({
+    required Duration position,
+    required Duration duration,
+  }) {
+    final localSession = _session;
+    final cloudTargets = _cloudTargets;
+    if (localSession != null) {
+      final episode = localSession.currentEpisode;
+      return PlaybackHistoryEntry(
+        stableKey: _localHistoryKey(episode.id),
+        source: PlaybackHistorySource.local,
+        sourceId: 'local',
+        seriesTitle: localSession.seriesTitle,
+        episodeTitle: episode.title,
+        mediaPath: episode.path,
+        episodeIndex: localSession.currentIndex + 1,
+        positionSeconds: _seconds(position),
+        durationSeconds: _seconds(duration),
+        updatedAt: DateTime.now(),
+        posterCachePath: localSession.coverPath,
+      );
+    }
+    if (cloudTargets != null &&
+        currentEpisode >= 1 &&
+        currentEpisode <= cloudTargets.length) {
+      final target = cloudTargets[currentEpisode - 1];
+      return PlaybackHistoryEntry(
+        stableKey: _cloudHistoryKey(target),
+        source: PlaybackHistorySource.cloud,
+        sourceId: target.sourceId,
+        seriesTitle: _cloudSeriesTitle ?? title,
+        episodeTitle: target.title,
+        mediaPath: target.remotePath,
+        remoteId: target.remoteId,
+        episodeIndex: currentEpisode,
+        positionSeconds: _seconds(position),
+        durationSeconds: _seconds(duration),
+        updatedAt: DateTime.now(),
+        posterUrl: target.posterUrl,
+        posterCachePath: target.posterCachePath,
+      );
+    }
+    return null;
+  }
+
+  String? get currentPlaybackHistoryKey {
+    final localSession = _session;
+    if (localSession != null) {
+      return _localHistoryKey(localSession.currentEpisode.id);
+    }
+    final cloudTargets = _cloudTargets;
+    if (cloudTargets != null &&
+        currentEpisode >= 1 &&
+        currentEpisode <= cloudTargets.length) {
+      return _cloudHistoryKey(cloudTargets[currentEpisode - 1]);
+    }
+    return null;
   }
 
   void openSession(LocalPlaybackSession session) {
@@ -278,6 +339,7 @@ class LocalVideoController implements IVideoPageController {
       coverUrl: currentSession.coverPath,
       mediaTitle: currentSession.seriesTitle,
       subtitlePath: episode.subtitlePath,
+      stableMediaKey: _localHistoryKey(episode.id),
     );
   }
 
@@ -487,4 +549,16 @@ class LocalVideoController implements IVideoPageController {
     }
     return hash == 0 ? 1 : hash;
   }
+
+  static int _seconds(Duration value) {
+    final seconds = value.inSeconds;
+    if (seconds < 0) return 0;
+    if (seconds > 2147483647) return 2147483647;
+    return seconds;
+  }
+
+  static String _localHistoryKey(String episodeId) => 'local|$episodeId';
+
+  static String _cloudHistoryKey(CloudPlaybackTarget target) =>
+      '${target.sourceId}|${target.stableId}';
 }

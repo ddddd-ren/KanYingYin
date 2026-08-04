@@ -571,6 +571,8 @@ void main() {
       expect(find.text('已刮削'), findsOneWidget);
       final cardRect = tester.getRect(find.byType(ImmersiveMediaCard));
       final glassRect = tester.getRect(find.byType(GlassSurface));
+      expect(glassRect.left, closeTo(cardRect.left, 0.1));
+      expect(glassRect.right, closeTo(cardRect.right, 0.1));
       expect(glassRect.top, greaterThan(cardRect.top));
       expect(glassRect.bottom, closeTo(cardRect.bottom - 8, 0.1));
       expect(glassRect.height, lessThan(cardRect.height));

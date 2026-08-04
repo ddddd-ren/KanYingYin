@@ -1196,9 +1196,99 @@ class CloudResourcesController extends ChangeNotifier {
         workRevision != _workTmdbRecordsRevision) {
       _resourceTmdbRecordsRevision = resourceRevision;
       _workTmdbRecordsRevision = workRevision;
+      _syncIndexedTmdbMetadata();
       _invalidateCollection();
     }
     _notify();
+  }
+
+  void _syncIndexedTmdbMetadata() {
+    final sourceId = selectedSource?.id;
+    if (sourceId == null || _indexedItems.isEmpty) return;
+
+    final exactResourceRecords = <String, CloudResourceTmdbRecord>{};
+    final directoryResourceRecords = <CloudResourceTmdbRecord>[];
+    for (final record in tmdbRecords.values) {
+      if (record.sourceId != sourceId ||
+          record.status != CloudResourceTmdbStatus.matched ||
+          record.tmdbId == null ||
+          record.title?.trim().isNotEmpty != true) {
+        continue;
+      }
+      if (record.resourceKind == CloudResourceKind.directory) {
+        directoryResourceRecords.add(record);
+      } else {
+        exactResourceRecords[record.stableKey] = record;
+      }
+    }
+
+    final workRecords = <String, CloudWorkTmdbRecord>{
+      for (final record in workTmdbRecords.values)
+        if (record.sourceId == sourceId &&
+            record.status == CloudWorkTmdbStatus.matched &&
+            record.metadata != null)
+          record.workKey: record,
+    };
+    for (final entry in _indexedItems.entries) {
+      var item = entry.value;
+      final resourceRecord = exactResourceRecords[_resourceKeyForItem(item)] ??
+          _directoryRecordFor(item, directoryResourceRecords);
+      if (resourceRecord != null) {
+        item = item.replaceTmdb(
+          tmdbId: resourceRecord.tmdbId!,
+          tmdbTitle: resourceRecord.title!.trim(),
+          tmdbOriginalTitle: resourceRecord.originalTitle,
+          tmdbOverview: resourceRecord.overview,
+          tmdbRating: resourceRecord.rating,
+          tmdbPosterUrl: resourceRecord.posterUrl,
+          tmdbBackdropUrl: resourceRecord.backdropUrl,
+          tmdbGenres: resourceRecord.genres,
+          posterCachePath: resourceRecord.posterCachePath,
+        );
+      }
+      final workRecord =
+          item.workKey == null ? null : workRecords[item.workKey!];
+      final metadata = workRecord?.metadata;
+      if (metadata != null) {
+        item = item.replaceTmdb(
+          tmdbId: metadata.id,
+          tmdbTitle: metadata.title,
+          tmdbOriginalTitle: metadata.originalTitle,
+          tmdbOverview: metadata.overview,
+          tmdbRating: metadata.rating,
+          tmdbPosterUrl: metadata.posterUrl,
+          tmdbBackdropUrl: metadata.backdropUrl,
+          tmdbGenres: metadata.genres,
+          posterCachePath: workRecord!.posterCachePath,
+        );
+      }
+      _indexedItems[entry.key] = item;
+    }
+  }
+
+  CloudResourceTmdbRecord? _directoryRecordFor(
+    CloudMediaIndexItem item,
+    Iterable<CloudResourceTmdbRecord> records,
+  ) {
+    final itemPath = _normalizeCloudPath(item.remotePath);
+    for (final record in records) {
+      final targetPath = _normalizeCloudPath(record.remotePath);
+      if (itemPath.startsWith(targetPath == '/' ? '/' : '$targetPath/')) {
+        return record;
+      }
+    }
+    return null;
+  }
+
+  static String _normalizeCloudPath(String value) {
+    var path = value.trim().replaceAll('\\', '/');
+    path = path.replaceAll(RegExp(r'/+'), '/');
+    if (path.isEmpty) return '/';
+    if (!path.startsWith('/')) path = '/$path';
+    if (path.length > 1 && path.endsWith('/')) {
+      path = path.substring(0, path.length - 1);
+    }
+    return path;
   }
 
   void _notify() {

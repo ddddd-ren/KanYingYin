@@ -150,6 +150,19 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.108',
+    date: '2026-08-04',
+    isPrerelease: true,
+    changes: [
+      '本轮只提供 Windows 2.1.108 测试版 MSIX，不构建或测试 Android 安装包',
+      '修复网盘刮削完成后类型标签仍显示为空的问题，刮削得到的 TMDB 类型会立即用于当前网盘筛选',
+      '修复网盘 TMDB 索引重试路径遗漏类型标签的问题，重启应用后仍可保留已生成的标签',
+      '网盘标签菜单没有类型标签时仍显示“暂无类型标签”，并提供“刮削当前来源生成标签”入口',
+      '网盘资源类型筛选只作用于当前选择的网盘来源，不会混入本地媒体库或其他网盘来源',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.107',
     date: '2026-08-03',
     isPrerelease: true,

@@ -150,6 +150,17 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.111',
+    date: '2026-08-04',
+    isPrerelease: true,
+    changes: [
+      '本轮只提供 Windows 2.1.111 测试版 MSIX，不构建或测试 Android 安装包',
+      '修复已刮削并合并的网盘资源海报卡保存自定义标签后，标签未出现在筛选菜单中的问题',
+      '现有网盘标签继续按来源隔离，并同时支持单资源、作品和 TMDB 合并分组筛选',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.110',
     date: '2026-08-04',
     isPrerelease: true,

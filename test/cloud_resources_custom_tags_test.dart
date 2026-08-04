@@ -2,7 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
+import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_media_tag_repository.dart';
@@ -10,6 +12,8 @@ import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
+import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_tree_resolver.dart';
 
@@ -178,6 +182,104 @@ void main() {
     expect(controller.customTagsForGroup(group), <String>['收藏']);
     controller.toggleGenre('收藏');
     expect(controller.collection.groups.single.workKey, workKey);
+    controller.dispose();
+  });
+
+  test('已刮削的 TMDB 合并资源保存标签后仍可筛选', () async {
+    final credentials = MemoryCloudCredentialStore();
+    final sourceRepository = CloudSourceRepository(
+      storage: MemoryCloudSourceStorage(),
+      credentialStore: credentials,
+    );
+    const source = CloudSource(
+      id: 'tmdb-source',
+      type: CloudSourceType.openList,
+      name: 'TMDB 来源',
+      baseUrl: 'https://tmdb.example.com',
+      rootPaths: <String>['/影视'],
+    );
+    await sourceRepository.save(source);
+    const entry = CloudFileEntry(
+      id: 'tmdb-video',
+      remotePath: '/影视/电影.mkv',
+      name: '电影.mkv',
+      size: 1024,
+      modifiedAt: null,
+      isDirectory: false,
+    );
+    final item = CloudMediaIndexItem(
+      sourceId: source.id,
+      remoteId: entry.id,
+      remotePath: entry.remotePath,
+      name: entry.name,
+      size: entry.size,
+      modifiedAt: entry.modifiedAt,
+      seriesName: '电影',
+      mediaType: CloudMediaType.movie,
+    );
+    final indexRepository = CloudMediaIndexRepository(
+      storage: MemoryCloudMediaIndexStorage(),
+    );
+    await indexRepository.replaceSource(
+      source.id,
+      <CloudMediaIndexItem>[item],
+      const <String, String>{},
+      const <String, List<CloudFileEntry>>{},
+      const <String>['/影视'],
+    );
+    final tmdbRepository = CloudResourceTmdbRepository(
+      storage: MemoryCloudResourceTmdbStorage(),
+    );
+    await tmdbRepository.upsert(
+      CloudResourceTmdbRecord.matched(
+        sourceId: source.id,
+        remoteId: entry.id,
+        remotePath: entry.remotePath,
+        displayName: entry.name,
+        resourceKind: CloudResourceKind.standaloneVideo,
+        metadata: TmdbMetadata(
+          id: 42,
+          mediaType: TmdbMediaType.movie,
+          title: '中文电影',
+          language: 'zh-CN',
+          matchedAt: DateTime.utc(2026, 8, 4),
+          matchConfidence: 1,
+        ),
+        checkedAt: DateTime.utc(2026, 8, 4),
+      ),
+    );
+    final tmdbCoordinator = CloudResourceTmdbCoordinator(
+      repository: tmdbRepository,
+      serviceFactory: (_) => throw UnimplementedError(),
+      apiKeyProvider: () => '',
+    );
+    final controller = CloudResourcesController(
+      repository: sourceRepository,
+      credentialStore: credentials,
+      mediaIndexRepository: indexRepository,
+      mediaTagRepository: CloudMediaTagRepository(
+        storage: MemoryCloudMediaTagStorage(),
+      ),
+      tmdbCoordinator: tmdbCoordinator,
+      minRecognizedVideoSizeBytesProvider: () => 0,
+    );
+
+    await controller.reloadSourcesAndSnapshot(preferredSourceId: source.id);
+    await tmdbCoordinator.loadAndSchedule(
+      CloudResourceDirectoryContext(
+        source: source,
+        directory: const CloudRemoteRef(id: 'library', path: '/'),
+        entries: const <CloudFileEntry>[entry],
+        isConfiguredRoot: true,
+      ),
+    );
+    final group = controller.collection.groups.single;
+    expect(group.stableKey, 'tmdb-source|tmdb|movie|42');
+
+    await controller.saveCustomTags(group, const <String>['收藏']);
+    expect(controller.availableCustomTags, <String>['收藏']);
+    controller.toggleGenre('收藏');
+    expect(controller.collection.groups, hasLength(1));
     controller.dispose();
   });
 }

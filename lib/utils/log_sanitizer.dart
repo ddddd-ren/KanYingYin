@@ -20,6 +20,22 @@ class LogSanitizer {
     caseSensitive: false,
   );
 
+  static final RegExp _exportCredentialPattern = RegExp(
+    r'''(["']?\b(?:access[_-]?token|refresh[_-]?token|captcha[_-]?token|credit[_-]?key|creditkey|token|api[_-]?key|client[_-]?secret|cookie|authorization|signature|password|passwd|secret)\b["']?\s*[:=]\s*)(?!\[REDACTED\])(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*'|[^\s,;&}\]\r\n]+)''',
+    caseSensitive: false,
+  );
+
+  static final RegExp _quotedLocalPathPattern = RegExp(
+    r'''["'](?:[a-z]:[\\/]|\\\\|/(?:users|home)/)[^"'\r\n]*["']''',
+    caseSensitive: false,
+  );
+
+  static final RegExp _localPathPattern = RegExp(
+    r'''(^|[^a-z0-9])(?:[a-z]:[\\/]|\\\\|/(?:users|home)/)[^"'\r\n]*''',
+    caseSensitive: false,
+    multiLine: true,
+  );
+
   String sanitize(String input) {
     var result = input.replaceAllMapped(_remoteUrlPattern, (match) {
       final uri = Uri.tryParse(match.group(0)!);
@@ -37,6 +53,18 @@ class LogSanitizer {
     return result.replaceAllMapped(
       _keyValuePattern,
       (match) => '${match.group(1)}[REDACTED]',
+    );
+  }
+
+  String sanitizeForExport(String input) {
+    var result = sanitize(input).replaceAllMapped(
+      _exportCredentialPattern,
+      (match) => '${match.group(1)}[REDACTED]',
+    );
+    result = result.replaceAll(_quotedLocalPathPattern, '[LOCAL_PATH]');
+    return result.replaceAllMapped(
+      _localPathPattern,
+      (match) => '${match.group(1)}[LOCAL_PATH]',
     );
   }
 }

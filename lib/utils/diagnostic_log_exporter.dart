@@ -67,7 +67,7 @@ class DiagnosticLogExporter {
       ..addFile(
         ArchiveFile.string(
           'diagnostic.txt',
-          _sanitizer.sanitize(await _summaryProvider()),
+          _sanitizer.sanitizeForExport(await _summaryProvider()),
         ),
       );
     for (final logFile in await _writer.listLogFiles()) {
@@ -76,7 +76,7 @@ class DiagnosticLogExporter {
         archive.addFile(
           ArchiveFile.string(
             p.basename(logFile.path),
-            _sanitizer.sanitize(content),
+            _sanitizer.sanitizeForExport(content),
           ),
         );
       } on FileSystemException {

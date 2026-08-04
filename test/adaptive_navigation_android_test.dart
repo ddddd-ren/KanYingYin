@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/pages/menu/adaptive_navigation_shell.dart';
 import 'package:kanyingyin/pages/navigation/navigation_config.dart';
 
@@ -41,14 +42,16 @@ void main() {
     );
     expect(bottomSafeArea.top, isFalse);
     expect(bottomSafeArea.bottom, isTrue);
-    final bottomSurface = tester.widget<ColoredBox>(
+    final bottomSurface = tester.widget<GlassSurface>(
       find.byKey(const ValueKey<String>('compact-bottom-navigation-surface')),
     );
     expect(
       bottomSurface.color,
       Theme.of(tester.element(find.byType(NavigationBar)))
           .colorScheme
-          .surfaceContainerLow,
+          .surfaceContainerLow
+          .withValues(alpha: 0.78),
     );
+    expect(bottomSurface.blurSigma, 18);
   });
 }

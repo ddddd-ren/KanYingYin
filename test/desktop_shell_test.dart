@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/pages/menu/adaptive_navigation_shell.dart';
 import 'package:kanyingyin/pages/navigation/navigation_config.dart';
 import 'package:kanyingyin/theme/app_theme.dart';
@@ -77,13 +78,13 @@ void main() {
   testWidgets('桌面内容区使用中性表面而不是主色容器', (tester) async {
     await pumpShell(tester, width: 1280);
 
-    final surface = tester.widget<DecoratedBox>(
+    final surface = tester.widget<GlassSurface>(
       find.byKey(const ValueKey<String>('navigation-content-surface')),
     );
-    final decoration = surface.decoration as BoxDecoration;
     final colors = AppTheme.dark(fontFamily: 'MiSans').colorScheme;
-    expect(decoration.color, colors.surface);
-    expect(decoration.color, isNot(colors.primaryContainer));
-    expect(decoration.borderRadius, BorderRadius.circular(12));
+    expect(surface.color, colors.surface.withValues(alpha: 0.66));
+    expect(surface.color, isNot(colors.primaryContainer));
+    expect(surface.borderRadius, BorderRadius.circular(12));
+    expect(surface.blurSigma, 14);
   });
 }

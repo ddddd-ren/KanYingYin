@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/bean/widget/glass_surface.dart';
 
 enum ImmersiveMediaCardOverlayMode { hover, always }
 
@@ -62,7 +63,7 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: Material(
-        color: colors.surfaceContainerHighest.withValues(alpha: 0.55),
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -73,6 +74,15 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
             fit: StackFit.expand,
             children: [
               widget.cover,
+              GlassSurface(
+                borderRadius: BorderRadius.zero,
+                blurSigma: 3.5,
+                color: colors.surfaceContainerHighest.withValues(alpha: 0.12),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.16),
+                ),
+                child: const SizedBox.expand(),
+              ),
               AnimatedOpacity(
                 opacity: overlayVisible ? 1 : 0,
                 duration: const Duration(milliseconds: 160),

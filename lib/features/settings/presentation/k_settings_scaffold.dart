@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_motion.dart';
 
 /// 设置子页统一框架，负责标题栏、内容宽度与入场衔接。
@@ -24,6 +25,26 @@ class KSettingsScaffold extends StatelessWidget {
       appBar: AppBar(
         title: Text(title),
         actions: actions,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        flexibleSpace: GlassSurface(
+          borderRadius: BorderRadius.zero,
+          blurSigma: 20,
+          color: Theme.of(context)
+              .colorScheme
+              .surfaceContainerLow
+              .withValues(alpha: 0.78),
+          border: Border(
+            bottom: BorderSide(
+              color: Theme.of(context)
+                  .colorScheme
+                  .outlineVariant
+                  .withValues(alpha: 0.32),
+            ),
+          ),
+          child: const SizedBox.expand(),
+        ),
       ),
       body: _SettingsContentEntrance(
         child: Center(

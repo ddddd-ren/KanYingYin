@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 
 Future<void> showCloudMediaDetailsDialog({
@@ -18,33 +19,54 @@ class CloudMediaDetailsDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return GlassDialog(
       key: const ValueKey<String>('cloud-media-details-dialog'),
-      title: const Text('媒体详情'),
-      content: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560),
-        child: SingleChildScrollView(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 560,
+          maxHeight: MediaQuery.sizeOf(context).height * 0.76,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 22, 24, 14),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              _detail(context, '虚拟名称', item.displayName),
-              _detail(context, '作品标题', item.seriesName),
-              _detail(context, '网盘原名', item.remoteName),
-              _detail(context, '网盘路径', item.remotePath),
-              if (item.seasonNumber != null || item.episodeNumber != null)
-                _detail(context, '季集信息', _seasonEpisode(item)),
-              if (_releaseSummary(item).isNotEmpty)
-                _detail(context, '发布规格', _releaseSummary(item)),
+              Text(
+                '媒体详情',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 18),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      _detail(context, '虚拟名称', item.displayName),
+                      _detail(context, '作品标题', item.seriesName),
+                      _detail(context, '网盘原名', item.remoteName),
+                      _detail(context, '网盘路径', item.remotePath),
+                      if (item.seasonNumber != null ||
+                          item.episodeNumber != null)
+                        _detail(context, '季集信息', _seasonEpisode(item)),
+                      if (_releaseSummary(item).isNotEmpty)
+                        _detail(context, '发布规格', _releaseSummary(item)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('关闭'),
+                ),
+              ),
             ],
           ),
         ),
       ),
-      actions: [
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('关闭'),
-        ),
-      ],
     );
   }
 

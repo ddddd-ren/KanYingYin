@@ -99,7 +99,7 @@ void main() {
     expect(downloadCalls, 1);
   });
 
-  test('一个作品只请求一次详情并缓存实际三季海报', () async {
+  test('一个作品只请求一次详情并缓存全部季度海报', () async {
     final cacheRoot = await Directory.systemTemp.createTemp('work-tmdb-');
     addTearDown(() => cacheRoot.delete(recursive: true));
     final work = _work();
@@ -154,12 +154,13 @@ void main() {
       '${work.workKey}|season:1',
       '${work.workKey}|season:2',
       '${work.workKey}|season:3',
+      '${work.workKey}|season:4',
     ]);
     expect(
       outcome.record.seasons.map((season) => season.seasonNumber),
-      <int>[1, 2, 3],
+      <int>[1, 2, 3, 4],
     );
-    expect(outcome.record.seasons.last.posterCachePath, 'cache-4.jpg');
+    expect(outcome.record.seasons.last.posterCachePath, 'cache-5.jpg');
     expect(outcome.record.tmdbMatchOrigin, TmdbMatchOrigin.manual);
     expect(outcome.record.tmdbRuleVersion, currentTmdbRuleVersion);
     expect(outcome.updatedIndexItems, 3);
@@ -214,6 +215,55 @@ void main() {
     expect(client.searchedTypes, everyElement(TmdbMediaType.tv));
     expect(candidates.single.title, '英文别名');
     expect(service.requestFor(work, record).queryYear, isNull);
+  });
+
+  test('第二季度标题带末尾数字时搜索正剧并保留全部季度海报', () async {
+    final cacheRoot = await Directory.systemTemp.createTemp('work-s02-tmdb-');
+    addTearDown(() => cacheRoot.delete(recursive: true));
+    final work = _work(
+      displayTitle: 'Isekai Nonbiri Nouka 2',
+      titleCandidates: const <String>['Isekai Nonbiri Nouka 2'],
+      seasonNumbers: const <int>[2],
+    );
+    final cache = _RecordingPosterCache(cacheRoot);
+    final client = _FakeTmdbClient(
+      detail: _details(),
+      searches: <String, List<TmdbMetadata>>{
+        'Isekai Nonbiri Nouka': <TmdbMetadata>[
+          _candidate('Isekai Nonbiri Nouka'),
+        ],
+      },
+    );
+    final service = CloudWorkTmdbService(
+      repository: CloudWorkTmdbRepository(
+        storage: MemoryCloudWorkTmdbStorage(),
+      ),
+      indexRepository: CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      ),
+      client: client,
+      posterCache: cache,
+    );
+
+    final request = service.requestFor(work, null);
+    expect(request.queryTitle, 'Isekai Nonbiri Nouka');
+
+    final candidates = await service.searchCandidates(work);
+    expect(candidates.single.title, 'Isekai Nonbiri Nouka');
+
+    final outcome = await service.select(
+      work,
+      candidates.single,
+      existingSeasons: const <int>{2},
+    );
+
+    expect(
+      outcome.record.seasons.map((season) => season.seasonNumber),
+      <int>[1, 2, 3, 4],
+    );
+    expect(outcome.record.seasons[1].posterUrl, '/season-2.jpg');
+    expect(outcome.record.seasons[1].posterCachePath, isNotNull);
+    expect(cache.stableIds, contains('${work.workKey}|season:2'));
   });
 
   test('共同分集文件标题作为回魂计的第一搜索候选', () async {
@@ -272,12 +322,13 @@ void main() {
     expect(outcome.posterCached, isFalse);
     expect(
       outcome.record.seasons.map((season) => season.seasonNumber),
-      <int>[1, 2, 3],
+      <int>[1, 2, 3, 4],
     );
     expect(outcome.record.seasons[0].posterCachePath, isNotNull);
     expect(outcome.record.seasons[1].posterCachePath, isNull);
     expect(outcome.record.seasons[1].posterUrl, '/season-2.jpg');
     expect(outcome.record.seasons[2].posterCachePath, isNotNull);
+    expect(outcome.record.seasons[3].posterCachePath, isNotNull);
     expect(outcome.record.status, CloudWorkTmdbStatus.matched);
   });
 
@@ -309,6 +360,7 @@ void main() {
 CloudWorkIdentity _work({
   String displayTitle = '规范剧名',
   List<String> titleCandidates = const <String>['规范剧名'],
+  List<int> seasonNumbers = const <int>[1, 2, 3],
 }) {
   const root = CloudFileEntry(
     id: 'work-id',
@@ -327,7 +379,7 @@ CloudWorkIdentity _work({
     displayTitle: displayTitle,
     titleCandidates: titleCandidates,
     seasons: <CloudSeasonIdentity>[
-      for (var season = 1; season <= 3; season++)
+      for (final season in seasonNumbers)
         CloudSeasonIdentity(
           workKey: workKey,
           seasonNumber: season,
@@ -461,11 +513,11 @@ TmdbMetadata _details() => TmdbMetadata(
       matchedAt: DateTime.utc(2026, 7, 20),
       matchConfidence: 1,
       seasons: <TmdbSeasonMetadata>[
-        for (var season = 0; season <= 4; season++)
+        for (var season = 1; season <= 4; season++)
           TmdbSeasonMetadata(
             id: season * 100,
             seasonNumber: season,
-            name: season == 0 ? '特别篇' : '第 $season 季',
+            name: '第 $season 季',
             episodeCount: 8,
             posterUrl: '/season-$season.jpg',
           ),

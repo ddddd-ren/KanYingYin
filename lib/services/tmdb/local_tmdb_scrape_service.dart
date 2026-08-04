@@ -176,7 +176,10 @@ class LocalTmdbScrapeService {
             poster: item.posterLocked,
           ),
           matchConfidence: best.score,
-          existingSeasons: subject.seasonNumbers,
+          // 本地索引按季度选海报，但保存的作品资料必须包含全部季度。
+          existingSeasons: details.mediaType == TmdbMediaType.tv
+              ? const <int>{}
+              : subject.seasonNumbers,
         );
         merged.add(metadata);
         await indexRepository.updateItem(
@@ -246,7 +249,10 @@ class LocalTmdbScrapeService {
             poster: item.posterLocked,
           ),
           matchConfidence: 1,
-          existingSeasons: subject.seasonNumbers,
+          // 本地索引按季度选海报，但保存的作品资料必须包含全部季度。
+          existingSeasons: details.mediaType == TmdbMediaType.tv
+              ? const <int>{}
+              : subject.seasonNumbers,
         );
         merged.add(metadata);
         await indexRepository.updateItem(

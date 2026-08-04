@@ -31,6 +31,23 @@ void main() {
     expect(plan.mediaTypes, <TmdbMediaType>[TmdbMediaType.tv]);
   });
 
+  test('电视剧标题末尾的当前季度数字会从搜索词中移除', () {
+    const subject = TmdbScrapeSubject(
+      stableKey: 'isekai-nonbiri-s02',
+      titleCandidates: <String>['Isekai Nonbiri Nouka 2'],
+      seasonNumbers: <int>{2},
+      mediaEvidence: TmdbMediaEvidence.tv,
+    );
+
+    final plan = policy.build(
+      subject,
+      const TmdbScrapeOptions.defaults(),
+    );
+
+    expect(plan.queries, <String>['Isekai Nonbiri Nouka']);
+    expect(plan.mediaTypes, <TmdbMediaType>[TmdbMediaType.tv]);
+  });
+
   test('未显式提供年份时从标题中提取且不保留在搜索词', () {
     const subject = TmdbScrapeSubject(
       stableKey: 'movie',

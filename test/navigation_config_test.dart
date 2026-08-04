@@ -9,6 +9,7 @@ void main() {
     expect(appNavigationDestinations.map((item) => item.label), [
       '本地媒体库',
       '网盘媒体库',
+      '观看历史',
       '设置',
     ]);
     expect(appNavigationDestinations.first.path, '/local');

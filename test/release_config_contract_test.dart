@@ -8,13 +8,13 @@ void main() {
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
 
-    expect(pubspec, contains('version: 2.1.118+20118'));
-    expect(pubspec, contains('msix_version: 2.1.118.0'));
+    expect(pubspec, contains('version: 2.1.119+20119'));
+    expect(pubspec, contains('msix_version: 2.1.119.0'));
     for (final source in <String>[releaseNotes, updateDialogCopy]) {
       expect(source, contains('Windows 测试版'));
       expect(source, contains('Android 测试版'));
-      expect(source, contains('2.1.118'));
-      expect(source, contains('20118'));
+      expect(source, contains('2.1.119'));
+      expect(source, contains('20119'));
       expect(source, contains('测试版'));
     }
   });

@@ -233,7 +233,11 @@ class CloudWorkTmdbService {
       options: options,
       locks: subject.fieldLocks,
       matchConfidence: candidate.matchConfidence,
-      existingSeasons: existingSeasons,
+      // 作品记录需要保留完整季度资料，海报墙才能在跨目录归并后显示
+      // 任意季度的 TMDB 海报；当前作品实际包含哪些季度由索引项决定。
+      existingSeasons: candidate.mediaType == TmdbMediaType.tv
+          ? const <int>{}
+          : existingSeasons,
     );
     var posterCached = true;
     String? posterCachePath;
@@ -256,7 +260,9 @@ class CloudWorkTmdbService {
       }
     }
 
-    final actualSeasons = metadata.seasons;
+    final actualSeasons = metadata.seasons
+        .where((season) => season.seasonNumber > 0)
+        .toList(growable: false);
     if (_posterCache != null && options.fetchPoster) {
       final cachedSeasons = <TmdbSeasonMetadata>[];
       for (final season in actualSeasons) {

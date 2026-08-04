@@ -6,8 +6,8 @@ import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
   test('二点一一八 Flutter、Windows 与 Android 版本保持一致', () {
-    const expectedVersion = '2.1.118';
-    const expectedBuildNumber = '20118';
+    const expectedVersion = '2.1.119';
+    const expectedBuildNumber = '20119';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final androidGradle =

@@ -215,16 +215,34 @@ class CloudResourceCollectionGrouper {
     final uniqueWorks = <String, CloudWorkIdentity>{
       for (final work in works) work.workKey: work,
     };
+    final matchedKeysByTitle = <String, Set<String>>{};
+    for (final work in uniqueWorks.values) {
+      final record = recordsByWorkKey[work.workKey];
+      final matchedKey = _matchedWorkGroupKey(work.sourceId, record);
+      if (matchedKey == null) continue;
+      for (final title in _workTitleAliases(work, record)) {
+        matchedKeysByTitle.putIfAbsent(title, () => <String>{}).add(matchedKey);
+      }
+    }
     final aggregates = <String, _CloudWorkAggregate>{};
     for (final work in uniqueWorks.values) {
       final workItems = itemsByWorkKey[work.workKey];
       if (workItems == null || workItems.isEmpty) continue;
       final record = recordsByWorkKey[work.workKey];
-      final aggregateKey =
-          _matchedWorkGroupKey(work.sourceId, record) ?? work.workKey;
+      var aggregateKey = _matchedWorkGroupKey(work.sourceId, record);
+      if (aggregateKey == null && work.seasons.isNotEmpty) {
+        final inheritedKeys = <String>{};
+        for (final title in _workTitleAliases(work, record)) {
+          inheritedKeys.addAll(matchedKeysByTitle[title] ?? const <String>{});
+        }
+        if (inheritedKeys.length == 1) {
+          aggregateKey = inheritedKeys.single;
+        }
+      }
+      final resolvedAggregateKey = aggregateKey ?? work.workKey;
       final aggregate = aggregates.putIfAbsent(
-        aggregateKey,
-        () => _CloudWorkAggregate(key: aggregateKey),
+        resolvedAggregateKey,
+        () => _CloudWorkAggregate(key: resolvedAggregateKey),
       );
       aggregate.works.add(work);
       aggregate.items.addAll(workItems);
@@ -233,7 +251,7 @@ class CloudResourceCollectionGrouper {
 
     final groups = <CloudResourceMediaGroup>[];
     for (final aggregate in aggregates.values) {
-      final representative = aggregate.works.first;
+      final representative = _representativeWork(aggregate, recordsByWorkKey);
       final record = _mergeWorkRecords(
         representative,
         aggregate.records,
@@ -480,6 +498,61 @@ class CloudResourceCollectionGrouper {
       return null;
     }
     return '$sourceId|tmdb|${metadata.mediaType.name}|${metadata.id}';
+  }
+
+  CloudWorkIdentity _representativeWork(
+    _CloudWorkAggregate aggregate,
+    Map<String, CloudWorkTmdbRecord> recordsByWorkKey,
+  ) {
+    return aggregate.works.reduce((first, second) {
+      final firstRecord = recordsByWorkKey[first.workKey];
+      final secondRecord = recordsByWorkKey[second.workKey];
+      final firstKey = _matchedWorkGroupKey(first.sourceId, firstRecord);
+      final secondKey = _matchedWorkGroupKey(second.sourceId, secondRecord);
+      if (firstKey == null && secondKey != null) return second;
+      return first;
+    });
+  }
+
+  Iterable<String> _workTitleAliases(
+    CloudWorkIdentity work,
+    CloudWorkTmdbRecord? record,
+  ) sync* {
+    final seasonNumbers = work.seasons
+        .map((season) => season.seasonNumber)
+        .where((season) => season > 0)
+        .toSet();
+    final candidates = <String?>[
+      ...work.titleCandidates,
+      work.displayTitle,
+      work.remoteName,
+      record?.metadata?.title,
+      record?.metadata?.originalTitle,
+    ];
+    final seen = <String>{};
+    for (final candidate in candidates) {
+      final normalized = _normalizeWorkTitle(candidate, seasonNumbers);
+      if (normalized.isNotEmpty && seen.add(normalized)) yield normalized;
+    }
+  }
+
+  String _normalizeWorkTitle(String? value, Set<int> seasonNumbers) {
+    var normalized = value?.trim().toLowerCase() ?? '';
+    if (normalized.isEmpty) return normalized;
+    normalized = normalized
+        .replaceAll(RegExp(r'\[[^\]]*\]|【[^】]*】'), ' ')
+        .replaceAll(RegExp(r'第\s*[0-9一二三四五六七八九十百]+\s*[季期部篇章]'), ' ')
+        .replaceAll(RegExp(r'\b(?:season|series|s)\s*0*(\d{1,2})\b'), ' ')
+        .replaceAll(RegExp(r'[._\-:：·!！?？,，、~～()（）]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (seasonNumbers.length == 1) {
+      final season = seasonNumbers.single;
+      normalized = normalized
+          .replaceFirst(RegExp(r'\s+0?' + season.toString() + r'\s*$'), '')
+          .trim();
+    }
+    return normalized.replaceAll(' ', '');
   }
 
   CloudWorkTmdbRecord? _mergeWorkRecords(

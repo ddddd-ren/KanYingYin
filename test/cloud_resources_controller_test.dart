@@ -11,6 +11,7 @@ import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 import 'package:kanyingyin/repositories/cloud_hidden_video_repository.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
+import 'package:kanyingyin/repositories/cloud_media_tag_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
@@ -364,6 +365,101 @@ void main() {
 
       expect(controller.availableGenres, <String>['科幻']);
       expect(controller.visibleIndexedItems.single.tmdbGenres, <String>['科幻']);
+      controller.toggleGenre('科幻');
+      expect(controller.selectedGenres, const <String>{'科幻'});
+
+      coordinator.publish(
+        CloudResourceTmdbRecord.matched(
+          sourceId: source.id,
+          remoteId: 'label-video',
+          remotePath: '/影视/待刮削.mkv',
+          displayName: '待刮削.mkv',
+          resourceKind: CloudResourceKind.standaloneVideo,
+          metadata: TmdbMetadata(
+            id: 43,
+            mediaType: TmdbMediaType.movie,
+            title: '另一个中文标题',
+            language: 'zh-CN',
+            matchedAt: _matchedAt,
+            matchConfidence: 1,
+            genres: const <String>['纪录片'],
+          ),
+          checkedAt: _matchedAt,
+        ),
+      );
+
+      expect(controller.selectedGenres, isEmpty);
+      expect(controller.availableGenres, <String>['纪录片']);
+      controller.dispose();
+    });
+
+    test('标签读取期间切换来源不会提交旧来源快照', () async {
+      final credentials = MemoryCloudCredentialStore();
+      final sourceRepository = CloudSourceRepository(
+        storage: MemoryCloudSourceStorage(),
+        credentialStore: credentials,
+      );
+      const sourceA = CloudSource(
+        id: 'tag-race-a',
+        type: CloudSourceType.openList,
+        name: '标签来源 A',
+        baseUrl: 'https://tag-a.example.com',
+        rootPaths: <String>['/'],
+      );
+      const sourceB = CloudSource(
+        id: 'tag-race-b',
+        type: CloudSourceType.openList,
+        name: '标签来源 B',
+        baseUrl: 'https://tag-b.example.com',
+        rootPaths: <String>['/'],
+      );
+      await sourceRepository.save(sourceA);
+      await sourceRepository.save(sourceB);
+      final indexRepository = CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      );
+      await indexRepository.replaceSource(
+        sourceA.id,
+        <CloudMediaIndexItem>[
+          _scopedCloudEpisode(sourceA.id, 'old', '/旧.mkv', '旧来源'),
+        ],
+        const <String, String>{},
+        const <String, List<CloudFileEntry>>{},
+        const <String>['/'],
+      );
+      await indexRepository.replaceSource(
+        sourceB.id,
+        <CloudMediaIndexItem>[
+          _scopedCloudEpisode(sourceB.id, 'new', '/新.mkv', '新来源'),
+        ],
+        const <String, String>{},
+        const <String, List<CloudFileEntry>>{},
+        const <String>['/'],
+      );
+      final tagRepository = _DelayedCloudMediaTagRepository();
+      final controller = CloudResourcesController(
+        repository: sourceRepository,
+        credentialStore: credentials,
+        mediaIndexRepository: indexRepository,
+        mediaTagRepository: tagRepository,
+        minRecognizedVideoSizeBytesProvider: () => 0,
+      );
+
+      final firstLoad = controller.reloadSourcesAndSnapshot(
+        preferredSourceId: sourceA.id,
+      );
+      await tagRepository.sourceAReadStarted.future;
+
+      await controller.reloadSourcesAndSnapshot(
+        preferredSourceId: sourceB.id,
+      );
+      expect(controller.selectedSource?.id, sourceB.id);
+      expect(controller.entries.single.name, 'S01E01.mkv');
+
+      tagRepository.releaseSourceA();
+      await firstLoad;
+      expect(controller.selectedSource?.id, sourceB.id);
+      expect(controller.entries.single.name, 'S01E01.mkv');
       controller.dispose();
     });
 
@@ -2176,4 +2272,32 @@ class _DelayedCloudClient extends _FakeCloudClient {
     listed.add(directory);
     return _completer.future;
   }
+}
+
+class _DelayedCloudMediaTagRepository implements ICloudMediaTagRepository {
+  final Completer<void> sourceAReadStarted = Completer<void>();
+  final Completer<void> _sourceARelease = Completer<void>();
+
+  void releaseSourceA() {
+    if (!_sourceARelease.isCompleted) _sourceARelease.complete();
+  }
+
+  @override
+  Future<Map<String, List<String>>> getBySource(String sourceId) async {
+    if (sourceId == 'tag-race-a') {
+      if (!sourceAReadStarted.isCompleted) sourceAReadStarted.complete();
+      await _sourceARelease.future;
+    }
+    return <String, List<String>>{};
+  }
+
+  @override
+  Future<void> removeSource(String sourceId) async {}
+
+  @override
+  Future<void> saveForResource(
+    String sourceId,
+    String resourceKey,
+    Iterable<String> tags,
+  ) async {}
 }

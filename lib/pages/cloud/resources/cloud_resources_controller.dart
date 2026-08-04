@@ -602,6 +602,7 @@ class CloudResourcesController extends ChangeNotifier {
     } on Object {
       customTags = <String, List<String>>{};
     }
+    if (!_isCurrent(generation) || selectedSource?.id != source.id) return;
     final scopedItems = snapshot.items
         .where(
           (item) => CloudSourcePathScope.containsSourcePath(
@@ -1322,6 +1323,7 @@ class CloudResourcesController extends ChangeNotifier {
       _resourceTmdbRecordsRevision = resourceRevision;
       _workTmdbRecordsRevision = workRevision;
       _syncIndexedTmdbMetadata();
+      _reconcileSelectedGenres();
       _invalidateCollection();
     }
     _notify();

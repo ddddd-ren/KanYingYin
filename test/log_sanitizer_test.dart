@@ -58,9 +58,9 @@ void main() {
 
   test('对外脱敏覆盖结构化、查询串和 camelCase 凭据字段', () {
     const input = '''
-{"accessToken":"json-access-value","refresh_token":"json-refresh-value","clientSecret":"json-client-value","apiKey":"json-api-value","password":"json-password-value","cookie":"sid=json-cookie-value","authorization":"Bearer json-authorization-value"}
-{accessToken: map-access-value, refreshToken: map-refresh-value, client_secret: map-client-value, api_key: map-api-value, password: map-password-value, cookie: map-cookie-value, authorization: map-authorization-value}
-accessToken=query-access-value&refresh_token=query-refresh-value&clientSecret=query-client-value&apiKey=query-api-value&password=query-password-value&cookie=query-cookie-value&authorization=query-authorization-value
+{"accessToken":"json-access-value","refresh_token":"json-refresh-value","clientSecret":"json-client-value","apiKey":"json-api-value","password":"json-password-value","cookie":"sid=json-cookie-value","authorization":"Bearer json-authorization-value","public":"json-visible"}
+{accessToken: map-access-value, refreshToken: map-refresh-value, client_secret: map-client-value, api_key: map-api-value, password: map-password-value, cookie: map-cookie-value, authorization: map-authorization-value, status: map-visible}
+accessToken=query-access-value&refresh_token=query-refresh-value&clientSecret=query-client-value&apiKey=query-api-value&password=query-password-value&cookie=query-cookie-value&authorization=query-authorization-value&public=query-visible
 ''';
 
     final result = sanitizer.sanitizeForExport(input);
@@ -90,6 +90,38 @@ accessToken=query-access-value&refresh_token=query-refresh-value&clientSecret=qu
     ]) {
       expect(result, isNot(contains(secret)), reason: secret);
     }
+    expect(result, contains('"public":"json-visible"'));
+    expect(result, contains('status: map-visible'));
+    expect(result, contains('&public=query-visible'));
+  });
+
+  test('对外脱敏完整隐藏未加引号且含空格的凭据值', () {
+    const input = '''
+Authorization: Basic dXNlcjpwYXNz
+{password: map-first map-second map-third, status: map-visible, apiKey: map-api-secret}
+password=loose-first loose-second nextField=loose-visible
+{"password":"json secret words","public":"json-visible"}
+password=query-secret&public=query-visible
+''';
+
+    final result = sanitizer.sanitizeForExport(input);
+
+    for (final secret in <String>[
+      'dXNlcjpwYXNz',
+      'map-second',
+      'map-third',
+      'map-api-secret',
+      'loose-second',
+      'json secret words',
+      'query-secret',
+    ]) {
+      expect(result, isNot(contains(secret)), reason: secret);
+    }
+    expect(result, contains('Authorization: [REDACTED]'));
+    expect(result, contains('status: map-visible'));
+    expect(result, contains('nextField=loose-visible'));
+    expect(result, contains('"public":"json-visible"'));
+    expect(result, contains('&public=query-visible'));
   });
 
   test('对外脱敏隐藏 Windows、UNC、macOS 和 Linux 本地路径', () {
@@ -105,5 +137,19 @@ linux="/home/local-user/private-library/movie.mkv"
     expect('[LOCAL_PATH]'.allMatches(result), hasLength(4));
     expect(result, isNot(contains('local-user')));
     expect(result.toLowerCase(), isNot(contains('private')));
+  });
+
+  test('对外脱敏完整隐藏包含撇号的本地路径', () {
+    const input = '''
+quoted="/Users/alice/O'Reilly/Private/movie.mkv"
+plain=/home/alice/O'Reilly/Private/movie.mkv
+''';
+
+    final result = sanitizer.sanitizeForExport(input);
+
+    expect('[LOCAL_PATH]'.allMatches(result), hasLength(2));
+    expect(result, isNot(contains('alice')));
+    expect(result, isNot(contains("O'Reilly")));
+    expect(result, isNot(contains('Private')));
   });
 }

@@ -34,12 +34,14 @@ void main() {
       r'{"accessToken":"active-token-value","cookie":"active-cookie-value"} '
       r'media="D:\Users\local-user\Private Media\active.mkv"',
     );
+    await writer.write('Authorization: Basic active-basic-value');
     await File(
       '${tempDir.path}${Platform.pathSeparator}kanyingyin-history.log',
     ).writeAsString(
       r'{refreshToken: history-token-value, '
-      r'clientSecret: history-secret-value} '
-      r'source="\\media-server\local-user\Private Share\history.mkv"',
+      r'clientSecret: history-secret-value, '
+      r'password: history-first history-second history-third} '
+      r'''source="\\media-server\local-user\O'Reilly\Private Share\history.mkv"''',
     );
     final original = File(
       '${tempDir.path}${Platform.pathSeparator}${RotatingLogWriter.activeFileName}',
@@ -77,11 +79,15 @@ void main() {
       'https://download.xunlei.com/private-fixture',
       'active-token-value',
       'active-cookie-value',
+      'active-basic-value',
       'history-token-value',
       'history-secret-value',
+      'history-second',
+      'history-third',
       'summary-token-value',
       'summary-secret-value',
       'local-user',
+      "O'Reilly",
       'Private Media',
       'Private Share',
       'Private Profile',

@@ -3,7 +3,8 @@ param(
   [string]$FlutterPath = 'D:\flutter\bin\flutter.bat',
   [string]$DartPath = 'D:\flutter\bin\dart.bat',
   [string]$SigningDirectory = (Join-Path $env:USERPROFILE '.kanyingyin\signing'),
-  [string]$DesktopDirectory = (Join-Path $env:USERPROFILE 'Desktop')
+  [string]$DesktopDirectory = (Join-Path $env:USERPROFILE 'Desktop'),
+  [string]$TimestampUrl = 'http://timestamp.digicert.com'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -257,12 +258,14 @@ try {
   $plainPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
   $signTool = Get-SignToolPath
   Invoke-Checked -Executable $signTool -Arguments @(
-    'sign', '/fd', 'SHA256', '/a', '/f', $pfxPath, '/p', $plainPassword, $generatedMsix
+    'sign', '/fd', 'SHA256', '/tr', $TimestampUrl, '/td', 'SHA256',
+    '/a', '/f', $pfxPath, '/p', $plainPassword, $generatedMsix
   )
   Invoke-Checked -Executable $signTool -Arguments @('verify', '/pa', '/v', $generatedMsix)
 
   $signature = Get-AuthenticodeSignature -LiteralPath $generatedMsix
   if ($signature.Status -ne 'Valid') { throw '生成的 MSIX 签名状态无效' }
+  if ($null -eq $signature.TimeStamperCertificate) { throw '生成的 MSIX 缺少 RFC3161 时间戳' }
 
   Add-Type -AssemblyName System.IO.Compression
   Add-Type -AssemblyName System.IO.Compression.FileSystem

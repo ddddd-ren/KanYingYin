@@ -150,6 +150,18 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.116',
+    date: '2026-08-05',
+    isPrerelease: true,
+    changes: [
+      '本轮同步提供 Windows 与 Android 2.1.116 测试版，分别使用 MSIX、APK 和 AAB 交付',
+      'Android 版本现在直接跟随 Flutter 与 Windows 的统一版本配置，避免安装包版本号与应用版本不一致',
+      '导出的诊断日志使用更严格的脱敏，隐藏本地文件路径、多段 Cookie、Authorization 和结构化密钥，分享日志时更好地保护隐私',
+      '本机运行日志仍保留必要的本地路径信息，便于用户自行排查扫描和播放问题',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.115',
     date: '2026-08-04',
     isPrerelease: true,
@@ -157,6 +169,18 @@ const List<VersionHistory> versionHistoryList = [
       '本轮只提供 Windows 2.1.115 测试版 MSIX，不构建或测试 Android 安装包',
       '修复海报墙封面被整张媒体卡片毛玻璃模糊的问题，海报图像现在保持清晰',
       '毛玻璃效果仅应用于底部信息面板，不影响海报墙的封面、悬停和点击行为',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.114',
+    date: '2026-08-04',
+    isPrerelease: true,
+    changes: [
+      '本轮只提供 Windows 2.1.114 测试版 MSIX，不构建或测试 Android 安装包',
+      '新增统一毛玻璃视觉层，覆盖顶部栏、桌面标题栏、导航、内容区域、媒体卡片、设置分组和主要弹窗',
+      '统一半透明表面、背景模糊、细边框和圆角，并自动适配现有深色与浅色主题',
+      '保持播放器动画、全屏、字幕、选集、硬件解码和 Anime4K 等原有交互行为不变',
       '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
     ],
   ),

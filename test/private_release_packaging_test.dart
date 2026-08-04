@@ -5,6 +5,15 @@ import 'package:flutter_test/flutter_test.dart';
 import '../tool/export_tmdb_build_define.dart' as tmdb_export;
 
 void main() {
+  test('私人签名脚本使用 RFC3161 SHA256 时间戳', () async {
+    final script =
+        await File('tool/windows/build_private_release.ps1').readAsString();
+
+    expect(script, contains("'http://timestamp.digicert.com'"));
+    expect(script, contains("'/tr', \$TimestampUrl, '/td', 'SHA256'"));
+    expect(script, contains('TimeStamperCertificate'));
+  });
+
   test('私人构建脚本使用临时 define 文件且 finally 删除', () async {
     final script =
         await File('tool/windows/build_private_release.ps1').readAsString();

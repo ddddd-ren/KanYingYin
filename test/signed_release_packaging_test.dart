@@ -13,6 +13,9 @@ void main() {
     expect(script, contains('certificate.pfx'));
     expect(script, contains('certificate-password.clixml'));
     expect(script, contains("'sign', '/fd', 'SHA256'"));
+    expect(script, contains("'http://timestamp.digicert.com'"));
+    expect(script, contains("'/tr', \$TimestampUrl, '/td', 'SHA256'"));
+    expect(script, contains('TimeStamperCertificate'));
     expect(script, contains("'verify', '/pa', '/v'"));
     expect(script, contains('Get-AuthenticodeSignature'));
     expect(script, contains("Status -ne 'Valid'"));

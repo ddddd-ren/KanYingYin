@@ -7,6 +7,7 @@ import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/modules/media/media_name_analysis.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
 void main() {
   test('作品集合直接产出三张季度卡和虚拟分集名', () {
@@ -603,16 +604,107 @@ void main() {
       's2e1',
     );
   });
+
+  test('作品级手动匹配后按 TMDB 身份合并不同目录季度并使用各自海报', () {
+    final first = _workIdentity(
+      seasonNumbers: const <int>[1],
+      workId: 'work-s1',
+    );
+    final second = _workIdentity(
+      seasonNumbers: const <int>[2],
+      workId: 'work-s2',
+    );
+    CloudWorkTmdbRecord record(
+      CloudWorkIdentity work,
+      TmdbSeasonMetadata season,
+    ) {
+      return CloudWorkTmdbRecord.matched(
+        sourceId: work.sourceId,
+        workKey: work.workKey,
+        workRootId: work.root.id,
+        workRootPath: work.root.remotePath,
+        remoteName: work.remoteName,
+        metadata: _workMetadata.copyWith(seasons: <TmdbSeasonMetadata>[season]),
+        checkedAt: DateTime.utc(2026, 7, 20),
+        tmdbMatchOrigin: TmdbMatchOrigin.manual,
+      );
+    }
+
+    CloudMediaIndexItem item(
+      CloudWorkIdentity work,
+      String id,
+      int season,
+    ) {
+      return CloudMediaIndexItem(
+        sourceId: work.sourceId,
+        remoteId: id,
+        remotePath: '/影视/${work.root.id}/$id.mkv',
+        name: '$id.mkv',
+        displayName: '规则标题 S0${season}E01.mkv',
+        workKey: work.workKey,
+        workRootId: work.root.id,
+        workRootPath: work.root.remotePath,
+        size: 200,
+        modifiedAt: null,
+        seriesName: '规则标题',
+        seasonNumber: season,
+        episodeNumber: 1,
+        mediaType: CloudMediaType.episode,
+      );
+    }
+
+    final collection = CloudResourceCollectionGrouper().group(
+      items: <CloudMediaIndexItem>[
+        item(first, 's1e1', 1),
+        item(second, 's2e1', 2),
+      ],
+      works: <CloudWorkIdentity>[first, second],
+      recordsByWorkKey: <String, CloudWorkTmdbRecord>{
+        first.workKey: record(
+          first,
+          _workMetadata.seasons.first,
+        ),
+        second.workKey: record(
+          second,
+          _workMetadata.seasons[1],
+        ),
+      },
+      query: '',
+    );
+
+    expect(collection.groups, hasLength(2));
+    expect(
+      collection.groups.map((group) => group.seasonNumber),
+      <int>[1, 2],
+    );
+    expect(
+      collection.groups.map((group) => group.seasonMetadata?.posterUrl),
+      <String?>['/season-1.jpg', '/season-2.jpg'],
+    );
+    expect(
+        collection.groups.first.workKeys,
+        containsAll(<String>[
+          first.workKey,
+          second.workKey,
+        ]));
+    expect(
+      collection.groups
+          .expand((group) => group.videos)
+          .map((video) => video.id),
+      unorderedEquals(<String>['s1e1', 's2e1']),
+    );
+  });
 }
 
 CloudWorkIdentity _workIdentity({
   String sourceId = 'quark',
   List<int> seasonNumbers = const <int>[1, 2, 3],
+  String workId = 'work-id',
 }) {
-  final workKey = '$sourceId|work|work-id';
-  const root = CloudFileEntry(
-    id: 'work-id',
-    remotePath: '/影视/作品',
+  final workKey = '$sourceId|work|$workId';
+  final root = CloudFileEntry(
+    id: workId,
+    remotePath: workId == 'work-id' ? '/影视/作品' : '/影视/$workId',
     name: '作品原名',
     size: 0,
     modifiedAt: null,

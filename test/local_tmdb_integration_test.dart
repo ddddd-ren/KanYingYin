@@ -179,6 +179,10 @@ void main() {
     expect(selected.metadata?.id, 1);
     expect(index.getAll().map((item) => item.tmdb?.id), everyElement(1));
     expect(
+      index.getAll().map((item) => item.tmdbIdentity),
+      everyElement('movie:1'),
+    );
+    expect(
       index.getAll().map((item) => item.scrapeStatus),
       everyElement(TmdbScrapeStatus.matched),
     );

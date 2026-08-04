@@ -182,6 +182,7 @@ class LocalTmdbScrapeService {
         await indexRepository.updateItem(
           item.copyWith(
             tmdb: metadata,
+            tmdbIdentity: _tmdbIdentity(metadata),
             scrapeStatus: TmdbScrapeStatus.matched,
             tmdbMatchOrigin: TmdbMatchOrigin.automatic,
             tmdbRuleVersion: currentTmdbRuleVersion,
@@ -251,6 +252,7 @@ class LocalTmdbScrapeService {
         await indexRepository.updateItem(
           item.copyWith(
             tmdb: metadata,
+            tmdbIdentity: _tmdbIdentity(metadata),
             scrapeStatus: TmdbScrapeStatus.matched,
             tmdbMatchOrigin: TmdbMatchOrigin.manual,
             tmdbRuleVersion: currentTmdbRuleVersion,
@@ -347,5 +349,9 @@ class LocalTmdbScrapeService {
       }
     }
     return failures;
+  }
+
+  String _tmdbIdentity(TmdbMetadata metadata) {
+    return '${metadata.mediaType.name}:${metadata.id}';
   }
 }

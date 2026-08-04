@@ -855,6 +855,17 @@ class CloudResourcesController extends ChangeNotifier {
     );
   }
 
+  List<CloudWorkIdentity> worksForGroup(CloudResourceMediaGroup group) {
+    final keys =
+        group.workKeys.isEmpty ? <String>[group.workKey] : group.workKeys;
+    final byKey = <String, CloudWorkIdentity>{
+      for (final work in _works) work.workKey: work,
+    };
+    return keys.map((key) => byKey[key]).whereType<CloudWorkIdentity>().toList(
+          growable: false,
+        );
+  }
+
   CloudWorkTmdbRecord? workRecordForGroup(CloudResourceMediaGroup group) {
     return workTmdbRecords[group.workKey];
   }
@@ -889,55 +900,87 @@ class CloudResourcesController extends ChangeNotifier {
     CloudResourceMediaGroup group,
     TmdbRankedCandidate candidate, {
     required TmdbScrapeOptions options,
-  }) {
+  }) async {
     final coordinator = _workTmdbCoordinator;
     if (coordinator == null) throw StateError('作品级 TMDB 刮削服务不可用');
-    return coordinator.selectPrepared(
-      workForGroup(group),
-      candidate,
-      options: options,
-    );
+    CloudWorkTmdbSelectionOutcome? first;
+    for (final work in worksForGroup(group)) {
+      final outcome = await coordinator.selectPrepared(
+        work,
+        candidate,
+        options: options,
+      );
+      first ??= outcome;
+    }
+    if (first == null) {
+      throw StateError('找不到季度卡对应的作品');
+    }
+    return first;
   }
 
   Future<List<TmdbMetadata>> rematchWork(
     CloudResourceMediaGroup group, {
     TmdbScrapeOptions? options,
-  }) {
+  }) async {
     final coordinator = _workTmdbCoordinator;
     if (coordinator == null) throw StateError('作品级 TMDB 刮削服务不可用');
-    return coordinator.rematch(
-      workForGroup(group),
-      options: options,
-    );
+    final works = worksForGroup(group);
+    if (works.isEmpty) throw StateError('找不到季度卡对应的作品');
+    final candidates = <String, TmdbMetadata>{};
+    for (final work in works) {
+      final results = await coordinator.rematch(work, options: options);
+      for (final metadata in results) {
+        candidates.putIfAbsent(
+          '${metadata.mediaType.name}:${metadata.id}',
+          () => metadata,
+        );
+      }
+    }
+    return candidates.values.toList(growable: false);
   }
 
   Future<CloudWorkTmdbOutcome> scrapeWork(
     CloudResourceMediaGroup group, {
     TmdbScrapeOptions? options,
-  }) {
+  }) async {
     final coordinator = _workTmdbCoordinator;
     if (coordinator == null) throw StateError('作品级 TMDB 刮削服务不可用');
-    return coordinator.scrape(
-      workForGroup(group),
-      options: options,
-    );
+    CloudWorkTmdbOutcome? first;
+    for (final work in worksForGroup(group)) {
+      final outcome = await coordinator.scrape(work, options: options);
+      first ??= outcome;
+    }
+    if (first == null) throw StateError('找不到季度卡对应的作品');
+    return first;
   }
 
   Future<CloudWorkTmdbRecord> saveScrapeTitle(
     CloudResourceMediaGroup group,
     String title,
-  ) {
+  ) async {
     final coordinator = _workTmdbCoordinator;
     if (coordinator == null) throw StateError('作品级 TMDB 元数据服务不可用');
-    return coordinator.saveScrapeTitle(workForGroup(group), title);
+    CloudWorkTmdbRecord? first;
+    for (final work in worksForGroup(group)) {
+      final record = await coordinator.saveScrapeTitle(work, title);
+      first ??= record;
+    }
+    if (first == null) throw StateError('找不到季度卡对应的作品');
+    return first;
   }
 
   Future<CloudWorkTmdbRecord> clearScrapeTitle(
     CloudResourceMediaGroup group,
-  ) {
+  ) async {
     final coordinator = _workTmdbCoordinator;
     if (coordinator == null) throw StateError('作品级 TMDB 元数据服务不可用');
-    return coordinator.clearScrapeTitle(workForGroup(group));
+    CloudWorkTmdbRecord? first;
+    for (final work in worksForGroup(group)) {
+      final record = await coordinator.clearScrapeTitle(work);
+      first ??= record;
+    }
+    if (first == null) throw StateError('找不到季度卡对应的作品');
+    return first;
   }
 
   CloudMediaIndexItem detailsFor(CloudFileEntry video) {

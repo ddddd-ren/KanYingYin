@@ -49,6 +49,7 @@ class LocalFileItem {
   final String? source;
   final String? codec;
   final String? seriesTitleOverride;
+  final String? tmdbIdentity;
 
   LocalFileItem({
     String? path,
@@ -69,6 +70,7 @@ class LocalFileItem {
     this.source,
     this.codec,
     this.seriesTitleOverride,
+    this.tmdbIdentity,
   })  : assert(path != null || location != null),
         assert(path == null || location == null),
         location = location ?? MediaLocation.file(path!);
@@ -143,6 +145,7 @@ class LocalFileItem {
     String? source,
     String? codec,
     String? seriesTitleOverride,
+    String? tmdbIdentity,
   }) {
     assert(path == null || location == null);
     return LocalFileItem(
@@ -164,6 +167,7 @@ class LocalFileItem {
       source: source ?? this.source,
       codec: codec ?? this.codec,
       seriesTitleOverride: seriesTitleOverride ?? this.seriesTitleOverride,
+      tmdbIdentity: tmdbIdentity ?? this.tmdbIdentity,
     );
   }
 }

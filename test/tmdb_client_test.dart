@@ -85,19 +85,20 @@ void main() {
     expect(adapter.hosts, <String>['api.themoviedb.org']);
   });
 
-  test('电视剧详情解析季度并用英文补齐缺失季度海报', () async {
+  test('电视剧详情合并中英文类型、季度和季度海报', () async {
     final adapter = _SeasonDetailsAdapter();
     final dio = Dio()..httpClientAdapter = adapter;
     final client = TmdbClient(apiKey: 'key', dio: dio);
 
     final metadata = await client.details(42, TmdbMediaType.tv);
 
-    expect(metadata.seasons.map((item) => item.seasonNumber), <int>[1, 2]);
+    expect(metadata.seasons.map((item) => item.seasonNumber), <int>[1, 2, 3]);
     expect(metadata.seasons.first.name, '第 1 季');
     expect(metadata.seasons.first.episodeCount, 8);
     expect(metadata.seasons.first.posterUrl, '/season-1-zh.jpg');
-    expect(metadata.seasons.last.posterUrl, '/season-2-en.jpg');
-    expect(metadata.genres, const <String>['动画', '科幻']);
+    expect(metadata.seasons[1].posterUrl, '/season-2-en.jpg');
+    expect(metadata.seasons.last.posterUrl, '/season-3-en.jpg');
+    expect(metadata.genres, const <String>['动画', '科幻', 'Drama']);
     expect(
         metadata.seasons.map((item) => item.seasonNumber), isNot(contains(0)));
   });
@@ -395,6 +396,9 @@ class _SeasonDetailsAdapter implements HttpClientAdapter {
             "overview": "English overview",
             "poster_path": "/show-en.jpg",
             "backdrop_path": "/show-backdrop-en.jpg",
+            "genres": [
+              {"id": 18, "name": "Drama"}
+            ],
             "seasons": [
               {
                 "id": 100,
@@ -413,6 +417,13 @@ class _SeasonDetailsAdapter implements HttpClientAdapter {
                 "overview": "Season two",
                 "air_date": "2022-12-22",
                 "poster_path": "/season-2-en.jpg"
+              },
+              {
+                "id": 300,
+                "season_number": 3,
+                "name": "Season 3",
+                "episode_count": 6,
+                "poster_path": "/season-3-en.jpg"
               }
             ]
           }

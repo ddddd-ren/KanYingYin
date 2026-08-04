@@ -92,15 +92,17 @@ class TmdbClient implements ITmdbClient {
     String language = 'zh-CN',
   }) async {
     final primary = await _detailsForLanguage(id, mediaType, language);
-    if (language == 'en-US' ||
-        (_hasText(primary.overview) &&
-            _hasText(primary.posterUrl) &&
-            _hasText(primary.backdropUrl) &&
-            primary.genres.isNotEmpty &&
-            _hasCompleteSeasonArtwork(primary.seasons))) {
+    if (language == 'en-US') {
       return primary;
     }
-    final fallback = await _detailsForLanguage(id, mediaType, 'en-US');
+    TmdbMetadata fallback;
+    try {
+      // 中文详情可能缺少类型或季度字段，英文详情只作为补充来源。
+      fallback = await _detailsForLanguage(id, mediaType, 'en-US');
+    } on Object {
+      // 中文详情已经可用时，英文补充失败不能阻断本地播放和刮削。
+      return primary;
+    }
     return primary.copyWith(
       overview:
           _hasText(primary.overview) ? primary.overview : fallback.overview,
@@ -109,7 +111,7 @@ class TmdbClient implements ITmdbClient {
       backdropUrl: _hasText(primary.backdropUrl)
           ? primary.backdropUrl
           : fallback.backdropUrl,
-      genres: primary.genres.isNotEmpty ? primary.genres : fallback.genres,
+      genres: _mergeGenres(primary.genres, fallback.genres),
       seasons: _mergeSeasons(primary.seasons, fallback.seasons),
     );
   }
@@ -206,13 +208,16 @@ class TmdbClient implements ITmdbClient {
     List<TmdbSeasonMetadata> primary,
     List<TmdbSeasonMetadata> fallback,
   ) {
-    final fallbackByNumber = <int, TmdbSeasonMetadata>{
-      for (final season in fallback) season.seasonNumber: season,
+    final mergedByNumber = <int, TmdbSeasonMetadata>{
+      for (final season in primary) season.seasonNumber: season,
     };
-    return primary.map((season) {
-      final fallbackSeason = fallbackByNumber[season.seasonNumber];
-      if (fallbackSeason == null) return season;
-      return season.copyWith(
+    for (final fallbackSeason in fallback) {
+      final season = mergedByNumber[fallbackSeason.seasonNumber];
+      if (season == null) {
+        mergedByNumber[fallbackSeason.seasonNumber] = fallbackSeason;
+        continue;
+      }
+      mergedByNumber[fallbackSeason.seasonNumber] = season.copyWith(
         name: _hasText(season.name) ? season.name : fallbackSeason.name,
         episodeCount: season.episodeCount > 0
             ? season.episodeCount
@@ -226,7 +231,25 @@ class TmdbClient implements ITmdbClient {
             ? season.posterUrl
             : fallbackSeason.posterUrl,
       );
-    }).toList(growable: false);
+    }
+    final seasons = mergedByNumber.values.toList(growable: false)
+      ..sort(
+        (first, second) => first.seasonNumber.compareTo(second.seasonNumber),
+      );
+    return seasons;
+  }
+
+  List<String> _mergeGenres(
+    List<String> primary,
+    List<String> fallback,
+  ) {
+    final result = <String>[];
+    for (final genre in <String>[...primary, ...fallback]) {
+      final normalized = genre.trim();
+      if (normalized.isEmpty || result.contains(normalized)) continue;
+      result.add(normalized);
+    }
+    return List<String>.unmodifiable(result);
   }
 
   Future<T> _withEndpointRecovery<T>(
@@ -325,10 +348,6 @@ class TmdbClient implements ITmdbClient {
       : null;
 
   bool _hasText(String? value) => value != null && value.trim().isNotEmpty;
-
-  bool _hasCompleteSeasonArtwork(List<TmdbSeasonMetadata> seasons) =>
-      seasons.isNotEmpty &&
-      seasons.every((season) => _hasText(season.posterUrl));
 
   int _asInt(Object? value) => value is num ? value.toInt() : 0;
   double? _asDouble(Object? value) => value is num ? value.toDouble() : null;

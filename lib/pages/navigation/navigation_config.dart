@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:kanyingyin/features/history/presentation/history_module.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_module.dart';
 import 'package:kanyingyin/pages/local/local_module.dart';
 import 'package:kanyingyin/pages/my/my_module.dart';
@@ -36,6 +37,13 @@ final appNavigationDestinations = <NavigationDestinationConfig>[
     icon: Icons.cloud_outlined,
     selectedIcon: Icons.cloud_rounded,
     moduleBuilder: CloudResourcesModule.new,
+  ),
+  NavigationDestinationConfig(
+    path: '/history',
+    label: '观看历史',
+    icon: Icons.history_outlined,
+    selectedIcon: Icons.history_rounded,
+    moduleBuilder: HistoryModule.new,
   ),
   NavigationDestinationConfig(
     path: '/my',

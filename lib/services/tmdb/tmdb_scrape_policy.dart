@@ -44,7 +44,7 @@ class TmdbScrapePolicy {
     var year = subject.year;
     for (final candidate in subject.titleCandidates) {
       year ??= _extractYear(candidate);
-      final cleaned = _cleanTitle(candidate);
+      final cleaned = _cleanTitle(candidate, subject: subject);
       if (cleaned.isEmpty) continue;
       if (queries.any(
         (current) => current.toLowerCase() == cleaned.toLowerCase(),
@@ -88,8 +88,11 @@ class TmdbScrapePolicy {
     return match == null ? null : int.tryParse(match.group(0)!);
   }
 
-  String _cleanTitle(String value) {
-    final cleaned = _cleaner
+  String _cleanTitle(
+    String value, {
+    required TmdbScrapeSubject subject,
+  }) {
+    var cleaned = _cleaner
         .clean(value)
         .replaceAll(_seasonEpisodePattern, ' ')
         .replaceAll(_chineseSeasonPattern, ' ')
@@ -100,11 +103,27 @@ class TmdbScrapePolicy {
         .replaceAll(RegExp(r'\s+-\s+'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
+    cleaned = _removeTrailingSeasonNumber(cleaned, subject);
     final withoutYear = cleaned
         .replaceAll(_yearPattern, ' ')
         .replaceAll(RegExp(r'[（(]\s*[)）]'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
     return withoutYear.isEmpty ? cleaned : withoutYear;
+  }
+
+  String _removeTrailingSeasonNumber(
+    String value,
+    TmdbScrapeSubject subject,
+  ) {
+    final isTv = subject.mediaEvidence == TmdbMediaEvidence.tv ||
+        subject.seasonNumbers.isNotEmpty ||
+        subject.episodeNumbers.isNotEmpty;
+    if (!isTv || subject.seasonNumbers.length != 1) return value;
+    final season = subject.seasonNumbers.single;
+    if (season <= 0 || season > 99) return value;
+    final suffix = RegExp(r'\s+0?' + season.toString() + r'$');
+    final stripped = value.replaceFirst(suffix, '').trim();
+    return stripped.isEmpty ? value : stripped;
   }
 }

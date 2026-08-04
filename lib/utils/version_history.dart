@@ -150,6 +150,20 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.119',
+    date: '2026-08-05',
+    isPrerelease: true,
+    changes: [
+      'TMDB 类型标签继续完整保留中文与英文结果，筛选时不会因语言响应缺字段而丢失类型',
+      '修复带末尾季度数字的电视剧名称搜索，例如第二季度会按正剧名称匹配 TMDB，不再因数字后缀无结果',
+      '手动或自动匹配电视剧时保存完整季度资料，并缓存各季度独立海报；第二季度海报可在海报墙和选集页正常显示',
+      '修复第一季与第二季目录名称不同但属于同一 TMDB 作品时无法合并的问题，保留各季度视频、集数和海报',
+      '观看历史继续支持本地与网盘统一记录、断点续播、删除和清空，侧栏和设置页均可进入',
+      'Windows 与 Android 版本继续使用统一版本配置，诊断日志继续脱敏并隐藏本地文件路径',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.118',
     date: '2026-08-05',
     isPrerelease: true,

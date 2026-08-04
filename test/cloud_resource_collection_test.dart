@@ -694,12 +694,146 @@ void main() {
       unorderedEquals(<String>['s1e1', 's2e1']),
     );
   });
+
+  test('同剧只有一个季度有 TMDB 记录时仍继承作品身份和季度海报', () {
+    final seasonTwo = _workIdentity(
+      seasonNumbers: const <int>[2],
+      workId: 'work-s2-unmatched',
+    );
+    final seasonOne = _workIdentity(
+      seasonNumbers: const <int>[1],
+      workId: 'work-s1-matched',
+    );
+    final matchedRecord = CloudWorkTmdbRecord.matched(
+      sourceId: seasonOne.sourceId,
+      workKey: seasonOne.workKey,
+      workRootId: seasonOne.root.id,
+      workRootPath: seasonOne.root.remotePath,
+      remoteName: seasonOne.remoteName,
+      metadata: _workMetadata,
+      checkedAt: DateTime.utc(2026, 8, 5),
+      tmdbMatchOrigin: TmdbMatchOrigin.automatic,
+    );
+
+    CloudMediaIndexItem item(CloudWorkIdentity work, String id, int season) {
+      return CloudMediaIndexItem(
+        sourceId: work.sourceId,
+        remoteId: id,
+        remotePath: '/影视/${work.root.id}/$id.mkv',
+        name: '$id.mkv',
+        displayName: '规则标题 S0${season}E01.mkv',
+        workKey: work.workKey,
+        workRootId: work.root.id,
+        workRootPath: work.root.remotePath,
+        size: 200,
+        modifiedAt: null,
+        seriesName: '规则标题',
+        seasonNumber: season,
+        episodeNumber: 1,
+        mediaType: CloudMediaType.episode,
+      );
+    }
+
+    final collection = CloudResourceCollectionGrouper().group(
+      items: <CloudMediaIndexItem>[
+        item(seasonTwo, 's2e1-unmatched', 2),
+        item(seasonOne, 's1e1-matched', 1),
+      ],
+      works: <CloudWorkIdentity>[seasonTwo, seasonOne],
+      recordsByWorkKey: <String, CloudWorkTmdbRecord>{
+        seasonOne.workKey: matchedRecord,
+      },
+      query: '',
+    );
+
+    expect(collection.groups, hasLength(2));
+    expect(
+      collection.groups.map((group) => group.stableKey),
+      everyElement(startsWith('quark|tmdb|tv|42|season:')),
+    );
+    expect(
+      collection.groups.map((group) => group.seasonMetadata?.posterUrl),
+      <String?>['/season-1.jpg', '/season-2.jpg'],
+    );
+    expect(
+      collection.groups.expand((group) => group.workKeys).toSet(),
+      containsAll(<String>[seasonOne.workKey, seasonTwo.workKey]),
+    );
+  });
+
+  test('第一季和第二季标题带不同季度后缀时仍共享 TMDB 作品海报', () {
+    final seasonTwo = _workIdentity(
+      seasonNumbers: const <int>[2],
+      workId: 'work-isy-s2',
+      displayTitle: 'Isekai Nonbiri Nouka 2',
+      titleCandidates: const <String>['Isekai Nonbiri Nouka 2'],
+    );
+    final seasonOne = _workIdentity(
+      seasonNumbers: const <int>[1],
+      workId: 'work-isy-s1',
+      displayTitle: 'Isekai Nonbiri Nouka',
+      titleCandidates: const <String>['Isekai Nonbiri Nouka'],
+    );
+    final matchedRecord = CloudWorkTmdbRecord.matched(
+      sourceId: seasonOne.sourceId,
+      workKey: seasonOne.workKey,
+      workRootId: seasonOne.root.id,
+      workRootPath: seasonOne.root.remotePath,
+      remoteName: seasonOne.remoteName,
+      metadata: _workMetadata,
+      checkedAt: DateTime.utc(2026, 8, 5),
+      tmdbMatchOrigin: TmdbMatchOrigin.manual,
+    );
+
+    CloudMediaIndexItem item(CloudWorkIdentity work, String id, int season) {
+      return CloudMediaIndexItem(
+        sourceId: work.sourceId,
+        remoteId: id,
+        remotePath: '/影视/${work.root.id}/$id.mkv',
+        name: '$id.mkv',
+        displayName: '${work.displayTitle} S0${season}E01.mkv',
+        workKey: work.workKey,
+        workRootId: work.root.id,
+        workRootPath: work.root.remotePath,
+        size: 200,
+        modifiedAt: null,
+        seriesName: work.displayTitle,
+        seasonNumber: season,
+        episodeNumber: 1,
+        mediaType: CloudMediaType.episode,
+      );
+    }
+
+    final collection = CloudResourceCollectionGrouper().group(
+      items: <CloudMediaIndexItem>[
+        item(seasonTwo, 'isy-s2e1', 2),
+        item(seasonOne, 'isy-s1e1', 1),
+      ],
+      works: <CloudWorkIdentity>[seasonTwo, seasonOne],
+      recordsByWorkKey: <String, CloudWorkTmdbRecord>{
+        seasonOne.workKey: matchedRecord,
+      },
+      query: '',
+    );
+
+    expect(collection.groups, hasLength(2));
+    expect(
+      collection.groups.map((group) => group.stableKey),
+      everyElement(startsWith('quark|tmdb|tv|42|season:')),
+    );
+    expect(
+      collection.groups.map((group) => group.seasonMetadata?.posterUrl),
+      <String?>['/season-1.jpg', '/season-2.jpg'],
+    );
+  });
 }
 
 CloudWorkIdentity _workIdentity({
   String sourceId = 'quark',
   List<int> seasonNumbers = const <int>[1, 2, 3],
   String workId = 'work-id',
+  String displayTitle = '规则标题',
+  List<String> titleCandidates = const <String>['规则标题', 'Original Title'],
 }) {
   final workKey = '$sourceId|work|$workId';
   final root = CloudFileEntry(
@@ -715,14 +849,14 @@ CloudWorkIdentity _workIdentity({
     workKey: workKey,
     root: root,
     remoteName: root.name,
-    displayTitle: '规则标题',
-    titleCandidates: const <String>['规则标题', 'Original Title'],
+    displayTitle: displayTitle,
+    titleCandidates: titleCandidates,
     seasons: <CloudSeasonIdentity>[
       for (final season in seasonNumbers)
         CloudSeasonIdentity(
           workKey: workKey,
           seasonNumber: season,
-          displayName: '规则标题 第 $season 季',
+          displayName: '$displayTitle 第 $season 季',
           remoteDirectories: const <CloudFileEntry>[],
           episodes: const <CloudEpisodeIdentity>[],
         ),

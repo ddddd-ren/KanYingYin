@@ -150,6 +150,18 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.117',
+    date: '2026-08-05',
+    isPrerelease: true,
+    changes: [
+      '本轮修正版提升 Windows 与 Android 安装包版本，可从已安装的 2.1.116.0 正常升级',
+      '海报卡片底部毛玻璃信息层现在与海报等宽，保留底部间距和悬浮交互',
+      'Android 版本继续直接跟随 Flutter 与 Windows 的统一版本配置',
+      '诊断日志继续脱敏并隐藏本地文件路径和凭据，本机运行日志保留排查所需信息',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.116',
     date: '2026-08-05',
     isPrerelease: true,

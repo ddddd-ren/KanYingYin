@@ -5,20 +5,20 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一一四统一主要界面的毛玻璃视觉层', () {
-    final entries = versionHistoryForCurrent('2.1.114');
+  test('二点一一五修复海报墙封面被毛玻璃模糊', () {
+    final entries = versionHistoryForCurrent('2.1.115');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.version, '2.1.114');
+    expect(entry.version, '2.1.115');
     expect(entry.isPrerelease, isTrue);
     for (final text in <String>[
       'Windows',
       '毛玻璃',
-      '导航',
-      '媒体卡片',
-      '弹窗',
+      '海报墙',
+      '封面',
+      '信息面板',
       '不会修改或删除',
     ]) {
       expect(changes, contains(text));

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/history/application/playback_history_controller.dart';
 import 'package:kanyingyin/features/history/application/playback_history_repository.dart';
@@ -26,6 +28,14 @@ PlaybackHistoryEntry _entry({
 }
 
 void main() {
+  test('观看历史重建播放列表时沿用最终剧集标题', () {
+    final source = File('lib/features/history/presentation/history_page.dart')
+        .readAsStringSync();
+
+    expect(source, contains("'title': episode.displayTitle"));
+    expect(source, contains('title: candidate.displayName'));
+  });
+
   test('观看历史记录可 JSON 往返并识别完播', () {
     final entry = _entry(position: 99, duration: 100);
     final restored = PlaybackHistoryEntry.fromJson(entry.toJson());

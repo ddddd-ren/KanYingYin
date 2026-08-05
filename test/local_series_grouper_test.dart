@@ -324,7 +324,7 @@ void main() {
     expect(groups.last.title, 'ShowB');
   });
 
-  test('LocalSeriesGrouper keeps raw file names for playback titles', () {
+  test('LocalSeriesGrouper uses recognized episode titles for playback', () {
     final groups = const LocalSeriesGrouper().group([
       _video(
         path: r'D:\Anime\Root\ShowA\ShowA S01E01.mkv',
@@ -348,12 +348,12 @@ void main() {
       {
         'path': r'D:\Anime\Root\ShowA\ShowA S01E01.mkv',
         'name': 'ShowA S01E01.mkv',
-        'title': 'ShowA S01E01',
+        'title': 'ShowA S01E01 起点',
       },
       {
         'path': r'D:\Anime\Root\ShowA\ShowA S01E02.mkv',
         'name': 'ShowA S01E02.mkv',
-        'title': 'ShowA S01E02',
+        'title': 'ShowA S01E02 继续',
       },
     ]);
   });

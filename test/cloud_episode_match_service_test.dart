@@ -84,7 +84,10 @@ void main() {
     expect(updated['video-1']!.episodeNumber, 2);
     expect(updated['video-1']!.tmdbId, 196285);
     expect(updated['video-1']!.tmdbTitle, '异世界悠闲农家');
-    expect(updated['video-1']!.displayName, '异世界悠闲农家 S01E02.mkv');
+    expect(
+      updated['video-1']!.displayName,
+      '异世界悠闲农家 S01E02 第一位村民.mkv',
+    );
     expect(updated['video-2']!.seasonNumber, isNull);
     expect(updated['video-2']!.episodeNumber, isNull);
     expect(await ruleRepository.getBySource('quark-1'), hasLength(2));

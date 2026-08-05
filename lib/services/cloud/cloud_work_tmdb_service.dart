@@ -43,10 +43,11 @@ class CloudWorkTmdbService {
     required ITmdbClient client,
     CloudPosterCache? posterCache,
     DateTime Function()? now,
+    TmdbScrapeEngine? engine,
   })  : _repository = repository,
         _indexRepository = indexRepository,
         _client = client,
-        _engine = TmdbScrapeEngine(client: client),
+        _engine = engine ?? TmdbScrapeEngine(client: client),
         _posterCache = posterCache,
         _now = now ?? DateTime.now;
 
@@ -102,6 +103,7 @@ class CloudWorkTmdbService {
     final subject = TmdbScrapeSubject(
       stableKey: base.stableKey,
       titleCandidates: <String>[request.queryTitle],
+      manualSearchTitle: request.queryTitle,
       year: request.queryYear,
       seasonNumbers: base.seasonNumbers,
       episodeNumbers: base.episodeNumbers,
@@ -110,30 +112,16 @@ class CloudWorkTmdbService {
     final resolvedOptions = request.options.copyWith(
       mediaTypeMode: request.mediaTypeMode,
     );
-    final plan = const TmdbScrapePolicy().build(subject, resolvedOptions);
-    final query = plan.queries.firstOrNull;
-    if (query == null || query.isEmpty) {
+    if (request.queryTitle.trim().isEmpty) {
       throw ArgumentError.value(request.queryTitle, 'queryTitle');
     }
-    final types = plan.mediaTypes;
-    final candidates = <TmdbMetadata>[];
-    for (final type in types) {
-      candidates.addAll(
-        await _client.search(
-          query,
-          type,
-          language: request.options.language,
-        ),
-      );
-    }
-    return const TmdbMatcher().rank(
-      queryTitle: query,
-      queryYear: plan.year,
-      expectedTypes: types.toSet(),
-      candidates: candidates,
+    final outcome = await _engine.search(
+      subject,
+      resolvedOptions,
       minimumScore: request.options.minimumScore,
       minimumLead: request.options.minimumLead,
     );
+    return outcome.ranked;
   }
 
   Future<CloudWorkTmdbOutcome> match(

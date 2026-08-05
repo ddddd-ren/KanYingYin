@@ -1,6 +1,6 @@
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 
-const int currentTmdbRuleVersion = 3;
+const int currentTmdbRuleVersion = 4;
 
 enum TmdbMediaEvidence { movie, tv, unknown }
 

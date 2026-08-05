@@ -4,6 +4,7 @@ import 'package:kanyingyin/modules/local/local_episode_info.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/media_location.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_episode_title_resolver.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 import 'package:path/path.dart' as p;
 
@@ -238,8 +239,38 @@ class LocalMediaIndexItem {
 
   String get displayTitle {
     final info = episodeInfo;
-    if (info != null) return info.displayTitle;
-    return name;
+    final originalTitle = info?.displayTitle ?? name;
+    final episodeName = _tmdbEpisodeName;
+    if (episodeName == null || episodeName.trim().isEmpty) {
+      return originalTitle;
+    }
+    return const TmdbEpisodeTitleResolver().resolve(
+      seriesTitle: tmdb?.title,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+      episodeName: episodeName,
+      originalFileName: originalTitle,
+    );
+  }
+
+  /// TMDB 有逐集名称时只改变展示标题，不改变原始文件路径或播放身份。
+  String? get _tmdbEpisodeName {
+    final metadata = tmdb;
+    final seasonNumber = this.seasonNumber;
+    final episodeNumber = this.episodeNumber;
+    if (metadata == null || seasonNumber == null || episodeNumber == null) {
+      return null;
+    }
+    for (final season in metadata.seasons) {
+      if (season.seasonNumber != seasonNumber) continue;
+      for (final episode in season.episodes) {
+        if (episode.episodeNumber == episodeNumber &&
+            episode.name.trim().isNotEmpty) {
+          return episode.name;
+        }
+      }
+    }
+    return null;
   }
 
   String get seriesKey {

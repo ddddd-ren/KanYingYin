@@ -868,6 +868,9 @@ class _CloudResourceMediaGroupBuilder {
 
   CloudResourceMediaGroup build() {
     videos.sort(_compareVideos);
+    for (var index = 0; index < videos.length; index += 1) {
+      videos[index] = _withTmdbEpisodeTitle(videos[index]);
+    }
     return CloudResourceMediaGroup(
       stableKey: stableKey,
       seriesName: seriesName,
@@ -876,6 +879,64 @@ class _CloudResourceMediaGroupBuilder {
       seasons: isSeries ? _buildSeasons() : const <CloudResourceSeasonGroup>[],
       record: record,
     );
+  }
+
+  /// 资源记录路径没有建立云索引时，也只替换界面标题，不改变远程身份。
+  CloudFileEntry _withTmdbEpisodeTitle(CloudFileEntry entry) {
+    final currentRecord = record;
+    if (currentRecord?.status != CloudResourceTmdbStatus.matched) {
+      return entry;
+    }
+    final title = currentRecord!.effectiveTitle.trim();
+    final identity = identities[_entryKey(entry)];
+    final seasonNumber = identity?.seasonNumber ?? entry.seasonNumber;
+    final episodeNumber = identity?.episodeNumber ?? entry.episodeNumber;
+    if (title.isEmpty || episodeNumber == null || episodeNumber <= 0) {
+      return entry;
+    }
+    final episodeName = _episodeName(
+      currentRecord.seasons,
+      seasonNumber,
+      episodeNumber,
+    );
+    if (episodeName == null || episodeName.trim().isEmpty) return entry;
+    final displayName = const TmdbEpisodeTitleResolver().resolveWithExtension(
+      seriesTitle: title,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+      episodeName: episodeName,
+      originalFileName: entry.name,
+    );
+    if (displayName == entry.name) return entry;
+    return CloudFileEntry(
+      id: entry.id,
+      remotePath: entry.remotePath,
+      name: displayName,
+      size: entry.size,
+      modifiedAt: entry.modifiedAt,
+      isDirectory: entry.isDirectory,
+      seasonNumber: entry.seasonNumber,
+      episodeNumber: entry.episodeNumber,
+      variantLabel: entry.variantLabel,
+    );
+  }
+
+  String? _episodeName(
+    List<TmdbSeasonMetadata> seasons,
+    int? seasonNumber,
+    int episodeNumber,
+  ) {
+    if (seasonNumber == null) return null;
+    for (final season in seasons) {
+      if (season.seasonNumber != seasonNumber) continue;
+      for (final episode in season.episodes) {
+        if (episode.episodeNumber == episodeNumber &&
+            episode.name.trim().isNotEmpty) {
+          return episode.name;
+        }
+      }
+    }
+    return null;
   }
 
   List<CloudResourceSeasonGroup> _buildSeasons() {

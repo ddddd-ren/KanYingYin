@@ -150,6 +150,19 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.132',
+    date: '2026-08-05',
+    isPrerelease: true,
+    changes: [
+      'Windows 与 Android 的本地和个人网盘剧集在 TMDB 刮削后会按季号、集号显示 TMDB 集名，例如“作品 S01E01 集名”',
+      '补齐本地“查看详情”和未建立云索引的网盘资源入口，逐集标题与分类入口、网盘媒体库保持一致',
+      '只有 TMDB 返回非空集名时才替换旧资源入口的展示名称；公共安装包不内置 TMDB Key，没有 Key、断网或没有集名时继续显示原名，扫描和播放仍可使用',
+      '本次改动只作用于界面展示，原始文件名、本地文件路径、网盘远程路径、远程 ID、字幕关联和播放 ID 保持不变',
+      'Windows 与 Android 继续使用统一版本配置，诊断日志继续脱敏并隐藏本地文件路径',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.131',
     date: '2026-08-05',
     isPrerelease: true,

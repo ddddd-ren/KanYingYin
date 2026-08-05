@@ -73,6 +73,60 @@ void main() {
     expect(collection.groups.last.videos.single.id, 's3e1');
   });
 
+  test('旧资源记录入口展示 TMDB 集名但保留远程引用', () {
+    const entry = CloudFileEntry(
+      id: 'episode-1',
+      remotePath: '/影视/示例剧/示例剧.S01E01.mkv',
+      name: '示例剧.S01E01.mkv',
+      size: 200,
+      modifiedAt: null,
+      isDirectory: false,
+    );
+    final record = CloudResourceTmdbRecord.matched(
+      sourceId: 'quark',
+      remoteId: entry.id,
+      remotePath: entry.remotePath,
+      displayName: entry.name,
+      resourceKind: CloudResourceKind.standaloneVideo,
+      metadata: TmdbMetadata(
+        id: 42,
+        mediaType: TmdbMediaType.tv,
+        title: '示例剧',
+        language: 'zh-CN',
+        matchedAt: DateTime.utc(2026, 8, 5),
+        matchConfidence: 1,
+        seasons: const <TmdbSeasonMetadata>[
+          TmdbSeasonMetadata(
+            id: 1,
+            seasonNumber: 1,
+            name: '第一季',
+            episodeCount: 1,
+            episodes: <TmdbEpisodeMetadata>[
+              TmdbEpisodeMetadata(
+                id: 11,
+                episodeNumber: 1,
+                name: '试播集',
+              ),
+            ],
+          ),
+        ],
+      ),
+      checkedAt: DateTime.utc(2026, 8, 5),
+    );
+
+    final collection = CloudResourceCollectionGrouper().group(
+      sourceId: 'quark',
+      entries: const <CloudFileEntry>[entry],
+      records: <String, CloudResourceTmdbRecord>{record.stableKey: record},
+      query: '',
+    );
+
+    final video = collection.groups.single.videos.single;
+    expect(video.name, '示例剧 S01E01 试播集.mkv');
+    expect(video.id, entry.id);
+    expect(video.remotePath, entry.remotePath);
+  });
+
   test('已匹配作品修改刮削名称后海报卡优先显示手动名称', () {
     final work = _workIdentity(seasonNumbers: const <int>[1]);
     final record = CloudWorkTmdbRecord.matched(

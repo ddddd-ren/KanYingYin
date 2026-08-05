@@ -52,6 +52,53 @@ void main() {
     expect(dirtyGenres.genres, const <String>['动作', '科幻']);
   });
 
+  test('本地剧集展示 TMDB 集名但保留原始播放路径和字幕', () {
+    final item = LocalMediaIndexItem(
+      path: r'D:\Video\三体\三体 S01E01.mkv',
+      name: '三体 S01E01.mkv',
+      parentPath: r'D:\Video\三体',
+      sourcePath: r'D:\Video',
+      size: 100,
+      modified: DateTime(2026),
+      seriesName: '三体',
+      seasonNumber: 1,
+      episodeNumber: 1,
+      episodeTitle: '片源标题',
+      subtitlePath: r'D:\Video\三体\三体 S01E01.ass',
+      indexedAt: DateTime(2026),
+      tmdb: TmdbMetadata(
+        id: 1,
+        mediaType: TmdbMediaType.tv,
+        title: '三体',
+        language: 'zh-CN',
+        matchedAt: DateTime(2026),
+        matchConfidence: 1,
+        seasons: const <TmdbSeasonMetadata>[
+          TmdbSeasonMetadata(
+            id: 11,
+            seasonNumber: 1,
+            name: '第一季',
+            episodeCount: 1,
+            episodes: <TmdbEpisodeMetadata>[
+              TmdbEpisodeMetadata(
+                id: 111,
+                episodeNumber: 1,
+                name: '第一集',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    expect(item.displayTitle, '三体 S01E01 第一集');
+    expect(item.path, r'D:\Video\三体\三体 S01E01.mkv');
+    expect(item.subtitlePath, r'D:\Video\三体\三体 S01E01.ass');
+
+    final itemWithoutTmdbEpisodeName = item.copyWith(episodeNumber: 2);
+    expect(itemWithoutTmdbEpisodeName.displayTitle, 'S01E02  片源标题');
+  });
+
   test('领域模型只解析当前 TMDB 结构', () {
     final restored = LocalMediaIndexItem.fromJson(_legacyIndexJson());
 

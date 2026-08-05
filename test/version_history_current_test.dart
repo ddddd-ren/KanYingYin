@@ -5,27 +5,22 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一三一统一本地网盘 TMDB 刮削', () {
-    final entries = versionHistoryForCurrent('2.1.131');
+  test('二点一三二补齐本地网盘 TMDB 集名展示', () {
+    final entries = versionHistoryForCurrent('2.1.132');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.version, '2.1.131');
+    expect(entry.version, '2.1.132');
     expect(entry.isPrerelease, isTrue);
     for (final text in <String>[
       'Windows',
       'Android',
-      '中英文别名',
-      '年份',
-      '季集',
-      '发布标签',
       '本地',
       '网盘',
       'TMDB',
-      '季度',
-      '逐集标题',
-      '共享缓存',
+      '集名',
+      'S01E01',
       '公共安装包',
       '断网',
       '远程路径',

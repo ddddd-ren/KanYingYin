@@ -69,6 +69,14 @@ class _TmdbScrapeOptionsSheetState extends State<TmdbScrapeOptionsSheet> {
               onChanged: (value) => setState(
                   () => _options = _options.copyWith(overwritePoster: value)),
             ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('刮削剧集名称'),
+              subtitle: const Text('显示 TMDB 返回的每集名称'),
+              value: _options.scrapeEpisodeNames,
+              onChanged: (value) => setState(() =>
+                  _options = _options.copyWith(scrapeEpisodeNames: value)),
+            ),
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,

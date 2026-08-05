@@ -11,6 +11,7 @@ void main() {
     expect(options.minimumLead, 0.1);
     expect(options.maximumSearchPages, 3);
     expect(options.maximumAliasCandidates, 20);
+    expect(options.scrapeEpisodeNames, isTrue);
   });
 
   test('刮削选项序列化往返保留全部开关', () {
@@ -21,11 +22,17 @@ void main() {
       overwriteTitle: true,
       overwriteOverview: false,
       overwritePoster: false,
+      scrapeEpisodeNames: false,
       fetchPoster: false,
       fetchBackdrop: false,
       maximumSearchPages: 5,
       maximumAliasCandidates: 12,
     );
     expect(TmdbScrapeOptions.fromMap(options.toMap()).toMap(), options.toMap());
+  });
+
+  test('旧配置缺少逐集名称字段时默认开启', () {
+    final options = TmdbScrapeOptions.fromMap(const <String, Object?>{});
+    expect(options.scrapeEpisodeNames, isTrue);
   });
 }

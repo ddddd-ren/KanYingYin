@@ -149,6 +149,7 @@ void main() {
       overwriteTitle: false,
       overwriteOverview: true,
       overwritePoster: true,
+      scrapeEpisodeNames: true,
       fetchPoster: true,
       fetchBackdrop: true,
     );

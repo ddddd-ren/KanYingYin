@@ -3,23 +3,23 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('当前发布配置统一为二点一三四双平台测试版', () {
+  test('当前发布配置统一为二点一三五双平台测试版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
 
-    expect(pubspec, contains('version: 2.1.134+20134'));
-    expect(pubspec, contains('msix_version: 2.1.134.0'));
+    expect(pubspec, contains('version: 2.1.135+20135'));
+    expect(pubspec, contains('msix_version: 2.1.135.0'));
     for (final source in <String>[releaseNotes, updateDialogCopy]) {
       expect(source, contains('Windows 测试版'));
       expect(source, contains('Android 测试版'));
-      expect(source, contains('2.1.134'));
-      expect(source, contains('20134'));
+      expect(source, contains('2.1.135'));
+      expect(source, contains('20135'));
       expect(source, contains('测试版'));
       expect(source, contains('TMDB'));
-      expect(source, contains('匹配剧集'));
-      expect(source, contains('保留原名'));
-      expect(source, contains('重新扫描'));
+      expect(source, contains('刮削剧集名称'));
+      expect(source, contains('D:\\看影音'));
+      expect(source, contains('深色模式'));
       expect(source, contains('断网'));
     }
   });

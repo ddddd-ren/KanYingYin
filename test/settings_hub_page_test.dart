@@ -12,8 +12,8 @@ void main() {
     expect(source, isNot(contains('SettingsHubCard(')));
     expect(source, isNot(contains('SettingsHubLayout.columnCountFor')));
     for (final section in <String>[
-      '本地媒体库',
-      '播放器设置',
+      '媒体库',
+      '设置',
       '应用与外观',
       '其他',
     ]) {
@@ -21,6 +21,7 @@ void main() {
     }
     for (final label in <String>[
       'TMDB 刮削',
+      '存储',
       '网盘数据源',
       '媒体识别',
       '观看历史',
@@ -34,6 +35,7 @@ void main() {
     }
     for (final path in <String>[
       '/settings/tmdb',
+      '/settings/storage',
       '/settings/cloud-sources',
       '/settings/media-recognition',
       '/settings/history',

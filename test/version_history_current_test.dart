@@ -5,13 +5,13 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一三四支持本地和网盘逐个匹配 TMDB 剧集', () {
-    final entries = versionHistoryForCurrent('2.1.134');
+  test('二点一三五支持存储迁移和可选逐集名称', () {
+    final entries = versionHistoryForCurrent('2.1.135');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.version, '2.1.134');
+    expect(entry.version, '2.1.135');
     expect(entry.isPrerelease, isTrue);
     for (final text in <String>[
       'Windows',
@@ -19,16 +19,15 @@ void main() {
       '本地',
       '网盘',
       'TMDB',
-      '匹配剧集',
-      '逐个',
+      '刮削剧集名称',
       'S01E01',
-      '保留原名',
-      '恢复自动识别',
-      '重新扫描',
-      '公共安装包',
+      '回魂计',
+      'D:\\看影音',
+      'Inno Setup',
+      '深色模式',
       '断网',
       '远程路径',
-      '播放 ID',
+      '远程 ID',
       '不会修改或删除',
     ]) {
       expect(changes, contains(text));

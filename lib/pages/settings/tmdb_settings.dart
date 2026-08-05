@@ -242,6 +242,14 @@ class _TmdbSettingsPageState extends State<TmdbSettingsPage> {
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
+            title: const Text('刮削剧集名称'),
+            subtitle: const Text('显示 TMDB 返回的每集名称'),
+            value: _options.scrapeEpisodeNames,
+            onChanged: (value) => setState(
+                () => _options = _options.copyWith(scrapeEpisodeNames: value)),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
             title: const Text('获取海报'),
             value: _options.fetchPoster,
             onChanged: (value) => setState(

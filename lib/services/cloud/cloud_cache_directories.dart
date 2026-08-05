@@ -6,10 +6,14 @@ import 'package:crypto/crypto.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:kanyingyin/services/storage/storage_path_resolver.dart';
 
 typedef CloudCacheRootProvider = Future<Directory> Function();
 
-Future<Directory> defaultCloudCacheRoot() => getApplicationCacheDirectory();
+Future<Directory> defaultCloudCacheRoot() async {
+  final resolver = StoragePathResolver.current;
+  return resolver?.cacheRoot ?? await getApplicationCacheDirectory();
+}
 
 class CloudCacheDirectories {
   const CloudCacheDirectories._();

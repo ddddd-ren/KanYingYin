@@ -18,8 +18,8 @@ class GStorage {
   /// Hive directory path, initialized during init()
   static String? _hivePath;
 
-  static Future<void> init() async {
-    _hivePath =
+  static Future<void> init({String? hivePath}) async {
+    _hivePath = hivePath ??
         '${(await getApplicationSupportDirectory()).path}/${AppIdentity.storageNamespace}/hive';
 
     try {

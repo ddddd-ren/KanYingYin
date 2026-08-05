@@ -31,7 +31,7 @@ void main() {
     expect(find.text('动漫'), findsNothing);
     expect(find.text('电视剧'), findsNothing);
     expect(find.text('分类'), findsOneWidget);
-    expect(find.text('本地媒体库'), findsOneWidget);
+    expect(find.text('媒体库'), findsOneWidget);
     expect(find.text('网盘媒体库'), findsOneWidget);
     await tester.tap(find.text('分类'));
     await tester.pumpAndSettle();

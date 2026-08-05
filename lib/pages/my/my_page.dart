@@ -72,8 +72,14 @@ class SettingsHubContent extends StatelessWidget {
       maxWidth: 1000,
       sections: [
         KSettingsSection(
-          title: text('本地媒体库'),
+          title: text('媒体库'),
           tiles: [
+            KSettingsTile<void>.navigation(
+              onPressed: (_) => onOpenPath('/settings/storage'),
+              leading: const Icon(Icons.storage_outlined),
+              title: text('存储'),
+              description: text('设置应用数据和缓存目录，迁移后保留原目录备份'),
+            ),
             KSettingsTile<void>.navigation(
               onPressed: (_) => onOpenPath('/settings/tmdb'),
               leading: const Icon(Icons.movie_filter_outlined),
@@ -101,7 +107,7 @@ class SettingsHubContent extends StatelessWidget {
           ],
         ),
         KSettingsSection(
-          title: text('播放器设置'),
+          title: text('设置'),
           tiles: [
             KSettingsTile<void>.navigation(
               onPressed: (_) => onOpenPath('/settings/player'),

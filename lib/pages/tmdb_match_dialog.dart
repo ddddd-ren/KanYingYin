@@ -374,6 +374,12 @@ class _TmdbMatchDialogState<TResult> extends State<TmdbMatchDialog<TResult>> {
               (value) => _options = _options.copyWith(overwritePoster: value),
             ),
             _optionSwitch(
+              '刮削剧集名称',
+              _options.scrapeEpisodeNames,
+              (value) =>
+                  _options = _options.copyWith(scrapeEpisodeNames: value),
+            ),
+            _optionSwitch(
               '获取海报',
               _options.fetchPoster,
               (value) => _options = _options.copyWith(fetchPoster: value),

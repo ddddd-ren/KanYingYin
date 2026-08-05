@@ -63,6 +63,8 @@ OpenList、夸克、百度和迅雷网盘在本项目中仅作为用户自有媒
 
 - 获取中文标题、原始标题、简介、评分、海报和背景图。
 - 支持电影、电视剧、季度和剧集信息。
+- 本地与个人网盘共用同一套匹配规则，可从中英文别名、年份、季集标记和发布标签中提取更准确的搜索信息。
+- 剧集匹配后会补充实际季度资料和逐集标题；共享缓存会合并重复查询，减少连续刮削时的网络请求。
 - 支持自动匹配、手动选择候选、重新匹配和单独刮削。
 - 可配置语言、地区、匹配阈值以及标题和图片覆盖策略。
 - 公共安装包不内置 TMDB Key；用户可在设置中填写自己的 Key，并由系统安全存储保护。
@@ -98,16 +100,16 @@ OpenList、夸克、百度和迅雷网盘在本项目中仅作为用户自有媒
 | --- | --- |
 | 支持平台 | Windows 10/11 x64；Android 7.0+（API 24+） |
 | 安装格式 | MSIX / APK |
-| 当前版本 | 2.1.130 |
-| 本轮交付 | Windows 测试版 MSIX；Android 测试版 APK/AAB |
-| Android 版本 | 2.1.130 (20130) |
+| 当前版本 | 2.1.131 |
+| 本轮交付 | Windows 测试版 MSIX；Android 测试版仅同步版本配置，本轮未打包 |
+| Android 版本 | 2.1.131 (20131) |
 | Dart 包名 | `kanyingyin` |
 | Windows 包标识 | `com.kanyingyin.player` |
 | Android 应用标识 | `com.kanyingyin.player` |
 | Flutter | 3.41.9 |
 
-项目同时支持 Windows 与 Android。2.1.130 的 Windows 与 Android 测试版使用同一版本来源，
-分别构建 MSIX、APK 和 AAB；AAB 用于应用商店测试交付，普通 Android 安装使用 APK。
+项目同时支持 Windows 与 Android。2.1.131 的 Windows 与 Android 测试版使用同一版本来源；
+本轮仅构建并交付 Windows MSIX，Android APK/AAB 未打包或实机验证。
 
 ## 安装
 

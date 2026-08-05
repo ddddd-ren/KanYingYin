@@ -3,24 +3,23 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('当前发布配置统一为二点一三零双平台测试版', () {
+  test('当前发布配置统一为二点一三一双平台测试版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
 
-    expect(pubspec, contains('version: 2.1.130+20130'));
-    expect(pubspec, contains('msix_version: 2.1.130.0'));
+    expect(pubspec, contains('version: 2.1.131+20131'));
+    expect(pubspec, contains('msix_version: 2.1.131.0'));
     for (final source in <String>[releaseNotes, updateDialogCopy]) {
       expect(source, contains('Windows 测试版'));
       expect(source, contains('Android 测试版'));
-      expect(source, contains('2.1.130'));
-      expect(source, contains('20130'));
+      expect(source, contains('2.1.131'));
+      expect(source, contains('20131'));
       expect(source, contains('测试版'));
-      expect(source, contains('电影'));
-      expect(source, contains('动漫'));
-      expect(source, contains('电视剧'));
-      expect(source, contains('海报'));
-      expect(source, contains('隐藏'));
+      expect(source, contains('TMDB'));
+      expect(source, contains('中英文别名'));
+      expect(source, contains('共享缓存'));
+      expect(source, contains('断网'));
     }
   });
 

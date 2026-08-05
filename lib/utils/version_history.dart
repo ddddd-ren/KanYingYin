@@ -150,6 +150,20 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.131',
+    date: '2026-08-05',
+    isPrerelease: true,
+    changes: [
+      'Windows 与 Android 改进中英文别名、年份、季集标记和发布标签识别，减少画质、字幕、压制组等规格文字干扰 TMDB 搜索',
+      '本地媒体库与个人网盘共用同一套 TMDB 匹配和候选排序规则，同一文件名在不同来源中可得到一致结果',
+      '剧集匹配后会补充实际季度资料、季度海报和逐集标题；没有单集资料时仍保留原始文件名与现有播放入口',
+      'TMDB 搜索、详情和季集请求使用共享缓存并合并同时发生的相同查询，减少重复请求和连续刮削等待',
+      '公共安装包不内置 TMDB Key；没有 Key 或断网时，本地与网盘扫描、浏览和播放仍可用，已保存资料不受影响',
+      'Windows 与 Android 版本继续使用统一版本配置，诊断日志继续脱敏并隐藏本地文件路径',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件，也不会改变远程路径和播放 ID',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.130',
     date: '2026-08-05',
     isPrerelease: true,

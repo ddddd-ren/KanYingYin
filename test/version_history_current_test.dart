@@ -5,30 +5,31 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一三零分离动漫电视剧并统一季度数量', () {
-    final entries = versionHistoryForCurrent('2.1.130');
+  test('二点一三一统一本地网盘 TMDB 刮削', () {
+    final entries = versionHistoryForCurrent('2.1.131');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.version, '2.1.130');
+    expect(entry.version, '2.1.131');
     expect(entry.isPrerelease, isTrue);
     for (final text in <String>[
       'Windows',
       'Android',
-      '电影',
-      '动漫',
-      '电视剧',
-      '互斥',
+      '中英文别名',
+      '年份',
+      '季集',
+      '发布标签',
+      '本地',
       '网盘',
-      '网盘媒体库',
-      '独立索引',
       'TMDB',
-      '季号',
-      '季度海报',
-      'S02E00',
-      '第三张',
-      '外挂字幕',
+      '季度',
+      '逐集标题',
+      '共享缓存',
+      '公共安装包',
+      '断网',
+      '远程路径',
+      '播放 ID',
       '不会修改或删除',
     ]) {
       expect(changes, contains(text));

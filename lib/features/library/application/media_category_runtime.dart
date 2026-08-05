@@ -1,8 +1,11 @@
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
+import 'package:kanyingyin/modules/cloud/cloud_hidden_video.dart';
+import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
+import 'package:kanyingyin/repositories/cloud_hidden_video_repository.dart';
 import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
@@ -21,23 +24,32 @@ typedef MediaCategoryEpisodeAction = Future<void> Function(
   MediaLibrarySeries series,
   MediaLibraryEpisode episode,
 );
+typedef MediaCategoryHideEpisodesAction = Future<void> Function(
+  MediaLibrarySeries series,
+  List<MediaLibraryEpisode> episodes,
+);
 
 class MediaCategoryRuntime {
   MediaCategoryRuntime({
     required LocalController localController,
     required LocalVideoController videoController,
     required CloudWorkTmdbRepository workTmdbRepository,
+    required ICloudHiddenVideoRepository hiddenVideoRepository,
     required TypedSettings settings,
     required Future<void> Function() navigateToPlayer,
   })  : _localController = localController,
         _videoController = videoController,
         _workTmdbRepository = workTmdbRepository,
+        _hiddenVideos = MediaCategoryHiddenVideoState(
+          repository: hiddenVideoRepository,
+        ),
         _settings = settings,
         _navigateToPlayer = navigateToPlayer;
 
   final LocalController _localController;
   final LocalVideoController _videoController;
   final CloudWorkTmdbRepository _workTmdbRepository;
+  final MediaCategoryHiddenVideoState _hiddenVideos;
   final TypedSettings _settings;
   final Future<void> Function() _navigateToPlayer;
 
@@ -47,6 +59,9 @@ class MediaCategoryRuntime {
   Future<void> initialize() async {
     _localController.reloadLocalLibraryIndex();
     await _localController.reloadCloudLibraryIndex();
+    await _hiddenVideos.load(
+      _localController.cloudLibrarySources.map((source) => source.id),
+    );
     final records = await _workTmdbRepository.getAll();
     _workRecords = <String, CloudWorkTmdbRecord>{
       for (final record in records) record.workKey: record,
@@ -55,10 +70,22 @@ class MediaCategoryRuntime {
 
   CloudMediaLibrary get library => const CloudMediaLibraryAggregator().build(
         localItems: _localController.localLibraryItems,
-        cloudItems: _localController.cloudLibraryItems,
+        cloudItems: _hiddenVideos.visibleCloudItems(
+          _localController.cloudLibraryItems,
+        ),
         cloudSources: _localController.cloudLibrarySources,
         workRecordsByKey: _workRecords,
       );
+
+  Future<void> hideEpisodes(
+    MediaLibrarySeries series,
+    List<MediaLibraryEpisode> episodes,
+  ) async {
+    if (series.sourceKind != MediaSourceKind.cloud) {
+      throw ArgumentError.value(series.sourceKind, 'series', '只能隐藏网盘视频');
+    }
+    await _hiddenVideos.hideEpisodes(episodes);
+  }
 
   Future<void> playEpisode(
     MediaLibrarySeries series,
@@ -141,5 +168,80 @@ class MediaCategoryRuntime {
       resolver: CloudPlaybackResolver().resolve,
     );
     return true;
+  }
+}
+
+class MediaCategoryHiddenVideoState {
+  MediaCategoryHiddenVideoState(
+      {required ICloudHiddenVideoRepository repository})
+      : _repository = repository;
+
+  final ICloudHiddenVideoRepository _repository;
+  final Map<String, List<CloudHiddenVideo>> _recordsBySource =
+      <String, List<CloudHiddenVideo>>{};
+
+  Future<void> load(Iterable<String> sourceIds) async {
+    final uniqueSourceIds = sourceIds
+        .map((sourceId) => sourceId.trim())
+        .where((sourceId) => sourceId.isNotEmpty)
+        .toSet();
+    final loaded = <String, List<CloudHiddenVideo>>{};
+    for (final sourceId in uniqueSourceIds) {
+      loaded[sourceId] = await _repository.getBySource(sourceId);
+    }
+    _recordsBySource
+      ..clear()
+      ..addAll(loaded);
+  }
+
+  Iterable<CloudMediaIndexItem> visibleCloudItems(
+    Iterable<CloudMediaIndexItem> items,
+  ) sync* {
+    for (final item in items) {
+      final records = _recordsBySource[item.sourceId];
+      final hidden = records?.any(
+            (record) => record.matches(
+              sourceId: item.sourceId,
+              remoteId: item.remoteId,
+              remotePath: item.remotePath,
+            ),
+          ) ==
+          true;
+      if (!hidden) yield item;
+    }
+  }
+
+  Future<void> hideEpisodes(Iterable<MediaLibraryEpisode> episodes) async {
+    final episodesBySource = <String, List<MediaLibraryEpisode>>{};
+    for (final episode in episodes) {
+      final remoteId = episode.remoteId;
+      final remotePath = episode.remotePath;
+      if (episode.sourceKind != MediaSourceKind.cloud ||
+          remoteId == null ||
+          remotePath == null) {
+        throw ArgumentError.value(episode, 'episodes', '隐藏项必须是有效的网盘视频');
+      }
+      episodesBySource.putIfAbsent(episode.sourceId, () => []).add(episode);
+    }
+
+    for (final entry in episodesBySource.entries) {
+      final sourceId = entry.key;
+      final recordsByIdentity = <String, CloudHiddenVideo>{
+        for (final record in await _repository.getBySource(sourceId))
+          record.identityKey: record,
+      };
+      for (final episode in entry.value) {
+        final record = CloudHiddenVideo(
+          sourceId: sourceId,
+          remoteId: episode.remoteId!,
+          remotePath: normalizeCloudHiddenVideoPath(episode.remotePath!),
+          fileName: episode.name,
+        );
+        recordsByIdentity[record.identityKey] = record;
+      }
+      final records = recordsByIdentity.values.toList(growable: false);
+      await _repository.replaceSource(sourceId, records);
+      _recordsBySource[sourceId] = records;
+    }
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:kanyingyin/features/library/application/media_category_runtime.dart';
 import 'package:kanyingyin/features/library/application/media_library_category.dart';
@@ -14,6 +15,7 @@ class MediaCategoryPage extends StatefulWidget {
     required this.initialize,
     required this.libraryProvider,
     required this.onPlayEpisode,
+    this.onHideEpisodes,
     this.observeLibrary = true,
   });
 
@@ -21,6 +23,7 @@ class MediaCategoryPage extends StatefulWidget {
   final Future<void> Function() initialize;
   final MediaCategoryLibraryProvider libraryProvider;
   final MediaCategoryEpisodeAction onPlayEpisode;
+  final MediaCategoryHideEpisodesAction? onHideEpisodes;
   final bool observeLibrary;
 
   @override
@@ -261,7 +264,122 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
           label: widget.category.label,
         ),
       ],
+      trailing: _seriesMenu(series),
       onTap: !series.isAvailable || _playing ? null : () => _openSeries(series),
+    );
+  }
+
+  Widget _seriesMenu(MediaLibrarySeries series) {
+    return Material(
+      type: MaterialType.transparency,
+      shape: const CircleBorder(),
+      child: PopupMenuButton<_MediaCategoryAction>(
+        tooltip: '媒体操作',
+        padding: EdgeInsets.zero,
+        iconSize: 16,
+        style: IconButton.styleFrom(
+          minimumSize: const Size.square(32),
+          maximumSize: const Size.square(32),
+          padding: EdgeInsets.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        icon: const Icon(Icons.more_vert),
+        onSelected: (action) => _handleSeriesAction(series, action),
+        itemBuilder: (_) => <PopupMenuEntry<_MediaCategoryAction>>[
+          PopupMenuItem<_MediaCategoryAction>(
+            value: _MediaCategoryAction.play,
+            child: Text(series.episodes.length == 1 ? '播放' : '播放剧集'),
+          ),
+          if (series.sourceKind == MediaSourceKind.local)
+            const PopupMenuItem<_MediaCategoryAction>(
+              value: _MediaCategoryAction.copyPath,
+              child: Text('复制路径'),
+            ),
+          if (series.sourceKind == MediaSourceKind.cloud &&
+              widget.onHideEpisodes != null) ...[
+            const PopupMenuDivider(),
+            const PopupMenuItem<_MediaCategoryAction>(
+              value: _MediaCategoryAction.hide,
+              child: Text('隐藏视频'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleSeriesAction(
+    MediaLibrarySeries series,
+    _MediaCategoryAction action,
+  ) async {
+    switch (action) {
+      case _MediaCategoryAction.play:
+        await _openSeries(series);
+        return;
+      case _MediaCategoryAction.copyPath:
+        final path = series.episodes.firstOrNull?.localItem?.path;
+        if (path == null || path.isEmpty) return;
+        await Clipboard.setData(ClipboardData(text: path));
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('路径已复制')),
+        );
+        return;
+      case _MediaCategoryAction.hide:
+        final selected = await _selectEpisodesToHide(series);
+        if (selected == null || selected.isEmpty || !mounted) return;
+        try {
+          await widget.onHideEpisodes?.call(series, selected);
+          if (!mounted) return;
+          setState(() {});
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('已隐藏 ${selected.length} 个视频')),
+          );
+        } on Object {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('隐藏设置保存失败，请重试')),
+          );
+        }
+        return;
+    }
+  }
+
+  Future<List<MediaLibraryEpisode>?> _selectEpisodesToHide(
+    MediaLibrarySeries series,
+  ) {
+    final episodes = series.episodes;
+    if (episodes.isEmpty) {
+      return Future<List<MediaLibraryEpisode>?>.value(null);
+    }
+    if (episodes.length == 1) {
+      final episode = episodes.single;
+      return showDialog<List<MediaLibraryEpisode>>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('隐藏视频'),
+          content: Text(
+            '确定从分类海报墙隐藏“${episode.name}”吗？\n\n'
+            '只会修改看影音中的显示，不会删除网盘文件。',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(
+                <MediaLibraryEpisode>[episode],
+              ),
+              child: const Text('隐藏'),
+            ),
+          ],
+        ),
+      );
+    }
+    return showDialog<List<MediaLibraryEpisode>>(
+      context: context,
+      builder: (context) => _MediaCategoryHideDialog(episodes: episodes),
     );
   }
 
@@ -399,5 +517,81 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
     }
     final path = normalized.startsWith('/') ? normalized : '/$normalized';
     return 'https://image.tmdb.org/t/p/w500$path';
+  }
+}
+
+enum _MediaCategoryAction { play, copyPath, hide }
+
+class _MediaCategoryHideDialog extends StatefulWidget {
+  const _MediaCategoryHideDialog({required this.episodes});
+
+  final List<MediaLibraryEpisode> episodes;
+
+  @override
+  State<_MediaCategoryHideDialog> createState() =>
+      _MediaCategoryHideDialogState();
+}
+
+class _MediaCategoryHideDialogState extends State<_MediaCategoryHideDialog> {
+  final Set<String> _selectedIds = <String>{};
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      key: const ValueKey<String>('media-category-hide-dialog'),
+      title: const Text('选择要隐藏的视频'),
+      content: SizedBox(
+        width: 560,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 420),
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text('隐藏只影响海报墙，不会删除网盘文件。'),
+              ),
+              for (final episode in widget.episodes)
+                CheckboxListTile(
+                  key: ValueKey<String>(
+                    'media-category-hide-${episode.stableId}',
+                  ),
+                  value: _selectedIds.contains(episode.stableId),
+                  title: Text(episode.name),
+                  subtitle: Text(episode.remotePath ?? ''),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  onChanged: (selected) {
+                    setState(() {
+                      if (selected == true) {
+                        _selectedIds.add(episode.stableId);
+                      } else {
+                        _selectedIds.remove(episode.stableId);
+                      }
+                    });
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: _selectedIds.isEmpty
+              ? null
+              : () => Navigator.of(context).pop(
+                    widget.episodes
+                        .where(
+                          (episode) => _selectedIds.contains(episode.stableId),
+                        )
+                        .toList(growable: false),
+                  ),
+          child: const Text('隐藏所选'),
+        ),
+      ],
+    );
   }
 }

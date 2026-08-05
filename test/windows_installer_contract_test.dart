@@ -44,4 +44,26 @@ void main() {
     expect(source, contains('ProductVersion.StartsWith'));
     expect(source.toLowerCase(), isNot(contains('msix:create')));
   });
+
+  test('Windows 主程序和安装器使用相同的三段版本号', () {
+    final runner = File('windows/runner/Runner.rc').readAsStringSync();
+    final buildScript =
+        File('tool/windows/build_exe_release.ps1').readAsStringSync();
+
+    expect(
+      runner,
+      contains(
+        '#define VERSION_AS_NUMBER '
+        'FLUTTER_VERSION_MAJOR,FLUTTER_VERSION_MINOR,'
+        'FLUTTER_VERSION_PATCH,0',
+      ),
+    );
+    expect(runner, contains('#define VERSION_AS_STRING VERSION_TRIPLE'));
+    expect(runner, isNot(contains('#define VERSION_AS_STRING FLUTTER_VERSION')));
+    expect(buildScript, contains(r'$releaseVersion -ne $version'));
+    expect(
+      buildScript,
+      isNot(contains('releaseVersion.StartsWith')),
+    );
+  });
 }

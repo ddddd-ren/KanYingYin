@@ -40,7 +40,7 @@ if (-not (Test-Path -LiteralPath $releaseExe -PathType Leaf)) {
 }
 $releaseVersion = (Get-Item -LiteralPath $releaseExe).VersionInfo.ProductVersion
 if ([string]::IsNullOrWhiteSpace($releaseVersion) -or
-    -not $releaseVersion.StartsWith($version, [System.StringComparison]::Ordinal)) {
+    $releaseVersion -ne $version) {
   throw "Release executable version $releaseVersion does not match $version"
 }
 

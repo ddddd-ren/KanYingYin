@@ -794,9 +794,9 @@ void main() {
       size: 200,
       modifiedAt: null,
       seriesName: '规则标题',
-      seasonNumber: 2,
-      episodeNumber: 0,
-      mediaType: CloudMediaType.episode,
+      seasonNumber: null,
+      episodeNumber: null,
+      mediaType: CloudMediaType.movie,
     );
     final record = CloudWorkTmdbRecord.matched(
       sourceId: matchedWork.sourceId,

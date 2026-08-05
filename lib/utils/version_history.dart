@@ -150,6 +150,19 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.130',
+    date: '2026-08-05',
+    isPrerelease: true,
+    changes: [
+      'Windows 与 Android 的动漫和电视剧分类现在互斥显示，带动画或 Animation 类型的剧集只进入动漫入口，不再同时混入电视剧入口',
+      '修复 S02E00 等文件被独立索引为电影且缺少季号时，在动漫入口多出第三张重复海报的问题；应用会从原始路径恢复季号并归入第二季',
+      '网盘媒体库与电影、动漫、电视剧入口共用同一套有效季号和 TMDB 作品归并规则，同一来源的资源数量、季度海报、选集和播放入口保持一致',
+      '已隐藏视频继续在网盘媒体库和三个分类入口同步隐藏，视频、外挂字幕、原始路径和播放入口不受本轮修复影响',
+      'Windows 与 Android 版本继续使用统一版本配置，诊断日志继续脱敏并隐藏本地文件路径',
+      '本次更新只调整媒体分类与作品归并，不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.129',
     date: '2026-08-05',
     isPrerelease: true,

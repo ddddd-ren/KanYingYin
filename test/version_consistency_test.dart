@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('二点一二九 Flutter、Windows 与 Android 版本保持一致', () {
-    const expectedVersion = '2.1.129';
-    const expectedBuildNumber = '20129';
+  test('二点一三零 Flutter、Windows 与 Android 版本保持一致', () {
+    const expectedVersion = '2.1.130';
+    const expectedBuildNumber = '20130';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final androidGradle =

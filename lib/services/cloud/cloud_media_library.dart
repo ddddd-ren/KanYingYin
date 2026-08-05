@@ -4,6 +4,7 @@ import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_grouping_metadata.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_grouping_policy.dart';
 
@@ -274,7 +275,7 @@ class CloudMediaLibraryAggregator {
       final workMetadata = workRecord?.metadata;
       final seasonMetadata = _seasonMetadata(
         workMetadata,
-        items.first.seasonNumber,
+        CloudMediaGroupingMetadata.seasonNumber(items.first),
       );
       final recognizedTitle = indexedMetadata?.tmdbTitle ??
           (items.first.seriesName.trim().isEmpty
@@ -329,7 +330,7 @@ class CloudMediaLibraryAggregator {
                   posterCachePath: posterCachePath ?? item.posterCachePath,
                   size: item.size,
                   modifiedAt: item.modifiedAt,
-                  seasonNumber: item.seasonNumber,
+                  seasonNumber: CloudMediaGroupingMetadata.seasonNumber(item),
                   episodeNumber: item.episodeNumber,
                   subtitleRemotePaths: item.subtitlePaths,
                   subtitleRemoteRefs: item.subtitleRefs,
@@ -388,7 +389,8 @@ class CloudMediaLibraryAggregator {
     final workKey = item.workKey;
     final record = workKey == null ? null : records[workKey];
     var groupKey = _workGroupingPolicy.matchedGroupKey(item.sourceId, record);
-    if (groupKey == null && (item.seasonNumber ?? 0) > 0) {
+    if (groupKey == null &&
+        CloudMediaGroupingMetadata.seasonNumber(item) != null) {
       final inheritedKeys = <String>{};
       for (final title in _cloudTitleAliases(item, record)) {
         inheritedKeys.addAll(
@@ -425,7 +427,10 @@ class CloudMediaLibraryAggregator {
         record?.metadata?.title,
         record?.metadata?.originalTitle,
       ],
-      seasonNumbers: <int>[if (item.seasonNumber != null) item.seasonNumber!],
+      seasonNumbers: <int>[
+        if (CloudMediaGroupingMetadata.seasonNumber(item) case final season?)
+          season,
+      ],
     );
   }
 
@@ -479,7 +484,7 @@ class CloudMediaLibraryAggregator {
             ? item.name
             : item.seriesName.trim();
     if (item.mediaType == CloudMediaType.special) return '$name 特别篇';
-    final season = item.seasonNumber;
+    final season = CloudMediaGroupingMetadata.seasonNumber(item);
     if (season != null && season > 0) {
       return '$name S${season.toString().padLeft(2, '0')}';
     }
@@ -500,7 +505,7 @@ class CloudMediaLibraryAggregator {
   static String _groupVariant(CloudMediaIndexItem item) =>
       item.mediaType == CloudMediaType.special
           ? 'special'
-          : 'season:${item.seasonNumber ?? 0}';
+          : 'season:${CloudMediaGroupingMetadata.seasonNumber(item) ?? 0}';
 
   static int _compareCloudEpisodes(
       CloudMediaIndexItem a, CloudMediaIndexItem b) {

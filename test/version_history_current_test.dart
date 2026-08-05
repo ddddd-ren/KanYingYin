@@ -5,13 +5,13 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一二九补齐网盘媒体库独立索引', () {
-    final entries = versionHistoryForCurrent('2.1.129');
+  test('二点一三零分离动漫电视剧并统一季度数量', () {
+    final entries = versionHistoryForCurrent('2.1.130');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.version, '2.1.129');
+    expect(entry.version, '2.1.130');
     expect(entry.isPrerelease, isTrue);
     for (final text in <String>[
       'Windows',
@@ -19,18 +19,16 @@ void main() {
       '电影',
       '动漫',
       '电视剧',
-      '分类',
+      '互斥',
       '网盘',
       '网盘媒体库',
       '独立索引',
-      '作品身份',
       'TMDB',
-      '手动匹配',
+      '季号',
       '季度海报',
-      '同名',
-      '唯一',
       'S02E00',
-      '歧义',
+      '第三张',
+      '外挂字幕',
       '不会修改或删除',
     ]) {
       expect(changes, contains(text));

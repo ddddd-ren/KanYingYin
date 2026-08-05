@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
@@ -26,6 +27,7 @@ import 'package:kanyingyin/services/cloud/cloud_tmdb_metadata_service.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_tmdb_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:path/path.dart' as p;
 
@@ -171,6 +173,152 @@ void main() {
       expect(series.tmdbOverview, '这是用户可见的简介');
       expect(series.tmdbPosterUrl, '/poster.jpg');
       expect(series.posterCachePath, r'C:\cache\poster.jpg');
+    });
+
+    test('作品级刮削记录为分类入口提供媒体类型和季度海报', () {
+      final indexed = _cloud(
+        'openlist',
+        '/Show/Show S02E01.mkv',
+        season: 2,
+        workKey: 'openlist|work|show-s2',
+      );
+      final record = CloudWorkTmdbRecord.matched(
+        sourceId: 'openlist',
+        workKey: 'openlist|work|show-s2',
+        workRootId: 'show-s2',
+        workRootPath: '/Show',
+        remoteName: 'Show S02',
+        metadata: TmdbMetadata(
+          id: 42,
+          mediaType: TmdbMediaType.tv,
+          title: '中文剧名',
+          genres: const <String>['动画', '剧情'],
+          language: 'zh-CN',
+          matchedAt: DateTime.utc(2026, 8, 5),
+          matchConfidence: 1,
+          seasons: const <TmdbSeasonMetadata>[
+            TmdbSeasonMetadata(
+              id: 2,
+              seasonNumber: 2,
+              name: '第 2 季',
+              episodeCount: 12,
+              posterUrl: '/season-2.jpg',
+              posterCachePath: r'C:\cache\season-2.jpg',
+            ),
+          ],
+        ),
+        posterCachePath: r'C:\cache\work.jpg',
+        checkedAt: DateTime.utc(2026, 8, 5),
+        tmdbMatchOrigin: TmdbMatchOrigin.manual,
+      );
+
+      final series = const CloudMediaLibraryAggregator()
+          .build(
+            localItems: const <LocalMediaIndexItem>[],
+            cloudItems: <CloudMediaIndexItem>[indexed],
+            cloudSources: sources,
+            workRecordsByKey: <String, CloudWorkTmdbRecord>{
+              record.workKey: record,
+            },
+          )
+          .series
+          .single;
+
+      expect(series.title, '中文剧名 S02');
+      expect(series.mediaType, TmdbMediaType.tv);
+      expect(series.genres, const <String>['动画', '剧情']);
+      expect(series.tmdbPosterUrl, '/season-2.jpg');
+      expect(series.posterCachePath, r'C:\cache\season-2.jpg');
+    });
+
+    test('同来源不同目录手动匹配到同一 TMDB 作品后分类入口只保留一张卡片', () {
+      final first = _cloud(
+        'openlist',
+        '/版本一/Show S01E01.mkv',
+        workKey: 'openlist|work|version-1',
+        seriesName: '版本一',
+      );
+      final second = _cloud(
+        'openlist',
+        '/版本二/Show S01E02.mkv',
+        episode: 2,
+        workKey: 'openlist|work|version-2',
+        seriesName: '版本二',
+      );
+      CloudWorkTmdbRecord record(String workKey, String remoteName) {
+        return CloudWorkTmdbRecord.matched(
+          sourceId: 'openlist',
+          workKey: workKey,
+          workRootId: workKey,
+          workRootPath: '/$remoteName',
+          remoteName: remoteName,
+          metadata: TmdbMetadata(
+            id: 42,
+            mediaType: TmdbMediaType.tv,
+            title: '同一部剧',
+            language: 'zh-CN',
+            matchedAt: DateTime.utc(2026, 8, 5),
+            matchConfidence: 1,
+          ),
+          checkedAt: DateTime.utc(2026, 8, 5),
+          tmdbMatchOrigin: TmdbMatchOrigin.manual,
+        );
+      }
+
+      final firstRecord = record(first.workKey!, '版本一');
+      final secondRecord = record(second.workKey!, '版本二');
+      final library = const CloudMediaLibraryAggregator().build(
+        localItems: const <LocalMediaIndexItem>[],
+        cloudItems: <CloudMediaIndexItem>[first, second],
+        cloudSources: sources,
+        workRecordsByKey: <String, CloudWorkTmdbRecord>{
+          firstRecord.workKey: firstRecord,
+          secondRecord.workKey: secondRecord,
+        },
+      );
+
+      expect(library.series, hasLength(1));
+      expect(library.series.single.title, '同一部剧 S01');
+      expect(library.series.single.episodes, hasLength(2));
+    });
+
+    test('未刮削的本地单片和剧集仍能进入电影或电视剧分类', () {
+      final standalone = LocalMediaIndexItem(
+        path: r'D:\Media\Movie\Movie.mkv',
+        name: 'Movie.mkv',
+        parentPath: r'D:\Media\Movie',
+        sourcePath: r'D:\Media',
+        size: 10,
+        modified: DateTime(2026),
+        seriesName: 'Movie',
+        indexedAt: DateTime(2026),
+      );
+      final library = const CloudMediaLibraryAggregator().build(
+        localItems: <LocalMediaIndexItem>[local, standalone],
+        cloudItems: const <CloudMediaIndexItem>[],
+        cloudSources: const <CloudSource>[],
+      );
+
+      expect(
+        library.series
+            .firstWhere(
+              (item) => item.episodes.any(
+                (episode) => episode.localItem?.path == local.path,
+              ),
+            )
+            .mediaType,
+        TmdbMediaType.tv,
+      );
+      expect(
+        library.series
+            .firstWhere(
+              (item) => item.episodes.any(
+                (episode) => episode.localItem?.path == standalone.path,
+              ),
+            )
+            .mediaType,
+        TmdbMediaType.movie,
+      );
     });
   });
 
@@ -958,15 +1106,18 @@ CloudFileEntry _remoteVideo(String id, String path) => CloudFileEntry(
 CloudMediaIndexItem _cloud(String sourceId, String path,
     {int season = 1,
     int? episode = 1,
+    String? workKey,
+    String seriesName = 'Show',
     CloudMediaType type = CloudMediaType.episode}) {
   return CloudMediaIndexItem(
     sourceId: sourceId,
     remoteId: path,
     remotePath: path,
     name: path.split('/').last,
+    workKey: workKey,
     size: 10,
     modifiedAt: DateTime(2026),
-    seriesName: 'Show',
+    seriesName: seriesName,
     seasonNumber: season,
     episodeNumber: episode,
     mediaType: type,

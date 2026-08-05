@@ -9,6 +9,7 @@ void main() {
   Future<void> pumpShell(
     WidgetTester tester, {
     required double width,
+    int selectedIndex = 0,
     ValueChanged<int>? onSelected,
   }) async {
     tester.view.devicePixelRatio = 1;
@@ -19,7 +20,7 @@ void main() {
       MaterialApp(
         theme: AppTheme.dark(fontFamily: 'MiSans'),
         home: AdaptiveNavigationShell(
-          selectedIndex: 0,
+          selectedIndex: selectedIndex,
           destinations: appNavigationDestinations,
           onDestinationSelected: onSelected ?? (_) {},
           content: const ColoredBox(
@@ -39,6 +40,9 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('看影音'), findsOneWidget);
+    expect(find.text('电影'), findsOneWidget);
+    expect(find.text('动漫'), findsOneWidget);
+    expect(find.text('电视剧'), findsOneWidget);
     expect(find.text('本地媒体库'), findsOneWidget);
     expect(find.text('网盘媒体库'), findsOneWidget);
     expect(find.text('设置'), findsOneWidget);
@@ -62,6 +66,7 @@ void main() {
     await pumpShell(
       tester,
       width: 520,
+      selectedIndex: 3,
       onSelected: (index) => selected = index,
     );
 
@@ -70,9 +75,12 @@ void main() {
       findsOneWidget,
     );
     expect(find.byType(NavigationRail), findsNothing);
+    expect(find.text('电影'), findsNothing);
+    expect(find.text('动漫'), findsNothing);
+    expect(find.text('电视剧'), findsNothing);
     await tester.tap(find.text('网盘媒体库'));
     await tester.pump();
-    expect(selected, 1);
+    expect(selected, 4);
   });
 
   testWidgets('桌面内容区使用中性表面而不是主色容器', (tester) async {

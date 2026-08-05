@@ -32,9 +32,7 @@ class NavigationBarState extends ChangeNotifier {
       SettingBoxKey.defaultStartupPage,
       defaultValue: defaultStartupPage,
     );
-    final index =
-        defaultPage is String ? navigationIndexForStartupPage(defaultPage) : -1;
-    return index < 0 ? 0 : index;
+    return resolveNavigationIndex(defaultPage is String ? defaultPage : null);
   }
 
   void updateSelectedIndex(int pageIndex) {

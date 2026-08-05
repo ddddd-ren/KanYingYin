@@ -1,6 +1,8 @@
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
+import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 
@@ -126,6 +128,7 @@ class MediaLibrarySeries {
     this.tmdbRating,
     this.tmdbPosterUrl,
     this.posterCachePath,
+    this.mediaType,
   });
 
   final String key;
@@ -142,6 +145,7 @@ class MediaLibrarySeries {
   final double? tmdbRating;
   final String? tmdbPosterUrl;
   final String? posterCachePath;
+  final TmdbMediaType? mediaType;
 }
 
 class MediaLibrarySourceFilter {
@@ -170,24 +174,34 @@ class CloudMediaLibraryAggregator {
     required Iterable<LocalMediaIndexItem> localItems,
     required Iterable<CloudMediaIndexItem> cloudItems,
     required Iterable<CloudSource> cloudSources,
+    Map<String, CloudWorkTmdbRecord> workRecordsByKey =
+        const <String, CloudWorkTmdbRecord>{},
   }) {
     final sources = {for (final source in cloudSources) source.id: source};
     final result = <MediaLibrarySeries>[];
     for (final local
         in const LocalMediaLibraryBuilder().buildSeries(localItems)) {
+      final metadata = _localMetadata(local.episodes);
+      final tmdbTitle = metadata?.title.trim() ?? '';
       result.add(MediaLibrarySeries(
         key: 'local|${local.key}',
         seriesKey: local.key,
-        title: local.title,
+        title: tmdbTitle.isEmpty ? local.title : tmdbTitle,
         sourceKind: MediaSourceKind.local,
         sourceId: 'local',
         sourceName: '本地',
         isAvailable: true,
+        mediaType: metadata?.mediaType ?? _localMediaType(local.episodes),
         genres: _uniqueGenres(
           local.episodes.expand(
             (item) => item.tmdb?.genres ?? const <String>[],
           ),
         ),
+        tmdbTitle: metadata?.title,
+        tmdbOverview: metadata?.overview,
+        tmdbRating: metadata?.rating,
+        tmdbPosterUrl: metadata?.posterUrl,
+        posterCachePath: local.cover,
         episodes: local.episodes
             .map((item) => MediaLibraryEpisode.local(
                   stableId: item.id,
@@ -201,16 +215,36 @@ class CloudMediaLibraryAggregator {
     final groups = <String, List<CloudMediaIndexItem>>{};
     for (final item in cloudItems) {
       groups
-          .putIfAbsent(
-              '${item.sourceId}|${item.seriesName.trim().toLowerCase()}|${_groupVariant(item)}',
-              () => [])
+          .putIfAbsent(_cloudGroupKey(item, workRecordsByKey), () => [])
           .add(item);
     }
     for (final entry in groups.entries) {
       final items = entry.value..sort(_compareCloudEpisodes);
       final source = sources[items.first.sourceId];
-      final metadata = _metadataItem(items);
-      final title = _cloudGroupTitle(items.first, metadata?.tmdbTitle);
+      final indexedMetadata = _metadataItem(items);
+      final workRecord = _workRecord(items, workRecordsByKey);
+      final workMetadata = workRecord?.metadata;
+      final seasonMetadata = _seasonMetadata(
+        workMetadata,
+        items.first.seasonNumber,
+      );
+      final recognizedTitle = indexedMetadata?.tmdbTitle ??
+          (items.first.seriesName.trim().isEmpty
+              ? items.first.name
+              : items.first.seriesName.trim());
+      final effectiveTitle =
+          workRecord?.effectiveTitle(recognizedTitle) ?? recognizedTitle;
+      final title = _cloudGroupTitle(items.first, effectiveTitle);
+      final posterUrl = seasonMetadata?.posterUrl ??
+          workMetadata?.posterUrl ??
+          indexedMetadata?.tmdbPosterUrl;
+      final posterCachePath = seasonMetadata?.posterCachePath ??
+          workRecord?.posterCachePath ??
+          indexedMetadata?.posterCachePath;
+      final mediaType = workMetadata?.mediaType ?? _cloudMediaType(items);
+      final genres = workMetadata?.genres.isNotEmpty == true
+          ? workMetadata!.genres
+          : _uniqueGenres(items.expand((item) => item.tmdbGenres));
       result.add(MediaLibrarySeries(
         key: entry.key,
         seriesKey: items.first.seriesName.trim(),
@@ -219,12 +253,13 @@ class CloudMediaLibraryAggregator {
         sourceId: items.first.sourceId,
         sourceName: source?.name ?? items.first.sourceId,
         isAvailable: source?.enabled == true,
-        genres: _uniqueGenres(items.expand((item) => item.tmdbGenres)),
-        tmdbTitle: metadata?.tmdbTitle,
-        tmdbOverview: metadata?.tmdbOverview,
-        tmdbRating: metadata?.tmdbRating,
-        tmdbPosterUrl: metadata?.tmdbPosterUrl,
-        posterCachePath: metadata?.posterCachePath,
+        mediaType: mediaType,
+        genres: _uniqueGenres(genres),
+        tmdbTitle: workMetadata?.title ?? indexedMetadata?.tmdbTitle,
+        tmdbOverview: workMetadata?.overview ?? indexedMetadata?.tmdbOverview,
+        tmdbRating: workMetadata?.rating ?? indexedMetadata?.tmdbRating,
+        tmdbPosterUrl: posterUrl,
+        posterCachePath: posterCachePath,
         episodes: items
             .map((item) => MediaLibraryEpisode.cloud(
                   stableId: item.remoteId,
@@ -234,13 +269,15 @@ class CloudMediaLibraryAggregator {
                   isAvailable: source?.enabled == true,
                   remoteId: item.remoteId,
                   remotePath: item.remotePath,
-                  tmdbTitle: item.tmdbTitle,
-                  tmdbOriginalTitle: item.tmdbOriginalTitle,
-                  tmdbOverview: item.tmdbOverview,
-                  tmdbRating: item.tmdbRating,
-                  tmdbPosterUrl: item.tmdbPosterUrl,
-                  tmdbBackdropUrl: item.tmdbBackdropUrl,
-                  posterCachePath: item.posterCachePath,
+                  tmdbTitle: workMetadata?.title ?? item.tmdbTitle,
+                  tmdbOriginalTitle:
+                      workMetadata?.originalTitle ?? item.tmdbOriginalTitle,
+                  tmdbOverview: workMetadata?.overview ?? item.tmdbOverview,
+                  tmdbRating: workMetadata?.rating ?? item.tmdbRating,
+                  tmdbPosterUrl: posterUrl ?? item.tmdbPosterUrl,
+                  tmdbBackdropUrl:
+                      workMetadata?.backdropUrl ?? item.tmdbBackdropUrl,
+                  posterCachePath: posterCachePath ?? item.posterCachePath,
                   subtitleRemotePaths: item.subtitlePaths,
                   subtitleRemoteRefs: item.subtitleRefs,
                 ))
@@ -270,6 +307,76 @@ class CloudMediaLibraryAggregator {
           item.tmdbRating != null) {
         return item;
       }
+    }
+    return null;
+  }
+
+  static TmdbMetadata? _localMetadata(List<LocalMediaIndexItem> items) {
+    for (final item in items) {
+      if (item.tmdb != null) return item.tmdb;
+    }
+    return null;
+  }
+
+  static TmdbMediaType _localMediaType(List<LocalMediaIndexItem> items) {
+    final isSeries = items.any(
+      (item) =>
+          (item.seasonNumber != null && item.seasonNumber! > 0) ||
+          (item.episodeNumber != null && item.episodeNumber! > 0),
+    );
+    return isSeries ? TmdbMediaType.tv : TmdbMediaType.movie;
+  }
+
+  static String _cloudGroupKey(
+    CloudMediaIndexItem item,
+    Map<String, CloudWorkTmdbRecord> records,
+  ) {
+    final workKey = item.workKey;
+    final metadata = workKey == null ? null : records[workKey]?.metadata;
+    final identity = metadata == null
+        ? 'series|${item.seriesName.trim().toLowerCase()}'
+        : 'tmdb|${metadata.mediaType.name}|${metadata.id}';
+    return '${item.sourceId}|$identity|${_groupVariant(item)}';
+  }
+
+  static CloudWorkTmdbRecord? _workRecord(
+    List<CloudMediaIndexItem> items,
+    Map<String, CloudWorkTmdbRecord> records,
+  ) {
+    for (final item in items) {
+      final workKey = item.workKey;
+      if (workKey == null || workKey.isEmpty) continue;
+      final record = records[workKey];
+      if (record?.metadata != null) return record;
+    }
+    return null;
+  }
+
+  static TmdbSeasonMetadata? _seasonMetadata(
+    TmdbMetadata? metadata,
+    int? seasonNumber,
+  ) {
+    if (metadata == null || seasonNumber == null) return null;
+    for (final season in metadata.seasons) {
+      if (season.seasonNumber == seasonNumber) return season;
+    }
+    return null;
+  }
+
+  static TmdbMediaType? _cloudMediaType(List<CloudMediaIndexItem> items) {
+    if (items.any(
+      (item) =>
+          item.mediaType == CloudMediaType.series ||
+          item.mediaType == CloudMediaType.episode,
+    )) {
+      return TmdbMediaType.tv;
+    }
+    if (items.any(
+      (item) =>
+          item.mediaType == CloudMediaType.movie ||
+          item.mediaType == CloudMediaType.special,
+    )) {
+      return TmdbMediaType.movie;
     }
     return null;
   }

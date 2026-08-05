@@ -14,7 +14,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: AdaptiveNavigationShell(
-          selectedIndex: 0,
+          selectedIndex: 3,
           destinations: appNavigationDestinations,
           onDestinationSelected: (_) {},
           content: const Text('内容'),
@@ -27,6 +27,17 @@ void main() {
       findsNothing,
     );
     expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.text('电影'), findsNothing);
+    expect(find.text('动漫'), findsNothing);
+    expect(find.text('电视剧'), findsNothing);
+    expect(find.text('分类'), findsOneWidget);
+    expect(find.text('本地媒体库'), findsOneWidget);
+    expect(find.text('网盘媒体库'), findsOneWidget);
+    await tester.tap(find.text('分类'));
+    await tester.pumpAndSettle();
+    expect(find.text('电影'), findsOneWidget);
+    expect(find.text('动漫'), findsOneWidget);
+    expect(find.text('电视剧'), findsOneWidget);
     expect(
       find.byKey(const ValueKey<String>('mobile-safe-content')),
       findsOneWidget,

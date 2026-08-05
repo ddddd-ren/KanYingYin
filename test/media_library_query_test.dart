@@ -75,13 +75,54 @@ void main() {
       const <String>['动漫电影'],
     );
   });
+
+  test('网盘电影剧集和动画类型可直接用于三个主入口筛选', () {
+    final movie = _series(
+      'quark',
+      '网盘电影',
+      const <String>['剧情'],
+      mediaType: TmdbMediaType.movie,
+    );
+    final anime = _series(
+      'quark',
+      '网盘动画',
+      const <String>['动画'],
+      mediaType: TmdbMediaType.tv,
+    );
+    final tv = _series(
+      'quark',
+      '网盘电视剧',
+      const <String>['剧情'],
+      mediaType: TmdbMediaType.tv,
+    );
+    const query = MediaLibraryQuery();
+
+    expect(
+      query.apply(
+        series: <MediaLibrarySeries>[movie, anime, tv],
+        selectedTags: const <String>{'电影'},
+      ).map((item) => item.title),
+      const <String>['网盘电影'],
+    );
+    expect(
+      query.apply(
+        series: <MediaLibrarySeries>[movie, anime, tv],
+        selectedTags: const <String>{'动漫'},
+      ).map((item) => item.title),
+      const <String>['网盘动画'],
+    );
+    expect(
+      query.apply(
+        series: <MediaLibrarySeries>[movie, anime, tv],
+        selectedTags: const <String>{'电视剧'},
+      ).map((item) => item.title),
+      const <String>['网盘动画', '网盘电视剧'],
+    );
+  });
 }
 
-MediaLibrarySeries _series(
-  String sourceId,
-  String title,
-  List<String> genres,
-) {
+MediaLibrarySeries _series(String sourceId, String title, List<String> genres,
+    {TmdbMediaType? mediaType}) {
   return MediaLibrarySeries(
     key: '$sourceId|$title',
     seriesKey: title,
@@ -93,6 +134,7 @@ MediaLibrarySeries _series(
     isAvailable: true,
     episodes: const <MediaLibraryEpisode>[],
     genres: genres,
+    mediaType: mediaType,
   );
 }
 

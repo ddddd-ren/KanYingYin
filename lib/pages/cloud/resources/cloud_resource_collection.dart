@@ -220,6 +220,12 @@ class CloudResourceCollectionGrouper {
     final uniqueWorks = <String, CloudWorkIdentity>{
       for (final work in works) work.workKey: work,
     };
+    for (final entry in itemsByWorkKey.entries) {
+      uniqueWorks.putIfAbsent(
+        entry.key,
+        () => _syntheticWork(entry.value),
+      );
+    }
     final matchedKeysByTitle = <String, Set<String>>{};
     for (final work in uniqueWorks.values) {
       final record = recordsByWorkKey[work.workKey];
@@ -351,6 +357,75 @@ class CloudResourceCollectionGrouper {
       return (first.seasonNumber ?? -1).compareTo(second.seasonNumber ?? -1);
     });
     return CloudResourceCollection(groups: groups);
+  }
+
+  CloudWorkIdentity _syntheticWork(List<CloudMediaIndexItem> items) {
+    final anchor = items.firstWhere(
+      (item) => item.seriesName.trim().isNotEmpty,
+      orElse: () => items.first,
+    );
+    final workKey = anchor.workKey!;
+    final rootPath = anchor.workRootPath?.trim().isNotEmpty == true
+        ? anchor.workRootPath!.trim()
+        : p.posix.dirname(anchor.remotePath);
+    final rootName = anchor.remoteName.trim().isNotEmpty
+        ? anchor.remoteName.trim()
+        : p.basename(rootPath);
+    final displayTitle = <String?>[
+      anchor.seriesName,
+      anchor.tmdbTitle,
+      anchor.tmdbOriginalTitle,
+      rootName,
+      anchor.name,
+    ].map((value) => value?.trim() ?? '').firstWhere(
+          (value) => value.isNotEmpty,
+          orElse: () => workKey,
+        );
+    final titleCandidates = <String>{};
+    final seasonNumbers = <int>{};
+    for (final item in items) {
+      for (final value in <String?>[
+        item.seriesName,
+        item.tmdbTitle,
+        item.tmdbOriginalTitle,
+        item.remoteName,
+        item.displayName,
+        item.name,
+      ]) {
+        final normalized = value?.trim() ?? '';
+        if (normalized.isNotEmpty) titleCandidates.add(normalized);
+      }
+      final season = item.seasonNumber;
+      if (season != null && season > 0) seasonNumbers.add(season);
+    }
+    final sortedSeasons = seasonNumbers.toList()..sort();
+    return CloudWorkIdentity(
+      sourceId: anchor.sourceId,
+      workKey: workKey,
+      root: CloudFileEntry(
+        id: anchor.workRootId?.trim().isNotEmpty == true
+            ? anchor.workRootId!.trim()
+            : workKey,
+        remotePath: rootPath.isEmpty ? '/' : rootPath,
+        name: rootName.isEmpty ? displayTitle : rootName,
+        size: 0,
+        modifiedAt: anchor.modifiedAt,
+        isDirectory: true,
+      ),
+      remoteName: rootName.isEmpty ? displayTitle : rootName,
+      displayTitle: displayTitle,
+      titleCandidates: titleCandidates.toList(growable: false),
+      seasons: <CloudSeasonIdentity>[
+        for (final season in sortedSeasons)
+          CloudSeasonIdentity(
+            workKey: workKey,
+            seasonNumber: season,
+            displayName: '$displayTitle 第 $season 季',
+            remoteDirectories: const <CloudFileEntry>[],
+            episodes: const <CloudEpisodeIdentity>[],
+          ),
+      ],
+    );
   }
 
   List<CloudFileEntry> _virtualEntries(

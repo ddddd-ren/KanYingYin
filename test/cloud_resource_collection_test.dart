@@ -761,6 +761,74 @@ void main() {
     );
   });
 
+  test('索引中没有作品身份的季度资源仍在网盘媒体库中继承唯一匹配作品', () {
+    final matchedWork = _workIdentity(
+      seasonNumbers: const <int>[2],
+      workId: 'work-s2-matched',
+    );
+    final matchedItem = CloudMediaIndexItem(
+      sourceId: matchedWork.sourceId,
+      remoteId: 's2e1-matched',
+      remotePath: '/影视/规则标题/第2季/01.mkv',
+      name: '01.mkv',
+      displayName: '规则标题 S02E01.mkv',
+      workKey: matchedWork.workKey,
+      workRootId: matchedWork.root.id,
+      workRootPath: matchedWork.root.remotePath,
+      size: 200,
+      modifiedAt: null,
+      seriesName: '规则标题',
+      seasonNumber: 2,
+      episodeNumber: 1,
+      mediaType: CloudMediaType.episode,
+    );
+    final orphanItem = CloudMediaIndexItem(
+      sourceId: matchedWork.sourceId,
+      remoteId: 's2e0-orphan',
+      remotePath: '/来自：BT磁力链下载/规则标题 S02E00.mkv',
+      name: '规则标题 S02E00.mkv',
+      displayName: '规则标题 S02E00.mkv',
+      workKey: 'quark|work|work-s2-orphan',
+      workRootId: 'work-s2-orphan',
+      workRootPath: '/来自：BT磁力链下载',
+      size: 200,
+      modifiedAt: null,
+      seriesName: '规则标题',
+      seasonNumber: 2,
+      episodeNumber: 0,
+      mediaType: CloudMediaType.episode,
+    );
+    final record = CloudWorkTmdbRecord.matched(
+      sourceId: matchedWork.sourceId,
+      workKey: matchedWork.workKey,
+      workRootId: matchedWork.root.id,
+      workRootPath: matchedWork.root.remotePath,
+      remoteName: matchedWork.remoteName,
+      metadata: _workMetadata,
+      checkedAt: DateTime.utc(2026, 8, 5),
+      tmdbMatchOrigin: TmdbMatchOrigin.manual,
+    );
+
+    final collection = CloudResourceCollectionGrouper().group(
+      items: <CloudMediaIndexItem>[matchedItem, orphanItem],
+      works: <CloudWorkIdentity>[matchedWork],
+      recordsByWorkKey: <String, CloudWorkTmdbRecord>{
+        matchedWork.workKey: record,
+      },
+      query: '',
+    );
+
+    expect(collection.groups, hasLength(1));
+    final group = collection.groups.single;
+    expect(group.stableKey, 'quark|tmdb|tv|42|season:2');
+    expect(group.videos, hasLength(2));
+    expect(group.seasonMetadata?.posterUrl, '/season-2.jpg');
+    expect(
+      group.workKeys,
+      containsAll(<String>[matchedWork.workKey, orphanItem.workKey!]),
+    );
+  });
+
   test('第一季和第二季标题带不同季度后缀时仍共享 TMDB 作品海报', () {
     final seasonTwo = _workIdentity(
       seasonNumbers: const <int>[2],

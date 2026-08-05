@@ -5,13 +5,13 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一二八统一同名网盘作品归并', () {
-    final entries = versionHistoryForCurrent('2.1.128');
+  test('二点一二九补齐网盘媒体库独立索引', () {
+    final entries = versionHistoryForCurrent('2.1.129');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.version, '2.1.128');
+    expect(entry.version, '2.1.129');
     expect(entry.isPrerelease, isTrue);
     for (final text in <String>[
       'Windows',
@@ -22,6 +22,8 @@ void main() {
       '分类',
       '网盘',
       '网盘媒体库',
+      '独立索引',
+      '作品身份',
       'TMDB',
       '手动匹配',
       '季度海报',

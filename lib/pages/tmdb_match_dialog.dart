@@ -520,10 +520,20 @@ class _TmdbMatchDialogState<TResult> extends State<TmdbMatchDialog<TResult>> {
                       runSpacing: 4,
                       children: [
                         if (candidate.titleMatched) const Text('标题匹配'),
+                        if (candidate.aliasMatched) const Text('别名匹配'),
                         if (candidate.yearMatched) const Text('年份匹配'),
                         if (candidate.typeMatched) const Text('类型匹配'),
+                        if (candidate.seasonEvidenceMatched)
+                          const Text('季集证据匹配'),
                       ],
                     ),
+                    if (candidate.matchReason.trim().isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        candidate.matchReason,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
                   ],
                 ),
               ),

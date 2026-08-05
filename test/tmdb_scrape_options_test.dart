@@ -9,6 +9,8 @@ void main() {
     expect(options.confidenceMode, TmdbConfidenceMode.standard);
     expect(options.minimumScore, 0.8);
     expect(options.minimumLead, 0.1);
+    expect(options.maximumSearchPages, 3);
+    expect(options.maximumAliasCandidates, 20);
   });
 
   test('刮削选项序列化往返保留全部开关', () {
@@ -21,6 +23,8 @@ void main() {
       overwritePoster: false,
       fetchPoster: false,
       fetchBackdrop: false,
+      maximumSearchPages: 5,
+      maximumAliasCandidates: 12,
     );
     expect(TmdbScrapeOptions.fromMap(options.toMap()).toMap(), options.toMap());
   });

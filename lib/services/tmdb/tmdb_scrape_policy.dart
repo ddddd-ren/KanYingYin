@@ -42,13 +42,16 @@ class TmdbScrapePolicy {
   ) {
     final queries = <String>[];
     var year = subject.year;
-    for (final candidate in subject.titleCandidates) {
+    final sourceCandidates = <String>[
+      if (subject.manualSearchTitle?.trim().isNotEmpty == true)
+        subject.manualSearchTitle!.trim(),
+      ...subject.titleCandidates,
+    ];
+    for (final candidate in sourceCandidates) {
       year ??= _extractYear(candidate);
       final cleaned = _cleanTitle(candidate, subject: subject);
       if (cleaned.isEmpty) continue;
-      if (queries.any(
-        (current) => current.toLowerCase() == cleaned.toLowerCase(),
-      )) {
+      if (queries.any((current) => _normalizeQuery(current) == _normalizeQuery(cleaned))) {
         continue;
       }
       queries.add(cleaned);
@@ -60,6 +63,11 @@ class TmdbScrapePolicy {
       mediaTypes: _mediaTypes(subject, options.mediaTypeMode),
     );
   }
+
+  String _normalizeQuery(String value) => value
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9\u4e00-\u9fff]'), '');
 
   List<TmdbMediaType> _mediaTypes(
     TmdbScrapeSubject subject,

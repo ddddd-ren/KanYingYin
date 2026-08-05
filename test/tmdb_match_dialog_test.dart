@@ -139,7 +139,7 @@ void main() {
                   mediaTypeMode: TmdbMediaTypeMode.movie,
                 ),
                 initialOptions: const TmdbScrapeOptions.defaults(),
-                onSearch: (_) async => const TmdbPreparedSearchOutcome(
+                onSearch: (_) async => TmdbPreparedSearchOutcome(
                   ranked: TmdbRankedResult(
                     candidates: <TmdbRankedCandidate>[],
                     shouldAutoMatch: false,
@@ -162,6 +162,86 @@ void main() {
       findsNothing,
     );
   });
+
+  testWidgets('候选卡显示匹配理由和别名信号', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => FilledButton(
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (_) => TmdbMatchDialog<void>(
+                title: 'TMDB 刮削',
+                safetyText: '不会修改媒体文件',
+                draft: const TmdbMatchDraft(
+                  originalName: '三体',
+                  searchTitle: '三体',
+                  mediaTypeMode: TmdbMediaTypeMode.tv,
+                ),
+                initialOptions: const TmdbScrapeOptions.defaults(),
+                onSearch: (_) async => TmdbPreparedSearchOutcome(
+                  ranked: TmdbRankedResult(
+                    candidates: <TmdbRankedCandidate>[
+                      _candidate.copyWithForTest(
+                        aliasMatched: true,
+                        matchReason: '别名匹配 · 类型匹配',
+                      ),
+                    ],
+                    shouldAutoMatch: false,
+                  ),
+                ),
+                onApply: (_, __) async {},
+              ),
+            ),
+            child: const Text('打开'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('打开'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '搜索 TMDB'));
+    await tester.pumpAndSettle();
+    expect(find.text('别名匹配'), findsWidgets);
+    expect(find.text('别名匹配 · 类型匹配'), findsOneWidget);
+  });
+
+  testWidgets('候选理由为空时不渲染空文本', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => FilledButton(
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (_) => TmdbMatchDialog<void>(
+                title: 'TMDB 刮削',
+                safetyText: '不会修改媒体文件',
+                draft: const TmdbMatchDraft(
+                  originalName: '三体',
+                  searchTitle: '三体',
+                  mediaTypeMode: TmdbMediaTypeMode.tv,
+                ),
+                initialOptions: const TmdbScrapeOptions.defaults(),
+                onSearch: (_) async => TmdbPreparedSearchOutcome(
+                  ranked: TmdbRankedResult(
+                    candidates: <TmdbRankedCandidate>[_candidate],
+                    shouldAutoMatch: false,
+                  ),
+                ),
+                onApply: (_, __) async {},
+              ),
+            ),
+            child: const Text('打开'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('打开'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '搜索 TMDB'));
+    await tester.pumpAndSettle();
+    expect(find.text('null'), findsNothing);
+  });
 }
 
 final _candidate = TmdbRankedCandidate(
@@ -179,3 +259,22 @@ final _candidate = TmdbRankedCandidate(
   yearMatched: true,
   typeMatched: true,
 );
+
+extension on TmdbRankedCandidate {
+  TmdbRankedCandidate copyWithForTest({
+    bool? aliasMatched,
+    String? matchReason,
+  }) {
+    return TmdbRankedCandidate(
+      metadata: metadata,
+      score: score,
+      titleMatched: titleMatched,
+      yearMatched: yearMatched,
+      typeMatched: typeMatched,
+      aliasMatched: aliasMatched ?? this.aliasMatched,
+      titleSimilarity: titleSimilarity,
+      seasonEvidenceMatched: seasonEvidenceMatched,
+      matchReason: matchReason ?? this.matchReason,
+    );
+  }
+}

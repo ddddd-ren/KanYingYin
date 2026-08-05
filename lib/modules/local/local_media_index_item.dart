@@ -419,6 +419,53 @@ class LocalMediaIndexItem {
     );
   }
 
+  LocalMediaIndexItem withEpisodeMapping({
+    required int? seasonNumber,
+    required int? episodeNumber,
+    required bool manualOverride,
+    TmdbMetadata? metadata,
+    TmdbMatchOrigin? matchOrigin,
+  }) {
+    final effectiveMetadata = metadata ?? tmdb;
+    return LocalMediaIndexItem(
+      location: location,
+      name: name,
+      parentLocation: parentLocation,
+      sourceLocation: sourceLocation,
+      size: size,
+      modified: modified,
+      seriesName: seriesName,
+      indexedAt: indexedAt,
+      cover: cover,
+      subtitlePath: subtitlePath,
+      durationMillis: durationMillis,
+      videoWidth: videoWidth,
+      videoHeight: videoHeight,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+      episodeTitle: episodeTitle,
+      releaseGroup: releaseGroup,
+      resolution: resolution,
+      source: source,
+      codec: codec,
+      tmdb: effectiveMetadata,
+      tmdbIdentity: metadata == null
+          ? tmdbIdentity
+          : '${metadata.mediaType.name}:${metadata.id}',
+      titleLocked: titleLocked,
+      posterLocked: posterLocked,
+      overviewLocked: overviewLocked,
+      scrapeStatus:
+          effectiveMetadata == null ? scrapeStatus : TmdbScrapeStatus.matched,
+      tmdbMatchOrigin: matchOrigin ?? tmdbMatchOrigin,
+      tmdbRuleVersion:
+          metadata == null ? tmdbRuleVersion : currentTmdbRuleVersion,
+      manualOverride: manualOverride,
+      pathFingerprint: pathFingerprint,
+      derivedMetadataVersion: derivedMetadataVersion,
+    );
+  }
+
   static String normalizePath(String path) {
     return p.normalize(path).toLowerCase();
   }

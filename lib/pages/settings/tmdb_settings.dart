@@ -134,7 +134,7 @@ class _TmdbSettingsPageState extends State<TmdbSettingsPage> {
             obscureText: _obscureApiKey,
             decoration: InputDecoration(
               labelText: 'TMDB API Key',
-              helperText: '密钥仅保存在本机，用于获取海报和影片信息',
+              helperText: '密钥仅保存在看影音专属安全存储，用于获取海报和影片信息',
               suffixIcon: IconButton(
                 tooltip: _obscureApiKey ? '显示密钥' : '隐藏密钥',
                 onPressed: () =>
@@ -144,6 +144,11 @@ class _TmdbSettingsPageState extends State<TmdbSettingsPage> {
                 ),
               ),
             ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            '公共安装包不内置 TMDB Key。没有 Key 或断网时，本地扫描和播放仍可用；不会修改或删除原始视频、字幕。',
+            key: ValueKey<String>('tmdb-zero-config-notice'),
           ),
           const SizedBox(height: 8),
           Text(

@@ -59,17 +59,17 @@ void main() {
       ),
     ];
 
-    test('聚合本地和多个远程来源且同名同路径不跨来源合并', () {
+    test('聚合本地和已启用远程来源且不显示停用来源', () {
       final library = const CloudMediaLibraryAggregator().build(
         localItems: [local],
         cloudItems: [openList, quark, xunlei],
         cloudSources: sources,
       );
 
-      expect(library.series, hasLength(4));
+      expect(library.series, hasLength(3));
       expect(library.series.map((item) => item.sourceId).toSet(),
-          {'local', 'openlist', 'quark', 'xunlei'});
-      expect(library.series.map((item) => item.key).toSet(), hasLength(4));
+          {'local', 'openlist', 'xunlei'});
+      expect(library.series.map((item) => item.key).toSet(), hasLength(3));
       final remote = library.series
           .firstWhere((item) => item.sourceId == 'openlist')
           .episodes
@@ -79,10 +79,9 @@ void main() {
       expect(remote.remotePath, '/Show/Show S01E01.mkv');
       expect(remote.isAvailable, isTrue);
       expect(
-          library.series
-              .firstWhere((item) => item.sourceId == 'quark')
-              .isAvailable,
-          isFalse);
+        library.series.any((item) => item.sourceId == 'quark'),
+        isFalse,
+      );
     });
 
     test('来源筛选保留全部、本地和启用网盘来源', () {
@@ -280,6 +279,33 @@ void main() {
       expect(library.series, hasLength(1));
       expect(library.series.single.title, '同一部剧 S01');
       expect(library.series.single.episodes, hasLength(2));
+    });
+
+    test('未刮削的同名网盘作品按作品键分组与网盘媒体库一致', () {
+      final first = _cloud(
+        'openlist',
+        '/版本一/Show S01E01.mkv',
+        workKey: 'openlist|work|version-1',
+        seriesName: '同名作品',
+      );
+      final second = _cloud(
+        'openlist',
+        '/版本二/Show S01E01.mkv',
+        workKey: 'openlist|work|version-2',
+        seriesName: '同名作品',
+      );
+
+      final library = const CloudMediaLibraryAggregator().build(
+        localItems: const <LocalMediaIndexItem>[],
+        cloudItems: <CloudMediaIndexItem>[first, second],
+        cloudSources: sources,
+      );
+
+      expect(library.series, hasLength(2));
+      expect(library.series.map((item) => item.episodes.single.remotePath), {
+        '/版本一/Show S01E01.mkv',
+        '/版本二/Show S01E01.mkv',
+      });
     });
 
     test('未刮削的本地单片和剧集仍能进入电影或电视剧分类', () {
@@ -545,10 +571,9 @@ void main() {
 
     await controller.reloadCloudLibraryIndex();
 
-    expect(controller.combinedMediaLibrary.series, hasLength(1));
-    expect(controller.combinedMediaLibrary.series.single.isAvailable, isFalse);
+    expect(controller.combinedMediaLibrary.series, isEmpty);
     controller.selectLibrarySource('openlist');
-    expect(controller.visibleMediaLibrarySeries, hasLength(1));
+    expect(controller.visibleMediaLibrarySeries, isEmpty);
   });
 
   test('LocalController 网盘资源不能启用本地媒体库入口', () async {

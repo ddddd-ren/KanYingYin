@@ -237,6 +237,7 @@ class CloudMediaLibraryAggregator {
 
     final groups = <String, List<CloudMediaIndexItem>>{};
     for (final item in cloudItems) {
+      if (sources[item.sourceId]?.enabled != true) continue;
       groups
           .putIfAbsent(_cloudGroupKey(item, workRecordsByKey), () => [])
           .add(item);
@@ -361,9 +362,12 @@ class CloudMediaLibraryAggregator {
   ) {
     final workKey = item.workKey;
     final metadata = workKey == null ? null : records[workKey]?.metadata;
-    final identity = metadata == null
-        ? 'series|${item.seriesName.trim().toLowerCase()}'
-        : 'tmdb|${metadata.mediaType.name}|${metadata.id}';
+    final normalizedWorkKey = workKey?.trim() ?? '';
+    final identity = metadata != null
+        ? 'tmdb|${metadata.mediaType.name}|${metadata.id}'
+        : normalizedWorkKey.isNotEmpty
+            ? 'work|$normalizedWorkKey'
+            : 'series|${item.seriesName.trim().toLowerCase()}';
     return '${item.sourceId}|$identity|${_groupVariant(item)}';
   }
 

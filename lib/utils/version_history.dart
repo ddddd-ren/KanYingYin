@@ -150,6 +150,20 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.127',
+    date: '2026-08-05',
+    isPrerelease: true,
+    changes: [
+      'Windows 与 Android 的本地媒体库、网盘媒体库以及电影、动漫和电视剧入口统一只显示本地资源和已启用的网盘来源',
+      '停用来源不会再混入分类页，避免同一海报重复显示或出现分类有而网盘媒体库没有的资源',
+      '未刮削的同名网盘作品按作品键分组，与网盘媒体库海报墙保持一致；TMDB 手动匹配仍按作品身份合并并显示对应季度海报',
+      '电影、动漫和电视剧三个入口的海报操作菜单新增媒体详情，可查看来源、媒体类型、季度、集数、总大小、评分、类型标签、文件名、路径、格式、日期和字幕状态',
+      '分类入口继续保留统一海报浮窗、海报操作菜单、播放、复制路径和隐藏能力，网盘多集或多版本资源仍汇总总大小和最新日期',
+      'Windows 与 Android 版本继续使用统一版本配置，诊断日志继续脱敏并隐藏本地文件路径',
+      '本次更新只调整媒体库展示和详情，不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.126',
     date: '2026-08-05',
     isPrerelease: true,

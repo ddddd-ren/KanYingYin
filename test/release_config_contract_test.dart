@@ -3,23 +3,23 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('当前发布配置统一为二点一三五双平台测试版', () {
+  test('当前发布配置统一为二点一三六双平台测试版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
 
-    expect(pubspec, contains('version: 2.1.135+20135'));
-    expect(pubspec, contains('msix_version: 2.1.135.0'));
+    expect(pubspec, contains('version: 2.1.136+20136'));
+    expect(pubspec, contains('msix_version: 2.1.136.0'));
     for (final source in <String>[releaseNotes, updateDialogCopy]) {
       expect(source, contains('Windows 测试版'));
       expect(source, contains('Android 测试版'));
-      expect(source, contains('2.1.135'));
-      expect(source, contains('20135'));
+      expect(source, contains('2.1.136'));
+      expect(source, contains('20136'));
       expect(source, contains('测试版'));
       expect(source, contains('TMDB'));
-      expect(source, contains('刮削剧集名称'));
+      expect(source, contains('TMDB 集名'));
       expect(source, contains('D:\\看影音'));
-      expect(source, contains('深色模式'));
+      expect(source, contains('EXE'));
       expect(source, contains('断网'));
     }
   });
@@ -47,13 +47,13 @@ void main() {
     expect(options, contains('strict-raw-types: true'));
   });
 
-  test('仓库不保存本机证书路径且公共签名使用受保护凭据脚本', () {
+  test('仓库不保存本机证书路径且默认发布使用 EXE 构建脚本', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final readme = File('README.md').readAsStringSync();
 
     expect(pubspec, isNot(contains('certificate_path:')));
     expect(pubspec, contains('sign_msix: false'));
-    expect(readme, contains('tool\\windows\\build_signed_release.ps1'));
+    expect(readme, contains('tool\\windows\\build_exe_release.ps1'));
     expect(readme, isNot(contains('--certificate-password')));
   });
 }

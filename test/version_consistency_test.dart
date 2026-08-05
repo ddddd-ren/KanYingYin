@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('二点一三五 Flutter、Windows 与 Android 版本保持一致', () {
-    const expectedVersion = '2.1.135';
-    const expectedBuildNumber = '20135';
+  test('二点一三六 Flutter、Windows 与 Android 版本保持一致', () {
+    const expectedVersion = '2.1.136';
+    const expectedBuildNumber = '20136';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final androidGradle =
@@ -69,18 +69,18 @@ void main() {
     expect(readmeIdentity, AppIdentity.windowsIdentity);
     expect(appVersion, contains("current = '$version'"));
     expect(releaseNotes, contains('## $version+$buildNumber'));
-    expect(releaseNotes, contains('MSIX 版本：$version.0'));
+    expect(releaseNotes, contains('Windows EXE 安装器版本：$version'));
     expect(releaseNotes, contains('APK/AAB 版本：$version ($buildNumber)'));
     expect(readme, contains('| 当前版本 | $version |'));
     expect(
       readme,
       contains('| 支持平台 | Windows 10/11 x64；Android 7.0+（API 24+） |'),
     );
-    expect(readme, contains('| 安装格式 | MSIX / EXE / APK |'));
+    expect(readme, contains('| 安装格式 | EXE / APK |'));
     expect(readme, contains('OpenList 功能仍在调试，当前不建议使用'));
     expect(versionHistory, contains("version: '$version'"));
     expect(updateDialogCopy, contains('应用版本：$version'));
-    expect(updateDialogCopy, contains('安装包版本：$version.0'));
+    expect(updateDialogCopy, contains('Windows EXE 安装器版本：$version'));
     expect(updateDialogCopy, contains('Android 应用版本：$version'));
     expect(updateDialogCopy, contains('Android versionCode：$buildNumber'));
     expect(updateDialogCopy, contains('看影音 $version 测试版'));
@@ -137,7 +137,7 @@ void main() {
       }
     }
     expect(currentReleaseNotes, contains('测试版'));
-    expect(updateDialogCopy, contains('Windows 测试版 MSIX'));
+    expect(updateDialogCopy, contains('Windows 测试版 EXE'));
     expect(currentVersionHistory, contains('isPrerelease: true'));
   });
 }

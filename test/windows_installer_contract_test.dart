@@ -9,9 +9,9 @@ void main() {
     expect(source, contains("Result := 'D:\\看影音'"));
     expect(source, contains('DefaultDirName={code:DefaultInstallDir}'));
     expect(source, contains('Excludes: "*.msix,msix_verify_*\\*"'));
-    expect(source, contains('com.kanyingyin.player'));
-    expect(source, contains('是否卸载旧的 MSIX 版本'));
-    expect(source, contains('选择“否”会保留旧版及其数据'));
+    expect(source, isNot(contains('Get-AppxPackage')));
+    expect(source, isNot(contains('Remove-AppxPackage')));
+    expect(source, isNot(contains('是否卸载旧的 MSIX 版本')));
     expect(source, isNot(contains('Name: "{autodesktop}')));
   });
 
@@ -29,5 +29,19 @@ void main() {
     expect(source, contains("-Filter '*.iss'"));
     expect(
         source, isNot(contains("'\u770b\u5f71\u97f3\u6d4b\u8bd5\u7248.iss'")));
+  });
+
+  test('默认 EXE 发布脚本构建 Release 并验证安装器版本', () {
+    final source =
+        File('tool/windows/build_exe_release.ps1').readAsStringSync();
+    expect(source, contains("'build', 'windows', '--release', '--no-pub'"));
+    expect(source, contains('build_inno_setup.ps1'));
+    expect(source, contains('ReleaseProductVersion'));
+    expect(source, contains('InstallerProductVersion'));
+    expect(source, contains('Get-FileHash'));
+    expect(source, contains('Get-AuthenticodeSignature'));
+    expect(source, contains(r'-Filter "*$version*.exe"'));
+    expect(source, contains('ProductVersion.StartsWith'));
+    expect(source.toLowerCase(), isNot(contains('msix:create')));
   });
 }

@@ -77,7 +77,7 @@ void main() {
     );
   });
 
-  test('PR 使用双平台质量门禁且发布工作流保留 Windows MSIX', () {
+  test('PR 使用双平台质量门禁且发布工作流使用 Windows EXE', () {
     final prWorkflow = File('.github/workflows/pr.yaml').readAsStringSync();
     final releaseWorkflow =
         File('.github/workflows/release.yaml').readAsStringSync();
@@ -100,6 +100,9 @@ void main() {
       contains('flutter build windows --release --no-pub'),
     );
     expect(releaseWorkflow, isNot(contains('ubuntu-latest')));
+    expect(releaseWorkflow, contains('build_inno_setup.ps1'));
+    expect(releaseWorkflow, contains('-测试版-安装程序.exe'));
+    expect(releaseWorkflow.toLowerCase(), isNot(contains('.msix')));
 
     for (final workflow in <String>[prWorkflow, releaseWorkflow]) {
       expect(workflow, isNot(contains('macos-latest')));
@@ -123,8 +126,8 @@ void main() {
     expect(msixVersion, isNotNull);
 
     final currentVersion = packageVersion!.group(1)!;
-    expect(currentVersion, '2.1.135');
-    expect(packageVersion.group(2), '20135');
+    expect(currentVersion, '2.1.136');
+    expect(packageVersion.group(2), '20136');
     expect(msixVersion!.group(1), currentVersion);
     expect(
       _yamlField(msixConfig, 'identity_name'),

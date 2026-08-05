@@ -150,6 +150,20 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.136',
+    date: '2026-08-06',
+    isPrerelease: true,
+    changes: [
+      '修复个人网盘刮削名称已经改为“回魂计”时，选集标题仍使用旧 TMDB 作品名的问题；现在统一显示“回魂计 S01E01 TMDB 集名”',
+      'TMDB 逐集名称只负责补充集名，不再覆盖用户当前生效的剧名；网盘原名、远程路径和播放 ID 保持不变',
+      'Windows 后续统一使用 Inno Setup EXE 安装程序交付，默认安装到 D:\\看影音并允许用户选择目录；本轮不再生成 MSIX',
+      'EXE 构建入口会完成 Windows Release、版本核对、安装器生成、SHA-256 与签名状态检查，并把安装程序复制到桌面',
+      '没有 TMDB Key、断网或逐集详情请求失败时，扫描、媒体库浏览和播放继续可用',
+      'Windows 与 Android 继续使用统一版本配置，诊断日志继续脱敏并隐藏本地文件路径',
+      '本次不会修改或删除本地及网盘原始视频、字幕或其他文件，也不会改变远程路径、远程 ID 和字幕关联',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.135',
     date: '2026-08-06',
     isPrerelease: true,

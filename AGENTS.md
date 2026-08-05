@@ -10,7 +10,7 @@
 - 应用显示名：看影音。
 - Dart 包名：`kanyingyin`。
 - Windows 包标识：`com.kanyingyin.player`。
-- 首版只支持 Windows，并以 MSIX 交付。
+- Windows 测试版使用 Inno Setup EXE 安装程序交付，不再生成 MSIX。
 - 项目专注本地与个人网盘视频媒体库，个人网盘仅作为用户自有媒体入口；不包含公共在线影视搜索、插件规则、WebView 视频解析或在线评论。
 - 使用 TMDB 为本地与个人网盘媒体刮削中文标题、简介、评分、海报、背景图和季集信息。
 
@@ -33,11 +33,11 @@
 
 ## 版本与交付
 
-- 每次版本更新开始前，必须使用 `Get-AppxPackage -Name com.kanyingyin.player` 查询并记录当前 Windows 已安装版本；未安装也要明确记录，不能只根据 `pubspec.yaml` 推断。生成安装包后再次核对安装包版本，若执行安装则再次检查已安装版本。
-- 每次完成可交付的版本迭代并通过测试、静态分析和 Windows Release 构建后，必须继续生成 MSIX、验证清单版本，并将安装包复制到当前用户桌面；不能只完成 Release 构建。
-- 进入安装包的修改必须同步更新 `pubspec.yaml` 的 `version` 和 `msix_config.msix_version`。
+- 每次版本更新开始前，必须查询并记录当前 Windows EXE 安装状态和 `kanyingyin.exe` 的产品版本；兼容检查时同时确认旧 MSIX 是否仍存在，不能只根据 `pubspec.yaml` 推断。生成安装包后再次核对安装器与 Release 主程序版本，若执行安装则再次检查已安装版本。
+- 每次完成可交付的版本迭代并通过测试、静态分析和 Windows Release 构建后，必须继续生成 Inno Setup EXE 安装程序、验证版本，并将安装程序复制到当前用户桌面；不能只完成 Release 构建，也不要生成 MSIX。
+- 进入安装包的修改必须同步更新 `pubspec.yaml` 的 `version`；保留 `msix_config` 时只作为历史兼容配置同步版本，不进入交付流程。
 - 每次交付更新 `RELEASE_NOTES.md` 和 `lib/utils/version_history.dart`，文案面向普通用户。
 - 新安装或首次启动时，若桌面或开始菜单快捷方式不存在，必须弹窗询问是否创建，不能静默跳过。
-- 生成 Windows 安装包时，最终 `.msix` 复制到当前用户桌面，文件名格式为 `看影音-版本号.msix`。
+- 生成 Windows 安装包时，最终 `.exe` 复制到当前用户桌面，文件名格式为 `看影音-版本号-测试版-安装程序.exe`。
 - 完成可交付修改并验证后，默认执行 `git add` 和 `git commit`；提交信息使用简洁中文。
 - 自动提交前检查 `git status --short` 和关键 diff，只提交本轮相关改动。

@@ -132,12 +132,14 @@ class LocalTmdbScrapeService {
       (item) =>
           item.scrapeStatus == TmdbScrapeStatus.matched && item.tmdb != null,
     );
+    final needsEpisodeHydration = seriesItems.any(_needsEpisodeHydration);
     final protected = subject.matchOrigin == TmdbMatchOrigin.manual ||
         subject.fieldLocks.title ||
         subject.fieldLocks.overview ||
         subject.fieldLocks.poster;
     if (!force &&
         allMatched &&
+        !needsEpisodeHydration &&
         (subject.ruleVersion >= currentTmdbRuleVersion || protected)) {
       if (subject.ruleVersion < currentTmdbRuleVersion) {
         for (final item in seriesItems) {
@@ -332,6 +334,15 @@ class LocalTmdbScrapeService {
         subject.fieldLocks.title ||
         subject.fieldLocks.overview ||
         subject.fieldLocks.poster;
+  }
+
+  bool _needsEpisodeHydration(LocalMediaIndexItem item) {
+    final metadata = item.tmdb;
+    if (metadata?.mediaType != TmdbMediaType.tv) return false;
+    if ((item.seasonNumber ?? 0) <= 0 || (item.episodeNumber ?? 0) <= 0) {
+      return false;
+    }
+    return !item.hasTmdbEpisodeTitle;
   }
 
   Future<void> _markPending(List<LocalMediaIndexItem> items) async {

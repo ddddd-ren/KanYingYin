@@ -5,6 +5,7 @@ import 'package:kanyingyin/repositories/local_media_index_repository.dart';
 import 'package:kanyingyin/repositories/tmdb_metadata_repository.dart';
 import 'package:kanyingyin/services/tmdb/local_tmdb_scrape_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_client_capabilities.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
@@ -126,6 +127,57 @@ void main() {
       index.getAll().first.tmdb?.seasons.map((item) => item.seasonNumber),
       <int>[1, 2],
     );
+  });
+
+  test('已匹配但缺少集名时补抓实际季度详情', () async {
+    final index = _MemoryIndexRepository([
+      _item(
+        'Season 1/S01E01.mkv',
+        seasonNumber: 1,
+        seriesName: '异世界悠闲农家',
+      ).copyWith(
+        episodeNumber: 1,
+        tmdb: TmdbMetadata(
+          id: 196285,
+          mediaType: TmdbMediaType.tv,
+          title: '异世界悠闲农家',
+          language: 'zh-CN',
+          matchedAt: DateTime(2026),
+          matchConfidence: 1,
+          seasons: const <TmdbSeasonMetadata>[
+            TmdbSeasonMetadata(
+              id: 19628501,
+              seasonNumber: 1,
+              name: '第 1 季',
+              episodeCount: 12,
+            ),
+          ],
+        ),
+        scrapeStatus: TmdbScrapeStatus.matched,
+        tmdbRuleVersion: currentTmdbRuleVersion,
+      ),
+    ]);
+    final client = _EpisodeCapableClient();
+    final service = LocalTmdbScrapeService(
+      indexRepository: index,
+      metadataRepository: _MemoryMetadataRepository(),
+      clientFactory: (_) => client,
+      posterDownloader: _successfulDownload,
+    );
+
+    final result = await service.scrapeSeries(
+      apiKey: 'configured-key',
+      seriesName: '异世界悠闲农家',
+      options: const TmdbScrapeOptions.defaults().copyWith(
+        mediaTypeMode: TmdbMediaTypeMode.tv,
+      ),
+    );
+
+    final saved = index.getAll().single;
+    expect(result.status, TmdbScrapeStatus.matched);
+    expect(client.seasonCalls, 1);
+    expect(saved.tmdb?.seasons.single.episodes.single.name, '万能农具');
+    expect(saved.displayTitle, '异世界悠闲农家 S01E01 万能农具');
   });
 
   test('重新刮削保留已锁定的标题', () async {
@@ -378,7 +430,11 @@ void main() {
 
 Future<String?> _successfulDownload(String url, String path) async => path;
 
-LocalMediaIndexItem _item(String name, {int? seasonNumber}) {
+LocalMediaIndexItem _item(
+  String name, {
+  int? seasonNumber,
+  String seriesName = '流浪地球',
+}) {
   return LocalMediaIndexItem(
     path: 'D:/Video/$name',
     name: name,
@@ -386,10 +442,92 @@ LocalMediaIndexItem _item(String name, {int? seasonNumber}) {
     sourcePath: 'D:/Video',
     size: 100,
     modified: DateTime(2026),
-    seriesName: '流浪地球',
+    seriesName: seriesName,
     seasonNumber: seasonNumber,
     indexedAt: DateTime(2026),
   );
+}
+
+class _EpisodeCapableClient implements ITmdbClient, ITmdbClientCapabilities {
+  int seasonCalls = 0;
+
+  TmdbMetadata _metadata(TmdbMediaType mediaType) => TmdbMetadata(
+        id: 196285,
+        mediaType: mediaType,
+        title: '异世界悠闲农家',
+        language: 'zh-CN',
+        matchedAt: DateTime(2026),
+        matchConfidence: 0,
+        seasons: const <TmdbSeasonMetadata>[
+          TmdbSeasonMetadata(
+            id: 19628501,
+            seasonNumber: 1,
+            name: '第 1 季',
+            episodeCount: 12,
+          ),
+        ],
+      );
+
+  @override
+  Future<List<TmdbMetadata>> search(
+    String query,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) async {
+    return [_metadata(mediaType)];
+  }
+
+  @override
+  Future<TmdbSearchPage> searchPage(
+    String query,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+    required int page,
+  }) async {
+    return TmdbSearchPage(
+      page: page,
+      totalPages: 1,
+      results: [_metadata(mediaType)],
+    );
+  }
+
+  @override
+  Future<List<String>> alternativeTitles(
+    int id,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) async =>
+      const <String>[];
+
+  @override
+  Future<TmdbMetadata> details(
+    int id,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) async =>
+      _metadata(mediaType);
+
+  @override
+  Future<TmdbSeasonMetadata> seasonDetails(
+    int id,
+    int seasonNumber, {
+    String language = 'zh-CN',
+  }) async {
+    seasonCalls++;
+    return const TmdbSeasonMetadata(
+      id: 19628501,
+      seasonNumber: 1,
+      name: '第 1 季',
+      episodeCount: 12,
+      episodes: <TmdbEpisodeMetadata>[
+        TmdbEpisodeMetadata(
+          id: 196285011,
+          episodeNumber: 1,
+          name: '万能农具',
+        ),
+      ],
+    );
+  }
 }
 
 class _FakeClient implements ITmdbClient {

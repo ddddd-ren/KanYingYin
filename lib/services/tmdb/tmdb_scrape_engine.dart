@@ -6,6 +6,7 @@ import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_policy.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_cache.dart';
+import 'package:kanyingyin/utils/logger.dart';
 
 class TmdbScrapeSearchOutcome {
   const TmdbScrapeSearchOutcome({
@@ -64,6 +65,9 @@ class TmdbScrapeEngine {
       ...?subject?.seasonNumbers.where((number) => number > 0),
     };
     if (requested.isEmpty) return metadata;
+    AppLogger().i(
+      'TMDB: 开始补抓季度详情 id=${metadata.id} seasons=${requested.toList()..sort()}',
+    );
     final capabilities = _client as ITmdbClientCapabilities;
     final existingByNumber = <int, TmdbSeasonMetadata>{
       for (final season in metadata.seasons) season.seasonNumber: season,
@@ -80,9 +84,17 @@ class TmdbScrapeEngine {
           ),
           kind: TmdbScrapeCacheKind.details,
         );
-      } on Object {
+        AppLogger().i(
+          'TMDB: 季度详情完成 id=${metadata.id} season=$seasonNumber '
+          'episodes=${loaded[seasonNumber]?.episodes.length ?? 0}',
+        );
+      } on Object catch (error) {
         final summary = existingByNumber[seasonNumber];
         if (summary != null) loaded[seasonNumber] = summary;
+        AppLogger().w(
+          'TMDB: 季度详情失败 id=${metadata.id} season=$seasonNumber '
+          'errorType=${error.runtimeType}，保留季度摘要',
+        );
       }
     });
     if (loaded.isEmpty) return metadata;

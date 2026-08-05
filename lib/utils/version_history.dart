@@ -150,6 +150,20 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.133',
+    date: '2026-08-06',
+    isPrerelease: true,
+    changes: [
+      'Windows 与 Android 启动时会检查旧索引，补抓缺失的 TMDB 季度详情和逐集名称',
+      'TMDB 集名补齐后，选集显示为“作品 S01E01 集名”；没有集名时继续显示原始文件名',
+      '季度详情失败、没有 TMDB Key 或断网时保留扫描、浏览和播放能力，不修改原始视频、字幕或网盘远程路径',
+      '公共安装包不内置 TMDB Key，本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+      '本次只改变元数据和界面展示，远程 ID、字幕关联和播放 ID 保持不变',
+      '本机闪退转储定位到 Flutter Windows 图形与辅助功能调用边界，本版不改动已验证的播放器原生链路',
+      'Windows 与 Android 继续使用统一版本配置，诊断日志继续脱敏并隐藏本地文件路径',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.132',
     date: '2026-08-05',
     isPrerelease: true,

@@ -1,7 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/library/application/local_library_tmdb_coordinator.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
+import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
 void main() {
   test('没有 TMDB Key 时不执行自动刮削', () {
@@ -40,6 +42,31 @@ void main() {
     expect(names, {'测试剧'});
     expect(coordinator.shouldAutoScrape([_item('测试剧')]), isTrue);
     expect(coordinator.options.language, 'zh-CN');
+  });
+
+  test('已匹配但缺少 TMDB 集名的电视剧仍需要补抓', () {
+    final coordinator = LocalLibraryTmdbCoordinator(
+      apiKeyProvider: () => 'key',
+      optionsProvider: () => const TmdbScrapeOptions.defaults(),
+      autoScrapeProvider: () => true,
+    );
+    final item = _item('异世界悠闲农家').copyWith(
+      seasonNumber: 1,
+      episodeNumber: 1,
+      tmdb: TmdbMetadata(
+        id: 196285,
+        mediaType: TmdbMediaType.tv,
+        title: '异世界悠闲农家',
+        language: 'zh-CN',
+        matchedAt: DateTime(2026),
+        matchConfidence: 1,
+      ),
+      scrapeStatus: TmdbScrapeStatus.matched,
+      tmdbRuleVersion: currentTmdbRuleVersion,
+    );
+
+    expect(coordinator.unmatchedSeriesNames([item]), {'异世界悠闲农家'});
+    expect(coordinator.shouldAutoScrape([item]), isTrue);
   });
 }
 

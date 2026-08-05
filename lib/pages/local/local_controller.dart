@@ -351,6 +351,8 @@ abstract class _LocalController with Store {
     _reloadMediaSourcesSafe();
     await _refreshLocalLibraryDerivedMetadataSafe();
     _reloadLocalLibraryIndexSafe();
+    // 启动时也检查旧索引，补齐已匹配电视剧缺失的 TMDB 集名。
+    _autoScrapeTmdbAfterScan();
     unawaited(_reloadCloudAndBackfillGenres());
     final lastDir = _preferences.lastLocalDirectory;
     final userDefaultPath = _preferences.defaultPath;
@@ -1084,7 +1086,7 @@ abstract class _LocalController with Store {
 
     final unmatched = <String>{};
     for (final item in items) {
-      if (item.tmdb == null || item.scrapeStatus != TmdbScrapeStatus.matched) {
+      if (_tmdbCoordinator.needsScrape(item)) {
         final name = item.seriesName.trim();
         if (name.isNotEmpty) unmatched.add(name);
       }

@@ -91,6 +91,78 @@ void main() {
     );
     expect(result.shouldAutoMatch, isFalse);
   });
+
+  test('英文别名命中优先于年份错误的同名候选', () {
+    final result = matcher.rank(
+      queryTitle: 'The Three Body Problem',
+      queryYear: 2023,
+      expectedTypes: const <TmdbMediaType>{TmdbMediaType.tv},
+      candidates: <TmdbMetadata>[
+        _metadata(
+          id: 10,
+          title: '三体',
+          date: '2023-01-01',
+          type: TmdbMediaType.tv,
+          aliases: const <String>['The Three-Body Problem'],
+        ),
+        _metadata(
+          id: 11,
+          title: 'The Three Body Problem',
+          date: '2019-01-01',
+          type: TmdbMediaType.tv,
+        ),
+      ],
+    );
+
+    expect(result.best?.metadata.id, 10);
+    expect(result.best?.aliasMatched, isTrue);
+    expect(result.best?.titleSimilarity, greaterThanOrEqualTo(0.78));
+    expect(result.best?.matchReason, contains('别名匹配'));
+    expect(result.shouldAutoMatch, isTrue);
+  });
+
+  test('混合媒体类型没有季集证据时同名同年不得自动确认', () {
+    final result = matcher.rank(
+      queryTitle: '同名作品',
+      queryYear: 2020,
+      expectedTypes: const <TmdbMediaType>{
+        TmdbMediaType.movie,
+        TmdbMediaType.tv,
+      },
+      candidates: <TmdbMetadata>[
+        _metadata(id: 20, title: '同名作品', date: '2020-01-01'),
+        _metadata(
+          id: 21,
+          title: '同名作品',
+          date: '2020-01-01',
+          type: TmdbMediaType.tv,
+        ),
+      ],
+    );
+
+    expect(result.shouldAutoMatch, isFalse);
+  });
+
+  test('电视剧季集证据会标记候选理由并提高确认资格', () {
+    final result = matcher.rank(
+      queryTitle: '三体',
+      queryYear: 2023,
+      expectedTypes: const <TmdbMediaType>{TmdbMediaType.tv},
+      seasonEvidence: true,
+      candidates: <TmdbMetadata>[
+        _metadata(
+          id: 30,
+          title: '三体',
+          date: '2023-01-01',
+          type: TmdbMediaType.tv,
+        ),
+      ],
+    );
+
+    expect(result.best?.seasonEvidenceMatched, isTrue);
+    expect(result.best?.matchReason, contains('季集证据匹配'));
+    expect(result.shouldAutoMatch, isTrue);
+  });
 }
 
 TmdbMetadata _metadata({
@@ -98,11 +170,13 @@ TmdbMetadata _metadata({
   required String title,
   required String date,
   TmdbMediaType type = TmdbMediaType.movie,
+  List<String> aliases = const <String>[],
 }) {
   return TmdbMetadata(
     id: id,
     mediaType: type,
     title: title,
+    aliases: aliases,
     releaseDate: date,
     language: 'zh-CN',
     matchedAt: DateTime(2026),

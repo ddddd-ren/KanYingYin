@@ -11,6 +11,8 @@ class TmdbScrapeOptions {
   final bool overwritePoster;
   final bool fetchPoster;
   final bool fetchBackdrop;
+  final int maximumSearchPages;
+  final int maximumAliasCandidates;
 
   const TmdbScrapeOptions({
     required this.language,
@@ -21,6 +23,8 @@ class TmdbScrapeOptions {
     required this.overwritePoster,
     required this.fetchPoster,
     required this.fetchBackdrop,
+    this.maximumSearchPages = 3,
+    this.maximumAliasCandidates = 20,
   });
 
   const TmdbScrapeOptions.defaults()
@@ -31,7 +35,9 @@ class TmdbScrapeOptions {
         overwriteOverview = true,
         overwritePoster = true,
         fetchPoster = true,
-        fetchBackdrop = true;
+        fetchBackdrop = true,
+        maximumSearchPages = 3,
+        maximumAliasCandidates = 20;
 
   double get minimumScore => switch (confidenceMode) {
         TmdbConfidenceMode.strict => 0.9,
@@ -68,6 +74,14 @@ class TmdbScrapeOptions {
           map['overwritePoster'] as bool? ?? defaults.overwritePoster,
       fetchPoster: map['fetchPoster'] as bool? ?? defaults.fetchPoster,
       fetchBackdrop: map['fetchBackdrop'] as bool? ?? defaults.fetchBackdrop,
+      maximumSearchPages: _positiveInt(
+        map['maximumSearchPages'],
+        defaults.maximumSearchPages,
+      ),
+      maximumAliasCandidates: _positiveInt(
+        map['maximumAliasCandidates'],
+        defaults.maximumAliasCandidates,
+      ),
     );
   }
 
@@ -80,6 +94,8 @@ class TmdbScrapeOptions {
         'overwritePoster': overwritePoster,
         'fetchPoster': fetchPoster,
         'fetchBackdrop': fetchBackdrop,
+        'maximumSearchPages': maximumSearchPages,
+        'maximumAliasCandidates': maximumAliasCandidates,
       };
 
   TmdbScrapeOptions copyWith({
@@ -91,6 +107,8 @@ class TmdbScrapeOptions {
     bool? overwritePoster,
     bool? fetchPoster,
     bool? fetchBackdrop,
+    int? maximumSearchPages,
+    int? maximumAliasCandidates,
   }) {
     return TmdbScrapeOptions(
       language: language ?? this.language,
@@ -101,6 +119,9 @@ class TmdbScrapeOptions {
       overwritePoster: overwritePoster ?? this.overwritePoster,
       fetchPoster: fetchPoster ?? this.fetchPoster,
       fetchBackdrop: fetchBackdrop ?? this.fetchBackdrop,
+      maximumSearchPages: maximumSearchPages ?? this.maximumSearchPages,
+      maximumAliasCandidates:
+          maximumAliasCandidates ?? this.maximumAliasCandidates,
     );
   }
 
@@ -110,5 +131,10 @@ class TmdbScrapeOptions {
     T fallback,
   ) {
     return values.where((value) => value.name == raw).firstOrNull ?? fallback;
+  }
+
+  static int _positiveInt(Object? value, int fallback) {
+    final parsed = value is num ? value.toInt() : int.tryParse('$value');
+    return parsed == null || parsed < 1 ? fallback : parsed;
   }
 }

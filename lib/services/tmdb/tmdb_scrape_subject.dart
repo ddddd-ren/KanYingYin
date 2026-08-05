@@ -22,6 +22,7 @@ class TmdbScrapeSubject {
   const TmdbScrapeSubject({
     required this.stableKey,
     required this.titleCandidates,
+    this.manualSearchTitle,
     this.year,
     this.seasonNumbers = const <int>{},
     this.episodeNumbers = const <int>{},
@@ -34,6 +35,7 @@ class TmdbScrapeSubject {
 
   final String stableKey;
   final List<String> titleCandidates;
+  final String? manualSearchTitle;
   final int? year;
   final Set<int> seasonNumbers;
   final Set<int> episodeNumbers;

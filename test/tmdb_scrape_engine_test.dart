@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_client_capabilities.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_engine.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
@@ -97,6 +98,30 @@ void main() {
       throwsA(isA<StateError>()),
     );
   });
+
+  test('分页搜索读取第二页并按媒体类型和 ID 去重，同时补充别名', () async {
+    final client = _PagedClient();
+    final engine = TmdbScrapeEngine(client: client);
+    const subject = TmdbScrapeSubject(
+      stableKey: 'paged',
+      titleCandidates: <String>['Avatar'],
+      mediaEvidence: TmdbMediaEvidence.movie,
+    );
+
+    final outcome = await engine.search(
+      subject,
+      const TmdbScrapeOptions.defaults(),
+    );
+
+    expect(outcome.ranked.candidates, hasLength(2));
+    expect(
+      outcome.ranked.candidates.map((item) => item.metadata.id),
+      containsAll(<int>[1, 2]),
+    );
+    expect(outcome.ranked.candidates.first.metadata.aliases, contains('阿凡达'));
+    expect(client.pageCalls, <String>['movie:1', 'movie:2']);
+    expect(client.aliasCalls, <int>[1, 2]);
+  });
 }
 
 class _RecordingClient implements ITmdbClient {
@@ -135,6 +160,65 @@ class _ThrowingClient implements ITmdbClient {
   }) {
     throw StateError('模拟网络失败');
   }
+
+  @override
+  Future<TmdbMetadata> details(
+    int id,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) {
+    throw UnimplementedError();
+  }
+}
+
+class _PagedClient implements ITmdbClient, ITmdbClientCapabilities {
+  final List<String> pageCalls = <String>[];
+  final List<int> aliasCalls = <int>[];
+
+  @override
+  Future<TmdbSearchPage> searchPage(
+    String query,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+    required int page,
+  }) async {
+    pageCalls.add('${mediaType.name}:$page');
+    final first = _metadata(id: 1, title: 'Avatar', type: mediaType);
+    final second = _metadata(id: 2, title: 'Avatar 2', type: mediaType);
+    return TmdbSearchPage(
+      page: page,
+      totalPages: 2,
+      results: page == 1
+          ? <TmdbMetadata>[first]
+          : <TmdbMetadata>[first, second],
+    );
+  }
+
+  @override
+  Future<List<String>> alternativeTitles(
+    int id,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) async {
+    aliasCalls.add(id);
+    return id == 1 ? const <String>['阿凡达'] : const <String>[];
+  }
+
+  @override
+  Future<TmdbSeasonMetadata> seasonDetails(
+    int id,
+    int seasonNumber, {
+    String language = 'zh-CN',
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<TmdbMetadata>> search(
+    String query,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) async => const <TmdbMetadata>[];
 
   @override
   Future<TmdbMetadata> details(

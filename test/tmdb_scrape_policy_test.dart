@@ -190,4 +190,20 @@ void main() {
       <TmdbMediaType>[TmdbMediaType.movie, TmdbMediaType.tv],
     );
   });
+
+  test('手动搜索词优先于清洗后的主标题和其他候选', () {
+    const subject = TmdbScrapeSubject(
+      stableKey: 'manual',
+      manualSearchTitle: 'The Three Body Problem',
+      titleCandidates: <String>['三体 S01E01', 'The Three-Body Problem'],
+      mediaEvidence: TmdbMediaEvidence.tv,
+    );
+
+    final plan = policy.build(
+      subject,
+      const TmdbScrapeOptions.defaults(),
+    );
+
+    expect(plan.queries, <String>['The Three Body Problem', '三体']);
+  });
 }

@@ -5,13 +5,13 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一三三补齐旧索引 TMDB 集名并改善启动刮削', () {
-    final entries = versionHistoryForCurrent('2.1.133');
+  test('二点一三四支持本地和网盘逐个匹配 TMDB 剧集', () {
+    final entries = versionHistoryForCurrent('2.1.134');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.version, '2.1.133');
+    expect(entry.version, '2.1.134');
     expect(entry.isPrerelease, isTrue);
     for (final text in <String>[
       'Windows',
@@ -19,10 +19,12 @@ void main() {
       '本地',
       '网盘',
       'TMDB',
-      '集名',
+      '匹配剧集',
+      '逐个',
       'S01E01',
-      '启动',
-      '旧索引',
+      '保留原名',
+      '恢复自动识别',
+      '重新扫描',
       '公共安装包',
       '断网',
       '远程路径',

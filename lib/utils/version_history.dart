@@ -150,6 +150,19 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.134',
+    date: '2026-08-06',
+    isPrerelease: true,
+    changes: [
+      'Windows 与 Android 的本地和个人网盘剧集菜单新增“匹配剧集”，选择 TMDB 电视剧后可把每个视频逐个匹配到具体季度和集数',
+      '每个视频都可选择指定集、保留原名或恢复自动识别；匹配后详情、选集、观看历史和播放器显示“作品 S01E01 集名”',
+      '本地索引刷新后继续保留手动结果，个人网盘重新扫描后会重新应用已保存的逐视频映射',
+      '公共安装包不内置 TMDB Key；没有 Key、TMDB 不可用或断网时，本地和网盘扫描、浏览及播放仍可使用',
+      '手动匹配只更新看影音索引和匹配规则，不会修改或删除本地及网盘原始视频、字幕或其他文件，也不会改变远程路径、远程 ID 和播放 ID',
+      'Windows 与 Android 继续使用统一版本配置，诊断日志继续脱敏并隐藏本地文件路径',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.133',
     date: '2026-08-06',
     isPrerelease: true,

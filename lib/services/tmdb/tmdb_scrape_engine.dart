@@ -29,6 +29,59 @@ class TmdbScrapeEngine {
   final TmdbScrapePolicy _policy;
   final TmdbMatcher _matcher;
 
+  /// 只为实际存在的季度补充逐集资料；详情失败时保留已有摘要。
+  Future<TmdbMetadata> hydrateSeasons(
+    TmdbMetadata metadata, {
+    Iterable<int> seasonNumbers = const <int>[],
+    TmdbScrapeSubject? subject,
+    String language = 'zh-CN',
+  }) async {
+    if (metadata.mediaType != TmdbMediaType.tv ||
+        _client is! ITmdbClientCapabilities) {
+      return metadata;
+    }
+    final requested = <int>{
+      ...seasonNumbers.where((number) => number > 0),
+      ...?subject?.seasonNumbers.where((number) => number > 0),
+    };
+    if (requested.isEmpty) return metadata;
+    final capabilities = _client as ITmdbClientCapabilities;
+    final existingByNumber = <int, TmdbSeasonMetadata>{
+      for (final season in metadata.seasons) season.seasonNumber: season,
+    };
+    final loaded = <int, TmdbSeasonMetadata>{};
+    await _forEachWithLimit(requested, 4, (seasonNumber) async {
+      try {
+        loaded[seasonNumber] = await capabilities.seasonDetails(
+          metadata.id,
+          seasonNumber,
+          language: language,
+        );
+      } on Object {
+        final summary = existingByNumber[seasonNumber];
+        if (summary != null) loaded[seasonNumber] = summary;
+      }
+    });
+    if (loaded.isEmpty) return metadata;
+    final merged = <TmdbSeasonMetadata>[
+      ...metadata.seasons,
+    ];
+    for (final season in loaded.values) {
+      final index = merged.indexWhere(
+        (item) => item.seasonNumber == season.seasonNumber,
+      );
+      if (index < 0) {
+        merged.add(season);
+      } else {
+        merged[index] = _mergeSeasonDetails(merged[index], season);
+      }
+    }
+    merged.sort(
+      (first, second) => first.seasonNumber.compareTo(second.seasonNumber),
+    );
+    return metadata.copyWith(seasons: merged);
+  }
+
   Future<TmdbScrapeSearchOutcome> search(
     TmdbScrapeSubject subject,
     TmdbScrapeOptions options, {
@@ -192,5 +245,51 @@ class TmdbScrapeEngine {
         worker(),
     ];
     await Future.wait(workers);
+  }
+
+  TmdbSeasonMetadata _mergeSeasonDetails(
+    TmdbSeasonMetadata previous,
+    TmdbSeasonMetadata fetched,
+  ) {
+    final episodes = <int, TmdbEpisodeMetadata>{
+      for (final episode in previous.episodes) episode.episodeNumber: episode,
+    };
+    for (final episode in fetched.episodes) {
+      final old = episodes[episode.episodeNumber];
+      episodes[episode.episodeNumber] = old == null
+          ? episode
+          : episode.copyWith(
+              name: old.name.trim().isNotEmpty ? old.name : episode.name,
+              overview: old.overview?.trim().isNotEmpty == true
+                  ? old.overview
+                  : episode.overview,
+              airDate: old.airDate?.trim().isNotEmpty == true
+                  ? old.airDate
+                  : episode.airDate,
+              stillUrl: old.stillUrl?.trim().isNotEmpty == true
+                  ? old.stillUrl
+                  : episode.stillUrl,
+              rating: episode.rating ?? old.rating,
+            );
+    }
+    final orderedEpisodes = episodes.values.toList(growable: false)
+      ..sort(
+        (first, second) => first.episodeNumber.compareTo(second.episodeNumber),
+      );
+    return fetched.copyWith(
+      name: fetched.name.trim().isNotEmpty ? fetched.name : previous.name,
+      episodeCount: fetched.episodeCount > 0
+          ? fetched.episodeCount
+          : previous.episodeCount,
+      overview: fetched.overview?.trim().isNotEmpty == true
+          ? fetched.overview
+          : previous.overview,
+      airDate: fetched.airDate?.trim().isNotEmpty == true
+          ? fetched.airDate
+          : previous.airDate,
+      posterUrl: fetched.posterUrl ?? previous.posterUrl,
+      posterCachePath: previous.posterCachePath ?? fetched.posterCachePath,
+      episodes: orderedEpisodes,
+    );
   }
 }

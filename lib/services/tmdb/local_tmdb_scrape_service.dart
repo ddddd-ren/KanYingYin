@@ -164,11 +164,17 @@ class LocalTmdbScrapeService {
         best.metadata.mediaType,
         language: resolvedOptions.language,
       );
+      final hydratedDetails = await TmdbScrapeEngine(client: client)
+          .hydrateSeasons(
+            details,
+            seasonNumbers: subject.seasonNumbers,
+            language: resolvedOptions.language,
+          );
       final merged = <TmdbMetadata>[];
       for (final item in seriesItems) {
         final metadata = mergePolicy.merge(
           existing: item.tmdb,
-          fetched: details,
+            fetched: hydratedDetails,
           options: resolvedOptions,
           locks: TmdbFieldLocks(
             title: item.titleLocked,
@@ -177,7 +183,7 @@ class LocalTmdbScrapeService {
           ),
           matchConfidence: best.score,
           // 本地索引按季度选海报，但保存的作品资料必须包含全部季度。
-          existingSeasons: details.mediaType == TmdbMediaType.tv
+          existingSeasons: hydratedDetails.mediaType == TmdbMediaType.tv
               ? const <int>{}
               : subject.seasonNumbers,
         );
@@ -228,7 +234,8 @@ class LocalTmdbScrapeService {
     }
 
     try {
-      final details = await clientFactory(apiKey.trim()).details(
+      final client = clientFactory(apiKey.trim());
+      final details = await client.details(
         candidate.id,
         candidate.mediaType,
         language: options.language,
@@ -237,11 +244,17 @@ class LocalTmdbScrapeService {
         seriesName: seriesName,
         items: seriesItems,
       );
+      final hydratedDetails = await TmdbScrapeEngine(client: client)
+          .hydrateSeasons(
+            details,
+            seasonNumbers: subject.seasonNumbers,
+            language: options.language,
+          );
       final merged = <TmdbMetadata>[];
       for (final item in seriesItems) {
         final metadata = mergePolicy.merge(
           existing: item.tmdb,
-          fetched: details,
+          fetched: hydratedDetails,
           options: options,
           locks: TmdbFieldLocks(
             title: item.titleLocked,
@@ -250,7 +263,7 @@ class LocalTmdbScrapeService {
           ),
           matchConfidence: 1,
           // 本地索引按季度选海报，但保存的作品资料必须包含全部季度。
-          existingSeasons: details.mediaType == TmdbMediaType.tv
+          existingSeasons: hydratedDetails.mediaType == TmdbMediaType.tv
               ? const <int>{}
               : subject.seasonNumbers,
         );

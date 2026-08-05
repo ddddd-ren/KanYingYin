@@ -227,15 +227,20 @@ class CloudWorkTmdbService {
       candidate.mediaType,
       language: options.language,
     );
+    final hydrated = await _engine.hydrateSeasons(
+      fetched,
+      seasonNumbers: subject.seasonNumbers,
+      language: options.language,
+    );
     var metadata = const TmdbMetadataMergePolicy().merge(
       existing: subject.existingMetadata,
-      fetched: fetched,
+      fetched: hydrated,
       options: options,
       locks: subject.fieldLocks,
       matchConfidence: candidate.matchConfidence,
       // 作品记录需要保留完整季度资料，海报墙才能在跨目录归并后显示
       // 任意季度的 TMDB 海报；当前作品实际包含哪些季度由索引项决定。
-      existingSeasons: candidate.mediaType == TmdbMediaType.tv
+      existingSeasons: hydrated.mediaType == TmdbMediaType.tv
           ? const <int>{}
           : existingSeasons,
     );

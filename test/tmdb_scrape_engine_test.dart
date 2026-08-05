@@ -122,6 +122,38 @@ void main() {
     expect(client.pageCalls, <String>['movie:1', 'movie:2']);
     expect(client.aliasCalls, <int>[1, 2]);
   });
+
+  test('只为实际季度补充逐集详情并在失败时保留摘要', () async {
+    final client = _SeasonClient();
+    final metadata = _metadata(
+      id: 9,
+      title: '三体',
+      type: TmdbMediaType.tv,
+    ).copyWith(
+      seasons: <TmdbSeasonMetadata>[
+        TmdbSeasonMetadata(
+          id: 91,
+          seasonNumber: 1,
+          name: '第一季',
+          episodeCount: 1,
+        ),
+        TmdbSeasonMetadata(
+          id: 92,
+          seasonNumber: 2,
+          name: '第二季摘要',
+          episodeCount: 1,
+        ),
+      ],
+    );
+    final hydrated = await TmdbScrapeEngine(client: client).hydrateSeasons(
+      metadata,
+      seasonNumbers: const <int>{1, 2},
+    );
+
+    expect(client.seasonCalls, <int>[1, 2]);
+    expect(hydrated.seasons.first.episodes.single.name, '第一集');
+    expect(hydrated.seasons[1].name, '第二季摘要');
+  });
 }
 
 class _RecordingClient implements ITmdbClient {
@@ -228,6 +260,58 @@ class _PagedClient implements ITmdbClient, ITmdbClientCapabilities {
   }) {
     throw UnimplementedError();
   }
+}
+
+class _SeasonClient implements ITmdbClient, ITmdbClientCapabilities {
+  final List<int> seasonCalls = <int>[];
+
+  @override
+  Future<TmdbSearchPage> searchPage(
+    String query,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+    required int page,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<List<String>> alternativeTitles(
+    int id,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) => throw UnimplementedError();
+
+  @override
+  Future<TmdbSeasonMetadata> seasonDetails(
+    int id,
+    int seasonNumber, {
+    String language = 'zh-CN',
+  }) async {
+    seasonCalls.add(seasonNumber);
+    if (seasonNumber == 2) throw StateError('详情失败');
+    return TmdbSeasonMetadata(
+      id: 91,
+      seasonNumber: 1,
+      name: '第一季',
+      episodeCount: 1,
+      episodes: const <TmdbEpisodeMetadata>[
+        TmdbEpisodeMetadata(id: 911, episodeNumber: 1, name: '第一集'),
+      ],
+    );
+  }
+
+  @override
+  Future<List<TmdbMetadata>> search(
+    String query,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) => throw UnimplementedError();
+
+  @override
+  Future<TmdbMetadata> details(
+    int id,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) => throw UnimplementedError();
 }
 
 TmdbMetadata _metadata({

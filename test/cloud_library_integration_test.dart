@@ -84,6 +84,43 @@ void main() {
       );
     });
 
+    test('逐集 TMDB 标题只改变展示名称并保留本地播放路径', () {
+      final metadata = TmdbMetadata(
+        id: 9,
+        mediaType: TmdbMediaType.tv,
+        title: 'Show',
+        language: 'zh-CN',
+        matchedAt: DateTime(2026),
+        matchConfidence: 1,
+        seasons: const <TmdbSeasonMetadata>[
+          TmdbSeasonMetadata(
+            id: 91,
+            seasonNumber: 1,
+            name: '第一季',
+            episodeCount: 1,
+            episodes: <TmdbEpisodeMetadata>[
+              TmdbEpisodeMetadata(
+                id: 911,
+                episodeNumber: 1,
+                name: '试播集',
+              ),
+            ],
+          ),
+        ],
+      );
+      final indexed = local.copyWith(tmdb: metadata);
+      final library = const CloudMediaLibraryAggregator().build(
+        localItems: [indexed],
+        cloudItems: const <CloudMediaIndexItem>[],
+        cloudSources: const <CloudSource>[],
+      );
+
+      final episode = library.series.single.episodes.single;
+      expect(episode.name, 'Show S01E01 试播集.mkv');
+      expect(episode.localItem?.path, local.path);
+      expect(episode.localItem?.subtitlePath, local.subtitlePath);
+    });
+
     test('来源筛选保留全部、本地和启用网盘来源', () {
       final library = const CloudMediaLibraryAggregator().build(
         localItems: [local],

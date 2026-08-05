@@ -29,9 +29,12 @@ class TmdbMetadataMergePolicy {
       ..sort(
         (first, second) => first.seasonNumber.compareTo(second.seasonNumber),
       );
-    final resolvedSeasons = !options.fetchPoster || preservePoster
-        ? _preserveSeasonPosters(seasons, existing?.seasons ?? const [])
-        : seasons;
+    final resolvedSeasons = _mergeSeasons(
+      seasons,
+      existing?.seasons ?? const <TmdbSeasonMetadata>[],
+      preservePosters: !options.fetchPoster || preservePoster,
+      allowedSeasonNumbers: existingSeasons,
+    );
 
     return TmdbMetadata(
       id: fetched.id,
@@ -41,7 +44,10 @@ class TmdbMetadataMergePolicy {
           preserveTitle ? existing.originalTitle : fetched.originalTitle,
       overview: preserveOverview ? existing.overview : fetched.overview,
       releaseDate: fetched.releaseDate,
-      rating: fetched.rating,
+      rating: fetched.rating ?? existing?.rating,
+      aliases: _mergeStrings(existing?.aliases ?? const <String>[], fetched.aliases),
+      popularity: fetched.popularity ?? existing?.popularity,
+      voteCount: fetched.voteCount ?? existing?.voteCount,
       posterUrl: options.fetchPoster
           ? (preservePoster ? existing.posterUrl : fetched.posterUrl)
           : existing?.posterUrl,
@@ -55,35 +61,123 @@ class TmdbMetadataMergePolicy {
     );
   }
 
-  List<TmdbSeasonMetadata> _preserveSeasonPosters(
+  List<TmdbSeasonMetadata> _mergeSeasons(
     List<TmdbSeasonMetadata> fetched,
-    List<TmdbSeasonMetadata> existing,
-  ) {
-    final existingByNumber = <int, TmdbSeasonMetadata>{
-      for (final season in existing) season.seasonNumber: season,
+    List<TmdbSeasonMetadata> existing, {
+    required bool preservePosters,
+    required Set<int> allowedSeasonNumbers,
+  }) {
+    final byNumber = <int, TmdbSeasonMetadata>{
+      for (final season in existing)
+        if (allowedSeasonNumbers.isEmpty ||
+            allowedSeasonNumbers.contains(season.seasonNumber))
+          season.seasonNumber: season,
     };
-    return fetched.map((season) {
-      final previous = existingByNumber[season.seasonNumber];
-      if (previous == null) {
-        return TmdbSeasonMetadata(
-          id: season.id,
-          seasonNumber: season.seasonNumber,
-          name: season.name,
-          episodeCount: season.episodeCount,
-          overview: season.overview,
-          airDate: season.airDate,
-        );
+    for (final season in fetched) {
+      if (allowedSeasonNumbers.isNotEmpty &&
+          !allowedSeasonNumbers.contains(season.seasonNumber)) {
+        continue;
       }
-      return TmdbSeasonMetadata(
-        id: season.id,
-        seasonNumber: season.seasonNumber,
-        name: season.name,
-        episodeCount: season.episodeCount,
-        overview: season.overview,
-        airDate: season.airDate,
-        posterUrl: previous.posterUrl,
-        posterCachePath: previous.posterCachePath,
+      final previous = byNumber[season.seasonNumber];
+      if (previous == null) {
+        byNumber[season.seasonNumber] = preservePosters
+            ? TmdbSeasonMetadata(
+                id: season.id,
+                seasonNumber: season.seasonNumber,
+                name: season.name,
+                episodeCount: season.episodeCount,
+                overview: season.overview,
+                airDate: season.airDate,
+                episodes: season.episodes,
+              )
+            : season;
+        continue;
+      }
+      byNumber[season.seasonNumber] = _mergeSeason(
+        season,
+        previous,
+        preservePosters: preservePosters,
       );
-    }).toList(growable: false);
+    }
+    final result = byNumber.values.toList(growable: false)
+      ..sort(
+        (first, second) => first.seasonNumber.compareTo(second.seasonNumber),
+      );
+    return result;
+  }
+
+  TmdbSeasonMetadata _mergeSeason(
+    TmdbSeasonMetadata fetched,
+    TmdbSeasonMetadata existing, {
+    required bool preservePosters,
+  }) {
+    final posterUrl = preservePosters
+        ? existing.posterUrl
+        : (fetched.posterUrl ?? existing.posterUrl);
+    final posterCachePath = preservePosters
+        ? existing.posterCachePath
+        : (fetched.posterCachePath ?? existing.posterCachePath);
+    return TmdbSeasonMetadata(
+      id: fetched.id,
+      seasonNumber: fetched.seasonNumber,
+      name: existing.name.trim().isNotEmpty ? existing.name : fetched.name,
+      episodeCount: fetched.episodeCount > 0
+          ? fetched.episodeCount
+          : existing.episodeCount,
+      overview: existing.overview?.trim().isNotEmpty == true
+          ? existing.overview
+          : fetched.overview,
+      airDate: existing.airDate?.trim().isNotEmpty == true
+          ? existing.airDate
+          : fetched.airDate,
+      posterUrl: posterUrl,
+      posterCachePath: posterCachePath,
+      episodes: _mergeEpisodes(fetched.episodes, existing.episodes),
+    );
+  }
+
+  List<TmdbEpisodeMetadata> _mergeEpisodes(
+    List<TmdbEpisodeMetadata> fetched,
+    List<TmdbEpisodeMetadata> existing,
+  ) {
+    final byNumber = <int, TmdbEpisodeMetadata>{
+      for (final episode in existing) episode.episodeNumber: episode,
+    };
+    for (final episode in fetched) {
+      final previous = byNumber[episode.episodeNumber];
+      if (previous == null) {
+        byNumber[episode.episodeNumber] = episode;
+        continue;
+      }
+      byNumber[episode.episodeNumber] = episode.copyWith(
+        name: previous.name.trim().isNotEmpty ? previous.name : episode.name,
+        overview: previous.overview?.trim().isNotEmpty == true
+            ? previous.overview
+            : episode.overview,
+        airDate: previous.airDate?.trim().isNotEmpty == true
+            ? previous.airDate
+            : episode.airDate,
+        stillUrl: previous.stillUrl?.trim().isNotEmpty == true
+            ? previous.stillUrl
+            : episode.stillUrl,
+        rating: episode.rating ?? previous.rating,
+      );
+    }
+    final result = byNumber.values.toList(growable: false)
+      ..sort(
+        (first, second) => first.episodeNumber.compareTo(second.episodeNumber),
+      );
+    return result;
+  }
+
+  List<String> _mergeStrings(List<String> first, List<String> second) {
+    final result = <String>[];
+    for (final value in <String>[...first, ...second]) {
+      final normalized = value.trim();
+      if (normalized.isNotEmpty && !result.contains(normalized)) {
+        result.add(normalized);
+      }
+    }
+    return List<String>.unmodifiable(result);
   }
 }

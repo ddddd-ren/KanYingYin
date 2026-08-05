@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_metadata_merge_policy.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_episode_title_resolver.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_poster_policy.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
@@ -168,6 +169,91 @@ void main() {
 
     expect(merged.genres, const <String>['动画', '科幻']);
   });
+
+  test('逐集资料按季度和集号合并且不清空已有集名', () {
+    final existing = _metadata(
+      title: '三体',
+      type: TmdbMediaType.tv,
+      seasons: <TmdbSeasonMetadata>[
+        _season(
+          1,
+          '/cached.jpg',
+          episodes: <TmdbEpisodeMetadata>[
+            _episode(1, '用户集名'),
+          ],
+        ),
+      ],
+    );
+    final fetched = _metadata(
+      title: '三体',
+      type: TmdbMediaType.tv,
+      seasons: <TmdbSeasonMetadata>[
+        _season(
+          1,
+          '/new.jpg',
+          episodes: <TmdbEpisodeMetadata>[
+            _episode(1, '第一集'),
+            _episode(2, '第二集'),
+          ],
+        ),
+      ],
+    );
+
+    final merged = mergePolicy.merge(
+      existing: existing,
+      fetched: fetched,
+      options: const TmdbScrapeOptions.defaults().copyWith(fetchPoster: false),
+      matchConfidence: 0.9,
+    );
+
+    expect(merged.seasons.single.posterUrl, '/cached.jpg');
+    expect(merged.seasons.single.episodes, hasLength(2));
+    expect(merged.seasons.single.episodes.first.name, '用户集名');
+  });
+
+  test('逐集标题解析器按证据提供稳定回退', () {
+    const resolver = TmdbEpisodeTitleResolver();
+    expect(
+      resolver.resolve(
+        seriesTitle: '三体',
+        seasonNumber: 1,
+        episodeNumber: 1,
+        episodeName: '第一集',
+        originalFileName: '01.mkv',
+      ),
+      '三体 S01E01 第一集',
+    );
+    expect(
+      resolver.resolve(
+        seriesTitle: '三体',
+        seasonNumber: 1,
+        episodeNumber: 2,
+        episodeName: null,
+        originalFileName: '02.mkv',
+      ),
+      '三体 S01E02',
+    );
+    expect(
+      resolver.resolve(
+        seriesTitle: '三体',
+        seasonNumber: null,
+        episodeNumber: 2,
+        episodeName: null,
+        originalFileName: '02.mkv',
+      ),
+      '三体 E02',
+    );
+    expect(
+      resolver.resolve(
+        seriesTitle: '',
+        seasonNumber: null,
+        episodeNumber: null,
+        episodeName: null,
+        originalFileName: '原始文件.mkv',
+      ),
+      '原始文件.mkv',
+    );
+  });
 }
 
 TmdbMetadata _metadata({
@@ -197,12 +283,25 @@ TmdbMetadata _metadata({
   );
 }
 
-TmdbSeasonMetadata _season(int number, String? posterUrl) {
+TmdbSeasonMetadata _season(
+  int number,
+  String? posterUrl, {
+  List<TmdbEpisodeMetadata> episodes = const <TmdbEpisodeMetadata>[],
+}) {
   return TmdbSeasonMetadata(
     id: number,
     seasonNumber: number,
     name: '第 $number 季',
     episodeCount: 8,
     posterUrl: posterUrl,
+    episodes: episodes,
+  );
+}
+
+TmdbEpisodeMetadata _episode(int number, String name) {
+  return TmdbEpisodeMetadata(
+    id: number,
+    episodeNumber: number,
+    name: name,
   );
 }

@@ -7,6 +7,7 @@ import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_grouping_metadata.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_grouping_policy.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_episode_title_resolver.dart';
 
 enum MediaSourceKind { local, cloud }
 
@@ -235,7 +236,12 @@ class CloudMediaLibraryAggregator {
         episodes: local.episodes
             .map((item) => MediaLibraryEpisode.local(
                   stableId: item.id,
-                  name: item.name,
+                  name: _episodeDisplayName(
+                    item.name,
+                    metadata ?? item.tmdb,
+                    item.seasonNumber,
+                    item.episodeNumber,
+                  ),
                   localItem: item,
                 ))
             .toList(growable: false),
@@ -313,7 +319,7 @@ class CloudMediaLibraryAggregator {
         episodes: items
             .map((item) => MediaLibraryEpisode.cloud(
                   stableId: item.remoteId,
-                  name: _cloudEpisodeTitle(item),
+                  name: _cloudEpisodeTitle(item, workMetadata),
                   sourceId: item.sourceId,
                   sourceName: source?.name ?? item.sourceId,
                   isAvailable: source?.enabled == true,
@@ -491,15 +497,64 @@ class CloudMediaLibraryAggregator {
     return name;
   }
 
-  static String _cloudEpisodeTitle(CloudMediaIndexItem item) {
-    final title = item.tmdbTitle?.trim() ?? '';
-    if (title.isEmpty) return item.name;
-    final season = item.seasonNumber;
-    final episode = item.episodeNumber;
-    if (episode == null || episode <= 0) return title;
-    final episodeLabel = episode.toString().padLeft(2, '0');
-    if (season == null || season <= 0) return '$title E$episodeLabel';
-    return '$title S${season.toString().padLeft(2, '0')}E$episodeLabel';
+  static String _cloudEpisodeTitle(
+    CloudMediaIndexItem item,
+    TmdbMetadata? workMetadata,
+  ) {
+    final metadata = workMetadata ??
+        (item.tmdbTitle?.trim().isNotEmpty == true
+            ? TmdbMetadata(
+                id: item.tmdbId ?? 0,
+                mediaType: TmdbMediaType.tv,
+                title: item.tmdbTitle!.trim(),
+                originalTitle: item.tmdbOriginalTitle,
+                language: 'zh-CN',
+                matchedAt: DateTime.fromMillisecondsSinceEpoch(0),
+                matchConfidence: 0,
+              )
+            : null);
+    return _episodeDisplayName(
+      item.name,
+      metadata,
+      item.seasonNumber,
+      item.episodeNumber,
+    );
+  }
+
+  static String _episodeDisplayName(
+    String originalName,
+    TmdbMetadata? metadata,
+    int? seasonNumber,
+    int? episodeNumber,
+  ) {
+    final episodeName = _episodeName(metadata, seasonNumber, episodeNumber);
+    return const TmdbEpisodeTitleResolver().resolveWithExtension(
+      seriesTitle: metadata?.title,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+      episodeName: episodeName,
+      originalFileName: originalName,
+    );
+  }
+
+  static String? _episodeName(
+    TmdbMetadata? metadata,
+    int? seasonNumber,
+    int? episodeNumber,
+  ) {
+    if (metadata == null || seasonNumber == null || episodeNumber == null) {
+      return null;
+    }
+    for (final season in metadata.seasons) {
+      if (season.seasonNumber != seasonNumber) continue;
+      for (final episode in season.episodes) {
+        if (episode.episodeNumber == episodeNumber &&
+            episode.name.trim().isNotEmpty) {
+          return episode.name;
+        }
+      }
+    }
+    return null;
   }
 
   static String _groupVariant(CloudMediaIndexItem item) =>

@@ -9,6 +9,7 @@ import 'package:kanyingyin/services/cloud/cloud_media_grouping_metadata.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_grouping_policy.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_episode_title_resolver.dart';
 import 'package:path/path.dart' as p;
 
 class CloudResourceCollection {
@@ -290,6 +291,7 @@ class CloudResourceCollectionGrouper {
         final videos = _virtualEntries(
           aggregate.items,
           labelMovieVariants: true,
+          metadata: record?.metadata,
         );
         if (videos.isEmpty) continue;
         final group = CloudResourceMediaGroup(
@@ -328,7 +330,10 @@ class CloudResourceCollectionGrouper {
             .toList(growable: false);
         if (seasonItems.isEmpty) continue;
         final seasonMetadata = _seasonMetadata(record, seasonNumber);
-        final videos = _virtualEntries(seasonItems);
+        final videos = _virtualEntries(
+          seasonItems,
+          metadata: record?.metadata,
+        );
         final seasonGroup = CloudResourceSeasonGroup(
           seasonNumber: seasonNumber,
           videos: videos,
@@ -439,6 +444,7 @@ class CloudResourceCollectionGrouper {
   List<CloudFileEntry> _virtualEntries(
     List<CloudMediaIndexItem> items, {
     bool labelMovieVariants = false,
+    TmdbMetadata? metadata,
   }) {
     final sorted = List<CloudMediaIndexItem>.from(items)
       ..sort((first, second) {
@@ -462,7 +468,7 @@ class CloudResourceCollectionGrouper {
     final duplicateIndexes = <int, int>{};
     var movieVariantIndex = 0;
     return sorted.map((item) {
-      var displayName = item.displayName;
+      var displayName = _episodeDisplayName(item, metadata);
       final episode = item.episodeNumber;
       String? variantLabel;
       if (episode != null && (duplicateCounts[episode] ?? 0) > 1) {
@@ -493,6 +499,49 @@ class CloudResourceCollectionGrouper {
         variantLabel: variantLabel,
       );
     }).toList(growable: false);
+  }
+
+  String _episodeDisplayName(
+    CloudMediaIndexItem item,
+    TmdbMetadata? metadata,
+  ) {
+    final episode = item.episodeNumber;
+    final title = metadata?.title.trim() ?? item.tmdbTitle?.trim() ?? '';
+    if (episode == null || episode <= 0 || title.isEmpty) {
+      return item.displayName;
+    }
+    final episodeName = _episodeName(
+      metadata,
+      item.seasonNumber,
+      episode,
+    );
+    return const TmdbEpisodeTitleResolver().resolveWithExtension(
+      seriesTitle: title,
+      seasonNumber: item.seasonNumber,
+      episodeNumber: episode,
+      episodeName: episodeName,
+      originalFileName: item.displayName,
+    );
+  }
+
+  String? _episodeName(
+    TmdbMetadata? metadata,
+    int? seasonNumber,
+    int? episodeNumber,
+  ) {
+    if (metadata == null || seasonNumber == null || episodeNumber == null) {
+      return null;
+    }
+    for (final season in metadata.seasons) {
+      if (season.seasonNumber != seasonNumber) continue;
+      for (final episode in season.episodes) {
+        if (episode.episodeNumber == episodeNumber &&
+            episode.name.trim().isNotEmpty) {
+          return episode.name;
+        }
+      }
+    }
+    return null;
   }
 
   String _releaseSummary(CloudMediaIndexItem item) {
@@ -721,7 +770,42 @@ class CloudResourceCollectionGrouper {
       posterCachePath: primary.posterCachePath?.trim().isNotEmpty == true
           ? primary.posterCachePath
           : fallback.posterCachePath,
+      episodes: _mergeEpisodes(primary.episodes, fallback.episodes),
     );
+  }
+
+  static List<TmdbEpisodeMetadata> _mergeEpisodes(
+    List<TmdbEpisodeMetadata> primary,
+    List<TmdbEpisodeMetadata> fallback,
+  ) {
+    final byNumber = <int, TmdbEpisodeMetadata>{
+      for (final episode in fallback) episode.episodeNumber: episode,
+    };
+    for (final episode in primary) {
+      final previous = byNumber[episode.episodeNumber];
+      byNumber[episode.episodeNumber] = previous == null
+          ? episode
+          : episode.copyWith(
+              name: previous.name.trim().isNotEmpty
+                  ? previous.name
+                  : episode.name,
+              overview: previous.overview?.trim().isNotEmpty == true
+                  ? previous.overview
+                  : episode.overview,
+              airDate: previous.airDate?.trim().isNotEmpty == true
+                  ? previous.airDate
+                  : episode.airDate,
+              stillUrl: previous.stillUrl?.trim().isNotEmpty == true
+                  ? previous.stillUrl
+                  : episode.stillUrl,
+              rating: episode.rating ?? previous.rating,
+            );
+    }
+    final result = byNumber.values.toList(growable: false)
+      ..sort(
+        (first, second) => first.episodeNumber.compareTo(second.episodeNumber),
+      );
+    return result;
   }
 }
 

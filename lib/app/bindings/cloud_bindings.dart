@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
+import 'package:kanyingyin/features/episode_matching/application/cloud_episode_match_service.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/repositories/cloud_hidden_video_repository.dart';
@@ -42,6 +43,12 @@ void registerCloudBindings(Injector i) {
   );
   i.addSingleton<CloudEpisodeMatchRuleRepository>(
     CloudEpisodeMatchRuleRepository.new,
+  );
+  i.addSingleton<CloudEpisodeMatchService>(
+    () => CloudEpisodeMatchService(
+      ruleRepository: Modular.get<CloudEpisodeMatchRuleRepository>(),
+      indexRepository: Modular.get<CloudMediaIndexRepository>(),
+    ),
   );
   i.addSingleton<CloudSeriesMatchService>(
     () => CloudSeriesMatchService(
@@ -136,6 +143,9 @@ void registerCloudBindings(Injector i) {
       mediaTagRepository: Modular.get<CloudMediaTagRepository>(),
       hiddenVideoRepository: Modular.get<CloudHiddenVideoRepository>(),
       mediaIndexer: Modular.get<CloudMediaIndexer>(),
+      episodeMatchService: Modular.get<CloudEpisodeMatchService>(),
+      tmdbApiKeyProvider: Modular.get<TmdbApiKeyProvider>(),
+      tmdbClientContextRegistry: Modular.get<TmdbClientContextRegistry>(),
       minRecognizedVideoSizeBytesProvider: () =>
           Modular.get<MediaRecognitionSettings>().cloudMinSizeBytes,
     ),

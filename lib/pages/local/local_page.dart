@@ -17,6 +17,7 @@ import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/local_media_source.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
+import 'package:kanyingyin/pages/local/manual_episode_match_flow.dart';
 import 'package:kanyingyin/pages/local/local_directory_picker.dart';
 import 'package:kanyingyin/pages/local/library_sheet.dart';
 import 'package:kanyingyin/pages/cloud/quark/quark_share_import_action.dart';
@@ -36,6 +37,7 @@ enum _LocalMediaAction {
   customCover,
   scrapeTmdb,
   rematchTmdb,
+  matchEpisodes,
   findPoster,
   copyPath,
 }
@@ -555,6 +557,16 @@ class _LocalPageState extends State<LocalPage>
             case _LocalMediaAction.rematchTmdb:
               await _openLocalTmdbDialog(context, group, rematch: true);
               return;
+            case _LocalMediaAction.matchEpisodes:
+              await openLocalManualEpisodeMatch(
+                context: context,
+                controller: localController,
+                originalName: group.title,
+                paths: group.episodes
+                    .map((item) => item.path)
+                    .toList(growable: false),
+              );
+              return;
             case _LocalMediaAction.findPoster:
               await _fetchPosterForGroup(context, group);
               return;
@@ -583,6 +595,10 @@ class _LocalPageState extends State<LocalPage>
           const PopupMenuItem<_LocalMediaAction>(
             value: _LocalMediaAction.rematchTmdb,
             child: Text('重新匹配'),
+          ),
+          const PopupMenuItem<_LocalMediaAction>(
+            value: _LocalMediaAction.matchEpisodes,
+            child: Text('匹配剧集'),
           ),
           const PopupMenuItem<_LocalMediaAction>(
             value: _LocalMediaAction.findPoster,
@@ -690,6 +706,21 @@ class _LocalPageState extends State<LocalPage>
                   final navigator = Navigator.of(context);
                   navigator.pop();
                   _openLocalTmdbDialog(pageContext, group, rematch: true);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.format_list_numbered_outlined),
+                title: const Text('匹配剧集'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  openLocalManualEpisodeMatch(
+                    context: pageContext,
+                    controller: localController,
+                    originalName: group.title,
+                    paths: group.episodes
+                        .map((item) => item.path)
+                        .toList(growable: false),
+                  );
                 },
               ),
               ListTile(

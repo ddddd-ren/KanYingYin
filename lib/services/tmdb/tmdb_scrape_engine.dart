@@ -5,6 +5,7 @@ import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_policy.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_cache.dart';
 
 class TmdbScrapeSearchOutcome {
   const TmdbScrapeSearchOutcome({
@@ -17,17 +18,35 @@ class TmdbScrapeSearchOutcome {
 }
 
 class TmdbScrapeEngine {
-  const TmdbScrapeEngine({
+  TmdbScrapeEngine({
     required ITmdbClient client,
     TmdbScrapePolicy policy = const TmdbScrapePolicy(),
     TmdbMatcher matcher = const TmdbMatcher(),
+    TmdbScrapeCache? cache,
   })  : _client = client,
         _policy = policy,
-        _matcher = matcher;
+        _matcher = matcher,
+        _cache = cache ?? TmdbScrapeCache();
 
   final ITmdbClient _client;
   final TmdbScrapePolicy _policy;
   final TmdbMatcher _matcher;
+  final TmdbScrapeCache _cache;
+
+  TmdbScrapeCache get cache => _cache;
+
+  /// 通过共享缓存读取作品详情。
+  Future<TmdbMetadata> details(
+    int id,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) {
+    return _cache.getOrLoad<TmdbMetadata>(
+      _detailsCacheKey(id, mediaType, language),
+      () => _client.details(id, mediaType, language: language),
+      kind: TmdbScrapeCacheKind.details,
+    );
+  }
 
   /// 只为实际存在的季度补充逐集资料；详情失败时保留已有摘要。
   Future<TmdbMetadata> hydrateSeasons(
@@ -52,10 +71,14 @@ class TmdbScrapeEngine {
     final loaded = <int, TmdbSeasonMetadata>{};
     await _forEachWithLimit(requested, 4, (seasonNumber) async {
       try {
-        loaded[seasonNumber] = await capabilities.seasonDetails(
-          metadata.id,
-          seasonNumber,
-          language: language,
+        loaded[seasonNumber] = await _cache.getOrLoad<TmdbSeasonMetadata>(
+          _seasonCacheKey(metadata.id, seasonNumber, language),
+          () => capabilities.seasonDetails(
+            metadata.id,
+            seasonNumber,
+            language: language,
+          ),
+          kind: TmdbScrapeCacheKind.details,
         );
       } on Object {
         final summary = existingByNumber[seasonNumber];
@@ -141,31 +164,43 @@ class TmdbScrapeEngine {
         : null;
     for (final mediaType in mediaTypes) {
       if (capabilities == null) {
-        final found = await _client.search(
-          query,
-          mediaType,
-          language: options.language,
+        final found = await _cache.getOrLoad<List<TmdbMetadata>>(
+          _searchCacheKey(query, mediaType, options.language, 1),
+          () => _client.search(
+            query,
+            mediaType,
+            language: options.language,
+          ),
+          kind: TmdbScrapeCacheKind.search,
         );
         _appendUnique(candidates, seen, found);
         continue;
       }
 
-      final first = await capabilities.searchPage(
-        query,
-        mediaType,
-        language: options.language,
-        page: 1,
+      final first = await _cache.getOrLoad<TmdbSearchPage>(
+        _searchCacheKey(query, mediaType, options.language, 1),
+        () => capabilities.searchPage(
+          query,
+          mediaType,
+          language: options.language,
+          page: 1,
+        ),
+        kind: TmdbScrapeCacheKind.search,
       );
       _appendUnique(candidates, seen, first.results);
       final lastPage = first.totalPages < options.maximumSearchPages
           ? first.totalPages
           : options.maximumSearchPages;
       for (var page = 2; page <= lastPage; page += 1) {
-        final next = await capabilities.searchPage(
-          query,
-          mediaType,
-          language: options.language,
-          page: page,
+        final next = await _cache.getOrLoad<TmdbSearchPage>(
+          _searchCacheKey(query, mediaType, options.language, page),
+          () => capabilities.searchPage(
+            query,
+            mediaType,
+            language: options.language,
+            page: page,
+          ),
+          kind: TmdbScrapeCacheKind.search,
         );
         _appendUnique(candidates, seen, next.results);
       }
@@ -204,10 +239,14 @@ class TmdbScrapeEngine {
       (index) async {
         final candidate = candidates[index];
         try {
-          final aliases = await capabilities.alternativeTitles(
-            candidate.id,
-            candidate.mediaType,
-            language: options.language,
+          final aliases = await _cache.getOrLoad<List<String>>(
+            _aliasCacheKey(candidate.id, candidate.mediaType, options.language),
+            () => capabilities.alternativeTitles(
+              candidate.id,
+              candidate.mediaType,
+              language: options.language,
+            ),
+            kind: TmdbScrapeCacheKind.aliases,
           );
           if (aliases.isEmpty) return;
           final merged = <String>[];
@@ -240,6 +279,7 @@ class TmdbScrapeEngine {
         await action(list[index]);
       }
     }
+
     final workers = <Future<void>>[
       for (var index = 0; index < poolSize && index < list.length; index += 1)
         worker(),
@@ -292,4 +332,36 @@ class TmdbScrapeEngine {
       episodes: orderedEpisodes,
     );
   }
+
+  static String _searchCacheKey(
+    String query,
+    TmdbMediaType mediaType,
+    String language,
+    int page,
+  ) {
+    return 'search|${mediaType.name}|$language|${_normalizeQuery(query)}|page:$page';
+  }
+
+  static String _aliasCacheKey(
+    int id,
+    TmdbMediaType mediaType,
+    String language,
+  ) {
+    return 'alias|${mediaType.name}|$language|$id';
+  }
+
+  static String _seasonCacheKey(int id, int seasonNumber, String language) {
+    return 'details|season|$language|$id|$seasonNumber';
+  }
+
+  static String _detailsCacheKey(
+    int id,
+    TmdbMediaType mediaType,
+    String language,
+  ) {
+    return 'details|${mediaType.name}|$language|$id';
+  }
+
+  static String _normalizeQuery(String value) =>
+      value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 }

@@ -450,7 +450,7 @@ void main() {
     expect(await indexRepository.getBySource(work.sourceId), hasLength(1));
   });
 
-  test('规模场景按五十个唯一作品键各调度一次', () async {
+  test('规模场景按五十个唯一作品键各调度一次并合并相同 TMDB 请求', () async {
     final fixture = _Fixture();
     final works = <CloudWorkIdentity>[
       for (var index = 0; index < 50; index++) _work('scale-$index'),
@@ -461,8 +461,10 @@ void main() {
     expect(fixture.coordinator.totalCount, 50);
     expect(fixture.coordinator.completedCount, 50);
     expect(fixture.coordinator.recordsByWorkKey, hasLength(50));
-    expect(fixture.client.searchCalls, 50);
-    expect(fixture.client.detailCalls, 50);
+    // 作品调度仍按稳定 workKey 完整执行，但相同 API Key 下的查询和详情
+    // 通过共享缓存合并为一次网络请求。
+    expect(fixture.client.searchCalls, 1);
+    expect(fixture.client.detailCalls, 1);
   });
 }
 

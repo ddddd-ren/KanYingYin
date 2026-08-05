@@ -7,6 +7,7 @@ import 'package:kanyingyin/services/tmdb/tmdb_metadata_merge_policy.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_engine.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_cache.dart';
 
 class CloudTmdbMatchOutcome {
   const CloudTmdbMatchOutcome({required this.candidates, this.selected});
@@ -21,13 +22,12 @@ class CloudTmdbMetadataService {
     required ITmdbClient client,
     CloudPosterCache? posterCache,
     TmdbScrapeEngine? engine,
+    TmdbScrapeCache? cache,
   })  : _repository = repository,
-        _client = client,
-        _engine = engine ?? TmdbScrapeEngine(client: client),
+        _engine = engine ?? TmdbScrapeEngine(client: client, cache: cache),
         _posterCache = posterCache;
 
   final CloudMediaIndexRepository _repository;
-  final ITmdbClient _client;
   final TmdbScrapeEngine _engine;
   final CloudPosterCache? _posterCache;
 
@@ -83,7 +83,7 @@ class CloudTmdbMetadataService {
         .map(_metadataFromItem)
         .nonNulls
         .firstOrNull;
-    final details = await _client.details(
+    final details = await _engine.details(
       candidate.id,
       candidate.mediaType,
       language: options.language,
@@ -160,10 +160,15 @@ class CloudTmdbMetadataService {
         .toList(growable: false);
     final candidates = <String>[seriesName.trim()];
     for (final item in items) {
-      for (final value in <String>[item.seriesName, item.name, item.displayName]) {
+      for (final value in <String>[
+        item.seriesName,
+        item.name,
+        item.displayName
+      ]) {
         final text = value.trim();
         if (text.isNotEmpty &&
-            !candidates.any((current) => current.toLowerCase() == text.toLowerCase())) {
+            !candidates.any(
+                (current) => current.toLowerCase() == text.toLowerCase())) {
           candidates.add(text);
         }
       }

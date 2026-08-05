@@ -3,6 +3,7 @@ import 'package:kanyingyin/core/network/dio_factory.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client_capabilities.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_endpoint_policy.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_cache.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/utils/network_settings_config_factory.dart';
 import 'package:kanyingyin/utils/proxy_manager.dart';
@@ -24,11 +25,64 @@ abstract class ITmdbClient {
   });
 }
 
+typedef TmdbClientFactory = ITmdbClient Function(String apiKey);
+typedef TmdbScrapeCacheFactory = TmdbScrapeCache Function(String apiKey);
+
+/// 同一 API Key 对应的客户端和请求缓存上下文。
+class TmdbClientContext {
+  const TmdbClientContext({required this.client, required this.cache});
+
+  final ITmdbClient client;
+  final TmdbScrapeCache cache;
+}
+
+/// 按 API Key 复用 TMDB 客户端和缓存，避免不同凭据之间共享响应。
+class TmdbClientContextRegistry {
+  TmdbClientContextRegistry({
+    TmdbClientFactory? clientFactory,
+    TmdbScrapeCacheFactory? cacheFactory,
+  })  : _clientFactory = clientFactory,
+        _cacheFactory = cacheFactory;
+
+  final TmdbClientFactory? _clientFactory;
+  final TmdbScrapeCacheFactory? _cacheFactory;
+  final Map<String, TmdbClientContext> _contexts =
+      <String, TmdbClientContext>{};
+
+  TmdbClientContext contextFor(String apiKey) {
+    final normalized = apiKey.trim();
+    if (normalized.isEmpty) {
+      throw ArgumentError.value(apiKey, 'apiKey', 'API Key 不能为空');
+    }
+    final existing = _contexts[normalized];
+    if (existing != null) return existing;
+    final cache = _cacheFactory?.call(normalized) ?? TmdbScrapeCache();
+    final client = _clientFactory?.call(normalized) ??
+        TmdbClient(apiKey: normalized, cache: cache);
+    final context = TmdbClientContext(client: client, cache: cache);
+    _contexts[normalized] = context;
+    return context;
+  }
+
+  ITmdbClient clientFor(String apiKey) => contextFor(apiKey).client;
+
+  TmdbScrapeCache cacheFor(String apiKey) => contextFor(apiKey).cache;
+
+  /// 清理所有响应并丢弃客户端上下文；不会触碰用户凭据存储。
+  void clear() {
+    for (final context in _contexts.values) {
+      context.cache.clear();
+    }
+    _contexts.clear();
+  }
+}
+
 class TmdbClient implements ITmdbClient, ITmdbClientCapabilities {
   final String apiKey;
   Dio _dio;
   final TmdbDioFactory? _dioFactory;
   final TmdbProxyRecovery? _recoverProxy;
+  final TmdbScrapeCache? _cache;
   Future<bool>? _rebuildingDio;
   String _preferredBaseUrl = TmdbEndpointPolicy.primaryApiBaseUrl;
 
@@ -37,9 +91,11 @@ class TmdbClient implements ITmdbClient, ITmdbClientCapabilities {
     Dio? dio,
     TmdbDioFactory? dioFactory,
     TmdbProxyRecovery? recoverProxy,
+    TmdbScrapeCache? cache,
   })  : _dioFactory = dioFactory ?? (dio == null ? _createDefaultDio : null),
         _recoverProxy = recoverProxy ??
             (dio == null ? ProxyManager.recoverOnlineResourceProxy : null),
+        _cache = cache,
         _dio = dio ?? (dioFactory ?? _createDefaultDio)();
 
   static Dio _createDefaultDio() {
@@ -79,6 +135,33 @@ class TmdbClient implements ITmdbClient, ITmdbClientCapabilities {
   }) async {
     _validateKey();
     if (page < 1) throw ArgumentError.value(page, 'page', '页码必须大于 0');
+    final cache = _cache;
+    if (cache != null) {
+      return cache.getOrLoad<TmdbSearchPage>(
+        _searchCacheKey(query, mediaType, language, page),
+        () => _searchPageUncached(
+          query,
+          mediaType,
+          language: language,
+          page: page,
+        ),
+        kind: TmdbScrapeCacheKind.search,
+      );
+    }
+    return _searchPageUncached(
+      query,
+      mediaType,
+      language: language,
+      page: page,
+    );
+  }
+
+  Future<TmdbSearchPage> _searchPageUncached(
+    String query,
+    TmdbMediaType mediaType, {
+    required String language,
+    required int page,
+  }) async {
     final response = await _withEndpointRecovery(
       (dio, baseUrl) => dio.get<Map<String, dynamic>>(
         '$baseUrl/search/${mediaType == TmdbMediaType.movie ? 'movie' : 'tv'}',
@@ -120,6 +203,22 @@ class TmdbClient implements ITmdbClient, ITmdbClientCapabilities {
     String language = 'zh-CN',
   }) async {
     _validateKey();
+    final cache = _cache;
+    if (cache != null) {
+      return cache.getOrLoad<List<String>>(
+        _aliasCacheKey(id, mediaType, language),
+        () => _alternativeTitlesUncached(id, mediaType, language: language),
+        kind: TmdbScrapeCacheKind.aliases,
+      );
+    }
+    return _alternativeTitlesUncached(id, mediaType, language: language);
+  }
+
+  Future<List<String>> _alternativeTitlesUncached(
+    int id,
+    TmdbMediaType mediaType, {
+    required String language,
+  }) async {
     final response = await _withEndpointRecovery(
       (dio, baseUrl) => dio.get<Map<String, dynamic>>(
         '$baseUrl/${mediaType == TmdbMediaType.movie ? 'movie' : 'tv'}/$id/alternative_titles',
@@ -146,6 +245,23 @@ class TmdbClient implements ITmdbClient, ITmdbClientCapabilities {
     int id,
     int seasonNumber, {
     String language = 'zh-CN',
+  }) async {
+    _validateKey();
+    final cache = _cache;
+    if (cache != null) {
+      return cache.getOrLoad<TmdbSeasonMetadata>(
+        _seasonCacheKey(id, seasonNumber, language),
+        () => _seasonDetailsUncached(id, seasonNumber, language: language),
+        kind: TmdbScrapeCacheKind.details,
+      );
+    }
+    return _seasonDetailsUncached(id, seasonNumber, language: language);
+  }
+
+  Future<TmdbSeasonMetadata> _seasonDetailsUncached(
+    int id,
+    int seasonNumber, {
+    required String language,
   }) async {
     final primary = await _seasonDetailsForLanguage(
       id,
@@ -174,6 +290,23 @@ class TmdbClient implements ITmdbClient, ITmdbClientCapabilities {
     int id,
     TmdbMediaType mediaType, {
     String language = 'zh-CN',
+  }) async {
+    _validateKey();
+    final cache = _cache;
+    if (cache != null) {
+      return cache.getOrLoad<TmdbMetadata>(
+        _detailsCacheKey(id, mediaType, language),
+        () => _detailsUncached(id, mediaType, language: language),
+        kind: TmdbScrapeCacheKind.details,
+      );
+    }
+    return _detailsUncached(id, mediaType, language: language);
+  }
+
+  Future<TmdbMetadata> _detailsUncached(
+    int id,
+    TmdbMediaType mediaType, {
+    required String language,
   }) async {
     final primary = await _detailsForLanguage(id, mediaType, language);
     if (language == 'en-US') {
@@ -344,8 +477,7 @@ class TmdbClient implements ITmdbClient, ITmdbClientCapabilities {
         .where((episode) => episode.episodeNumber > 0)
         .toList(growable: false)
       ..sort(
-        (first, second) =>
-            first.episodeNumber.compareTo(second.episodeNumber),
+        (first, second) => first.episodeNumber.compareTo(second.episodeNumber),
       );
     return episodes;
   }
@@ -418,8 +550,7 @@ class TmdbClient implements ITmdbClient, ITmdbClientCapabilities {
     }
     final episodes = mergedByNumber.values.toList(growable: false)
       ..sort(
-        (first, second) =>
-            first.episodeNumber.compareTo(second.episodeNumber),
+        (first, second) => first.episodeNumber.compareTo(second.episodeNumber),
       );
     return episodes;
   }
@@ -551,4 +682,36 @@ class TmdbClient implements ITmdbClient, ITmdbClientCapabilities {
     final text = value?.toString().trim();
     return text == null || text.isEmpty ? null : text;
   }
+
+  static String _searchCacheKey(
+    String query,
+    TmdbMediaType mediaType,
+    String language,
+    int page,
+  ) {
+    return 'search|${mediaType.name}|$language|${_normalizeQuery(query)}|page:$page';
+  }
+
+  static String _aliasCacheKey(
+    int id,
+    TmdbMediaType mediaType,
+    String language,
+  ) {
+    return 'alias|${mediaType.name}|$language|$id';
+  }
+
+  static String _seasonCacheKey(int id, int seasonNumber, String language) {
+    return 'details|season|$language|$id|$seasonNumber';
+  }
+
+  static String _detailsCacheKey(
+    int id,
+    TmdbMediaType mediaType,
+    String language,
+  ) {
+    return 'details|${mediaType.name}|$language|$id';
+  }
+
+  static String _normalizeQuery(String value) =>
+      value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 }

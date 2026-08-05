@@ -52,7 +52,8 @@ class TmdbScraper {
         fetchPoster: true,
         fetchBackdrop: true,
       );
-      final outcome = await TmdbScrapeEngine(client: client).search(
+      final engine = TmdbScrapeEngine(client: client);
+      final outcome = await engine.search(
         TmdbScrapeSubject(
           stableKey: mediaKey,
           titleCandidates: <String>[title],
@@ -75,7 +76,7 @@ class TmdbScraper {
           candidates: candidates,
         );
       }
-      final details = await client.details(
+      final details = await engine.details(
         best.metadata.id,
         best.metadata.mediaType,
         language: language,

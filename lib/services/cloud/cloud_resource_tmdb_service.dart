@@ -1,5 +1,3 @@
-import 'dart:collection';
-
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
@@ -10,12 +8,12 @@ import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_tmdb_subject_builder.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
-import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_metadata_merge_policy.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_engine.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_policy.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_cache.dart';
 
 class CloudResourceTmdbTarget {
   const CloudResourceTmdbTarget({
@@ -73,14 +71,21 @@ class CloudResourceTmdbService {
     Duration searchCacheTtl = const Duration(minutes: 10),
     int maximumCachedSearches = 50,
     TmdbScrapeEngine? engine,
+    TmdbScrapeCache? cache,
   })  : _repository = repository,
         _indexRepository = indexRepository,
-        _client = client,
-        _engine = engine ?? TmdbScrapeEngine(client: client),
+        _engine = engine ??
+            TmdbScrapeEngine(
+              client: client,
+              cache: cache ??
+                  TmdbScrapeCache(
+                    searchTtl: searchCacheTtl,
+                    maximumEntries: maximumCachedSearches,
+                    now: now,
+                  ),
+            ),
         _posterCache = posterCache,
-        _now = now ?? DateTime.now,
-        _searchCacheTtl = searchCacheTtl,
-        _maximumCachedSearches = maximumCachedSearches {
+        _now = now ?? DateTime.now {
     if (maximumCachedSearches <= 0) {
       throw ArgumentError.value(
         maximumCachedSearches,
@@ -91,14 +96,9 @@ class CloudResourceTmdbService {
 
   final CloudResourceTmdbRepository _repository;
   final CloudMediaIndexRepository _indexRepository;
-  final ITmdbClient _client;
   final TmdbScrapeEngine _engine;
   final CloudPosterCache? _posterCache;
   final DateTime Function() _now;
-  final Duration _searchCacheTtl;
-  final int _maximumCachedSearches;
-  final LinkedHashMap<String, _CachedSearch> _searchCache =
-      LinkedHashMap<String, _CachedSearch>();
 
   Future<CloudResourceTmdbOutcome> match(
     CloudResourceTmdbTarget target, {
@@ -198,22 +198,13 @@ class CloudResourceTmdbService {
     if (query == null || query.isEmpty) {
       throw ArgumentError.value(request.queryTitle, 'queryTitle');
     }
-    final types = plan.mediaTypes;
-    final candidates = await _searchWithCache(
-      query,
-      types,
-      request.options.language,
-      request.mediaTypeMode,
-    );
-    final ranked = const TmdbMatcher().rank(
-      queryTitle: query,
-      queryYear: plan.year,
-      expectedTypes: types.toSet(),
-      candidates: candidates,
+    final outcome = await _engine.search(
+      subject,
+      resolvedOptions,
       minimumScore: request.options.minimumScore,
       minimumLead: request.options.minimumLead,
     );
-    return CloudResourceTmdbSearchOutcome(ranked: ranked);
+    return CloudResourceTmdbSearchOutcome(ranked: outcome.ranked);
   }
 
   Future<CloudResourceTmdbRecord> select(
@@ -250,7 +241,7 @@ class CloudResourceTmdbService {
       target,
       record: previous,
     );
-    final fetched = await _client.details(
+    final fetched = await _engine.details(
       candidate.id,
       candidate.mediaType,
       language: options.language,
@@ -396,40 +387,6 @@ class CloudResourceTmdbService {
     return plan.year == null ? title : '$title (${plan.year})';
   }
 
-  Future<List<TmdbMetadata>> _searchWithCache(
-    String query,
-    List<TmdbMediaType> types,
-    String language,
-    TmdbMediaTypeMode mode,
-  ) async {
-    final typeKey = types.map((type) => type.name).join(',');
-    final key = '${query.toLowerCase().replaceAll(RegExp(r'\s+'), ' ')}|'
-        '${mode.name}|$typeKey|$language';
-    final cached = _searchCache.remove(key);
-    if (cached != null &&
-        _now().difference(cached.createdAt) < _searchCacheTtl) {
-      _searchCache[key] = cached;
-      return cached.candidates;
-    }
-    final candidates = <TmdbMetadata>[];
-    for (final type in types) {
-      candidates.addAll(await _client.search(
-        query,
-        type,
-        language: language,
-      ));
-    }
-    final result = List<TmdbMetadata>.unmodifiable(candidates);
-    _searchCache[key] = _CachedSearch(
-      createdAt: _now(),
-      candidates: result,
-    );
-    while (_searchCache.length > _maximumCachedSearches) {
-      _searchCache.remove(_searchCache.keys.first);
-    }
-    return result;
-  }
-
   Future<void> _syncIndex(
     CloudResourceTmdbTarget target,
     TmdbMetadata metadata,
@@ -480,11 +437,4 @@ class CloudResourceTmdbService {
   static String _imageUrl(String value) => value.startsWith('http')
       ? value
       : 'https://image.tmdb.org/t/p/w500$value';
-}
-
-class _CachedSearch {
-  const _CachedSearch({required this.createdAt, required this.candidates});
-
-  final DateTime createdAt;
-  final List<TmdbMetadata> candidates;
 }

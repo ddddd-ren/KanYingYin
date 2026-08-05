@@ -96,6 +96,7 @@ class SettingBoxKey {
       cloudResourceTmdbRecords = 'cloudResourceTmdbRecords',
       cloudWorkTmdbRecords = 'cloudWorkTmdbRecords',
       cloudSeriesMatchRules = 'cloudSeriesMatchRules',
+      cloudEpisodeMatchRules = 'cloudEpisodeMatchRules',
       quarkImportHistory = 'quarkImportHistory',
       playbackHistory = 'playbackHistory',
       localDefaultPath = 'localDefaultPath',

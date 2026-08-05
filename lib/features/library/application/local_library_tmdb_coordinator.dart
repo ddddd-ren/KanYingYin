@@ -24,14 +24,25 @@ class LocalLibraryTmdbCoordinator {
     }
   }
 
+  bool needsScrape(LocalMediaIndexItem item) =>
+      item.tmdb == null ||
+      item.scrapeStatus != TmdbScrapeStatus.matched ||
+      _needsEpisodeHydration(item);
+
   Set<String> unmatchedSeriesNames(Iterable<LocalMediaIndexItem> items) => items
-      .where(
-        (item) =>
-            item.tmdb == null || item.scrapeStatus != TmdbScrapeStatus.matched,
-      )
+      .where(needsScrape)
       .map((item) => item.seriesName.trim())
       .where((name) => name.isNotEmpty)
       .toSet();
+
+  bool _needsEpisodeHydration(LocalMediaIndexItem item) {
+    final metadata = item.tmdb;
+    if (metadata?.mediaType != TmdbMediaType.tv) return false;
+    if ((item.seasonNumber ?? 0) <= 0 || (item.episodeNumber ?? 0) <= 0) {
+      return false;
+    }
+    return !item.hasTmdbEpisodeTitle;
+  }
 
   bool shouldAutoScrape(Iterable<LocalMediaIndexItem> items) {
     try {

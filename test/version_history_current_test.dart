@@ -5,13 +5,13 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一三二补齐本地网盘 TMDB 集名展示', () {
-    final entries = versionHistoryForCurrent('2.1.132');
+  test('二点一三三补齐旧索引 TMDB 集名并改善启动刮削', () {
+    final entries = versionHistoryForCurrent('2.1.133');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.version, '2.1.132');
+    expect(entry.version, '2.1.133');
     expect(entry.isPrerelease, isTrue);
     for (final text in <String>[
       'Windows',
@@ -21,6 +21,8 @@ void main() {
       'TMDB',
       '集名',
       'S01E01',
+      '启动',
+      '旧索引',
       '公共安装包',
       '断网',
       '远程路径',

@@ -240,7 +240,7 @@ class LocalMediaIndexItem {
   String get displayTitle {
     final info = episodeInfo;
     final originalTitle = info?.displayTitle ?? name;
-    final episodeName = _tmdbEpisodeName;
+    final episodeName = tmdbEpisodeName;
     if (episodeName == null || episodeName.trim().isEmpty) {
       return originalTitle;
     }
@@ -254,7 +254,7 @@ class LocalMediaIndexItem {
   }
 
   /// TMDB 有逐集名称时只改变展示标题，不改变原始文件路径或播放身份。
-  String? get _tmdbEpisodeName {
+  String? get tmdbEpisodeName {
     final metadata = tmdb;
     final seasonNumber = this.seasonNumber;
     final episodeNumber = this.episodeNumber;
@@ -272,6 +272,8 @@ class LocalMediaIndexItem {
     }
     return null;
   }
+
+  bool get hasTmdbEpisodeTitle => tmdbEpisodeName != null;
 
   String get seriesKey {
     final normalizedSeries =

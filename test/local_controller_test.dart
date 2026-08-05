@@ -30,6 +30,8 @@ import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scraper.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
 void main() {
   test('本地媒体库入口计数不包含网盘资源', () {
@@ -1008,6 +1010,56 @@ void main() {
     expect(draft.episodeNumber, 3);
   });
 
+  test('LocalController 启动时补抓旧索引缺失的 TMDB 集名', () async {
+    final repository = _MemoryMediaIndexRepository();
+    final item = LocalMediaIndexItem(
+      path: r'D:\Video\Show.S01E01.mkv',
+      name: 'Show.S01E01.mkv',
+      parentPath: r'D:\Video',
+      sourcePath: r'D:\Video',
+      size: 100,
+      modified: DateTime(2026),
+      seriesName: '异世界悠闲农家',
+      seasonNumber: 1,
+      episodeNumber: 1,
+      tmdb: TmdbMetadata(
+        id: 196285,
+        mediaType: TmdbMediaType.tv,
+        title: '异世界悠闲农家',
+        language: 'zh-CN',
+        matchedAt: DateTime(2026),
+        matchConfidence: 1,
+        seasons: const <TmdbSeasonMetadata>[
+          TmdbSeasonMetadata(
+            id: 19628501,
+            seasonNumber: 1,
+            name: '第 1 季',
+            episodeCount: 12,
+          ),
+        ],
+      ),
+      scrapeStatus: TmdbScrapeStatus.matched,
+      tmdbRuleVersion: currentTmdbRuleVersion,
+      indexedAt: DateTime(2026),
+    );
+    await repository
+        .saveForSource(item.sourcePath, <LocalMediaIndexItem>[item]);
+    final scrapeService = _RecordingLocalTmdbScrapeService(repository);
+    final controller = LocalController(
+      scanner: _ImmediateScanner(const <LocalFileItem>[]),
+      mediaIndexRepository: repository,
+      mediaSourceRepository: _MemoryMediaSourceRepository(),
+      preferences: _preferences(),
+      tmdbApiKeyProvider: TmdbApiKeyProvider(userKeyReader: () => 'key'),
+      tmdbScrapeService: scrapeService,
+    );
+
+    await controller.init();
+    await scrapeService.started.future;
+
+    expect(scrapeService.seriesNames, <String>['异世界悠闲农家']);
+  });
+
   test('LocalController 为跨季媒体隐藏单一季度和集数提示', () async {
     final repository = _MemoryMediaIndexRepository();
     final items = <LocalMediaIndexItem>[
@@ -1266,6 +1318,31 @@ class _ControlledGenreBackfillService extends LibraryGenreBackfillService {
 
   void complete(LibraryGenreBackfillResult result) {
     _completer.complete(result);
+  }
+}
+
+class _RecordingLocalTmdbScrapeService extends LocalTmdbScrapeService {
+  _RecordingLocalTmdbScrapeService(_MemoryMediaIndexRepository repository)
+      : super(
+          indexRepository: repository,
+          metadataRepository: _MemoryTmdbMetadataRepository(),
+          clientFactory: (_) => _NeverTmdbClient(),
+        );
+
+  final Completer<void> started = Completer<void>();
+  final List<String> seriesNames = <String>[];
+
+  @override
+  Future<TmdbScrapeResult> scrapeSeries({
+    required String apiKey,
+    required String seriesName,
+    TmdbMediaType? mediaType,
+    bool force = false,
+    TmdbScrapeOptions options = const TmdbScrapeOptions.defaults(),
+  }) async {
+    seriesNames.add(seriesName);
+    if (!started.isCompleted) started.complete();
+    return const TmdbScrapeResult(status: TmdbScrapeStatus.matched);
   }
 }
 

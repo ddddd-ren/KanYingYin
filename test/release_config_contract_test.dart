@@ -7,10 +7,14 @@ void main() {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
+    final currentReleaseNotes = releaseNotes.substring(
+      releaseNotes.indexOf('## 2.1.136+20136'),
+      releaseNotes.indexOf('\n## 2.1.135+20135'),
+    );
 
     expect(pubspec, contains('version: 2.1.136+20136'));
     expect(pubspec, contains('msix_version: 2.1.136.0'));
-    for (final source in <String>[releaseNotes, updateDialogCopy]) {
+    for (final source in <String>[currentReleaseNotes, updateDialogCopy]) {
       expect(source, contains('Windows 测试版'));
       expect(source, contains('Android 测试版'));
       expect(source, contains('2.1.136'));
@@ -20,6 +24,9 @@ void main() {
       expect(source, contains('TMDB 集名'));
       expect(source, contains('D:\\看影音'));
       expect(source, contains('EXE'));
+      expect(source, contains('APK/AAB'));
+      expect(source, contains('Full'));
+      expect(source, isNot(contains('本轮未打包')));
       expect(source, contains('断网'));
     }
   });

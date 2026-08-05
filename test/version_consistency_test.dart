@@ -138,6 +138,10 @@ void main() {
     }
     expect(currentReleaseNotes, contains('测试版'));
     expect(updateDialogCopy, contains('Windows 测试版 EXE'));
+    expect(updateDialogCopy, contains('Android 测试版 APK/AAB'));
+    expect(currentReleaseNotes, contains('APK/AAB'));
+    expect(currentReleaseNotes, contains('Full'));
+    expect(currentReleaseNotes, isNot(contains('本轮未打包')));
     expect(currentVersionHistory, contains('isPrerelease: true'));
   });
 }

@@ -18,6 +18,7 @@ class CloudResourcePosterWall extends StatelessWidget {
   const CloudResourcePosterWall({
     super.key,
     required this.sourceId,
+    this.sourceName = '',
     required this.collection,
     required this.scrapingKeys,
     this.subtitleVideoKeys = const <String>{},
@@ -33,6 +34,7 @@ class CloudResourcePosterWall extends StatelessWidget {
   });
 
   final String sourceId;
+  final String sourceName;
   final CloudResourceCollection collection;
   final Set<String> scrapingKeys;
   final Set<String> subtitleVideoKeys;
@@ -90,25 +92,44 @@ class CloudResourcePosterWall extends StatelessWidget {
             ? CloudResourceCardViewData.fromGroup(
                 group: group,
                 scraping: scraping,
+                hasSubtitle: hasSubtitle,
+                sourceName: sourceName,
               )
             : CloudResourceCardViewData.fromEntry(
                 entry: anchor,
                 record: group.record,
                 scraping: scraping,
                 hasSubtitle: hasSubtitle,
+                sourceName: sourceName,
               );
+        final range = data.unifiedSubtitle.contains(' · ')
+            ? data.unifiedSubtitle.substring(
+                data.unifiedSubtitle.indexOf(' · ') + 3,
+              )
+            : '';
+        final displaySubtitle = !group.isSeries && group.videos.length <= 1
+            ? anchor.name
+            : group.isSeries
+                ? '${group.uniqueEpisodeCount} 集'
+                : data.unifiedSubtitle.isNotEmpty
+                    ? data.unifiedSubtitle
+                    : group.videos.length > 1
+                        ? '${group.videos.length} 个版本'
+                        : anchor.name;
+        final displayDetails = data.unifiedDetails.isNotEmpty
+            ? [
+                if (range.isNotEmpty) range,
+                data.unifiedDetails,
+              ].join(' · ')
+            : data.details;
         return ImmersiveMediaCard(
           key: ValueKey<String>(group.stableKey),
           cover: _mediaPoster(context, group, data),
           title: group.isWorkScoped
               ? group.displayName
               : group.record?.effectiveTitle ?? group.seriesName,
-          subtitle: group.isSeries
-              ? '${group.uniqueEpisodeCount} 集'
-              : group.videos.length > 1
-                  ? '${group.videos.length} 个版本'
-                  : anchor.name,
-          details: data.details,
+          subtitle: displaySubtitle,
+          details: displayDetails,
           badges: _badges(group, data),
           loading: scraping,
           overlayMode: ImmersiveMediaCardOverlayMode.hover,
@@ -212,10 +233,15 @@ class CloudResourcePosterWall extends StatelessWidget {
     CloudResourceMediaGroup group,
     CloudResourceCardViewData data,
   ) {
+    final source = <ImmersiveMediaCardBadge>[
+      ...data.unifiedBadges,
+      for (final badge in data.badges)
+        if (!data.unifiedBadges.any((item) => item.label == badge.label)) badge,
+    ];
     if (!_needsManualConfirmation(group) || onManualMatch == null) {
-      return data.badges;
+      return source;
     }
-    return data.badges
+    return source
         .map(
           (badge) => badge.label == '需要确认'
               ? ImmersiveMediaCardBadge(

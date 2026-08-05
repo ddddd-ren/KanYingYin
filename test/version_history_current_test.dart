@@ -5,13 +5,13 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一二五补回分类海报菜单并同步网盘隐藏记录', () {
-    final entries = versionHistoryForCurrent('2.1.125');
+  test('二点一二六统一本地网盘分类浮窗和媒体库顶部', () {
+    final entries = versionHistoryForCurrent('2.1.126');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.version, '2.1.125');
+    expect(entry.version, '2.1.126');
     expect(entry.isPrerelease, isTrue);
     for (final text in <String>[
       'Windows',
@@ -26,9 +26,11 @@ void main() {
       '手动匹配',
       '季度海报',
       '海报操作菜单',
-      '复制路径',
+      '浮窗',
+      '本地媒体库',
+      '总大小',
+      '最新日期',
       '隐藏',
-      '立即',
       '不会修改或删除',
     ]) {
       expect(changes, contains(text));

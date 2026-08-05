@@ -1,4 +1,5 @@
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
+import 'package:kanyingyin/features/library/application/media_card_info.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/local_media_source.dart';
 import 'package:kanyingyin/services/local_series_grouper.dart';
@@ -13,6 +14,28 @@ class LibraryMediaViewDataBuilder {
     String? networkCoverUrl,
   }) {
     final first = group.firstEpisode;
+    final scrapeLabel = isScraping
+        ? '正在刮削'
+        : group.needsOnlinePoster
+            ? '未刮削'
+            : '已刮削';
+    final unified = UnifiedMediaCardInfoBuilder.forLocalGroup(
+      group.title,
+      names: group.episodes.map((item) => item.name),
+      sizes: group.episodes.map((item) => item.size),
+      modifiedAt: group.episodes.map((item) => item.modified),
+      episodeNumbers: group.episodes.map(
+        (item) => item.episodeInfo?.episodeNumber,
+      ),
+      seasonNumbers: group.episodes.map(
+        (item) => item.episodeInfo?.seasonNumber,
+      ),
+      hasSubtitle: group.episodes.any((item) => item.hasSubtitle),
+      scrapeLabel: scrapeLabel,
+      mediaTypeLabel: group.episodes.any((item) => item.hasEpisodeInfo)
+          ? '电视剧'
+          : '电影',
+    );
     return LibraryMediaItemViewData(
       id: first.path,
       title: group.title,
@@ -26,11 +49,10 @@ class LibraryMediaViewDataBuilder {
       modifiedText: latestModifiedText(group),
       hasMultipleEpisodes: group.hasMultipleEpisodes,
       hasSubtitle: group.episodes.any((item) => item.hasSubtitle),
-      scrapeLabel: isScraping
-          ? '正在刮削'
-          : group.needsOnlinePoster
-              ? '未刮削'
-              : '已刮削',
+      scrapeLabel: scrapeLabel,
+      unifiedSubtitle: unified.subtitle,
+      unifiedDetails: unified.details,
+      unifiedBadges: unified.badges,
       localCoverPath: group.cover,
       networkCoverUrl: networkCoverUrl,
       isScraping: isScraping,

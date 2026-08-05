@@ -23,6 +23,9 @@ class LibraryMediaItemViewData {
     required this.hasSubtitle,
     required this.scrapeLabel,
     this.mediaInfoText = '',
+    this.unifiedSubtitle = '',
+    this.unifiedDetails = '',
+    this.unifiedBadges = const <ImmersiveMediaCardBadge>[],
     this.localCoverPath,
     this.networkCoverUrl,
     this.isScraping = false,
@@ -41,6 +44,9 @@ class LibraryMediaItemViewData {
   final bool hasMultipleEpisodes;
   final bool hasSubtitle;
   final String scrapeLabel;
+  final String unifiedSubtitle;
+  final String unifiedDetails;
+  final List<ImmersiveMediaCardBadge> unifiedBadges;
   final String? localCoverPath;
   final String? networkCoverUrl;
   final bool isScraping;
@@ -307,27 +313,36 @@ class _LibraryMediaTileState extends State<_LibraryMediaTile> {
       if (item.mediaInfoText.isNotEmpty) item.mediaInfoText,
       item.modifiedText,
     ].where((part) => part.isNotEmpty).join('  ·  ');
+    final displaySubtitle = item.unifiedSubtitle.isNotEmpty
+        ? item.unifiedSubtitle
+        : item.subtitle;
+    final displayDetails = item.unifiedDetails.isNotEmpty
+        ? item.unifiedDetails
+        : details;
+    final badges = item.unifiedBadges.isNotEmpty
+        ? item.unifiedBadges
+        : <ImmersiveMediaCardBadge>[
+            ImmersiveMediaCardBadge(
+              icon: Icons.closed_caption_outlined,
+              label: item.hasSubtitle ? '有字幕' : '无字幕',
+            ),
+            ImmersiveMediaCardBadge(
+              icon: Icons.image_search_outlined,
+              label: item.scrapeLabel,
+              loading: item.isScraping,
+            ),
+          ];
     final cover = item.heroTag == null
         ? _cover(colors)
         : Hero(tag: item.heroTag!, child: _cover(colors));
     return ImmersiveMediaCard(
       cover: cover,
       title: item.title,
-      subtitle: item.subtitle,
-      details: details,
+      subtitle: displaySubtitle,
+      details: displayDetails,
       overlayMode: ImmersiveMediaCardOverlayMode.hover,
       trailing: widget.trailingBuilder?.call(context, item),
-      badges: <ImmersiveMediaCardBadge>[
-        ImmersiveMediaCardBadge(
-          icon: Icons.closed_caption_outlined,
-          label: item.hasSubtitle ? '有字幕' : '无字幕',
-        ),
-        ImmersiveMediaCardBadge(
-          icon: Icons.image_search_outlined,
-          label: item.scrapeLabel,
-          loading: item.isScraping,
-        ),
-      ],
+      badges: badges,
       onLongPress: widget.onShowActions == null
           ? null
           : () async => await widget.onShowActions!(item),

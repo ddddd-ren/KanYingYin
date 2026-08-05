@@ -26,6 +26,10 @@ class MediaLibraryEpisode {
     this.tmdbPosterUrl,
     this.tmdbBackdropUrl,
     this.posterCachePath,
+    this.size,
+    this.modifiedAt,
+    this.seasonNumber,
+    this.episodeNumber,
     this.subtitleRemotePaths = const <String>[],
     this.subtitleRemoteRefs = const <CloudRemoteRef>[],
   });
@@ -44,6 +48,10 @@ class MediaLibraryEpisode {
       sourceName: '本地',
       isAvailable: true,
       localItem: localItem,
+      size: localItem.size,
+      modifiedAt: localItem.modified,
+      seasonNumber: localItem.seasonNumber,
+      episodeNumber: localItem.episodeNumber,
     );
   }
 
@@ -62,6 +70,10 @@ class MediaLibraryEpisode {
     String? tmdbPosterUrl,
     String? tmdbBackdropUrl,
     String? posterCachePath,
+    int? size,
+    DateTime? modifiedAt,
+    int? seasonNumber,
+    int? episodeNumber,
     List<String> subtitleRemotePaths = const <String>[],
     List<CloudRemoteRef> subtitleRemoteRefs = const <CloudRemoteRef>[],
   }) {
@@ -87,6 +99,10 @@ class MediaLibraryEpisode {
       tmdbPosterUrl: tmdbPosterUrl,
       tmdbBackdropUrl: tmdbBackdropUrl,
       posterCachePath: posterCachePath,
+      size: size,
+      modifiedAt: modifiedAt,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
       subtitleRemotePaths: subtitleRemotePaths,
       subtitleRemoteRefs: subtitleRemoteRefs,
     );
@@ -108,6 +124,10 @@ class MediaLibraryEpisode {
   final String? tmdbPosterUrl;
   final String? tmdbBackdropUrl;
   final String? posterCachePath;
+  final int? size;
+  final DateTime? modifiedAt;
+  final int? seasonNumber;
+  final int? episodeNumber;
   final List<String> subtitleRemotePaths;
   final List<CloudRemoteRef> subtitleRemoteRefs;
 }
@@ -126,6 +146,7 @@ class MediaLibrarySeries {
     this.tmdbTitle,
     this.tmdbOverview,
     this.tmdbRating,
+    this.tmdbReleaseDate,
     this.tmdbPosterUrl,
     this.posterCachePath,
     this.mediaType,
@@ -143,6 +164,7 @@ class MediaLibrarySeries {
   final String? tmdbTitle;
   final String? tmdbOverview;
   final double? tmdbRating;
+  final String? tmdbReleaseDate;
   final String? tmdbPosterUrl;
   final String? posterCachePath;
   final TmdbMediaType? mediaType;
@@ -200,6 +222,7 @@ class CloudMediaLibraryAggregator {
         tmdbTitle: metadata?.title,
         tmdbOverview: metadata?.overview,
         tmdbRating: metadata?.rating,
+        tmdbReleaseDate: metadata?.releaseDate,
         tmdbPosterUrl: metadata?.posterUrl,
         posterCachePath: local.cover,
         episodes: local.episodes
@@ -258,6 +281,7 @@ class CloudMediaLibraryAggregator {
         tmdbTitle: workMetadata?.title ?? indexedMetadata?.tmdbTitle,
         tmdbOverview: workMetadata?.overview ?? indexedMetadata?.tmdbOverview,
         tmdbRating: workMetadata?.rating ?? indexedMetadata?.tmdbRating,
+        tmdbReleaseDate: workMetadata?.releaseDate,
         tmdbPosterUrl: posterUrl,
         posterCachePath: posterCachePath,
         episodes: items
@@ -278,6 +302,10 @@ class CloudMediaLibraryAggregator {
                   tmdbBackdropUrl:
                       workMetadata?.backdropUrl ?? item.tmdbBackdropUrl,
                   posterCachePath: posterCachePath ?? item.posterCachePath,
+                  size: item.size,
+                  modifiedAt: item.modifiedAt,
+                  seasonNumber: item.seasonNumber,
+                  episodeNumber: item.episodeNumber,
                   subtitleRemotePaths: item.subtitlePaths,
                   subtitleRemoteRefs: item.subtitleRefs,
                 ))

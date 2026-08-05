@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
+import 'package:kanyingyin/features/library/application/media_card_info.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 
 enum CloudResourceCardKind { media, directory }
 
@@ -16,6 +18,9 @@ class CloudResourceCardViewData {
     required this.details,
     required List<ImmersiveMediaCardBadge> badges,
     required this.isScraping,
+    this.unifiedSubtitle = '',
+    this.unifiedDetails = '',
+    this.unifiedBadges = const <ImmersiveMediaCardBadge>[],
     this.posterCachePath,
     this.posterUrl,
   }) : badges = List<ImmersiveMediaCardBadge>.unmodifiable(badges);
@@ -25,6 +30,7 @@ class CloudResourceCardViewData {
     required CloudResourceTmdbRecord? record,
     required bool scraping,
     required bool hasSubtitle,
+    String sourceName = '',
   }) {
     final hasMetadata = record?.status == CloudResourceTmdbStatus.matched ||
         record?.status == CloudResourceTmdbStatus.conflict;
@@ -63,6 +69,44 @@ class CloudResourceCardViewData {
       badges.add(_scrapeBadge(record?.status, scraping: scraping));
     }
 
+    final unified = kind == CloudResourceCardKind.media
+        ? UnifiedMediaCardInfoBuilder.forSeries(
+            MediaLibrarySeries(
+              key: entry.id,
+              seriesKey: record?.effectiveTitle ?? entry.name,
+              title: title,
+              sourceKind: MediaSourceKind.cloud,
+              sourceId: entry.id,
+              sourceName: sourceName.isEmpty ? '网盘' : '来源：$sourceName',
+              isAvailable: true,
+              episodes: [
+                MediaLibraryEpisode.cloud(
+                  stableId: entry.id,
+                  name: entry.name,
+                  sourceId: entry.id,
+                  sourceName: sourceName.isEmpty ? '网盘' : '来源：$sourceName',
+                  isAvailable: true,
+                  remoteId: entry.id,
+                  remotePath: entry.remotePath,
+                  size: entry.size,
+                  modifiedAt: entry.modifiedAt,
+                  seasonNumber: entry.seasonNumber,
+                  episodeNumber: entry.episodeNumber,
+                  subtitleRemotePaths:
+                      hasSubtitle ? const ['/subtitle.srt'] : const [],
+                ),
+              ],
+              tmdbTitle: hasMetadata ? record?.title : null,
+              tmdbRating: hasMetadata ? record?.rating : null,
+              tmdbReleaseDate: hasMetadata ? record?.releaseDate : null,
+              tmdbPosterUrl: hasMetadata ? record?.posterUrl : null,
+              mediaType: record?.mediaType ??
+                  (entry.seasonNumber != null || entry.episodeNumber != null
+                      ? TmdbMediaType.tv
+                      : TmdbMediaType.movie),
+            ),
+          )
+        : null;
     return CloudResourceCardViewData(
       kind: kind,
       title: title,
@@ -70,6 +114,12 @@ class CloudResourceCardViewData {
       details: details.join('  ·  '),
       badges: badges,
       isScraping: scraping,
+      unifiedSubtitle: unified?.subtitle ?? '',
+      unifiedDetails: unified?.details ?? '',
+      unifiedBadges: _overrideScrapeBadge(
+        unified?.badges ?? const <ImmersiveMediaCardBadge>[],
+        scraping: scraping,
+      ),
       posterCachePath: hasMetadata ? record?.posterCachePath : null,
       posterUrl: hasMetadata ? record?.posterUrl : null,
     );
@@ -78,6 +128,8 @@ class CloudResourceCardViewData {
   factory CloudResourceCardViewData.fromGroup({
     required CloudResourceMediaGroup group,
     required bool scraping,
+    bool hasSubtitle = false,
+    String sourceName = '',
   }) {
     final record = group.workRecord;
     final matched = record?.status == CloudWorkTmdbStatus.matched;
@@ -94,6 +146,40 @@ class CloudResourceCardViewData {
     } else if (group.videos.isNotEmpty) {
       details.add(_formatBytes(group.videos.first.size));
     }
+    final unified = UnifiedMediaCardInfoBuilder.forSeries(
+      MediaLibrarySeries(
+        key: group.stableKey,
+        seriesKey: group.seriesName,
+        title: group.displayName,
+        sourceKind: MediaSourceKind.cloud,
+        sourceId: sourceName,
+        sourceName: sourceName.isEmpty ? '网盘' : '来源：$sourceName',
+        isAvailable: true,
+        episodes: [
+          for (final video in group.videos)
+            MediaLibraryEpisode.cloud(
+              stableId: video.id,
+              name: video.name,
+              sourceId: sourceName.isEmpty ? 'cloud' : sourceName,
+              sourceName: sourceName.isEmpty ? '网盘' : '来源：$sourceName',
+              isAvailable: true,
+              remoteId: video.id,
+              remotePath: video.remotePath,
+              size: video.size,
+              modifiedAt: video.modifiedAt,
+              seasonNumber: video.seasonNumber,
+              episodeNumber: video.episodeNumber,
+              subtitleRemotePaths:
+                  hasSubtitle ? const ['/subtitle.srt'] : const [],
+            ),
+        ],
+        tmdbTitle: matched ? metadata?.title : null,
+        tmdbRating: matched ? metadata?.rating : null,
+        tmdbReleaseDate: matched ? metadata?.releaseDate : null,
+        tmdbPosterUrl: matched ? metadata?.posterUrl : null,
+        mediaType: metadata?.mediaType,
+      ),
+    );
     return CloudResourceCardViewData(
       kind: CloudResourceCardKind.media,
       title: group.displayName,
@@ -103,6 +189,12 @@ class CloudResourceCardViewData {
         _workScrapeBadge(record?.status, scraping: scraping),
       ],
       isScraping: scraping,
+      unifiedSubtitle: unified.subtitle,
+      unifiedDetails: unified.details,
+      unifiedBadges: _overrideScrapeBadge(
+        unified.badges,
+        scraping: scraping,
+      ),
       posterCachePath: matched
           ? group.seasonMetadata?.posterCachePath ?? record?.posterCachePath
           : null,
@@ -118,6 +210,9 @@ class CloudResourceCardViewData {
   final String details;
   final List<ImmersiveMediaCardBadge> badges;
   final bool isScraping;
+  final String unifiedSubtitle;
+  final String unifiedDetails;
+  final List<ImmersiveMediaCardBadge> unifiedBadges;
   final String? posterCachePath;
   final String? posterUrl;
 
@@ -143,6 +238,24 @@ class CloudResourceCardViewData {
       icon: Icons.image_search_outlined,
       label: label,
     );
+  }
+
+  static List<ImmersiveMediaCardBadge> _overrideScrapeBadge(
+    List<ImmersiveMediaCardBadge> badges, {
+    required bool scraping,
+  }) {
+    if (!scraping) return badges;
+    return badges
+        .map(
+          (badge) => badge.label == '已刮削' || badge.label == '未刮削'
+              ? ImmersiveMediaCardBadge(
+                  icon: badge.icon,
+                  label: '刮削中',
+                  loading: true,
+                )
+              : badge,
+        )
+        .toList(growable: false);
   }
 
   static ImmersiveMediaCardBadge _workScrapeBadge(

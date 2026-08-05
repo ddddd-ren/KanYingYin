@@ -7,6 +7,7 @@ import 'package:kanyingyin/features/library/application/media_category_runtime.d
 import 'package:kanyingyin/features/library/application/media_library_category.dart';
 import 'package:kanyingyin/features/library/application/media_library_query.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
+import 'package:kanyingyin/features/library/application/media_card_info.dart';
 
 class MediaCategoryPage extends StatefulWidget {
   const MediaCategoryPage({
@@ -240,30 +241,18 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
   }
 
   Widget _seriesCard(BuildContext context, MediaLibrarySeries series) {
-    final details = <String>[
-      if (series.tmdbRating != null)
-        '${series.tmdbRating!.toStringAsFixed(1)} ★',
-      series.episodes.length == 1 ? '1 个视频' : '${series.episodes.length} 集',
-    ];
+    final info = UnifiedMediaCardInfoBuilder.forSeries(
+      series,
+      categoryLabel: widget.category.label,
+    );
     return ImmersiveMediaCard(
       key: ValueKey<String>('media-category-card-${series.key}'),
       cover: _cover(context, series),
-      title: series.title,
-      subtitle: series.sourceName,
-      details: details.join('  ·  '),
+      title: info.title,
+      subtitle: info.subtitle,
+      details: info.details,
       overlayMode: ImmersiveMediaCardOverlayMode.hover,
-      badges: <ImmersiveMediaCardBadge>[
-        ImmersiveMediaCardBadge(
-          icon: series.sourceKind == MediaSourceKind.local
-              ? Icons.storage_outlined
-              : Icons.cloud_outlined,
-          label: series.isAvailable ? series.sourceName : '来源不可用',
-        ),
-        ImmersiveMediaCardBadge(
-          icon: _categoryIcon(),
-          label: widget.category.label,
-        ),
-      ],
+      badges: info.badges,
       trailing: _seriesMenu(series),
       onTap: !series.isAvailable || _playing ? null : () => _openSeries(series),
     );

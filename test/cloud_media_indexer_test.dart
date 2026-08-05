@@ -3,12 +3,14 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
+import 'package:kanyingyin/modules/cloud/cloud_episode_match_rule.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_series_match_rule.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
+import 'package:kanyingyin/repositories/cloud_episode_match_rule_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/repositories/cloud_series_match_rule_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
@@ -28,6 +30,66 @@ void main() {
   );
 
   group('CloudMediaIndexer', () {
+    test('重新扫描后应用逐视频映射和保留原名规则', () async {
+      final repository =
+          CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());
+      final ruleRepository = CloudEpisodeMatchRuleRepository(
+        storage: MemoryCloudEpisodeMatchRuleStorage(),
+      );
+      const mappedPath = '/动漫/Show/Season 1/Show.S01E01.mkv';
+      const keptPath = '/动漫/Show/Season 1/Show.S01E02.mkv';
+      await ruleRepository.upsert(
+        CloudEpisodeMatchRule.mapped(
+          sourceId: source.id,
+          remoteId: 'mapped',
+          remotePath: mappedPath,
+          tmdbId: 196285,
+          seasonNumber: 1,
+          episodeNumber: 3,
+          updatedAt: DateTime.utc(2026, 8, 6),
+        ),
+      );
+      await ruleRepository.upsert(
+        CloudEpisodeMatchRule.keepOriginal(
+          sourceId: source.id,
+          remoteId: 'kept',
+          remotePath: keptPath,
+          tmdbId: 196285,
+          updatedAt: DateTime.utc(2026, 8, 6),
+        ),
+      );
+      final client = _FakeCloudClient(<String, List<CloudFileEntry>>{
+        '/动漫': <CloudFileEntry>[_dir('show', '/动漫/Show')],
+        '/动漫/Show': <CloudFileEntry>[
+          _dir('season', '/动漫/Show/Season 1'),
+        ],
+        '/动漫/Show/Season 1': <CloudFileEntry>[
+          _file('mapped', mappedPath, size: _videoSize),
+          _file('kept', keptPath, size: _videoSize),
+        ],
+      });
+      final indexer = CloudMediaIndexer(
+        repository: repository,
+        episodeMatchRuleRepository: ruleRepository,
+      );
+
+      await indexer.scan(source: source, client: client);
+      await indexer.scan(source: source, client: client);
+
+      final items = <String, CloudMediaIndexItem>{
+        for (final item in await repository.getBySource(source.id))
+          item.remoteId: item,
+      };
+      expect(items['mapped']!.seasonNumber, 1);
+      expect(items['mapped']!.episodeNumber, 3);
+      expect(items['mapped']!.tmdbId, 196285);
+      expect(items['mapped']!.mediaType, CloudMediaType.episode);
+      expect(items['kept']!.seasonNumber, isNull);
+      expect(items['kept']!.episodeNumber, isNull);
+      expect(items['kept']!.displayName, items['kept']!.remoteName);
+      expect(items['kept']!.mediaType, CloudMediaType.episode);
+    });
+
     test('扫描多季度目录写入统一作品键和虚拟分集名', () async {
       final repository =
           CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());

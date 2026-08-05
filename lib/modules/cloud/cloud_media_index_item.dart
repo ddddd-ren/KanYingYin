@@ -144,6 +144,54 @@ class CloudMediaIndexItem {
     );
   }
 
+  CloudMediaIndexItem withEpisodeMapping({
+    required int? seasonNumber,
+    required int? episodeNumber,
+    required bool keepOriginal,
+    int? tmdbId,
+  }) {
+    final title = tmdbTitle?.trim().isNotEmpty == true
+        ? tmdbTitle!.trim()
+        : seriesName.trim();
+    final virtualName = !keepOriginal &&
+            title.isNotEmpty &&
+            seasonNumber != null &&
+            episodeNumber != null
+        ? '$title S${seasonNumber.toString().padLeft(2, '0')}'
+            'E${episodeNumber.toString().padLeft(2, '0')}${p.extension(remoteName)}'
+        : remoteName;
+    return CloudMediaIndexItem(
+      sourceId: sourceId,
+      remoteId: remoteId,
+      remotePath: remotePath,
+      name: name,
+      remoteName: remoteName,
+      displayName: virtualName,
+      workKey: workKey,
+      workRootId: workRootId,
+      workRootPath: workRootPath,
+      size: size,
+      modifiedAt: modifiedAt,
+      seriesName: seriesName,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+      mediaType: CloudMediaType.episode,
+      subtitlePaths: subtitlePaths,
+      subtitleRefs: subtitleRefs,
+      tmdbId: tmdbId ?? this.tmdbId,
+      tmdbTitle: tmdbTitle,
+      tmdbOriginalTitle: tmdbOriginalTitle,
+      tmdbOverview: tmdbOverview,
+      tmdbRating: tmdbRating,
+      tmdbPosterUrl: tmdbPosterUrl,
+      tmdbBackdropUrl: tmdbBackdropUrl,
+      posterCachePath: posterCachePath,
+      tmdbGenres: tmdbGenres,
+      recognitionVersion: recognitionVersion,
+      releaseTags: releaseTags,
+    );
+  }
+
   CloudMediaIndexItem replaceTmdb({
     required int tmdbId,
     required String tmdbTitle,

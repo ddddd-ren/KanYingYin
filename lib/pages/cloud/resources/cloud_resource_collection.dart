@@ -292,6 +292,7 @@ class CloudResourceCollectionGrouper {
           aggregate.items,
           labelMovieVariants: true,
           metadata: record?.metadata,
+          seriesTitle: title,
         );
         if (videos.isEmpty) continue;
         final group = CloudResourceMediaGroup(
@@ -333,6 +334,7 @@ class CloudResourceCollectionGrouper {
         final videos = _virtualEntries(
           seasonItems,
           metadata: record?.metadata,
+          seriesTitle: title,
         );
         final seasonGroup = CloudResourceSeasonGroup(
           seasonNumber: seasonNumber,
@@ -445,6 +447,7 @@ class CloudResourceCollectionGrouper {
     List<CloudMediaIndexItem> items, {
     bool labelMovieVariants = false,
     TmdbMetadata? metadata,
+    required String seriesTitle,
   }) {
     final sorted = List<CloudMediaIndexItem>.from(items)
       ..sort((first, second) {
@@ -468,7 +471,11 @@ class CloudResourceCollectionGrouper {
     final duplicateIndexes = <int, int>{};
     var movieVariantIndex = 0;
     return sorted.map((item) {
-      var displayName = _episodeDisplayName(item, metadata);
+      var displayName = _episodeDisplayName(
+        item,
+        metadata,
+        seriesTitle: seriesTitle,
+      );
       final episode = item.episodeNumber;
       String? variantLabel;
       if (episode != null && (duplicateCounts[episode] ?? 0) > 1) {
@@ -503,10 +510,14 @@ class CloudResourceCollectionGrouper {
 
   String _episodeDisplayName(
     CloudMediaIndexItem item,
-    TmdbMetadata? metadata,
-  ) {
+    TmdbMetadata? metadata, {
+    required String seriesTitle,
+  }) {
     final episode = item.episodeNumber;
-    final title = metadata?.title.trim() ?? item.tmdbTitle?.trim() ?? '';
+    final effectiveTitle = seriesTitle.trim();
+    final title = effectiveTitle.isNotEmpty
+        ? effectiveTitle
+        : metadata?.title.trim() ?? item.tmdbTitle?.trim() ?? '';
     if (episode == null || episode <= 0 || title.isEmpty) {
       return item.displayName;
     }

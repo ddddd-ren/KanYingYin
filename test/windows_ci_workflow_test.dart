@@ -51,7 +51,7 @@ void main() {
     expect(android, isNot(contains('KANYINGYIN_ANDROID_')));
   });
 
-  test('发布工作流仅构建并发布版本一致的 Windows MSIX', () {
+  test('发布工作流仅构建并发布版本一致的 Windows EXE', () {
     expect(releaseWorkflow, contains("- 'v*'"));
     expect(releaseWorkflow, contains('workflow_dispatch:'));
     expect(releaseWorkflow, contains('runs-on: windows-latest'));
@@ -67,20 +67,15 @@ void main() {
       releaseWorkflow,
       contains('flutter build windows --release --no-pub'),
     );
-    expect(releaseWorkflow, contains('dart run msix:create'));
-    expect(releaseWorkflow, contains('--sign-msix=false'));
-    expect(
-      releaseWorkflow,
-      contains(r'--certificate-path="$placeholderCertificate"'),
-    );
+    expect(releaseWorkflow, contains('choco install innosetup'));
+    expect(releaseWorkflow, contains('build_inno_setup.ps1'));
     expect(
       releaseWorkflow.toLowerCase(),
       isNot(contains(r'c:\users\asus')),
     );
-    expect(releaseWorkflow, contains('com.kanyingyin.player'));
-    expect(releaseWorkflow, contains('AppxManifest.xml'));
     expect(releaseWorkflow, contains('看影音-'));
-    expect(releaseWorkflow, contains('.msix'));
+    expect(releaseWorkflow, contains('-测试版-安装程序.exe'));
+    expect(releaseWorkflow.toLowerCase(), isNot(contains('.msix')));
     expect(releaseWorkflow, contains('uses: softprops/action-gh-release@'));
     expect(_topLevelJobNames(releaseWorkflow), hasLength(1));
 
@@ -149,36 +144,27 @@ void main() {
       versionCheck,
       contains(r"'(?m)^version:\s*([0-9]+\.[0-9]+\.[0-9]+)(?:\+[0-9]+)?\s*$'"),
     );
-    expect(versionCheck, contains(r'$expectedMsix = "$appVersion.0"'));
+    expect(versionCheck, contains(r'"APP_VERSION=$appVersion"'));
     expect(versionCheck, isNot(contains(r'$parts[0..3]')));
   });
 
-  test('GitHub Release 只能发布 SignPath 签名输出', () {
-    expect(
-      releaseWorkflow,
-      isNot(contains('      SIGNPATH_API_TOKEN:')),
-    );
-
-    final signPath = _stepBlock(releaseWorkflow, 'SignPath 签名 MSIX');
-    expect(signPath, contains('signpath/github-action-submit-signing-request'));
-    expect(signPath, contains(r'api-token: ${{ secrets.SIGNPATH_API_TOKEN }}'));
-    expect(signPath, isNot(contains('if:')));
-
-    final signedOutput = _stepBlock(releaseWorkflow, '准备签名后的 MSIX');
-    expect(
-      signedOutput,
-      contains("'build/windows/msix_signed_output'"),
-    );
-    expect(signedOutput, contains(r'"看影音-$env:APP_VERSION.msix"'));
-
+  test('GitHub Release 只发布验证后的 EXE 安装程序', () {
+    expect(releaseWorkflow, isNot(contains('SIGNPATH_API_TOKEN')));
+    expect(releaseWorkflow, isNot(contains('signpath/')));
+    final verification = _stepBlock(releaseWorkflow, '验证 EXE 安装程序');
+    expect(verification, contains(r'$files.Count -ne 1'));
+    expect(verification, contains('ProductVersion'));
+    expect(verification, contains('Get-FileHash'));
+    expect(verification, contains('Get-AuthenticodeSignature'));
     final release = _stepBlock(releaseWorkflow, '发布 GitHub Release');
-    expect(release, contains(r'files: 看影音-${{ env.APP_VERSION }}.msix'));
     expect(
-      releaseWorkflow.indexOf('SignPath 签名 MSIX'),
-      lessThan(releaseWorkflow.indexOf('准备签名后的 MSIX')),
+      release,
+      contains(
+        r'files: build/windows/exe_output/看影音-${{ env.APP_VERSION }}-测试版-安装程序.exe',
+      ),
     );
     expect(
-      releaseWorkflow.indexOf('准备签名后的 MSIX'),
+      releaseWorkflow.indexOf('验证 EXE 安装程序'),
       lessThan(releaseWorkflow.indexOf('发布 GitHub Release')),
     );
   });
@@ -199,22 +185,15 @@ void main() {
     }
   });
 
-  test('签名输出唯一且发布前验证签名、签名者和结构化清单', () {
-    final verification = _stepBlock(releaseWorkflow, '验证签名后的 MSIX');
-    expect(verification, contains(r'$signedFiles.Count -ne 1'));
-    expect(verification, contains(r'& $signTool verify /pa /v'));
-    expect(verification, contains('MakeAppx.exe'));
-    expect(verification, contains('unpack /p'));
-    expect(verification, contains(r'[xml]$manifestXml'));
-    expect(verification, contains("'com.kanyingyin.player'"));
-    expect(verification, contains("'CN=KanYingYin'"));
-    expect(verification, contains(r'$env:MSIX_VERSION'));
+  test('EXE 输出唯一且发布前验证文件名、版本、哈希和签名状态', () {
+    final verification = _stepBlock(releaseWorkflow, '验证 EXE 安装程序');
+    expect(verification, contains(r'$files.Count -ne 1'));
+    expect(verification, contains(r'$expectedName'));
+    expect(verification, contains(r'$env:APP_VERSION'));
+    expect(verification, contains('Get-FileHash'));
     expect(verification, contains('Get-AuthenticodeSignature'));
-    expect(verification, contains("Status -ne 'Valid'"));
-    expect(verification, contains("Subject -ne 'CN=KanYingYin'"));
-    expect(verification, isNot(contains('SIGNPATH_API_TOKEN')));
     expect(
-      releaseWorkflow.indexOf('验证签名后的 MSIX'),
+      releaseWorkflow.indexOf('验证 EXE 安装程序'),
       lessThan(releaseWorkflow.indexOf('softprops/action-gh-release@')),
     );
   });

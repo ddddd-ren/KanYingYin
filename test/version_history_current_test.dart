@@ -5,13 +5,13 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一三五支持存储迁移和可选逐集名称', () {
-    final entries = versionHistoryForCurrent('2.1.135');
+  test('二点一三六修复有效剧名并改用 EXE 交付', () {
+    final entries = versionHistoryForCurrent('2.1.136');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.version, '2.1.135');
+    expect(entry.version, '2.1.136');
     expect(entry.isPrerelease, isTrue);
     for (final text in <String>[
       'Windows',
@@ -19,12 +19,12 @@ void main() {
       '本地',
       '网盘',
       'TMDB',
-      '刮削剧集名称',
       'S01E01',
       '回魂计',
       'D:\\看影音',
       'Inno Setup',
-      '深色模式',
+      'EXE',
+      'MSIX',
       '断网',
       '远程路径',
       '远程 ID',

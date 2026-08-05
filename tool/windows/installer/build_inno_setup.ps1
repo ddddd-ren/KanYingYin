@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-  [string]$Version = '2.1.135',
+  [string]$Version,
   [string]$ReleaseDirectory,
   [string]$DesktopDirectory = (Join-Path $env:USERPROFILE 'Desktop'),
   [string]$IsccPath
@@ -11,6 +11,18 @@ Set-StrictMode -Version Latest
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
+if ([string]::IsNullOrWhiteSpace($Version)) {
+  $pubspecPath = Join-Path $projectRoot 'pubspec.yaml'
+  $pubspec = Get-Content -LiteralPath $pubspecPath -Raw -Encoding UTF8
+  $versionMatch = [regex]::Match(
+    $pubspec,
+    '(?m)^version:\s*([0-9]+\.[0-9]+\.[0-9]+)(?:\+[0-9]+)?\s*$'
+  )
+  if (-not $versionMatch.Success) {
+    throw "Unable to read application version from $pubspecPath"
+  }
+  $Version = $versionMatch.Groups[1].Value
+}
 if ([string]::IsNullOrWhiteSpace($ReleaseDirectory)) {
   $ReleaseDirectory = Join-Path $projectRoot 'build\windows\x64\runner\Release'
 }
@@ -48,22 +60,28 @@ if ([string]::IsNullOrWhiteSpace($IsccPath) -or
   throw 'Inno Setup 6 compiler ISCC.exe was not found'
 }
 
+$compileStartedAt = Get-Date
 & $IsccPath "/DMyAppVersion=$Version" "/DBuildDir=$releasePath" `
   "/DOutputDir=$desktopPath" $scriptPath
 if ($LASTEXITCODE -ne 0) {
   throw "Inno Setup compilation failed with exit code $LASTEXITCODE"
 }
 
-$installer = Get-ChildItem -LiteralPath $desktopPath -Filter '*.exe' -File |
-  Sort-Object LastWriteTime -Descending |
-  Select-Object -First 1
-if ($null -eq $installer) {
-  throw "Generated installer was not found in $desktopPath"
+$installerCandidates = @(Get-ChildItem -LiteralPath $desktopPath -Filter "*$Version*.exe" -File | Where-Object {
+  $_.LastWriteTime -ge $compileStartedAt.AddMinutes(-1) -and
+  $_.VersionInfo.ProductVersion.StartsWith($Version, [System.StringComparison]::Ordinal)
+})
+if ($installerCandidates.Count -ne 1) {
+  throw "Expected exactly one generated installer for $Version, found $($installerCandidates.Count)"
 }
+$installer = $installerCandidates[0]
 $hash = Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256
 $signature = Get-AuthenticodeSignature -LiteralPath $installer.FullName
 [PSCustomObject]@{
+  Version = $Version
   Path = $installer.FullName
+  Length = $installer.Length
+  ProductVersion = $installer.VersionInfo.ProductVersion
   SHA256 = $hash.Hash
   SignatureStatus = $signature.Status
 }

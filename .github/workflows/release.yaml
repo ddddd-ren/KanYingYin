@@ -1,4 +1,4 @@
-name: Windows 发布
+name: Windows EXE 发布
 
 on:
   push:
@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   windows-release:
-    name: Windows Release 与 MSIX 发布
+    name: Windows Release 与 EXE 发布
     runs-on: windows-latest
     steps:
       - name: 检出代码
@@ -108,123 +108,45 @@ jobs:
 
           $pubspec = Get-Content -LiteralPath 'pubspec.yaml' -Raw -Encoding UTF8
           $versionMatch = [regex]::Match($pubspec, '(?m)^version:\s*([0-9]+\.[0-9]+\.[0-9]+)(?:\+[0-9]+)?\s*$')
-          $msixMatch = [regex]::Match($pubspec, '(?m)^\s*msix_version:\s*([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)\s*$')
-          if (-not $versionMatch.Success -or -not $msixMatch.Success) { throw '无法从 pubspec.yaml 读取应用版本' }
+          if (-not $versionMatch.Success) { throw '无法从 pubspec.yaml 读取应用版本' }
           $appVersion = $versionMatch.Groups[1].Value.Trim()
-          $msixVersion = $msixMatch.Groups[1].Value.Trim()
           if ($env:RELEASE_TAG -ne "v$appVersion") { throw "标签 $env:RELEASE_TAG 与 pubspec 版本 $appVersion 不一致" }
-          $expectedMsix = "$appVersion.0"
-          if ($msixVersion -ne $expectedMsix) { throw "msix_version $msixVersion 与应用版本 $appVersion 不一致，应为 $expectedMsix" }
           "RELEASE_TAG=$env:RELEASE_TAG" >> $env:GITHUB_ENV
           "APP_VERSION=$appVersion" >> $env:GITHUB_ENV
-          "MSIX_VERSION=$msixVersion" >> $env:GITHUB_ENV
 
-      - name: 生成 MSIX
+      - name: 安装 Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: 生成 EXE 安装程序
         shell: pwsh
         run: |
-          $placeholderCertificate = Join-Path $env:RUNNER_TEMP 'unsigned-placeholder.cer'
-          New-Item -Path $placeholderCertificate -ItemType File -Force | Out-Null
-          dart run msix:create --sign-msix=false --certificate-path="$placeholderCertificate" --build-windows=false
+          $outputDirectory = Join-Path $env:GITHUB_WORKSPACE 'build/windows/exe_output'
+          New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
+          & .\tool\windows\installer\build_inno_setup.ps1 `
+            -Version $env:APP_VERSION `
+            -ReleaseDirectory 'build/windows/x64/runner/Release' `
+            -DesktopDirectory $outputDirectory
 
-      - name: 校验 MSIX 清单
+      - name: 验证 EXE 安装程序
         shell: pwsh
         run: |
-          $source = Get-ChildItem -LiteralPath 'build/windows/x64/runner/Release' -Filter '*.msix' | Select-Object -First 1
-          if ($null -eq $source) { throw '未找到 msix:create 输出' }
-          $extract = Join-Path $env:RUNNER_TEMP 'kanyingyin-msix'
-          if (Test-Path -LiteralPath $extract) { Remove-Item -LiteralPath $extract -Recurse -Force }
-          $archive = Join-Path $env:RUNNER_TEMP 'kanyingyin-msix.zip'
-          Copy-Item -LiteralPath $source.FullName -Destination $archive -Force
-          Expand-Archive -LiteralPath $archive -DestinationPath $extract
-          $manifest = Get-ChildItem -LiteralPath $extract -Filter 'AppxManifest.xml' -Recurse | Select-Object -First 1
-          if ($null -eq $manifest) { throw 'MSIX 中未找到 AppxManifest.xml' }
-          [xml]$xml = Get-Content -LiteralPath $manifest.FullName -Raw -Encoding UTF8
-          $identity = $xml.Package.Identity
-          if ($identity.Name -ne 'com.kanyingyin.player') { throw "清单 identity 不匹配: $($identity.Name)" }
-          if ($identity.Version -ne $env:MSIX_VERSION) { throw "清单版本 $($identity.Version) 不匹配: $env:MSIX_VERSION" }
-
-      - name: 准备待签名 MSIX
-        shell: pwsh
-        run: |
-          $source = Get-ChildItem -LiteralPath 'build/windows/x64/runner/Release' -Filter '*.msix' | Select-Object -First 1
-          $unsignedDirectory = 'build/windows/msix_unsigned_output'
-          New-Item -Path $unsignedDirectory -ItemType Directory -Force | Out-Null
-          Copy-Item -LiteralPath $source.FullName -Destination "$unsignedDirectory/看影音-$env:APP_VERSION.msix" -Force
-
-      - name: 上传待签名 MSIX
-        id: unsigned-msix
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: windows-msix-unsigned
-          path: build/windows/msix_unsigned_output/看影音-${{ env.APP_VERSION }}.msix
-          if-no-files-found: error
-
-      - name: SignPath 签名 MSIX
-        uses: signpath/github-action-submit-signing-request@3c306158facd969ebdb385c6845dee38afc2ebf9 # v1.1
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: fa047255-4772-4be1-b14f-5cfa62635877
-          project-slug: KanYingYin
-          signing-policy-slug: release-signing
-          artifact-configuration-slug: MSIX
-          github-artifact-id: ${{ steps.unsigned-msix.outputs.artifact-id }}
-          wait-for-completion: true
-          output-artifact-directory: build/windows/msix_signed_output
-
-      - name: 准备签名后的 MSIX
-        shell: pwsh
-        run: |
-          $signed = Get-ChildItem -LiteralPath 'build/windows/msix_signed_output' -Filter '*.msix' -Recurse | Select-Object -First 1
-          if ($null -eq $signed) { throw 'SignPath 未返回签名后的 MSIX' }
-          $final = Join-Path $env:GITHUB_WORKSPACE "看影音-$env:APP_VERSION.msix"
-          Copy-Item -LiteralPath $signed.FullName -Destination $final -Force
-
-      - name: 验证签名后的 MSIX
-        shell: pwsh
-        run: |
-          $signedFiles = @(Get-ChildItem -LiteralPath 'build/windows/msix_signed_output' -Filter '*.msix' -Recurse)
-          if ($signedFiles.Count -ne 1) { throw "SignPath 必须恰好返回 1 个 MSIX，实际为 $($signedFiles.Count) 个" }
-          $final = Join-Path $env:GITHUB_WORKSPACE "看影音-$env:APP_VERSION.msix"
-          if (-not (Test-Path -LiteralPath $final -PathType Leaf)) { throw '签名后的最终 MSIX 不存在' }
-
-          $windowsSdkBin = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits/10/bin'
-          $signTool = (Get-Command 'signtool.exe' -ErrorAction SilentlyContinue).Source
-          if (-not $signTool) {
-            $signTool = Get-ChildItem -LiteralPath $windowsSdkBin -Filter 'signtool.exe' -Recurse |
-              Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
-              Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          $files = @(Get-ChildItem -LiteralPath 'build/windows/exe_output' -Filter '*.exe' -File)
+          if ($files.Count -ne 1) { throw "必须恰好生成 1 个 EXE 安装程序，实际为 $($files.Count) 个" }
+          $installer = $files[0]
+          $expectedName = "看影音-$env:APP_VERSION-测试版-安装程序.exe"
+          if ($installer.Name -ne $expectedName) { throw "安装程序文件名不匹配: $($installer.Name)" }
+          if (-not $installer.VersionInfo.ProductVersion.StartsWith($env:APP_VERSION, [System.StringComparison]::Ordinal)) {
+            throw "安装程序版本不匹配: $($installer.VersionInfo.ProductVersion)"
           }
-          $makeAppx = (Get-Command 'MakeAppx.exe' -ErrorAction SilentlyContinue).Source
-          if (-not $makeAppx) {
-            $makeAppx = Get-ChildItem -LiteralPath $windowsSdkBin -Filter 'MakeAppx.exe' -Recurse |
-              Where-Object { $_.FullName -match '\\x64\\MakeAppx\.exe$' } |
-              Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
-          }
-          if (-not $signTool -or -not $makeAppx) { throw '未找到 Windows SDK 签名验证工具' }
-
-          & $signTool verify /pa /v $final
-          if ($LASTEXITCODE -ne 0) { throw 'signtool 验证签名失败' }
-
-          $extract = Join-Path $env:RUNNER_TEMP 'kanyingyin-signed-msix'
-          if (Test-Path -LiteralPath $extract) { Remove-Item -LiteralPath $extract -Recurse -Force }
-          & $makeAppx unpack /p $final /d $extract /o
-          if ($LASTEXITCODE -ne 0) { throw 'MakeAppx 解包签名 MSIX 失败' }
-          $manifestPath = Join-Path $extract 'AppxManifest.xml'
-          if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw '签名 MSIX 中未找到 AppxManifest.xml' }
-          [xml]$manifestXml = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8
-          $identity = $manifestXml.Package.Identity
-          if ($identity.Name -ne 'com.kanyingyin.player') { throw "清单 Identity Name 不匹配: $($identity.Name)" }
-          if ($identity.Publisher -ne 'CN=KanYingYin') { throw "清单 Publisher 不匹配: $($identity.Publisher)" }
-          if ($identity.Version -ne $env:MSIX_VERSION) { throw "清单 Version 不匹配: $($identity.Version)" }
-
-          $signature = Get-AuthenticodeSignature -LiteralPath $final
-          if ($signature.Status -ne 'Valid') { throw "Authenticode 签名状态无效: $($signature.Status)" }
-          if ($null -eq $signature.SignerCertificate -or $signature.SignerCertificate.Subject -ne 'CN=KanYingYin') {
-            throw "签名者不匹配: $($signature.SignerCertificate.Subject)"
-          }
+          $hash = Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256
+          $signature = Get-AuthenticodeSignature -LiteralPath $installer.FullName
+          "EXE=$($installer.FullName)"
+          "SHA256=$($hash.Hash)"
+          "Authenticode=$($signature.Status)"
 
       - name: 发布 GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          files: 看影音-${{ env.APP_VERSION }}.msix
+          files: build/windows/exe_output/看影音-${{ env.APP_VERSION }}-测试版-安装程序.exe

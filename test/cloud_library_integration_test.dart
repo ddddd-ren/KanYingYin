@@ -267,6 +267,65 @@ void main() {
       expect(series.posterCachePath, r'C:\cache\season-2.jpg');
     });
 
+    test('手动剧名覆盖时逐集标题使用当前剧名和 TMDB 集名', () {
+      const workKey = 'openlist|work|resurrected';
+      final indexed = _cloud(
+        'openlist',
+        '/回魂计/死而复生 S01E01 死刑日.mkv',
+        workKey: workKey,
+        seriesName: '回魂计',
+      );
+      final record = CloudWorkTmdbRecord.matched(
+        sourceId: 'openlist',
+        workKey: workKey,
+        workRootId: 'resurrected',
+        workRootPath: '/回魂计',
+        remoteName: '回魂计',
+        scrapeTitleOverride: '回魂计',
+        metadata: TmdbMetadata(
+          id: 196285,
+          mediaType: TmdbMediaType.tv,
+          title: '死而复生',
+          language: 'zh-CN',
+          matchedAt: DateTime.utc(2026, 8, 6),
+          matchConfidence: 1,
+          seasons: const <TmdbSeasonMetadata>[
+            TmdbSeasonMetadata(
+              id: 1962851,
+              seasonNumber: 1,
+              name: '第一季',
+              episodeCount: 1,
+              episodes: <TmdbEpisodeMetadata>[
+                TmdbEpisodeMetadata(
+                  id: 196285101,
+                  episodeNumber: 1,
+                  name: '死而复生',
+                ),
+              ],
+            ),
+          ],
+        ),
+        checkedAt: DateTime.utc(2026, 8, 6),
+        tmdbMatchOrigin: TmdbMatchOrigin.manual,
+      );
+
+      final series = const CloudMediaLibraryAggregator()
+          .build(
+            localItems: const <LocalMediaIndexItem>[],
+            cloudItems: <CloudMediaIndexItem>[indexed],
+            cloudSources: sources,
+            workRecordsByKey: <String, CloudWorkTmdbRecord>{
+              workKey: record,
+            },
+          )
+          .series
+          .single;
+
+      expect(series.title, '回魂计 S01');
+      expect(series.episodes.single.name, '回魂计 S01E01 死而复生.mkv');
+      expect(series.episodes.single.name, isNot(contains('死刑日')));
+    });
+
     test('同来源不同目录手动匹配到同一 TMDB 作品后分类入口只保留一张卡片', () {
       final first = _cloud(
         'openlist',

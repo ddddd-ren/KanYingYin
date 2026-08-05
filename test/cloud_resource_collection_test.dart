@@ -144,6 +144,21 @@ void main() {
         language: 'zh-CN',
         matchedAt: DateTime.utc(2026, 7, 27),
         matchConfidence: 1,
+        seasons: const <TmdbSeasonMetadata>[
+          TmdbSeasonMetadata(
+            id: 421,
+            seasonNumber: 1,
+            name: '第一季',
+            episodeCount: 1,
+            episodes: <TmdbEpisodeMetadata>[
+              TmdbEpisodeMetadata(
+                id: 42101,
+                episodeNumber: 1,
+                name: '死而复生',
+              ),
+            ],
+          ),
+        ],
       ),
       checkedAt: DateTime.utc(2026, 7, 27),
     );
@@ -172,6 +187,10 @@ void main() {
     );
 
     expect(collection.groups.single.displayName, '回魂计');
+    expect(
+      collection.groups.single.videos.single.name,
+      '回魂计 S01E01 死而复生.mkv',
+    );
   });
 
   test('作品只有第二季时海报标题仍保留季号', () {

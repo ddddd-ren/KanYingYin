@@ -99,26 +99,25 @@ OpenList、夸克、百度和迅雷网盘在本项目中仅作为用户自有媒
 | 项目 | 当前配置 |
 | --- | --- |
 | 支持平台 | Windows 10/11 x64；Android 7.0+（API 24+） |
-| 安装格式 | MSIX / EXE / APK |
-| 当前版本 | 2.1.135 |
-| 本轮交付 | Windows 测试版 MSIX；Android 测试版仅同步版本配置，本轮未打包 |
-| Android 版本 | 2.1.135 (20135) |
+| 安装格式 | EXE / APK |
+| 当前版本 | 2.1.136 |
+| 本轮交付 | Windows 测试版 EXE；Android 测试版仅同步版本配置，本轮未打包 |
+| Android 版本 | 2.1.136 (20136) |
 | Dart 包名 | `kanyingyin` |
 | Windows 包标识 | `com.kanyingyin.player` |
 | Android 应用标识 | `com.kanyingyin.player` |
 | Flutter | 3.41.9 |
 
-项目同时支持 Windows 与 Android。2.1.135 的 Windows 与 Android 测试版使用同一版本来源；
-本轮仅构建并交付 Windows MSIX，Android APK/AAB 未打包或实机验证。
+项目同时支持 Windows 与 Android。2.1.136 的 Windows 与 Android 测试版使用同一版本来源；
+本轮仅构建并交付 Windows EXE 安装程序，Android APK/AAB 未打包或实机验证。
 
 ## 安装
 
 1. Windows：从当前仓库的 [Releases](https://github.com/ddddd-ren/KanYingYin/releases)
-   下载 `看影音-版本号.msix`，双击并按系统提示完成安装。
+   下载 `看影音-版本号-测试版-安装程序.exe`，双击后可选择安装目录。
 2. Android：下载 `看影音-版本号.apk`，允许当前文件管理器安装未知来源应用后
    按系统提示完成安装。
-3. Windows 如果提示签名证书不受信任，需要先信任发布页提供的项目证书，再重新安装。
-4. Windows 新安装或首次启动时，如果桌面或开始菜单中没有快捷方式，应用会询问是否创建。
+3. Windows 新安装或首次启动时，如果桌面或开始菜单中没有快捷方式，应用会询问是否创建。
 
 看影音使用专属的应用身份和数据目录。
 
@@ -189,15 +188,15 @@ Windows Release 只接受看影音已经联合验证的播放器组件。首次�
 .\tool\android\build_signed_release.ps1
 ```
 
-### 生成 MSIX
+### 生成 Windows EXE 安装程序
 
-MSIX 必须基于本轮生成的 Windows Release 目录封装。签名脚本从当前用户保护的凭据文件读取密码，不写入仓库，也不依赖或内置 TMDB Key。
+默认入口会构建 Windows Release，核对主程序版本，再使用 Inno Setup 生成安装程序并复制到桌面。公共安装程序不依赖或内置 TMDB Key。
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tool\windows\build_signed_release.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tool\windows\build_exe_release.ps1
 ```
 
-脚本会验证 `AppxManifest.xml` 中的版本、包身份和数字签名，并将 `看影音-版本号.msix` 与异机安装包复制到当前用户桌面。
+脚本会输出 Windows Release 主程序版本、安装器版本、文件大小、SHA-256 和 Authenticode 状态，并将 `看影音-版本号-测试版-安装程序.exe` 复制到当前用户桌面。历史 MSIX 脚本仅用于旧版本追溯，不再进入默认交付流程。
 
 ## 项目结构
 

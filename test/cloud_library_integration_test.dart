@@ -308,6 +308,140 @@ void main() {
       });
     });
 
+    test('同季度未匹配资源只对应一个同名 TMDB 作品时继承其分类卡片', () {
+      const title = '无职转生～到了异世界就拿出真本事～';
+      final matched = _cloud(
+        'openlist',
+        '/无职转生第二季/无职转生 S02E01.mkv',
+        season: 2,
+        workKey: 'openlist|work|mushoku-s2-matched',
+        seriesName: '无职转生 第二季',
+      );
+      final unmatchedSpecial = _cloud(
+        'openlist',
+        '/来自：BT磁力链下载/无职转生 S02E00.mkv',
+        season: 2,
+        episode: 0,
+        workKey: 'openlist|work|mushoku-s2-special',
+        seriesName: title,
+      );
+      final record = CloudWorkTmdbRecord.matched(
+        sourceId: 'openlist',
+        workKey: matched.workKey!,
+        workRootId: 'mushoku-s2-matched',
+        workRootPath: '/无职转生第二季',
+        remoteName: '无职转生 第二季',
+        metadata: TmdbMetadata(
+          id: 94664,
+          mediaType: TmdbMediaType.tv,
+          title: title,
+          language: 'zh-CN',
+          matchedAt: DateTime.utc(2026, 8, 5),
+          matchConfidence: 1,
+          seasons: const <TmdbSeasonMetadata>[
+            TmdbSeasonMetadata(
+              id: 345790,
+              seasonNumber: 2,
+              name: '第 2 季',
+              episodeCount: 13,
+              posterUrl: '/mushoku-season-2.jpg',
+            ),
+          ],
+        ),
+        checkedAt: DateTime.utc(2026, 8, 5),
+        tmdbMatchOrigin: TmdbMatchOrigin.manual,
+      );
+
+      final library = const CloudMediaLibraryAggregator().build(
+        localItems: const <LocalMediaIndexItem>[],
+        cloudItems: <CloudMediaIndexItem>[matched, unmatchedSpecial],
+        cloudSources: sources,
+        workRecordsByKey: <String, CloudWorkTmdbRecord>{
+          record.workKey: record,
+        },
+      );
+
+      expect(library.series, hasLength(1));
+      expect(library.series.single.title, '$title S02');
+      expect(library.series.single.tmdbPosterUrl, '/mushoku-season-2.jpg');
+      expect(
+        library.series.single.episodes.map((episode) => episode.remotePath),
+        containsAll(<String>[
+          '/无职转生第二季/无职转生 S02E01.mkv',
+          '/来自：BT磁力链下载/无职转生 S02E00.mkv',
+        ]),
+      );
+    });
+
+    test('同名标题对应多个 TMDB 作品时未匹配资源保持独立', () {
+      CloudWorkTmdbRecord record(CloudMediaIndexItem item, int tmdbId) {
+        return CloudWorkTmdbRecord.matched(
+          sourceId: item.sourceId,
+          workKey: item.workKey!,
+          workRootId: item.workKey!,
+          workRootPath: item.remotePath,
+          remoteName: item.seriesName,
+          metadata: TmdbMetadata(
+            id: tmdbId,
+            mediaType: TmdbMediaType.tv,
+            title: '同名作品',
+            language: 'zh-CN',
+            matchedAt: DateTime.utc(2026, 8, 5),
+            matchConfidence: 1,
+          ),
+          checkedAt: DateTime.utc(2026, 8, 5),
+          tmdbMatchOrigin: TmdbMatchOrigin.manual,
+        );
+      }
+
+      final first = _cloud(
+        'openlist',
+        '/版本一/同名作品 S02E01.mkv',
+        season: 2,
+        workKey: 'openlist|work|same-title-1',
+        seriesName: '版本一',
+      );
+      final second = _cloud(
+        'openlist',
+        '/版本二/同名作品 S02E01.mkv',
+        season: 2,
+        workKey: 'openlist|work|same-title-2',
+        seriesName: '版本二',
+      );
+      final unmatched = _cloud(
+        'openlist',
+        '/未匹配/同名作品 S02E00.mkv',
+        season: 2,
+        episode: 0,
+        workKey: 'openlist|work|same-title-unmatched',
+        seriesName: '同名作品',
+      );
+      final firstRecord = record(first, 101);
+      final secondRecord = record(second, 202);
+
+      final library = const CloudMediaLibraryAggregator().build(
+        localItems: const <LocalMediaIndexItem>[],
+        cloudItems: <CloudMediaIndexItem>[first, second, unmatched],
+        cloudSources: sources,
+        workRecordsByKey: <String, CloudWorkTmdbRecord>{
+          firstRecord.workKey: firstRecord,
+          secondRecord.workKey: secondRecord,
+        },
+      );
+
+      expect(library.series, hasLength(3));
+      expect(
+        library.series
+            .singleWhere(
+              (series) => series.episodes.any(
+                (episode) => episode.remotePath == unmatched.remotePath,
+              ),
+            )
+            .episodes,
+        hasLength(1),
+      );
+    });
+
     test('未刮削的本地单片和剧集仍能进入电影或电视剧分类', () {
       final standalone = LocalMediaIndexItem(
         path: r'D:\Media\Movie\Movie.mkv',

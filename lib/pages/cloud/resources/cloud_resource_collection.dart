@@ -5,6 +5,7 @@ import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/cloud/cloud_series_identity_resolver.dart';
+import 'package:kanyingyin/services/cloud/cloud_work_grouping_policy.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 import 'package:path/path.dart' as p;
@@ -80,9 +81,13 @@ class CloudResourceMediaGroup {
 class CloudResourceCollectionGrouper {
   CloudResourceCollectionGrouper({
     CloudSeriesIdentityResolver? identityResolver,
-  }) : _identityResolver = identityResolver ?? CloudSeriesIdentityResolver();
+    CloudWorkGroupingPolicy? workGroupingPolicy,
+  })  : _identityResolver = identityResolver ?? CloudSeriesIdentityResolver(),
+        _workGroupingPolicy =
+            workGroupingPolicy ?? const CloudWorkGroupingPolicy();
 
   final CloudSeriesIdentityResolver _identityResolver;
+  final CloudWorkGroupingPolicy _workGroupingPolicy;
 
   CloudResourceCollection group({
     String? sourceId,
@@ -218,7 +223,8 @@ class CloudResourceCollectionGrouper {
     final matchedKeysByTitle = <String, Set<String>>{};
     for (final work in uniqueWorks.values) {
       final record = recordsByWorkKey[work.workKey];
-      final matchedKey = _matchedWorkGroupKey(work.sourceId, record);
+      final matchedKey =
+          _workGroupingPolicy.matchedGroupKey(work.sourceId, record);
       if (matchedKey == null) continue;
       for (final title in _workTitleAliases(work, record)) {
         matchedKeysByTitle.putIfAbsent(title, () => <String>{}).add(matchedKey);
@@ -229,7 +235,8 @@ class CloudResourceCollectionGrouper {
       final workItems = itemsByWorkKey[work.workKey];
       if (workItems == null || workItems.isEmpty) continue;
       final record = recordsByWorkKey[work.workKey];
-      var aggregateKey = _matchedWorkGroupKey(work.sourceId, record);
+      var aggregateKey =
+          _workGroupingPolicy.matchedGroupKey(work.sourceId, record);
       if (aggregateKey == null && work.seasons.isNotEmpty) {
         final inheritedKeys = <String>{};
         for (final title in _workTitleAliases(work, record)) {
@@ -489,17 +496,6 @@ class CloudResourceCollectionGrouper {
         );
   }
 
-  static String? _matchedWorkGroupKey(
-    String sourceId,
-    CloudWorkTmdbRecord? record,
-  ) {
-    final metadata = record?.metadata;
-    if (record?.status != CloudWorkTmdbStatus.matched || metadata == null) {
-      return null;
-    }
-    return '$sourceId|tmdb|${metadata.mediaType.name}|${metadata.id}';
-  }
-
   CloudWorkIdentity _representativeWork(
     _CloudWorkAggregate aggregate,
     Map<String, CloudWorkTmdbRecord> recordsByWorkKey,
@@ -507,53 +503,29 @@ class CloudResourceCollectionGrouper {
     return aggregate.works.reduce((first, second) {
       final firstRecord = recordsByWorkKey[first.workKey];
       final secondRecord = recordsByWorkKey[second.workKey];
-      final firstKey = _matchedWorkGroupKey(first.sourceId, firstRecord);
-      final secondKey = _matchedWorkGroupKey(second.sourceId, secondRecord);
+      final firstKey =
+          _workGroupingPolicy.matchedGroupKey(first.sourceId, firstRecord);
+      final secondKey =
+          _workGroupingPolicy.matchedGroupKey(second.sourceId, secondRecord);
       if (firstKey == null && secondKey != null) return second;
       return first;
     });
   }
 
-  Iterable<String> _workTitleAliases(
+  Set<String> _workTitleAliases(
     CloudWorkIdentity work,
     CloudWorkTmdbRecord? record,
-  ) sync* {
-    final seasonNumbers = work.seasons
-        .map((season) => season.seasonNumber)
-        .where((season) => season > 0)
-        .toSet();
-    final candidates = <String?>[
-      ...work.titleCandidates,
-      work.displayTitle,
-      work.remoteName,
-      record?.metadata?.title,
-      record?.metadata?.originalTitle,
-    ];
-    final seen = <String>{};
-    for (final candidate in candidates) {
-      final normalized = _normalizeWorkTitle(candidate, seasonNumbers);
-      if (normalized.isNotEmpty && seen.add(normalized)) yield normalized;
-    }
-  }
-
-  String _normalizeWorkTitle(String? value, Set<int> seasonNumbers) {
-    var normalized = value?.trim().toLowerCase() ?? '';
-    if (normalized.isEmpty) return normalized;
-    normalized = normalized
-        .replaceAll(RegExp(r'\[[^\]]*\]|【[^】]*】'), ' ')
-        .replaceAll(RegExp(r'第\s*[0-9一二三四五六七八九十百]+\s*[季期部篇章]'), ' ')
-        .replaceAll(RegExp(r'\b(?:season|series|s)\s*0*(\d{1,2})\b'), ' ')
-        .replaceAll(RegExp(r'[._\-:：·!！?？,，、~～()（）]+'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-    if (seasonNumbers.length == 1) {
-      final season = seasonNumbers.single;
-      normalized = normalized
-          .replaceFirst(RegExp(r'\s+0?' + season.toString() + r'\s*$'), '')
-          .trim();
-    }
-    return normalized.replaceAll(' ', '');
-  }
+  ) =>
+      _workGroupingPolicy.titleAliases(
+        candidates: <String?>[
+          ...work.titleCandidates,
+          work.displayTitle,
+          work.remoteName,
+          record?.metadata?.title,
+          record?.metadata?.originalTitle,
+        ],
+        seasonNumbers: work.seasons.map((season) => season.seasonNumber),
+      );
 
   CloudWorkTmdbRecord? _mergeWorkRecords(
     CloudWorkIdentity representative,

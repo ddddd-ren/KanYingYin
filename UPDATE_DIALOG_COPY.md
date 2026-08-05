@@ -4,7 +4,7 @@
 
 - 应用版本：2.1.136
 - Windows EXE 安装器版本：2.1.136
-- 本轮交付：Windows 测试版 EXE；Android 测试版仅同步版本配置，本轮未打包 APK/AAB
+- 本轮交付：Windows 测试版 EXE；Android 测试版 APK/AAB
 - Android 应用版本：2.1.136
 - Android versionCode：20136
 - 日期：2026-08-06
@@ -29,9 +29,10 @@
 
 看影音 Android 2.1.136 测试版
 
-- 本轮同步 Windows 与 Android 版本配置，仅构建并交付 Windows EXE；Android APK/AAB 本轮未打包或实机验证。
+- 本轮已构建并交付 Windows EXE 与 Android APK/AAB；Android 安装包已验证版本、签名和 Full 原生媒体库，尚未进行真机播放验收。
 - Android 的 versionName 与 versionCode 直接读取 Flutter 统一版本，当前为 2.1.136 (20136)。
 - 个人网盘选集会使用当前有效剧名作为前缀，并继续显示 TMDB 逐集名称。
+- APK 使用 v2 签名，AAB 通过严格签名验证，三种 ABI 均包含 Full 原生媒体库。
 - 逐集名称只改变看影音中的展示，不会改变本地文件、网盘路径、字幕关联或播放入口。
 - 公共安装包不内置 TMDB Key；没有 Key 或断网时，扫描、浏览和播放仍可使用。
 - Windows 与 Android 版本保持统一版本配置，诊断日志继续脱敏并隐藏本地文件路径。

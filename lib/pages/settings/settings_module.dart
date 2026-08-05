@@ -14,6 +14,8 @@ import 'package:kanyingyin/pages/settings/keyboard_settings.dart';
 import 'package:kanyingyin/pages/settings/tmdb_settings.dart';
 import 'package:kanyingyin/pages/settings/cloud_sources_settings.dart';
 import 'package:kanyingyin/pages/settings/media_recognition_settings.dart';
+import 'package:kanyingyin/pages/settings/storage_settings_page.dart';
+import 'package:kanyingyin/services/storage/storage_path_resolver.dart';
 import 'package:kanyingyin/pages/cloud/openlist_source_editor.dart';
 import 'package:kanyingyin/pages/cloud/quark/quark_source_editor.dart';
 import 'package:kanyingyin/pages/cloud/quark/quark_share_import_page.dart';
@@ -78,6 +80,14 @@ void verifyCloudRescanResult({
 class SettingsModule extends Module {
   @override
   void routes(r) {
+    _child(
+      r,
+      "/storage",
+      child: (_) => StorageSettingsPage(
+        resolver:
+            StoragePathResolver.current ?? (throw StateError('存储路径尚未初始化')),
+      ),
+    );
     _child(r, "/theme", child: (_) => const ThemeSettingsPage());
     _child(r, "/keyboard", child: (_) => const KeyboardSettingsPage());
     _child(r, "/player", child: (_) => const PlayerSettingsPage());

@@ -11,6 +11,7 @@ import 'package:kanyingyin/bean/appbar/drag_to_move_bar.dart';
 import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:provider/provider.dart';
 import 'package:kanyingyin/pages/menu/adaptive_navigation_shell.dart';
+import 'package:kanyingyin/providers/theme_provider.dart';
 
 class ScaffoldMenu extends StatefulWidget {
   const ScaffoldMenu({super.key});
@@ -78,6 +79,15 @@ class _ScaffoldMenu extends State<ScaffoldMenu> {
             onDestinationSelected: (index) {
               state.updateSelectedIndex(index);
               Modular.to.navigate('/tab${menu.getPath(index)}/');
+            },
+            onThemeModeChanged: (mode) async {
+              final themeProvider =
+                  Provider.of<ThemeProvider>(context, listen: false);
+              themeProvider.setThemeMode(mode);
+              await Modular.get<TypedSettings>().put(
+                SettingBoxKey.themeMode,
+                mode == ThemeMode.dark ? 'dark' : 'light',
+              );
             },
             content: const RouterOutlet(),
           );

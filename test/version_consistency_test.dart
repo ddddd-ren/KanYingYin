@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('二点一三四 Flutter、Windows 与 Android 版本保持一致', () {
-    const expectedVersion = '2.1.134';
-    const expectedBuildNumber = '20134';
+  test('二点一三五 Flutter、Windows 与 Android 版本保持一致', () {
+    const expectedVersion = '2.1.135';
+    const expectedBuildNumber = '20135';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final androidGradle =
@@ -76,7 +76,7 @@ void main() {
       readme,
       contains('| 支持平台 | Windows 10/11 x64；Android 7.0+（API 24+） |'),
     );
-    expect(readme, contains('| 安装格式 | MSIX / APK |'));
+    expect(readme, contains('| 安装格式 | MSIX / EXE / APK |'));
     expect(readme, contains('OpenList 功能仍在调试，当前不建议使用'));
     expect(versionHistory, contains("version: '$version'"));
     expect(updateDialogCopy, contains('应用版本：$version'));

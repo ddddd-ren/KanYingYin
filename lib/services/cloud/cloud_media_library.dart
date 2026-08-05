@@ -213,10 +213,18 @@ class CloudMediaLibraryAggregator {
         in const LocalMediaLibraryBuilder().buildSeries(localItems)) {
       final metadata = _localMetadata(local.episodes);
       final tmdbTitle = metadata?.title.trim() ?? '';
+      final hasCustomTitle = local.episodes.any(
+        (item) =>
+            item.manualOverride &&
+            item.seriesName.trim().toLowerCase() ==
+                local.title.trim().toLowerCase(),
+      );
+      final effectiveTitle =
+          hasCustomTitle || tmdbTitle.isEmpty ? local.title : tmdbTitle;
       result.add(MediaLibrarySeries(
         key: 'local|${local.key}',
         seriesKey: local.key,
-        title: tmdbTitle.isEmpty ? local.title : tmdbTitle,
+        title: effectiveTitle,
         sourceKind: MediaSourceKind.local,
         sourceId: 'local',
         sourceName: '本地',
@@ -241,6 +249,7 @@ class CloudMediaLibraryAggregator {
                     metadata ?? item.tmdb,
                     item.seasonNumber,
                     item.episodeNumber,
+                    seriesTitle: effectiveTitle,
                   ),
                   localItem: item,
                 ))
@@ -319,7 +328,11 @@ class CloudMediaLibraryAggregator {
         episodes: items
             .map((item) => MediaLibraryEpisode.cloud(
                   stableId: item.remoteId,
-                  name: _cloudEpisodeTitle(item, workMetadata),
+                  name: _cloudEpisodeTitle(
+                    item,
+                    workMetadata,
+                    effectiveTitle: effectiveTitle,
+                  ),
                   sourceId: item.sourceId,
                   sourceName: source?.name ?? item.sourceId,
                   isAvailable: source?.enabled == true,
@@ -499,8 +512,9 @@ class CloudMediaLibraryAggregator {
 
   static String _cloudEpisodeTitle(
     CloudMediaIndexItem item,
-    TmdbMetadata? workMetadata,
-  ) {
+    TmdbMetadata? workMetadata, {
+    required String effectiveTitle,
+  }) {
     final metadata = workMetadata ??
         (item.tmdbTitle?.trim().isNotEmpty == true
             ? TmdbMetadata(
@@ -518,18 +532,16 @@ class CloudMediaLibraryAggregator {
       metadata,
       item.seasonNumber,
       item.episodeNumber,
+      seriesTitle: effectiveTitle,
     );
   }
 
-  static String _episodeDisplayName(
-    String originalName,
-    TmdbMetadata? metadata,
-    int? seasonNumber,
-    int? episodeNumber,
-  ) {
+  static String _episodeDisplayName(String originalName, TmdbMetadata? metadata,
+      int? seasonNumber, int? episodeNumber,
+      {String? seriesTitle}) {
     final episodeName = _episodeName(metadata, seasonNumber, episodeNumber);
     return const TmdbEpisodeTitleResolver().resolveWithExtension(
-      seriesTitle: metadata?.title,
+      seriesTitle: seriesTitle ?? metadata?.title,
       seasonNumber: seasonNumber,
       episodeNumber: episodeNumber,
       episodeName: episodeName,

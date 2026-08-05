@@ -59,7 +59,7 @@ final appNavigationDestinations = <NavigationDestinationConfig>[
   ),
   NavigationDestinationConfig(
     path: '/local',
-    label: '本地媒体库',
+    label: '媒体库',
     icon: Icons.video_library_outlined,
     selectedIcon: Icons.video_library_rounded,
     moduleBuilder: LocalModule.new,

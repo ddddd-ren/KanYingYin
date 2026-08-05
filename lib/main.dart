@@ -11,7 +11,6 @@ import 'package:kanyingyin/platform/app_bootstrap.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/platform/windows/windows_desktop_window_port.dart';
 import 'package:kanyingyin/providers/theme_provider.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:kanyingyin/utils/proxy_manager.dart';
@@ -20,9 +19,10 @@ import 'package:media_kit/media_kit.dart';
 import 'package:kanyingyin/pages/error/storage_error_page.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:kanyingyin/utils/app_identity.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
+import 'package:kanyingyin/services/storage/storage_path_resolver.dart';
+import 'package:kanyingyin/services/storage/app_data_migration_service.dart';
 
 void main() {
   runZonedGuarded(() async {
@@ -75,10 +75,35 @@ Future<void> _startApplication() async {
   );
   late final TmdbCredentialManager tmdbCredentialManager;
   try {
-    final hivePath =
-        '${(await getApplicationSupportDirectory()).path}/${AppIdentity.storageNamespace}/hive';
+    final storageResolver = await StoragePathResolver.load();
+    StoragePathResolver.install(storageResolver);
+    final needsInitialMigration = !storageResolver.isConfigured &&
+        storageResolver.dataRoot.path != storageResolver.legacyDataRoot.path &&
+        await storageResolver.legacyDataRoot.exists();
+    if (storageResolver.hasPendingMigration || needsInitialMigration) {
+      try {
+        await const AppDataMigrationService().migrateResolver(storageResolver);
+      } on Object catch (error, stackTrace) {
+        AppLogger().w(
+          '启动存储迁移失败，继续使用上一个成功目录',
+          error: error,
+          stackTrace: stackTrace,
+        );
+        final fallbackResolver = StoragePathResolver(
+          dataRoot: storageResolver.legacyDataRoot,
+          cacheRoot: storageResolver.legacyCacheRoot,
+          configFile: storageResolver.configFile,
+          legacyDataRoot: storageResolver.legacyDataRoot,
+          legacyCacheRoot: storageResolver.legacyCacheRoot,
+          isConfigured: true,
+        );
+        await fallbackResolver.save();
+        StoragePathResolver.install(fallbackResolver);
+      }
+    }
+    final hivePath = StoragePathResolver.current!.hiveRoot.path;
     await Hive.initFlutter(hivePath);
-    await GStorage.init();
+    await GStorage.init(hivePath: hivePath);
     tmdbCredentialManager = TmdbCredentialManager(
       store: SecureTmdbCredentialStore(),
       legacyReader: () =>

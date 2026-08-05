@@ -29,10 +29,10 @@ void main() {
     for (final width in <double>[1280, 900, 640]) {
       await pumpHub(tester, width: width);
       expect(find.byType(KSettingsSection), findsNWidgets(4));
-      expect(find.byType(KSettingsNavigationTile), findsNWidgets(9));
+      expect(find.byType(KSettingsNavigationTile), findsNWidgets(10));
       for (final section in <String>[
-        '本地媒体库',
-        '播放器设置',
+        '媒体库',
+        '设置',
         '应用与外观',
         '其他',
       ]) {
@@ -54,5 +54,19 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(openedPath, '/settings/player');
+  });
+
+  testWidgets('存储入口打开存储设置页', (tester) async {
+    String? openedPath;
+    await pumpHub(
+      tester,
+      width: 1280,
+      onOpenPath: (path) => openedPath = path,
+    );
+
+    await tester.tap(find.text('存储'));
+    await tester.pumpAndSettle();
+
+    expect(openedPath, '/settings/storage');
   });
 }

@@ -10,7 +10,7 @@ void main() {
       '电影',
       '动漫',
       '电视剧',
-      '本地媒体库',
+      '媒体库',
       '网盘媒体库',
       '观看历史',
       '设置',
@@ -23,7 +23,7 @@ void main() {
       appNavigationDestinations
           .where((item) => item.showInBottomNavigation)
           .map((item) => item.label),
-      const <String>['本地媒体库', '网盘媒体库', '观看历史', '设置'],
+      const <String>['媒体库', '网盘媒体库', '观看历史', '设置'],
     );
     expect(isValidStartupPage('/tab/popular/'), isFalse);
     expect(isValidStartupPage('/tab/cloud/'), isTrue);

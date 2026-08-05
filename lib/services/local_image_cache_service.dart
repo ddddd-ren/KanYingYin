@@ -1,7 +1,6 @@
 import 'dart:io';
 
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+import 'package:kanyingyin/services/storage/storage_path_resolver.dart';
 
 typedef ImageCacheDirectoryProvider = Future<Directory> Function();
 
@@ -46,7 +45,6 @@ class LocalImageCacheService {
   }
 
   static Future<Directory> _defaultDirectory() async {
-    final temporary = await getTemporaryDirectory();
-    return Directory(p.join(temporary.path, 'libCachedImageData'));
+    return defaultImageCacheRoot();
   }
 }

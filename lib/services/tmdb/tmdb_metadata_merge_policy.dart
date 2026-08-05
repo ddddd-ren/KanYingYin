@@ -33,6 +33,7 @@ class TmdbMetadataMergePolicy {
       seasons,
       existing?.seasons ?? const <TmdbSeasonMetadata>[],
       preservePosters: !options.fetchPoster || preservePoster,
+      scrapeEpisodeNames: options.scrapeEpisodeNames,
       allowedSeasonNumbers: existingSeasons,
     );
 
@@ -66,6 +67,7 @@ class TmdbMetadataMergePolicy {
     List<TmdbSeasonMetadata> fetched,
     List<TmdbSeasonMetadata> existing, {
     required bool preservePosters,
+    required bool scrapeEpisodeNames,
     required Set<int> allowedSeasonNumbers,
   }) {
     final byNumber = <int, TmdbSeasonMetadata>{
@@ -81,6 +83,11 @@ class TmdbMetadataMergePolicy {
       }
       final previous = byNumber[season.seasonNumber];
       if (previous == null) {
+        final episodes = _mergeEpisodes(
+          season.episodes,
+          const <TmdbEpisodeMetadata>[],
+          scrapeEpisodeNames: scrapeEpisodeNames,
+        );
         byNumber[season.seasonNumber] = preservePosters
             ? TmdbSeasonMetadata(
                 id: season.id,
@@ -89,15 +96,16 @@ class TmdbMetadataMergePolicy {
                 episodeCount: season.episodeCount,
                 overview: season.overview,
                 airDate: season.airDate,
-                episodes: season.episodes,
+                episodes: episodes,
               )
-            : season;
+            : season.copyWith(episodes: episodes);
         continue;
       }
       byNumber[season.seasonNumber] = _mergeSeason(
         season,
         previous,
         preservePosters: preservePosters,
+        scrapeEpisodeNames: scrapeEpisodeNames,
       );
     }
     final result = byNumber.values.toList(growable: false)
@@ -111,6 +119,7 @@ class TmdbMetadataMergePolicy {
     TmdbSeasonMetadata fetched,
     TmdbSeasonMetadata existing, {
     required bool preservePosters,
+    required bool scrapeEpisodeNames,
   }) {
     final posterUrl = preservePosters
         ? existing.posterUrl
@@ -133,25 +142,30 @@ class TmdbMetadataMergePolicy {
           : fetched.airDate,
       posterUrl: posterUrl,
       posterCachePath: posterCachePath,
-      episodes: _mergeEpisodes(fetched.episodes, existing.episodes),
+      episodes: _mergeEpisodes(
+        fetched.episodes,
+        existing.episodes,
+        scrapeEpisodeNames: scrapeEpisodeNames,
+      ),
     );
   }
 
   List<TmdbEpisodeMetadata> _mergeEpisodes(
-    List<TmdbEpisodeMetadata> fetched,
-    List<TmdbEpisodeMetadata> existing,
-  ) {
+      List<TmdbEpisodeMetadata> fetched, List<TmdbEpisodeMetadata> existing,
+      {required bool scrapeEpisodeNames}) {
     final byNumber = <int, TmdbEpisodeMetadata>{
       for (final episode in existing) episode.episodeNumber: episode,
     };
     for (final episode in fetched) {
       final previous = byNumber[episode.episodeNumber];
       if (previous == null) {
-        byNumber[episode.episodeNumber] = episode;
+        byNumber[episode.episodeNumber] = episode.copyWith(
+          name: scrapeEpisodeNames ? episode.name : '',
+        );
         continue;
       }
       byNumber[episode.episodeNumber] = episode.copyWith(
-        name: previous.name.trim().isNotEmpty ? previous.name : episode.name,
+        name: scrapeEpisodeNames ? episode.name : '',
         overview: previous.overview?.trim().isNotEmpty == true
             ? previous.overview
             : episode.overview,
@@ -163,6 +177,11 @@ class TmdbMetadataMergePolicy {
             : episode.stillUrl,
         rating: episode.rating ?? previous.rating,
       );
+    }
+    if (!scrapeEpisodeNames) {
+      for (final entry in byNumber.entries) {
+        byNumber[entry.key] = entry.value.copyWith(name: '');
+      }
     }
     final result = byNumber.values.toList(growable: false)
       ..sort(

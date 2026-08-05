@@ -9,6 +9,7 @@ class TmdbScrapeOptions {
   final bool overwriteTitle;
   final bool overwriteOverview;
   final bool overwritePoster;
+  final bool scrapeEpisodeNames;
   final bool fetchPoster;
   final bool fetchBackdrop;
   final int maximumSearchPages;
@@ -21,6 +22,7 @@ class TmdbScrapeOptions {
     required this.overwriteTitle,
     required this.overwriteOverview,
     required this.overwritePoster,
+    required this.scrapeEpisodeNames,
     required this.fetchPoster,
     required this.fetchBackdrop,
     this.maximumSearchPages = 3,
@@ -34,6 +36,7 @@ class TmdbScrapeOptions {
         overwriteTitle = false,
         overwriteOverview = true,
         overwritePoster = true,
+        scrapeEpisodeNames = true,
         fetchPoster = true,
         fetchBackdrop = true,
         maximumSearchPages = 3,
@@ -72,6 +75,8 @@ class TmdbScrapeOptions {
           map['overwriteOverview'] as bool? ?? defaults.overwriteOverview,
       overwritePoster:
           map['overwritePoster'] as bool? ?? defaults.overwritePoster,
+      scrapeEpisodeNames:
+          map['scrapeEpisodeNames'] as bool? ?? defaults.scrapeEpisodeNames,
       fetchPoster: map['fetchPoster'] as bool? ?? defaults.fetchPoster,
       fetchBackdrop: map['fetchBackdrop'] as bool? ?? defaults.fetchBackdrop,
       maximumSearchPages: _positiveInt(
@@ -92,6 +97,7 @@ class TmdbScrapeOptions {
         'overwriteTitle': overwriteTitle,
         'overwriteOverview': overwriteOverview,
         'overwritePoster': overwritePoster,
+        'scrapeEpisodeNames': scrapeEpisodeNames,
         'fetchPoster': fetchPoster,
         'fetchBackdrop': fetchBackdrop,
         'maximumSearchPages': maximumSearchPages,
@@ -105,6 +111,7 @@ class TmdbScrapeOptions {
     bool? overwriteTitle,
     bool? overwriteOverview,
     bool? overwritePoster,
+    bool? scrapeEpisodeNames,
     bool? fetchPoster,
     bool? fetchBackdrop,
     int? maximumSearchPages,
@@ -117,6 +124,7 @@ class TmdbScrapeOptions {
       overwriteTitle: overwriteTitle ?? this.overwriteTitle,
       overwriteOverview: overwriteOverview ?? this.overwriteOverview,
       overwritePoster: overwritePoster ?? this.overwritePoster,
+      scrapeEpisodeNames: scrapeEpisodeNames ?? this.scrapeEpisodeNames,
       fetchPoster: fetchPoster ?? this.fetchPoster,
       fetchBackdrop: fetchBackdrop ?? this.fetchBackdrop,
       maximumSearchPages: maximumSearchPages ?? this.maximumSearchPages,

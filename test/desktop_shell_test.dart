@@ -43,9 +43,10 @@ void main() {
     expect(find.text('电影'), findsOneWidget);
     expect(find.text('动漫'), findsOneWidget);
     expect(find.text('电视剧'), findsOneWidget);
-    expect(find.text('本地媒体库'), findsOneWidget);
+    expect(find.text('媒体库'), findsOneWidget);
     expect(find.text('网盘媒体库'), findsOneWidget);
     expect(find.text('设置'), findsOneWidget);
+    expect(find.byTooltip('切换浅色模式'), findsOneWidget);
     expect(find.byKey(const ValueKey<String>('route-content')), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
   });
@@ -57,8 +58,41 @@ void main() {
       find.byKey(const ValueKey<String>('desktop-sidebar-compact')),
       findsOneWidget,
     );
-    expect(find.byType(NavigationRail), findsOneWidget);
+    final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
+    expect(rail.destinations, hasLength(appNavigationDestinations.length - 1));
+    expect(find.byTooltip('设置'), findsOneWidget);
+    expect(find.byTooltip('切换浅色模式'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<String>('desktop-sidebar-compact-tools')),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .getBottomRight(
+            find.byKey(
+              const ValueKey<String>('desktop-sidebar-compact-tools'),
+            ),
+          )
+          .dy,
+      greaterThan(680),
+    );
     expect(find.byType(NavigationBar), findsNothing);
+  });
+
+  testWidgets('紧凑侧边栏在设置页不选中主导航并转发设置入口', (tester) async {
+    var selected = -1;
+    await pumpShell(
+      tester,
+      width: 760,
+      selectedIndex: appNavigationDestinations.length - 1,
+      onSelected: (index) => selected = index,
+    );
+
+    final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
+    expect(rail.selectedIndex, isNull);
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pump();
+    expect(selected, appNavigationDestinations.length - 1);
   });
 
   testWidgets('窄窗口切换为底部导航并转发选择', (tester) async {

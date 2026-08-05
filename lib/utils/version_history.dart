@@ -150,6 +150,21 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.135',
+    date: '2026-08-06',
+    isPrerelease: true,
+    changes: [
+      'Windows 与 Android 的“本次刮削选项”新增“刮削剧集名称”开关，默认开启；开启后显示“作品 S01E01 TMDB 集名”，关闭后只显示“作品 S01E01”',
+      '修复自定义剧名已经改为“回魂计”时，每集标题仍使用旧 TMDB 作品名的问题；本地与个人网盘统一使用当前有效剧名作为前缀',
+      'Windows 应用数据和缓存默认迁移到 D:\\看影音\\数据、D:\\看影音\\缓存，设置页可选择其他目录；迁移校验失败会保留原目录',
+      '新增当前用户 Inno Setup 测试安装器，默认安装到 D:\\看影音 并允许选择目录；旧 MSIX 只在安装成功后询问是否卸载',
+      '侧边栏底部将“设置”和深色模式按钮并排显示，“本地媒体库”改为“媒体库”，“播放器设置”改为“设置”',
+      '没有 TMDB Key、断网或逐集详情请求失败时，扫描、媒体库浏览和播放继续可用',
+      'Windows 与 Android 继续使用统一版本配置，诊断日志继续脱敏并隐藏本地文件路径',
+      '本次不会修改或删除本地及网盘原始视频、字幕或其他文件，也不会改变远程路径、远程 ID 和字幕关联',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.134',
     date: '2026-08-06',
     isPrerelease: true,

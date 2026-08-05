@@ -18,6 +18,7 @@ class AdaptiveNavigationShell extends StatelessWidget {
     this.topBar,
     this.navigationHidden = false,
     this.navigationWrapper,
+    this.onThemeModeChanged,
   });
 
   final int selectedIndex;
@@ -27,6 +28,7 @@ class AdaptiveNavigationShell extends StatelessWidget {
   final Widget? topBar;
   final bool navigationHidden;
   final NavigationWrapper? navigationWrapper;
+  final ValueChanged<ThemeMode>? onThemeModeChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -189,31 +191,27 @@ class AdaptiveNavigationShell extends StatelessWidget {
 
   Widget _desktopLayout(BuildContext context, {required bool expanded}) {
     final colors = Theme.of(context).colorScheme;
+    final primaryDestinations =
+        destinations.take(destinations.length - 1).toList();
+    final selectedPrimaryIndex =
+        selectedIndex < primaryDestinations.length ? selectedIndex : null;
     final navigation = expanded
         ? _ExpandedSidebar(
             key: const ValueKey<String>('desktop-sidebar-expanded'),
             selectedIndex: selectedIndex,
             destinations: destinations,
             onDestinationSelected: onDestinationSelected,
+            onThemeModeChanged: onThemeModeChanged,
           )
-        : NavigationRail(
+        : _CompactSidebar(
             key: const ValueKey<String>('desktop-sidebar-compact'),
-            selectedIndex: selectedIndex,
-            labelType: NavigationRailLabelType.none,
-            groupAlignment: -0.72,
-            leading: const Padding(
-              padding: EdgeInsets.only(top: 10, bottom: 18),
-              child: Icon(Icons.play_circle_fill_rounded, size: 30),
-            ),
+            selectedIndex: selectedPrimaryIndex,
+            destinations: primaryDestinations,
             onDestinationSelected: onDestinationSelected,
-            destinations: [
-              for (final item in destinations)
-                NavigationRailDestination(
-                  selectedIcon: Icon(item.selectedIcon),
-                  icon: Icon(item.icon),
-                  label: Text(item.label),
-                ),
-            ],
+            onSettingsPressed: () => onDestinationSelected(
+              destinations.length - 1,
+            ),
+            onThemeModeChanged: onThemeModeChanged,
           );
     final wrappedNavigation = navigationWrapper?.call(navigation) ?? navigation;
     return Scaffold(
@@ -249,17 +247,74 @@ class AdaptiveNavigationShell extends StatelessWidget {
   }
 }
 
+class _CompactSidebar extends StatelessWidget {
+  const _CompactSidebar({
+    super.key,
+    required this.selectedIndex,
+    required this.destinations,
+    required this.onDestinationSelected,
+    required this.onSettingsPressed,
+    this.onThemeModeChanged,
+  });
+
+  final int? selectedIndex;
+  final List<NavigationDestinationConfig> destinations;
+  final ValueChanged<int> onDestinationSelected;
+  final VoidCallback onSettingsPressed;
+  final ValueChanged<ThemeMode>? onThemeModeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 88,
+      child: Stack(
+        children: [
+          NavigationRail(
+            selectedIndex: selectedIndex,
+            labelType: NavigationRailLabelType.none,
+            groupAlignment: -0.72,
+            leading: const Padding(
+              padding: EdgeInsets.only(top: 10, bottom: 18),
+              child: Icon(Icons.play_circle_fill_rounded, size: 30),
+            ),
+            onDestinationSelected: onDestinationSelected,
+            destinations: [
+              for (final item in destinations)
+                NavigationRailDestination(
+                  selectedIcon: Icon(item.selectedIcon),
+                  icon: Icon(item.icon),
+                  label: Text(item.label),
+                ),
+            ],
+          ),
+          Positioned(
+            left: 4,
+            right: 4,
+            bottom: 12,
+            child: _CompactSidebarTools(
+              onSettingsPressed: onSettingsPressed,
+              onThemeModeChanged: onThemeModeChanged,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ExpandedSidebar extends StatelessWidget {
   const _ExpandedSidebar({
     super.key,
     required this.selectedIndex,
     required this.destinations,
     required this.onDestinationSelected,
+    this.onThemeModeChanged,
   });
 
   final int selectedIndex;
   final List<NavigationDestinationConfig> destinations;
   final ValueChanged<int> onDestinationSelected;
+  final ValueChanged<ThemeMode>? onThemeModeChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -306,14 +361,85 @@ class _ExpandedSidebar extends StatelessWidget {
               ],
               const Spacer(),
               if (utilityIndex >= 0)
-                _SidebarDestination(
-                  destination: destinations[utilityIndex],
-                  selected: selectedIndex == utilityIndex,
-                  onTap: () => onDestinationSelected(utilityIndex),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _SidebarDestination(
+                        destination: destinations[utilityIndex],
+                        selected: selectedIndex == utilityIndex,
+                        onTap: () => onDestinationSelected(utilityIndex),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    _ThemeModeButton(
+                      onChanged: onThemeModeChanged,
+                    ),
+                  ],
                 ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _CompactSidebarTools extends StatelessWidget {
+  const _CompactSidebarTools({
+    required this.onSettingsPressed,
+    this.onThemeModeChanged,
+  });
+
+  final VoidCallback onSettingsPressed;
+  final ValueChanged<ThemeMode>? onThemeModeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      key: const ValueKey<String>('desktop-sidebar-compact-tools'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: '设置',
+          onPressed: onSettingsPressed,
+          padding: EdgeInsets.zero,
+          visualDensity: VisualDensity.compact,
+          constraints: const BoxConstraints.tightFor(width: 32, height: 40),
+          icon: const Icon(Icons.settings_outlined, size: 20),
+        ),
+        _ThemeModeButton(
+          onChanged: onThemeModeChanged,
+          compact: true,
+        ),
+      ],
+    );
+  }
+}
+
+class _ThemeModeButton extends StatelessWidget {
+  const _ThemeModeButton({this.onChanged, this.compact = false});
+
+  final ValueChanged<ThemeMode>? onChanged;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return IconButton(
+      tooltip: dark ? '切换浅色模式' : '切换深色模式',
+      padding: compact ? EdgeInsets.zero : null,
+      visualDensity: compact ? VisualDensity.compact : null,
+      constraints:
+          compact ? const BoxConstraints.tightFor(width: 32, height: 40) : null,
+      onPressed: () {
+        final next = dark ? ThemeMode.light : ThemeMode.dark;
+        if (onChanged != null) {
+          onChanged!(next);
+        }
+      },
+      icon: Icon(
+        dark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+        size: compact ? 20 : null,
       ),
     );
   }

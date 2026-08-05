@@ -170,7 +170,7 @@ void main() {
     expect(merged.genres, const <String>['动画', '科幻']);
   });
 
-  test('逐集资料按季度和集号合并且不清空已有集名', () {
+  test('逐集资料按季度和集号采用本次 TMDB 集名', () {
     final existing = _metadata(
       title: '三体',
       type: TmdbMediaType.tv,
@@ -208,7 +208,68 @@ void main() {
 
     expect(merged.seasons.single.posterUrl, '/cached.jpg');
     expect(merged.seasons.single.episodes, hasLength(2));
-    expect(merged.seasons.single.episodes.first.name, '用户集名');
+    expect(merged.seasons.single.episodes.first.name, '第一集');
+  });
+
+  test('关闭逐集名称时清空旧集名但保留季集资料', () {
+    final existing = _metadata(
+      title: '回魂计',
+      type: TmdbMediaType.tv,
+      seasons: <TmdbSeasonMetadata>[
+        _season(
+          1,
+          null,
+          episodes: <TmdbEpisodeMetadata>[_episode(1, '错误旧集名')],
+        ),
+      ],
+    );
+    final fetched = _metadata(
+      title: '回魂计',
+      type: TmdbMediaType.tv,
+      seasons: <TmdbSeasonMetadata>[
+        _season(
+          1,
+          null,
+          episodes: <TmdbEpisodeMetadata>[_episode(1, '死而复生')],
+        ),
+      ],
+    );
+
+    final merged = mergePolicy.merge(
+      existing: existing,
+      fetched: fetched,
+      options: const TmdbScrapeOptions.defaults().copyWith(
+        scrapeEpisodeNames: false,
+      ),
+      matchConfidence: 1,
+    );
+
+    expect(merged.seasons.single.episodes.single.name, isEmpty);
+  });
+
+  test('首次刮削关闭逐集名称时不写入 TMDB 集名', () {
+    final fetched = _metadata(
+      title: '回魂计',
+      type: TmdbMediaType.tv,
+      seasons: <TmdbSeasonMetadata>[
+        _season(
+          1,
+          null,
+          episodes: <TmdbEpisodeMetadata>[_episode(1, '死而复生')],
+        ),
+      ],
+    );
+
+    final merged = mergePolicy.merge(
+      existing: null,
+      fetched: fetched,
+      options: const TmdbScrapeOptions.defaults().copyWith(
+        scrapeEpisodeNames: false,
+      ),
+      matchConfidence: 1,
+    );
+
+    expect(merged.seasons.single.episodes.single.name, isEmpty);
   });
 
   test('逐集标题解析器按证据提供稳定回退', () {

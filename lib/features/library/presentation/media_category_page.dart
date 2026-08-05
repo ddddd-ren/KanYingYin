@@ -8,6 +8,7 @@ import 'package:kanyingyin/features/library/application/media_library_category.d
 import 'package:kanyingyin/features/library/application/media_library_query.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/features/library/application/media_card_info.dart';
+import 'package:kanyingyin/features/library/presentation/media_library_details_dialog.dart';
 
 class MediaCategoryPage extends StatefulWidget {
   const MediaCategoryPage({
@@ -279,6 +280,10 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
             value: _MediaCategoryAction.play,
             child: Text(series.episodes.length == 1 ? '播放' : '播放剧集'),
           ),
+          const PopupMenuItem<_MediaCategoryAction>(
+            value: _MediaCategoryAction.details,
+            child: Text('媒体详情'),
+          ),
           if (series.sourceKind == MediaSourceKind.local)
             const PopupMenuItem<_MediaCategoryAction>(
               value: _MediaCategoryAction.copyPath,
@@ -304,6 +309,12 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
     switch (action) {
       case _MediaCategoryAction.play:
         await _openSeries(series);
+        return;
+      case _MediaCategoryAction.details:
+        await showMediaLibraryDetailsDialog(
+          context: context,
+          series: series,
+        );
         return;
       case _MediaCategoryAction.copyPath:
         final path = series.episodes.firstOrNull?.localItem?.path;
@@ -509,7 +520,7 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
   }
 }
 
-enum _MediaCategoryAction { play, copyPath, hide }
+enum _MediaCategoryAction { play, details, copyPath, hide }
 
 class _MediaCategoryHideDialog extends StatefulWidget {
   const _MediaCategoryHideDialog({required this.episodes});

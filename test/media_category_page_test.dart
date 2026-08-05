@@ -174,8 +174,75 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byTooltip('媒体操作'), findsOneWidget);
+      await tester.tap(find.byTooltip('媒体操作'));
+      await tester.pumpAndSettle();
+      expect(find.text('媒体详情'), findsOneWidget);
+      await tester.tap(find.text('媒体详情'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey<String>('media-details-dialog')),
+        findsOneWidget,
+      );
+      expect(
+        find.text('C:\\Media\\${category.label}测试资源.mkv'),
+        findsOneWidget,
+      );
     });
   }
+
+  testWidgets('网盘分类的媒体详情显示来源和远程路径', (tester) async {
+    final cloudMovie = _series(
+      key: 'quark|details',
+      title: '网盘详情电影',
+      sourceKind: MediaSourceKind.cloud,
+      sourceId: 'quark',
+      sourceName: '夸克网盘',
+      mediaType: TmdbMediaType.movie,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaCategoryPage(
+          category: MediaLibraryCategory.movie,
+          initialize: () async {},
+          libraryProvider: () => CloudMediaLibrary(
+            series: <MediaLibrarySeries>[cloudMovie],
+            filters: const <MediaLibrarySourceFilter>[
+              MediaLibrarySourceFilter('all', '全部', null),
+              MediaLibrarySourceFilter(
+                'quark',
+                '夸克网盘',
+                MediaSourceKind.cloud,
+              ),
+            ],
+          ),
+          onPlayEpisode: (_, __) async {},
+          observeLibrary: false,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('媒体操作'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('媒体详情'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey<String>('media-details-dialog')),
+        matching: find.text('夸克网盘'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey<String>('media-details-dialog')),
+        matching: find.text('/网盘详情电影.mkv'),
+      ),
+      findsOneWidget,
+    );
+  });
 
   testWidgets('网盘分类菜单隐藏视频后立即移除海报', (tester) async {
     final cloudMovie = _series(

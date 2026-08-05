@@ -4,11 +4,13 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
+import 'package:kanyingyin/modules/cloud/cloud_episode_match_rule.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/media/media_name_analysis.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
+import 'package:kanyingyin/repositories/cloud_episode_match_rule_repository.dart';
 import 'package:kanyingyin/repositories/cloud_series_match_rule_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_path_parser.dart';
@@ -68,6 +70,7 @@ class CloudMediaIndexer {
     CloudMediaPathParser? mediaPathParser,
     LocalEpisodeParser? episodeParser,
     CloudSeriesMatchRuleRepository? seriesMatchRuleRepository,
+    CloudEpisodeMatchRuleRepository? episodeMatchRuleRepository,
     CloudSeriesIdentityResolver? seriesIdentityResolver,
     CloudMediaTreeResolver? mediaTreeResolver,
     int Function()? minRecognizedVideoSizeBytesProvider,
@@ -78,6 +81,7 @@ class CloudMediaIndexer {
         _mediaPathParser = mediaPathParser ?? CloudMediaPathParser(),
         _episodeParser = episodeParser ?? LocalEpisodeParser(),
         _seriesMatchRuleRepository = seriesMatchRuleRepository,
+        _episodeMatchRuleRepository = episodeMatchRuleRepository,
         _seriesIdentityResolver =
             seriesIdentityResolver ?? CloudSeriesIdentityResolver(),
         _mediaTreeResolver =
@@ -89,6 +93,7 @@ class CloudMediaIndexer {
   final CloudMediaPathParser _mediaPathParser;
   final LocalEpisodeParser _episodeParser;
   final CloudSeriesMatchRuleRepository? _seriesMatchRuleRepository;
+  final CloudEpisodeMatchRuleRepository? _episodeMatchRuleRepository;
   final CloudSeriesIdentityResolver _seriesIdentityResolver;
   final CloudMediaTreeResolver _mediaTreeResolver;
   final int Function()? _minRecognizedVideoSizeBytesProvider;
@@ -389,7 +394,31 @@ class CloudMediaIndexer {
         );
       }
     }
-    if (changed || failedPaths.isNotEmpty) {
+    var episodeRulesApplied = false;
+    final episodeRuleRepository = _episodeMatchRuleRepository;
+    if (episodeRuleRepository != null) {
+      final rules = await episodeRuleRepository.getBySource(source.id);
+      final rulesByKey = <String, CloudEpisodeMatchRule>{
+        for (final rule in rules) rule.stableKey: rule,
+      };
+      for (final entry in items.entries) {
+        final item = entry.value;
+        final rule = rulesByKey[cloudEpisodeMatchRuleKey(
+          sourceId: source.id,
+          remoteId: item.remoteId,
+          remotePath: item.remotePath,
+        )];
+        if (rule == null) continue;
+        episodeRulesApplied = true;
+        items[entry.key] = item.withEpisodeMapping(
+          seasonNumber: rule.seasonNumber,
+          episodeNumber: rule.episodeNumber,
+          keepOriginal: rule.mode == CloudEpisodeMatchMode.keepOriginal,
+          tmdbId: rule.tmdbId,
+        );
+      }
+    }
+    if (changed || failedPaths.isNotEmpty || episodeRulesApplied) {
       await _repository.replaceSource(
         source.id,
         items.values.toList(),

@@ -66,7 +66,8 @@ void main() {
     );
     final client = _FakeTmdbClient(<String, TmdbMetadata>{
       'tv:42': _metadata(42, TmdbMediaType.tv, const <String>['科幻']),
-    })..throwKeys.add('movie:7');
+    })
+      ..throwKeys.add('movie:7');
     final service = LibraryGenreBackfillService(
       localRepository: localRepository,
       cloudRepository: cloudRepository,
@@ -93,8 +94,11 @@ void main() {
     expect(result.failedWorks, 1);
     expect(progress, const <String>['1/2', '2/2']);
     expect(
-      localRepository.getAll().firstWhere((item) => item.name == 'tv.mkv')
-          .tmdb!.genres,
+      localRepository
+          .getAll()
+          .firstWhere((item) => item.name == 'tv.mkv')
+          .tmdb!
+          .genres,
       const <String>['科幻'],
     );
   });

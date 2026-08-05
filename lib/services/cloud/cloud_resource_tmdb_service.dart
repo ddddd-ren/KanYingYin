@@ -253,9 +253,14 @@ class CloudResourceTmdbService {
       candidate.mediaType,
       language: options.language,
     );
+    final hydrated = await _engine.hydrateSeasons(
+      fetched,
+      seasonNumbers: subject.seasonNumbers,
+      language: options.language,
+    );
     var metadata = const TmdbMetadataMergePolicy().merge(
       existing: subject.existingMetadata,
-      fetched: fetched,
+      fetched: hydrated,
       options: options,
       locks: subject.fieldLocks,
       matchConfidence: candidate.matchConfidence,

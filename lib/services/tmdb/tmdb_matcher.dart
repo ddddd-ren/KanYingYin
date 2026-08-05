@@ -126,7 +126,13 @@ class TmdbMatcher {
     final best = ranked.first;
     final secondScore = ranked.length > 1 ? ranked[1].score : 0.0;
     final mixedTypes = expectedTypes.contains(TmdbMediaType.movie) &&
-        expectedTypes.contains(TmdbMediaType.tv);
+        expectedTypes.contains(TmdbMediaType.tv) &&
+        ranked.any(
+          (candidate) => candidate.metadata.mediaType == TmdbMediaType.movie,
+        ) &&
+        ranked.any(
+          (candidate) => candidate.metadata.mediaType == TmdbMediaType.tv,
+        );
     final hasTitleEvidence = best.titleMatched || best.titleSimilarity >= 0.78;
     final conservativeTypeBoundary = mixedTypes && !seasonEvidence;
     final requiredLead = best.aliasMatched

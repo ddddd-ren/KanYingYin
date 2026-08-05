@@ -135,9 +135,7 @@ class TmdbMatcher {
         );
     final hasTitleEvidence = best.titleMatched || best.titleSimilarity >= 0.78;
     final conservativeTypeBoundary = mixedTypes && !seasonEvidence;
-    final requiredLead = best.aliasMatched
-        ? minimumLead * 0.75
-        : minimumLead;
+    final requiredLead = best.aliasMatched ? minimumLead * 0.75 : minimumLead;
     return TmdbRankedResult(
       candidates: ranked,
       shouldAutoMatch: best.typeMatched &&
@@ -158,14 +156,19 @@ class TmdbMatcher {
     final query = _normalize(queryTitle);
     final title = _normalize(candidate.title);
     final original = _normalize(candidate.originalTitle ?? '');
-    final aliases = candidate.aliases.map(_normalize).where((value) => value.isNotEmpty);
+    final aliases =
+        candidate.aliases.map(_normalize).where((value) => value.isNotEmpty);
     final aliasSet = aliases.toSet();
 
     final primaryExact = query.isNotEmpty &&
         (query == title || (original.isNotEmpty && query == original));
     final aliasMatched = query.isNotEmpty && aliasSet.contains(query);
     final titleMatched = primaryExact || aliasMatched;
-    final comparableTitles = <String>[title, if (original.isNotEmpty) original, ...aliasSet];
+    final comparableTitles = <String>[
+      title,
+      if (original.isNotEmpty) original,
+      ...aliasSet
+    ];
     final titleSimilarity = comparableTitles
         .map((value) => _similarity(query, value))
         .fold<double>(0, math.max)
@@ -196,8 +199,8 @@ class TmdbMatcher {
 
     final typeMatched = expectedTypes.contains(candidate.mediaType);
     score += typeMatched ? 0.14 : -0.50;
-    final seasonEvidenceMatched = seasonEvidence &&
-        candidate.mediaType == TmdbMediaType.tv;
+    final seasonEvidenceMatched =
+        seasonEvidence && candidate.mediaType == TmdbMediaType.tv;
     if (seasonEvidenceMatched) score += 0.08;
 
     final reason = _reason(

@@ -206,4 +206,21 @@ void main() {
 
     expect(plan.queries, <String>['The Three Body Problem', '三体']);
   });
+
+  test('电视剧季集证据清除独立数字集号', () {
+    const subject = TmdbScrapeSubject(
+      stableKey: 'numeric-episode',
+      titleCandidates: <String>['权力的游戏 S03 09'],
+      seasonNumbers: <int>{3},
+      episodeNumbers: <int>{9},
+      mediaEvidence: TmdbMediaEvidence.tv,
+    );
+
+    final plan = policy.build(
+      subject,
+      const TmdbScrapeOptions.defaults(),
+    );
+
+    expect(plan.queries, <String>['权力的游戏']);
+  });
 }

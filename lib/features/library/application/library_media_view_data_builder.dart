@@ -32,9 +32,8 @@ class LibraryMediaViewDataBuilder {
       ),
       hasSubtitle: group.episodes.any((item) => item.hasSubtitle),
       scrapeLabel: scrapeLabel,
-      mediaTypeLabel: group.episodes.any((item) => item.hasEpisodeInfo)
-          ? '电视剧'
-          : '电影',
+      mediaTypeLabel:
+          group.episodes.any((item) => item.hasEpisodeInfo) ? '电视剧' : '电影',
     );
     return LibraryMediaItemViewData(
       id: first.path,

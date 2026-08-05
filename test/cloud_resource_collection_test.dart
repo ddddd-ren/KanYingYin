@@ -62,7 +62,10 @@ void main() {
       collection.groups.map((group) => group.seasonMetadata?.posterUrl),
       <String?>['/season-1.jpg', '/season-2.jpg', '/season-3.jpg'],
     );
-    expect(collection.groups.last.videos.single.name, '规则标题 S03E01.mkv');
+    expect(
+      collection.groups.last.videos.single.name,
+      'TMDB 中文标题 S03E01.mkv',
+    );
     expect(
       collection.groups.last.videos.single.remotePath,
       '/影视/作品/第3季/01.mkv',

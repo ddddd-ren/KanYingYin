@@ -89,4 +89,9 @@ void main() {
     expect(cleaner.clean('Us (2019).mkv'), 'Us (2019)');
     expect(cleaner.clean('V字仇杀队.mkv'), 'V字仇杀队');
   });
+
+  test('清除方括号发布组和中英文音轨说明', () {
+    expect(cleaner.clean('[DreamHD] 长安三万里 2023 2160p'), '长安三万里 2023');
+    expect(cleaner.clean('地球脉动 III S01 4K 国英双语'), '地球脉动 III S01');
+  });
 }

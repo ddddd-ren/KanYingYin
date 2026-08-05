@@ -31,7 +31,7 @@ class TmdbResourceNameCleaner {
     caseSensitive: false,
   );
   static final RegExp _releaseDescriptionPattern = RegExp(
-    r'(?:全\s*\d+\s*集|高码版|杜比视界版本|国语配音|国粤多音轨|简繁英字幕|中文字幕|字幕|日剧)',
+    r'(?:全\s*\d+\s*集|高码版|杜比视界版本|国语配音|国英双语|国粤多音轨|简繁英字幕|中文字幕|字幕|日剧)',
     caseSensitive: false,
   );
   static final RegExp _collectionSuffixPattern = RegExp(
@@ -39,7 +39,7 @@ class TmdbResourceNameCleaner {
     caseSensitive: false,
   );
   static final RegExp _chineseReleasePhrasePattern = RegExp(
-    r'(?:国语配音(?:\+字)?|国粤多音轨|简繁英字幕|中文字幕|日语中字|高码版|珍藏版|杜比视界版本|原盘)',
+    r'(?:国语配音(?:\+字)?|国英双语|国粤多音轨|简繁英字幕|中文字幕|日语中字|高码版|珍藏版|杜比视界版本|原盘)',
     caseSensitive: false,
   );
   static final RegExp _languageTokenPattern = RegExp(
@@ -48,6 +48,10 @@ class TmdbResourceNameCleaner {
   );
   static final RegExp _releaseGroupPattern = RegExp(
     r'(?:[-._ ](?:SGF|FGT|LeloveTV|BlackTV|DreamHD|HotWEB|ColorTV|ZeroTV|Huawei|Xiaomi))\s*$',
+    caseSensitive: false,
+  );
+  static final RegExp _releaseGroupNamePattern = RegExp(
+    r'^(?:SGF|FGT|LeloveTV|BlackTV|DreamHD|HotWEB|ColorTV|ZeroTV|Huawei|Xiaomi)$',
     caseSensitive: false,
   );
   static final RegExp _remuxSuffixPattern = RegExp(
@@ -63,7 +67,8 @@ class TmdbResourceNameCleaner {
       final content = match.group(1) ?? match.group(2) ?? '';
       final isReleaseBlock = _releaseTokenPattern.hasMatch(content) ||
           _releaseSitePattern.hasMatch(content) ||
-          _releaseDescriptionPattern.hasMatch(content);
+          _releaseDescriptionPattern.hasMatch(content) ||
+          _releaseGroupNamePattern.hasMatch(content.trim());
       return isReleaseBlock ? ' ' : match.group(0)!;
     });
     return result

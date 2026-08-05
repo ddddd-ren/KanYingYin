@@ -45,7 +45,8 @@ class TmdbMetadataMergePolicy {
       overview: preserveOverview ? existing.overview : fetched.overview,
       releaseDate: fetched.releaseDate,
       rating: fetched.rating ?? existing?.rating,
-      aliases: _mergeStrings(existing?.aliases ?? const <String>[], fetched.aliases),
+      aliases:
+          _mergeStrings(existing?.aliases ?? const <String>[], fetched.aliases),
       popularity: fetched.popularity ?? existing?.popularity,
       voteCount: fetched.voteCount ?? existing?.voteCount,
       posterUrl: options.fetchPoster

@@ -313,12 +313,10 @@ class _LibraryMediaTileState extends State<_LibraryMediaTile> {
       if (item.mediaInfoText.isNotEmpty) item.mediaInfoText,
       item.modifiedText,
     ].where((part) => part.isNotEmpty).join('  ·  ');
-    final displaySubtitle = item.unifiedSubtitle.isNotEmpty
-        ? item.unifiedSubtitle
-        : item.subtitle;
-    final displayDetails = item.unifiedDetails.isNotEmpty
-        ? item.unifiedDetails
-        : details;
+    final displaySubtitle =
+        item.unifiedSubtitle.isNotEmpty ? item.unifiedSubtitle : item.subtitle;
+    final displayDetails =
+        item.unifiedDetails.isNotEmpty ? item.unifiedDetails : details;
     final badges = item.unifiedBadges.isNotEmpty
         ? item.unifiedBadges
         : <ImmersiveMediaCardBadge>[

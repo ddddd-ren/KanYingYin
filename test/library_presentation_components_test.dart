@@ -167,6 +167,7 @@ void main() {
           find.byKey(const ValueKey('library-path-command-surface')),
           findsOneWidget,
         );
+        expect(find.text('本地媒体库'), findsOneWidget);
         expect(
           find.byKey(const ValueKey('library-path-breadcrumb-surface')),
           findsOneWidget,

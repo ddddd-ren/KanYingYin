@@ -172,6 +172,22 @@ class LibraryPathBar extends StatelessWidget {
           ),
           child: Row(
             children: [
+              Flexible(
+                fit: FlexFit.loose,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 92),
+                  child: Text(
+                    '本地媒体库',
+                    key: const ValueKey<String>('local-media-library-title'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
               _button(
                 context,
                 Icons.folder_open,

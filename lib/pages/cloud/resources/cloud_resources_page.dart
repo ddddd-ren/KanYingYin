@@ -1125,6 +1125,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
           Expanded(
             child: CloudResourcePosterWall(
               sourceId: _controller.selectedSource!.id,
+              sourceName: _controller.selectedSource!.name,
               collection: _controller.collection,
               scrapingKeys: _controller.tmdbScrapingKeys,
               hiddenVideoCount: _controller.hiddenVideos.length,

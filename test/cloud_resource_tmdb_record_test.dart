@@ -14,6 +14,9 @@ void main() {
         id: 42,
         mediaType: TmdbMediaType.movie,
         title: '流浪地球',
+        aliases: const <String>['The Wandering Earth'],
+        popularity: 42.5,
+        voteCount: 1200,
         genres: const <String>['科幻', '冒险'],
         originalTitle: 'The Wandering Earth',
         overview: '公开简介',
@@ -35,6 +38,9 @@ void main() {
     );
     expect(record.releaseDate, '2019-02-05');
     expect(record.genres, <String>['科幻', '冒险']);
+    expect(record.aliases, <String>['The Wandering Earth']);
+    expect(record.popularity, 42.5);
+    expect(record.voteCount, 1200);
     expect(record.toJson()['releaseDate'], '2019-02-05');
     expect(record.toJson()['genres'], <String>['科幻', '冒险']);
     expect(CloudResourceTmdbRecord.fromJson(record.toJson()), record);
@@ -110,6 +116,9 @@ void main() {
 
     expect(record.releaseDate, isNull);
     expect(record.genres, isEmpty);
+    expect(record.aliases, isEmpty);
+    expect(record.popularity, isNull);
+    expect(record.voteCount, isNull);
     expect(record.toJson(), isNot(contains('releaseDate')));
   });
 

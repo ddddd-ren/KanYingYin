@@ -37,7 +37,7 @@
 - Create: test/tmdb_scrape_benchmark_test.dart
 - Create: docs/tmdb-scrape-benchmark.md
 
-- [ ] **Step 1: 固定样本结构和初始案例**
+- [x] **Step 1: 固定样本结构和初始案例**
 
 在 test/fixtures/tmdb_scrape_corpus.dart 定义 TmdbScrapeCorpusCase：
 
@@ -67,7 +67,7 @@ class TmdbScrapeCorpusCase {
 
 初始案例固定为：流浪地球2.2160p WEB-DL HEVC DDP 5.1.mkv、三体 S01E01 2160p WEB-DL、Isekai Nonbiri Nouka 2、H-回-元异-计【台剧】 (2025) 4K 全6集 完结、同名作品 2020；再补充至少 25 条覆盖括号年份、中文/英文别名、日文罗马字、OVA/特别篇、纯数字集号、两位数集号、多季度、同名不同年、同名不同类型和发布组误导词的样本。候选使用固定的 TmdbMetadata 假对象；expectedIdentity 使用稳定测试标识，避免单元测试依赖实时 TMDB ID。
 
-- [ ] **Step 2: 写基线测试并记录结果**
+- [x] **Step 2: 写基线测试并记录结果**
 
 benchmark 测试调用现有 TmdbScrapeEngine，输出 case、expected、actual、auto、candidateCount、requestCount 以及 Top-1/Top-3 统计：
 
@@ -77,7 +77,7 @@ D:/flutter/bin/flutter.bat test --no-pub test/tmdb_scrape_benchmark_test.dart -r
 
 将日期、提交号和汇总数字写入 docs/tmdb-scrape-benchmark.md，不写入 API Key、Cookie、Token、远程路径或个人媒体源 ID。
 
-- [ ] **Step 3: 采集爆米花对标结果**
+- [x] **Step 3: 采集爆米花对标结果**
 
 仅对脱敏关键词运行 CLI，先确认状态：
 
@@ -88,7 +88,7 @@ C:/Users/asus/AppData/Local/BaoMiHua/netease-baomihua-player/bin/bmh-cli.exe --j
 
 只摘录标题、年份、媒体类型、排序位置和公开 tmdb_id；emby、jellyfin、fnos、zspace 结果的 media_id 不当作 TMDB ID。文档不记录爆米花本地 HTTP/AES 细节。
 
-- [ ] **Step 4: 提交基线**
+- [x] **Step 4: 提交基线**
 
 ~~~powershell
 git add test/fixtures/tmdb_scrape_corpus.dart test/tmdb_scrape_benchmark_test.dart docs/tmdb-scrape-benchmark.md
@@ -106,7 +106,7 @@ git commit -m "建立TMDB刮削对标基线"
 - Modify: test/cloud_resource_tmdb_record_test.dart
 - Create: test/tmdb_metadata_serialization_test.dart
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 覆盖 searchPage 第 2 页、alternativeTitles、seasonDetails 和旧 JSON 兼容：
 
@@ -130,13 +130,13 @@ expect(season.episodes.single.episodeNumber, 1);
 
 TmdbMetadata.fromJson 读取旧 JSON 时新增列表必须为空，toJson 再读回保持相等。
 
-- [ ] **Step 2: 运行测试确认新接口不存在**
+- [x] **Step 2: 运行测试确认新接口不存在**
 
 ~~~powershell
 D:/flutter/bin/flutter.bat test --no-pub test/tmdb_client_test.dart test/tmdb_metadata_serialization_test.dart
 ~~~
 
-- [ ] **Step 3: 增加可选能力接口，避免破坏现有 fake**
+- [x] **Step 3: 增加可选能力接口，避免破坏现有 fake**
 
 tmdb_client_capabilities.dart 定义：
 
@@ -177,7 +177,7 @@ class TmdbSearchPage {
 
 TmdbClient 同时实现 ITmdbClient 和 ITmdbClientCapabilities；旧 ITmdbClient.search 保持原签名并只读取第一页。能力不存在时引擎回退到旧搜索，现有测试 fake 不需要新增成员。
 
-- [ ] **Step 4: 扩展元数据并解析官方响应**
+- [x] **Step 4: 扩展元数据并解析官方响应**
 
 TmdbSeasonMetadata 增加 episodes；TmdbMetadata 增加 aliases、popularity、voteCount。新增字段完整实现 fromJson、toJson、copyWith、==、hashCode。TmdbClient 解析 search 的 popularity/vote_count、alternative_titles 的 titles[].title、season endpoint 的 episodes；中文详情缺字段时沿用英文补充逻辑，别名与逐集名称按非空值合并。CloudResourceTmdbRecord 的 matched 工厂、fromJson、toJson、相等比较和复制方法同步保存 aliases、popularity、voteCount，否则资源重启后会丢失别名评分证据。
 
@@ -203,7 +203,7 @@ class TmdbEpisodeMetadata {
 }
 ~~~
 
-- [ ] **Step 5: 运行回归并提交**
+- [x] **Step 5: 运行回归并提交**
 
 ~~~powershell
 D:/flutter/bin/dart.bat format --output=none --set-exit-if-changed lib/modules/local/tmdb_metadata.dart lib/services/tmdb/tmdb_client.dart lib/services/tmdb/tmdb_client_capabilities.dart test/tmdb_client_test.dart test/tmdb_metadata_serialization_test.dart

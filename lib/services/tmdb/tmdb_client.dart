@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:kanyingyin/core/network/dio_factory.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_client_capabilities.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_endpoint_policy.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/utils/network_settings_config_factory.dart';
@@ -23,7 +24,7 @@ abstract class ITmdbClient {
   });
 }
 
-class TmdbClient implements ITmdbClient {
+class TmdbClient implements ITmdbClient, ITmdbClientCapabilities {
   final String apiKey;
   Dio _dio;
   final TmdbDioFactory? _dioFactory;
@@ -60,7 +61,24 @@ class TmdbClient implements ITmdbClient {
     TmdbMediaType mediaType, {
     String language = 'zh-CN',
   }) async {
+    final result = await searchPage(
+      query,
+      mediaType,
+      language: language,
+      page: 1,
+    );
+    return result.results;
+  }
+
+  @override
+  Future<TmdbSearchPage> searchPage(
+    String query,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+    required int page,
+  }) async {
     _validateKey();
+    if (page < 1) throw ArgumentError.value(page, 'page', '页码必须大于 0');
     final response = await _withEndpointRecovery(
       (dio, baseUrl) => dio.get<Map<String, dynamic>>(
         '$baseUrl/search/${mediaType == TmdbMediaType.movie ? 'movie' : 'tv'}',
@@ -69,20 +87,86 @@ class TmdbClient implements ITmdbClient {
           'query': query,
           'language': language,
           'include_adult': false,
+          'page': page,
         },
         options: _authenticationOptions,
       ),
     );
     final results = response.data?['results'];
-    if (results is! List) return const [];
-    return results
-        .whereType<Map<Object?, Object?>>()
-        .map((item) => _fromJson(
-              Map<String, dynamic>.from(item),
-              mediaType,
-              language,
-            ))
-        .toList(growable: false);
+    final parsedPage = _asInt(response.data?['page']);
+    final parsedTotalPages = _asInt(response.data?['total_pages']);
+    return TmdbSearchPage(
+      page: parsedPage > 0 ? parsedPage : page,
+      totalPages: parsedTotalPages > 0 ? parsedTotalPages : page,
+      results: results is! List
+          ? const <TmdbMetadata>[]
+          : results
+              .whereType<Map<Object?, Object?>>()
+              .map(
+                (item) => _fromJson(
+                  Map<String, dynamic>.from(item),
+                  mediaType,
+                  language,
+                ),
+              )
+              .toList(growable: false),
+    );
+  }
+
+  @override
+  Future<List<String>> alternativeTitles(
+    int id,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) async {
+    _validateKey();
+    final response = await _withEndpointRecovery(
+      (dio, baseUrl) => dio.get<Map<String, dynamic>>(
+        '$baseUrl/${mediaType == TmdbMediaType.movie ? 'movie' : 'tv'}/$id/alternative_titles',
+        queryParameters: <String, dynamic>{
+          ..._authenticationQuery,
+          'language': language,
+        },
+        options: _authenticationOptions,
+      ),
+    );
+    final data = response.data;
+    final rawTitles = data?['titles'] ?? data?['results'];
+    if (rawTitles is! List) return const <String>[];
+    final aliases = <String>[];
+    for (final item in rawTitles.whereType<Map<Object?, Object?>>()) {
+      final title = _asString(item['title']);
+      if (title != null && !aliases.contains(title)) aliases.add(title);
+    }
+    return List<String>.unmodifiable(aliases);
+  }
+
+  @override
+  Future<TmdbSeasonMetadata> seasonDetails(
+    int id,
+    int seasonNumber, {
+    String language = 'zh-CN',
+  }) async {
+    final primary = await _seasonDetailsForLanguage(
+      id,
+      seasonNumber,
+      language,
+    );
+    if (language == 'en-US') return primary;
+    try {
+      final fallback = await _seasonDetailsForLanguage(
+        id,
+        seasonNumber,
+        'en-US',
+      );
+      return _mergeSeasons(
+        <TmdbSeasonMetadata>[primary],
+        <TmdbSeasonMetadata>[fallback],
+      ).single;
+    } on Object {
+      // 中文季度详情已经可用时，英文补充失败不能阻断刮削。
+      return primary;
+    }
   }
 
   @override
@@ -104,6 +188,7 @@ class TmdbClient implements ITmdbClient {
       return primary;
     }
     return primary.copyWith(
+      aliases: _mergeStrings(primary.aliases, fallback.aliases),
       overview:
           _hasText(primary.overview) ? primary.overview : fallback.overview,
       posterUrl:
@@ -113,6 +198,30 @@ class TmdbClient implements ITmdbClient {
           : fallback.backdropUrl,
       genres: _mergeGenres(primary.genres, fallback.genres),
       seasons: _mergeSeasons(primary.seasons, fallback.seasons),
+      popularity: primary.popularity ?? fallback.popularity,
+      voteCount: primary.voteCount ?? fallback.voteCount,
+    );
+  }
+
+  Future<TmdbSeasonMetadata> _seasonDetailsForLanguage(
+    int id,
+    int seasonNumber,
+    String language,
+  ) async {
+    _validateKey();
+    final response = await _withEndpointRecovery(
+      (dio, baseUrl) => dio.get<Map<String, dynamic>>(
+        '$baseUrl/tv/$id/season/$seasonNumber',
+        queryParameters: <String, dynamic>{
+          ..._authenticationQuery,
+          'language': language,
+        },
+        options: _authenticationOptions,
+      ),
+    );
+    return _seasonFromJson(
+      response.data ?? const <String, dynamic>{},
+      fallbackSeasonNumber: seasonNumber,
     );
   }
 
@@ -151,6 +260,8 @@ class TmdbClient implements ITmdbClient {
           ? 'release_date'
           : 'first_air_date']),
       rating: _asDouble(json['vote_average']),
+      popularity: _asDouble(json['popularity']),
+      voteCount: _asNullableInt(json['vote_count']),
       posterUrl: _asString(json['poster_path']),
       backdropUrl: _asString(json['backdrop_path']),
       language: language,
@@ -192,16 +303,51 @@ class TmdbClient implements ITmdbClient {
     return seasons;
   }
 
-  TmdbSeasonMetadata _seasonFromJson(Map<String, dynamic> json) {
+  TmdbSeasonMetadata _seasonFromJson(
+    Map<String, dynamic> json, {
+    int? fallbackSeasonNumber,
+  }) {
+    final episodes = _episodesFromJson(json['episodes']);
+    final parsedSeasonNumber = _asInt(json['season_number']);
+    final parsedEpisodeCount = _asInt(json['episode_count']);
     return TmdbSeasonMetadata(
       id: _asInt(json['id']),
-      seasonNumber: _asInt(json['season_number']),
+      seasonNumber: parsedSeasonNumber > 0
+          ? parsedSeasonNumber
+          : fallbackSeasonNumber ?? parsedSeasonNumber,
       name: _asString(json['name']) ?? '',
-      episodeCount: _asInt(json['episode_count']),
+      episodeCount:
+          parsedEpisodeCount > 0 ? parsedEpisodeCount : episodes.length,
       overview: _asString(json['overview']),
       airDate: _asString(json['air_date']),
       posterUrl: _asString(json['poster_path']),
+      episodes: episodes,
     );
+  }
+
+  List<TmdbEpisodeMetadata> _episodesFromJson(Object? value) {
+    if (value is! List) return const <TmdbEpisodeMetadata>[];
+    final episodes = value
+        .whereType<Map<Object?, Object?>>()
+        .map((raw) {
+          final json = Map<String, dynamic>.from(raw);
+          return TmdbEpisodeMetadata(
+            id: _asInt(json['id']),
+            episodeNumber: _asInt(json['episode_number']),
+            name: _asString(json['name']) ?? '',
+            overview: _asString(json['overview']),
+            airDate: _asString(json['air_date']),
+            stillUrl: _asString(json['still_path']),
+            rating: _asDouble(json['vote_average']),
+          );
+        })
+        .where((episode) => episode.episodeNumber > 0)
+        .toList(growable: false)
+      ..sort(
+        (first, second) =>
+            first.episodeNumber.compareTo(second.episodeNumber),
+      );
+    return episodes;
   }
 
   List<TmdbSeasonMetadata> _mergeSeasons(
@@ -230,6 +376,10 @@ class TmdbClient implements ITmdbClient {
         posterUrl: _hasText(season.posterUrl)
             ? season.posterUrl
             : fallbackSeason.posterUrl,
+        episodes: _mergeEpisodes(
+          season.episodes,
+          fallbackSeason.episodes,
+        ),
       );
     }
     final seasons = mergedByNumber.values.toList(growable: false)
@@ -239,6 +389,41 @@ class TmdbClient implements ITmdbClient {
     return seasons;
   }
 
+  List<TmdbEpisodeMetadata> _mergeEpisodes(
+    List<TmdbEpisodeMetadata> primary,
+    List<TmdbEpisodeMetadata> fallback,
+  ) {
+    final mergedByNumber = <int, TmdbEpisodeMetadata>{
+      for (final episode in primary) episode.episodeNumber: episode,
+    };
+    for (final fallbackEpisode in fallback) {
+      final episode = mergedByNumber[fallbackEpisode.episodeNumber];
+      if (episode == null) {
+        mergedByNumber[fallbackEpisode.episodeNumber] = fallbackEpisode;
+        continue;
+      }
+      mergedByNumber[fallbackEpisode.episodeNumber] = episode.copyWith(
+        name: _hasText(episode.name) ? episode.name : fallbackEpisode.name,
+        overview: _hasText(episode.overview)
+            ? episode.overview
+            : fallbackEpisode.overview,
+        airDate: _hasText(episode.airDate)
+            ? episode.airDate
+            : fallbackEpisode.airDate,
+        stillUrl: _hasText(episode.stillUrl)
+            ? episode.stillUrl
+            : fallbackEpisode.stillUrl,
+        rating: episode.rating ?? fallbackEpisode.rating,
+      );
+    }
+    final episodes = mergedByNumber.values.toList(growable: false)
+      ..sort(
+        (first, second) =>
+            first.episodeNumber.compareTo(second.episodeNumber),
+      );
+    return episodes;
+  }
+
   List<String> _mergeGenres(
     List<String> primary,
     List<String> fallback,
@@ -246,6 +431,16 @@ class TmdbClient implements ITmdbClient {
     final result = <String>[];
     for (final genre in <String>[...primary, ...fallback]) {
       final normalized = genre.trim();
+      if (normalized.isEmpty || result.contains(normalized)) continue;
+      result.add(normalized);
+    }
+    return List<String>.unmodifiable(result);
+  }
+
+  List<String> _mergeStrings(List<String> primary, List<String> fallback) {
+    final result = <String>[];
+    for (final value in <String>[...primary, ...fallback]) {
+      final normalized = value.trim();
       if (normalized.isEmpty || result.contains(normalized)) continue;
       result.add(normalized);
     }
@@ -350,6 +545,7 @@ class TmdbClient implements ITmdbClient {
   bool _hasText(String? value) => value != null && value.trim().isNotEmpty;
 
   int _asInt(Object? value) => value is num ? value.toInt() : 0;
+  int? _asNullableInt(Object? value) => value is num ? value.toInt() : null;
   double? _asDouble(Object? value) => value is num ? value.toDouble() : null;
   String? _asString(Object? value) {
     final text = value?.toString().trim();

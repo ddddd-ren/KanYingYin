@@ -7,18 +7,33 @@ import 'package:kanyingyin/pages/settings/settings_module.dart';
 void main() {
   test('navigation config drives startup page validation', () {
     expect(appNavigationDestinations.map((item) => item.label), [
+      '电影',
+      '动漫',
+      '电视剧',
       '本地媒体库',
       '网盘媒体库',
       '观看历史',
       '设置',
     ]);
-    expect(appNavigationDestinations.first.path, '/local');
+    expect(
+      appNavigationDestinations.take(3).map((item) => item.path),
+      const <String>['/movies', '/anime', '/tv-series'],
+    );
+    expect(
+      appNavigationDestinations
+          .where((item) => item.showInBottomNavigation)
+          .map((item) => item.label),
+      const <String>['本地媒体库', '网盘媒体库', '观看历史', '设置'],
+    );
     expect(isValidStartupPage('/tab/popular/'), isFalse);
     expect(isValidStartupPage('/tab/cloud/'), isTrue);
     expect(isValidStartupPage('/tab/local/'), isTrue);
     final removedLegacyPath = '/tab/${'tv'}${'box'}/movie/';
     expect(isValidStartupPage(removedLegacyPath), isFalse);
-    expect(navigationIndexForStartupPage('/tab/local/'), 0);
+    expect(navigationIndexForStartupPage('/tab/local/'), 3);
+    expect(resolveNavigationIndex('/tab/local/'), 3);
+    expect(resolveNavigationIndex('/tab/removed/'), 3);
+    expect(resolveNavigationIndex(null), 3);
     expect(defaultStartupPage, '/tab/local/');
   });
 

@@ -150,6 +150,20 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.124',
+    date: '2026-08-05',
+    isPrerelease: true,
+    changes: [
+      'Windows 桌面侧栏新增电影、动漫和电视剧三个入口；Android 底部导航新增分类入口，可选择对应媒体分类',
+      '分类页统一展示本地与个人网盘资源，支持来源筛选、名称搜索、海报浏览、选集和直接播放',
+      '电影与电视剧按 TMDB 媒体类型归类，动画作品进入动漫分类，动画电视剧也会同时保留在电视剧分类',
+      '未刮削的本地单片和带季集信息的剧集仍可进入对应分类，TMDB 不可用或断网时不影响本地扫描和播放',
+      '网盘分类沿用手动匹配后的 TMDB 合并身份，同一作品不会重新显示为多个版本，并优先显示对应季度海报',
+      'Windows 与 Android 版本继续使用统一版本配置，诊断日志继续脱敏并隐藏本地文件路径',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.123',
     date: '2026-08-05',
     isPrerelease: true,

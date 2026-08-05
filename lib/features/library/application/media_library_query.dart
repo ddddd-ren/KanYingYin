@@ -111,6 +111,17 @@ class MediaLibraryQuery {
 
   List<String> categoriesForSeries(MediaLibrarySeries item) {
     final categories = <String>{};
+    switch (item.mediaType) {
+      case TmdbMediaType.movie:
+        categories.add('电影');
+      case TmdbMediaType.tv:
+        categories.add('电视剧');
+      case null:
+        break;
+    }
+    if (item.genres.any(_isAnimationGenre)) {
+      categories.add('动漫');
+    }
     for (final episode in item.episodes) {
       final metadata = episode.localItem?.tmdb;
       if (metadata == null) continue;

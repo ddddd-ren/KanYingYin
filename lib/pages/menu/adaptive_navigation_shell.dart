@@ -58,6 +58,33 @@ class AdaptiveNavigationShell extends StatelessWidget {
 
   Widget _bottomLayout(BuildContext context) {
     final navigationColor = Theme.of(context).colorScheme.surfaceContainerLow;
+    final visibleDestinations = <({
+      int globalIndex,
+      NavigationDestinationConfig destination,
+    })>[
+      for (var index = 0; index < destinations.length; index++)
+        if (destinations[index].showInBottomNavigation)
+          (globalIndex: index, destination: destinations[index]),
+    ];
+    final categoryDestinations = <({
+      int globalIndex,
+      NavigationDestinationConfig destination,
+    })>[
+      for (var index = 0; index < destinations.length; index++)
+        if (!destinations[index].showInBottomNavigation)
+          (globalIndex: index, destination: destinations[index]),
+    ];
+    final selectedCoreIndex = visibleDestinations.indexWhere(
+      (item) => item.globalIndex == selectedIndex,
+    );
+    final categorySelected = categoryDestinations.any(
+      (item) => item.globalIndex == selectedIndex,
+    );
+    final selectedBottomIndex = categorySelected
+        ? 0
+        : selectedCoreIndex < 0
+            ? 1
+            : selectedCoreIndex + 1;
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: SafeArea(
@@ -90,14 +117,68 @@ class AdaptiveNavigationShell extends StatelessWidget {
             key: const ValueKey<String>('compact-bottom-navigation'),
             backgroundColor: Colors.transparent,
             surfaceTintColor: Colors.transparent,
-            selectedIndex: selectedIndex,
-            onDestinationSelected: onDestinationSelected,
+            selectedIndex: selectedBottomIndex,
+            onDestinationSelected: (index) async {
+              if (index == 0) {
+                final selected = await _showCategorySelector(
+                  context,
+                  categoryDestinations,
+                );
+                if (selected != null) onDestinationSelected(selected);
+                return;
+              }
+              onDestinationSelected(
+                visibleDestinations[index - 1].globalIndex,
+              );
+            },
             destinations: [
-              for (final item in destinations)
+              const NavigationDestination(
+                selectedIcon: Icon(Icons.category_rounded),
+                icon: Icon(Icons.category_outlined),
+                label: '分类',
+              ),
+              for (final item in visibleDestinations)
                 NavigationDestination(
-                  selectedIcon: Icon(item.selectedIcon),
-                  icon: Icon(item.icon),
-                  label: item.label,
+                  selectedIcon: Icon(item.destination.selectedIcon),
+                  icon: Icon(item.destination.icon),
+                  label: item.destination.label,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<int?> _showCategorySelector(
+    BuildContext context,
+    List<
+            ({
+              int globalIndex,
+              NavigationDestinationConfig destination,
+            })>
+        categories,
+  ) {
+    return showModalBottomSheet<int>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final item in categories)
+                ListTile(
+                  leading: Icon(
+                    selectedIndex == item.globalIndex
+                        ? item.destination.selectedIcon
+                        : item.destination.icon,
+                  ),
+                  title: Text(item.destination.label),
+                  trailing: selectedIndex == item.globalIndex
+                      ? const Icon(Icons.check)
+                      : null,
+                  onTap: () => Navigator.of(context).pop(item.globalIndex),
                 ),
             ],
           ),

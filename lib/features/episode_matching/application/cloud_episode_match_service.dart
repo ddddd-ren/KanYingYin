@@ -33,6 +33,49 @@ final class CloudEpisodeMatchService {
   final ManualEpisodePreMatcher _preMatcher;
   final DateTime Function() _now;
 
+  Future<List<ManualEpisodeMatchItem>> loadMatchItems({
+    required String sourceId,
+    required Iterable<String> resourceIds,
+    required String expectedSeriesName,
+    int? selectedSeasonNumber,
+  }) async {
+    final requestedIds = resourceIds.toList(growable: false);
+    final indexed = await _indexRepository.getBySource(sourceId);
+    final indexedByRemoteId = <String, CloudMediaIndexItem>{
+      for (final item in indexed) item.remoteId: item,
+    };
+    final rulesByKey = <String, CloudEpisodeMatchRule>{
+      for (final rule in await _ruleRepository.getBySource(sourceId))
+        rule.stableKey: rule,
+    };
+    final result = <ManualEpisodeMatchItem>[];
+    for (final resourceId in requestedIds) {
+      final item = indexedByRemoteId[resourceId];
+      if (item == null) throw StateError('网盘索引中不存在资源：$resourceId');
+      final parentPath = p.posix.dirname(item.remotePath);
+      final automatic = _preMatcher.match(
+        originalName: item.remoteName,
+        parentName: p.posix.basename(parentPath),
+        grandParentName: p.posix.basename(p.posix.dirname(parentPath)),
+        expectedSeriesName: expectedSeriesName,
+        selectedSeasonNumber: selectedSeasonNumber,
+      );
+      result.add(
+        ManualEpisodeMatchItem(
+          resourceId: item.remoteId,
+          originalName: item.remoteName,
+          parentName: p.posix.basename(parentPath),
+          existingSeasonNumber: item.seasonNumber,
+          existingEpisodeNumber: item.episodeNumber,
+          automaticSeasonNumber: automatic?.seasonNumber,
+          automaticEpisodeNumber: automatic?.episodeNumber,
+          manualOverride: rulesByKey.containsKey(_ruleKey(item)),
+        ),
+      );
+    }
+    return List<ManualEpisodeMatchItem>.unmodifiable(result);
+  }
+
   Future<CloudEpisodeMatchSaveOutcome> save({
     required String sourceId,
     required Iterable<String> resourceIds,
@@ -155,30 +198,40 @@ final class CloudEpisodeMatchService {
     required ManualEpisodeAssignment assignment,
     required TmdbMetadata metadata,
   }) {
+    final enriched = item.replaceTmdb(
+      tmdbId: metadata.id,
+      tmdbTitle: metadata.title,
+      tmdbOriginalTitle: metadata.originalTitle,
+      tmdbOverview: metadata.overview,
+      tmdbRating: metadata.rating,
+      tmdbPosterUrl: metadata.posterUrl,
+      tmdbBackdropUrl: metadata.backdropUrl,
+      tmdbGenres: metadata.genres,
+    );
     switch (assignment.mode) {
       case ManualEpisodeAssignmentMode.mapped:
-        return item.withEpisodeMapping(
+        return enriched.withEpisodeMapping(
           seasonNumber: assignment.seasonNumber,
           episodeNumber: assignment.episodeNumber,
           keepOriginal: false,
           tmdbId: metadata.id,
         );
       case ManualEpisodeAssignmentMode.keepOriginal:
-        return item.withEpisodeMapping(
+        return enriched.withEpisodeMapping(
           seasonNumber: null,
           episodeNumber: null,
           keepOriginal: true,
           tmdbId: metadata.id,
         );
       case ManualEpisodeAssignmentMode.restoreAutomatic:
-        final parentPath = p.posix.dirname(item.remotePath);
+        final parentPath = p.posix.dirname(enriched.remotePath);
         final automatic = _preMatcher.match(
-          originalName: item.remoteName,
+          originalName: enriched.remoteName,
           parentName: p.posix.basename(parentPath),
           grandParentName: p.posix.basename(p.posix.dirname(parentPath)),
-          expectedSeriesName: item.seriesName,
+          expectedSeriesName: enriched.seriesName,
         );
-        return item.withEpisodeMapping(
+        return enriched.withEpisodeMapping(
           seasonNumber: automatic?.seasonNumber,
           episodeNumber: automatic?.episodeNumber,
           keepOriginal: automatic == null,

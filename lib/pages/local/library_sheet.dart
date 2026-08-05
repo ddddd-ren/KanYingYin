@@ -6,6 +6,7 @@ import 'package:kanyingyin/features/library/application/media_library_query.dart
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
+import 'package:kanyingyin/pages/local/manual_episode_match_flow.dart';
 import 'package:kanyingyin/pages/local/local_series_detail_page.dart';
 import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
 import 'package:kanyingyin/pages/local/tmdb_scrape_options_sheet.dart';
@@ -495,6 +496,17 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
             await _scrapeSeries(ctx, series, force: v == 'rematch');
             return;
           }
+          if (v == 'matchEpisodes') {
+            await openLocalManualEpisodeMatch(
+              context: ctx,
+              controller: widget.controller,
+              originalName: series.title,
+              paths: series.episodes
+                  .map((item) => item.path)
+                  .toList(growable: false),
+            );
+            return;
+          }
           if (v == 'details') {
             await Navigator.of(ctx).push(MaterialPageRoute<void>(
               builder: (_) => LocalSeriesDetailPage(
@@ -520,6 +532,10 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
           ),
           const PopupMenuItem(value: 'scrape', child: Text('刮削信息')),
           const PopupMenuItem(value: 'rematch', child: Text('重新匹配')),
+          const PopupMenuItem(
+            value: 'matchEpisodes',
+            child: Text('匹配剧集'),
+          ),
           const PopupMenuItem(value: 'editTitle', child: Text('修改剧名')),
         ],
       ),

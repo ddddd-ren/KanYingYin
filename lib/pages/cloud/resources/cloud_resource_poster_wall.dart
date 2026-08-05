@@ -29,6 +29,7 @@ class CloudResourcePosterWall extends StatelessWidget {
     required this.onScrape,
     required this.onRematch,
     this.onManualMatch,
+    this.onMatchEpisodes,
     this.onDetails,
     this.onHide,
   });
@@ -45,6 +46,7 @@ class CloudResourcePosterWall extends StatelessWidget {
   final CloudResourceGroupAction onScrape;
   final CloudResourceGroupAction onRematch;
   final CloudResourceGroupAction? onManualMatch;
+  final CloudResourceGroupAction? onMatchEpisodes;
   final CloudResourceGroupAction? onDetails;
   final CloudResourceGroupAction? onHide;
 
@@ -173,6 +175,9 @@ class CloudResourcePosterWall extends StatelessWidget {
             case _ResourceAction.manualMatch:
               onManualMatch?.call(group);
               return;
+            case _ResourceAction.matchEpisodes:
+              onMatchEpisodes?.call(group);
+              return;
             case _ResourceAction.details:
               onDetails?.call(group);
               return;
@@ -212,6 +217,11 @@ class CloudResourcePosterWall extends StatelessWidget {
             const PopupMenuItem(
               value: _ResourceAction.manualMatch,
               child: Text('手动确认匹配'),
+            ),
+          if (onMatchEpisodes != null)
+            const PopupMenuItem(
+              value: _ResourceAction.matchEpisodes,
+              child: Text('匹配剧集'),
             ),
           const PopupMenuItem(
             value: _ResourceAction.details,
@@ -351,6 +361,7 @@ enum _ResourceAction {
   scrape,
   rematch,
   manualMatch,
+  matchEpisodes,
   details,
   hide,
 }

@@ -3,6 +3,7 @@ import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/features/episode_matching/application/cloud_episode_match_service.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
@@ -21,6 +22,7 @@ import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_page.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_media_tag_repository.dart';
+import 'package:kanyingyin/repositories/cloud_episode_match_rule_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
@@ -32,6 +34,9 @@ import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_client_capabilities.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
 CloudResourceMediaGroup _seasonMediaGroup() {
@@ -295,6 +300,108 @@ Future<void> _openCloudMoreActions(WidgetTester tester) async {
 }
 
 void main() {
+  test('网盘控制器加载完整季度并保存逐视频匹配', () async {
+    final credentials = MemoryCloudCredentialStore();
+    final sourceRepository = CloudSourceRepository(
+      storage: MemoryCloudSourceStorage(),
+      credentialStore: credentials,
+    );
+    await sourceRepository.save(_quarkSource);
+    final indexRepository = CloudMediaIndexRepository(
+      storage: MemoryCloudMediaIndexStorage(),
+    );
+    const video = CloudFileEntry(
+      id: 'episode',
+      remotePath: '/影视/作品/第三季/Show.S03E01.mkv',
+      name: 'Show.S03E01.mkv',
+      size: 200,
+      modifiedAt: null,
+      isDirectory: false,
+    );
+    await indexRepository.replaceSource(
+      _quarkSource.id,
+      const <CloudMediaIndexItem>[
+        CloudMediaIndexItem(
+          sourceId: 'quark-source',
+          remoteId: 'episode',
+          remotePath: '/影视/作品/第三季/Show.S03E01.mkv',
+          name: 'Show.S03E01.mkv',
+          size: 200,
+          modifiedAt: null,
+          seriesName: 'Show',
+          seasonNumber: 3,
+          episodeNumber: 1,
+          mediaType: CloudMediaType.episode,
+        ),
+      ],
+      const <String, String>{},
+      const <String, List<CloudFileEntry>>{},
+      const <String>['/影视'],
+    );
+    final ruleRepository = CloudEpisodeMatchRuleRepository(
+      storage: MemoryCloudEpisodeMatchRuleStorage(),
+    );
+    final episodeService = CloudEpisodeMatchService(
+      ruleRepository: ruleRepository,
+      indexRepository: indexRepository,
+    );
+    final tmdbClient = _ManualEpisodeTmdbClient();
+    final tmdbCoordinator = _ManualTmdbCoordinator();
+    final controller = CloudResourcesController(
+      repository: sourceRepository,
+      credentialStore: credentials,
+      mediaIndexRepository: indexRepository,
+      tmdbCoordinator: tmdbCoordinator,
+      episodeMatchService: episodeService,
+      tmdbApiKeyProvider: TmdbApiKeyProvider(userKeyReader: () => 'key'),
+      tmdbClientContextRegistry: TmdbClientContextRegistry(
+        clientFactory: (_) => tmdbClient,
+      ),
+      minRecognizedVideoSizeBytesProvider: () => 0,
+    );
+    await controller.reloadSourcesAndSnapshot(
+      preferredSourceId: _quarkSource.id,
+    );
+    final group = CloudResourceMediaGroup(
+      stableKey: 'manual-season-3',
+      workKey: 'manual-season-3',
+      displayName: 'Show 第 3 季',
+      seriesName: 'Show',
+      isSeries: true,
+      seasonNumber: 3,
+      videos: const <CloudFileEntry>[video],
+      seasons: const <CloudResourceSeasonGroup>[],
+      record: null,
+      isWorkScoped: true,
+    );
+
+    final matchController =
+        await controller.manualEpisodeMatchControllerForGroup(
+      group: group,
+      selectedSeries: _manualEpisodeMetadata(summaryOnly: true),
+    );
+    await matchController.initialize();
+    matchController.assignEpisode('episode', 2);
+    final outcome = await controller.saveManualEpisodeAssignments(
+      group: group,
+      assignments: matchController.assignments,
+      metadata: matchController.metadata,
+      selectedSeasonNumber: 3,
+    );
+
+    expect(tmdbClient.detailsCalls, 1);
+    expect(tmdbClient.seasonCalls, <int>[3]);
+    expect(outcome.indexSynced, isTrue);
+    expect(tmdbCoordinator.selectedCandidate?.seasons.single.episodes,
+        hasLength(2));
+    final updated = controller.detailsFor(video);
+    expect(updated.episodeNumber, 2);
+    expect(updated.tmdbTitle, '异世界悠闲农家');
+    expect(updated.displayName, '异世界悠闲农家 S03E02.mkv');
+    expect(await ruleRepository.getBySource(_quarkSource.id), hasLength(1));
+    controller.dispose();
+  });
+
   test('网盘播放失败诊断不包含异常中的远程地址', () {
     const source = CloudSource(
       id: 'baidu-source',
@@ -595,6 +702,37 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(hiddenGroup, same(group));
+  });
+
+  testWidgets('网盘资源菜单把匹配剧集回调给当前卡片', (tester) async {
+    final group = _standaloneMediaGroup();
+    CloudResourceMediaGroup? matchedGroup;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CloudResourcePosterWall(
+            sourceId: 'source',
+            collection: CloudResourceCollection(
+              groups: <CloudResourceMediaGroup>[group],
+            ),
+            scrapingKeys: const <String>{},
+            onOpenGroup: (_) {},
+            onEditTitle: (_) {},
+            onScrape: (_) {},
+            onRematch: (_) {},
+            onMatchEpisodes: (selected) => matchedGroup = selected,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('资源操作'));
+    await tester.pumpAndSettle();
+    expect(find.text('匹配剧集'), findsOneWidget);
+    await tester.tap(find.text('匹配剧集'));
+    await tester.pumpAndSettle();
+
+    expect(matchedGroup, same(group));
   });
 
   testWidgets('海报卡多版本隐藏操作可以只隐藏 B 版本', (tester) async {
@@ -2445,6 +2583,91 @@ final _candidate = TmdbMetadata(
   matchedAt: DateTime.utc(2026, 7, 19),
   matchConfidence: 1,
 );
+
+TmdbMetadata _manualEpisodeMetadata({required bool summaryOnly}) {
+  return TmdbMetadata(
+    id: 196285,
+    mediaType: TmdbMediaType.tv,
+    title: '异世界悠闲农家',
+    language: 'zh-CN',
+    matchedAt: DateTime.utc(2026, 8, 6),
+    matchConfidence: 1,
+    seasons: <TmdbSeasonMetadata>[
+      TmdbSeasonMetadata(
+        id: 3,
+        seasonNumber: 3,
+        name: '第 3 季',
+        episodeCount: 2,
+        episodes: summaryOnly
+            ? const <TmdbEpisodeMetadata>[]
+            : const <TmdbEpisodeMetadata>[
+                TmdbEpisodeMetadata(id: 31, episodeNumber: 1, name: '万能农具'),
+                TmdbEpisodeMetadata(
+                  id: 32,
+                  episodeNumber: 2,
+                  name: '第一位村民',
+                ),
+              ],
+      ),
+    ],
+  );
+}
+
+final class _ManualEpisodeTmdbClient
+    implements ITmdbClient, ITmdbClientCapabilities {
+  int detailsCalls = 0;
+  final List<int> seasonCalls = <int>[];
+
+  @override
+  Future<TmdbMetadata> details(
+    int id,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) async {
+    detailsCalls++;
+    return _manualEpisodeMetadata(summaryOnly: true);
+  }
+
+  @override
+  Future<TmdbSeasonMetadata> seasonDetails(
+    int id,
+    int seasonNumber, {
+    String language = 'zh-CN',
+  }) async {
+    seasonCalls.add(seasonNumber);
+    return _manualEpisodeMetadata(summaryOnly: false).seasons.single;
+  }
+
+  @override
+  Future<List<TmdbMetadata>> search(
+    String query,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) async =>
+      <TmdbMetadata>[_manualEpisodeMetadata(summaryOnly: true)];
+
+  @override
+  Future<TmdbSearchPage> searchPage(
+    String query,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+    required int page,
+  }) async {
+    return TmdbSearchPage(
+      page: page,
+      totalPages: 1,
+      results: <TmdbMetadata>[_manualEpisodeMetadata(summaryOnly: true)],
+    );
+  }
+
+  @override
+  Future<List<String>> alternativeTitles(
+    int id,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) async =>
+      const <String>[];
+}
 
 class _PageCloudClient implements CloudDriveClient {
   const _PageCloudClient(this.entries, {this.entriesById});

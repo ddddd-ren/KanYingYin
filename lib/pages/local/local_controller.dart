@@ -6,6 +6,10 @@ import 'package:kanyingyin/features/library/application/local_library_preference
 import 'package:kanyingyin/features/library/application/local_library_source_coordinator.dart';
 import 'package:kanyingyin/features/library/application/local_library_tmdb_coordinator.dart';
 import 'package:kanyingyin/features/library/application/library_genre_backfill_service.dart';
+import 'package:kanyingyin/features/episode_matching/application/local_episode_match_service.dart';
+import 'package:kanyingyin/features/episode_matching/application/manual_episode_match_controller.dart';
+import 'package:kanyingyin/features/episode_matching/domain/manual_episode_match.dart';
+import 'package:kanyingyin/features/episode_matching/domain/manual_episode_pre_matcher.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/local_media_source.dart';
@@ -32,6 +36,7 @@ import 'package:kanyingyin/services/local_media_scanner.dart';
 import 'package:kanyingyin/services/tmdb/local_tmdb_scrape_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_client_capabilities.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_poster_policy.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scraper.dart';
@@ -1292,6 +1297,81 @@ abstract class _LocalController with Store {
       seriesName: seriesName,
       request: request,
     );
+  }
+
+  ManualEpisodeMatchController manualEpisodeMatchControllerForPaths({
+    required Iterable<String> paths,
+    required TmdbMetadata selectedSeries,
+  }) {
+    final apiKey = _tmdbApiKey;
+    if (apiKey.isEmpty) {
+      throw StateError('请先在设置中填写 TMDB API Key');
+    }
+    if (selectedSeries.mediaType != TmdbMediaType.tv) {
+      throw StateError('剧集匹配只支持 TMDB 电视剧');
+    }
+    final ids = paths.map(LocalMediaIndexItem.normalizePath).toSet();
+    final indexedById = <String, LocalMediaIndexItem>{
+      for (final item in _mediaIndexRepository.getAll()) item.id: item,
+      for (final item in localLibraryItems) item.id: item,
+    };
+    final selectedItems = indexedById.values
+        .where((item) => ids.contains(item.id))
+        .toList(growable: false);
+    if (selectedItems.length != ids.length) {
+      throw StateError('请先扫描媒体库，再进行剧集匹配');
+    }
+    const preMatcher = ManualEpisodePreMatcher();
+    final matchItems = selectedItems.map((item) {
+      final parentName = p.basename(item.parentPath);
+      final automatic = preMatcher.match(
+        originalName: item.name,
+        parentName: parentName,
+        grandParentName: p.basename(p.dirname(item.parentPath)),
+        expectedSeriesName: item.seriesName,
+      );
+      return ManualEpisodeMatchItem(
+        resourceId: item.id,
+        originalName: item.name,
+        parentName: parentName,
+        existingSeasonNumber: item.seasonNumber,
+        existingEpisodeNumber: item.episodeNumber,
+        automaticSeasonNumber: automatic?.seasonNumber,
+        automaticEpisodeNumber: automatic?.episodeNumber,
+        manualOverride: item.manualOverride,
+      );
+    }).toList(growable: false);
+    final client = _tmdbClientContextRegistry.contextFor(apiKey).client;
+    if (client is! ITmdbClientCapabilities) {
+      throw StateError('当前 TMDB 客户端不支持季度详情');
+    }
+    final capabilities = client as ITmdbClientCapabilities;
+    return ManualEpisodeMatchController(
+      selectedSeries: selectedSeries,
+      items: matchItems,
+      loadDetails: (id, mediaType, language) =>
+          client.details(id, mediaType, language: language),
+      loadSeason: (id, seasonNumber, language) => capabilities.seasonDetails(
+        id,
+        seasonNumber,
+        language: language,
+      ),
+    );
+  }
+
+  Future<void> saveManualEpisodeAssignments({
+    required Iterable<String> paths,
+    required List<ManualEpisodeAssignment> assignments,
+    required TmdbMetadata metadata,
+    required int selectedSeasonNumber,
+  }) async {
+    await LocalEpisodeMatchService(repository: _mediaIndexRepository).save(
+      resourceIds: paths.map(LocalMediaIndexItem.normalizePath),
+      assignments: assignments,
+      metadata: metadata,
+      selectedSeasonNumber: selectedSeasonNumber,
+    );
+    _reloadLocalLibraryIndexSafe();
   }
 
   String? _tmdbImageUrl(String? path) {

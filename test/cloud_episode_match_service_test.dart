@@ -9,6 +9,43 @@ import 'package:kanyingyin/repositories/cloud_episode_match_rule_repository.dart
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 
 void main() {
+  test('加载匹配资源时同时恢复手动规则和严格自动识别结果', () async {
+    final indexRepository =
+        CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());
+    final ruleRepository = CloudEpisodeMatchRuleRepository(
+      storage: MemoryCloudEpisodeMatchRuleStorage(),
+    );
+    await _seedIndex(indexRepository);
+    final indexed = await indexRepository.getBySource('quark-1');
+    final second = indexed.firstWhere((item) => item.remoteId == 'video-2');
+    await ruleRepository.upsert(
+      CloudEpisodeMatchRule.keepOriginal(
+        sourceId: second.sourceId,
+        remoteId: second.remoteId,
+        remotePath: second.remotePath,
+        tmdbId: 196285,
+        updatedAt: DateTime.utc(2026, 8, 6),
+      ),
+    );
+    final service = CloudEpisodeMatchService(
+      ruleRepository: ruleRepository,
+      indexRepository: indexRepository,
+    );
+
+    final items = await service.loadMatchItems(
+      sourceId: 'quark-1',
+      resourceIds: const <String>['video-1', 'video-2'],
+      expectedSeriesName: 'Show',
+      selectedSeasonNumber: 1,
+    );
+
+    expect(items, hasLength(2));
+    expect(items.first.automaticSeasonNumber, 1);
+    expect(items.first.automaticEpisodeNumber, 1);
+    expect(items.first.manualOverride, isFalse);
+    expect(items.last.manualOverride, isTrue);
+  });
+
   test('保存规则后立即批量刷新当前网盘索引', () async {
     final indexRepository =
         CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());
@@ -46,6 +83,8 @@ void main() {
     };
     expect(updated['video-1']!.episodeNumber, 2);
     expect(updated['video-1']!.tmdbId, 196285);
+    expect(updated['video-1']!.tmdbTitle, '异世界悠闲农家');
+    expect(updated['video-1']!.displayName, '异世界悠闲农家 S01E02.mkv');
     expect(updated['video-2']!.seasonNumber, isNull);
     expect(updated['video-2']!.episodeNumber, isNull);
     expect(await ruleRepository.getBySource('quark-1'), hasLength(2));

@@ -3,9 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/features/cloud/application/cloud_resources_toolbar.dart';
+import 'package:kanyingyin/features/episode_matching/application/cloud_episode_match_service.dart';
+import 'package:kanyingyin/features/episode_matching/presentation/manual_episode_match_dialog.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_episode_sheet.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_hidden_video_dialogs.dart';
@@ -20,6 +23,8 @@ import 'package:kanyingyin/repositories/cloud_media_tag_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/utils/logger.dart';
 
 String cloudPlaybackFailureDiagnostic(CloudSource source, Object error) =>
@@ -218,6 +223,91 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
 
   Future<void> _manualMatchEntry(CloudResourceMediaGroup group) async {
     await _openTmdbDialog(group, rematch: true);
+  }
+
+  Future<void> _matchEpisodes(CloudResourceMediaGroup group) async {
+    try {
+      final entry = group.anchor;
+      final workGroup = _isWorkGroup(group);
+      final draft = workGroup
+          ? _controller.tmdbDraftForGroup(group)
+          : _controller.tmdbDraftFor(entry);
+      final selected = await showDialog<TmdbMetadata>(
+        context: context,
+        builder: (_) => TmdbMatchDialog<TmdbMetadata>(
+          title: '选择 TMDB 电视剧',
+          safetyText: '仅更新看影音中的资料，不会修改网盘文件',
+          draft: TmdbMatchDraft(
+            originalName: draft.originalName,
+            searchTitle: draft.searchTitle,
+            mediaTypeMode: TmdbMediaTypeMode.tv,
+            year: draft.year,
+            seasonNumber: draft.seasonNumber,
+            episodeNumber: draft.episodeNumber,
+          ),
+          initialOptions: _controller.tmdbScrapeOptions.copyWith(
+            mediaTypeMode: TmdbMediaTypeMode.tv,
+          ),
+          onSearch: (request) async {
+            final prepared = CloudResourceTmdbSearchRequest(
+              queryTitle: request.queryTitle,
+              queryYear: request.queryYear,
+              mediaTypeMode: TmdbMediaTypeMode.tv,
+              options: request.options.copyWith(
+                mediaTypeMode: TmdbMediaTypeMode.tv,
+              ),
+            );
+            if (workGroup) {
+              return TmdbPreparedSearchOutcome(
+                ranked: await _controller.searchWorkTmdb(group, prepared),
+              );
+            }
+            return TmdbPreparedSearchOutcome(
+              ranked: (await _controller.searchTmdb(entry, prepared)).ranked,
+            );
+          },
+          onApply: (candidate, _) async {
+            if (candidate.metadata.mediaType != TmdbMediaType.tv) {
+              throw StateError('请选择电视剧作品');
+            }
+            return candidate.metadata;
+          },
+        ),
+      );
+      if (!mounted || selected == null) return;
+
+      final matchController =
+          await _controller.manualEpisodeMatchControllerForGroup(
+        group: group,
+        selectedSeries: selected,
+      );
+      if (!mounted) return;
+      CloudEpisodeMatchSaveOutcome? saveOutcome;
+      var saved = false;
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => ManualEpisodeMatchDialog<void>(
+          controller: matchController,
+          onSave: (metadata, seasonNumber, assignments) async {
+            saveOutcome = await _controller.saveManualEpisodeAssignments(
+              group: group,
+              assignments: assignments,
+              metadata: metadata,
+              selectedSeasonNumber: seasonNumber,
+            );
+            saved = true;
+          },
+        ),
+      );
+      if (!mounted || !saved) return;
+      _showMessage(saveOutcome?.indexSynced == false
+          ? '剧集匹配规则已保存，将在下次扫描时生效'
+          : '剧集匹配已保存');
+    } on Object catch (error) {
+      if (!mounted) return;
+      _showMessage(_manualEpisodeErrorMessage(error));
+    }
   }
 
   Future<void> _openTmdbDialog(
@@ -625,6 +715,14 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       return '请先在设置中填写 TMDB API Key';
     }
     return 'TMDB 刮削失败，本地浏览和播放不受影响';
+  }
+
+  static String _manualEpisodeErrorMessage(Object error) {
+    final text = error
+        .toString()
+        .replaceFirst(RegExp(r'^\w+(?:Error|Exception):\s*'), '')
+        .trim();
+    return text.isEmpty ? '剧集匹配失败，请重试' : text;
   }
 
   Future<void> _confirmRemoveSource() async {
@@ -1138,6 +1236,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
               onScrape: _scrapeEntry,
               onRematch: _rematchEntry,
               onManualMatch: _manualMatchEntry,
+              onMatchEpisodes: _matchEpisodes,
               onDetails: _showMediaDetails,
               onHide: _hideVideos,
             ),

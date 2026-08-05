@@ -5,8 +5,52 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_client_capabilities.dart';
 
 void main() {
+  test('分页搜索保留页码、总页数和候选热度字段', () async {
+    final adapter = _CapabilitiesAdapter();
+    final dio = Dio()..httpClientAdapter = adapter;
+    final client = TmdbClient(apiKey: 'key', dio: dio);
+
+    final page = await client.searchPage(
+      'Avatar',
+      TmdbMediaType.movie,
+      page: 2,
+    );
+
+    expect(page.page, 2);
+    expect(page.totalPages, 3);
+    expect(page.results.single.title, 'Avatar');
+    expect(page.results.single.popularity, 12.5);
+    expect(page.results.single.voteCount, 321);
+    expect(adapter.requests.single.queryParameters['page'], 2);
+  });
+
+  test('替代标题兼容电视剧响应结构并去重', () async {
+    final adapter = _CapabilitiesAdapter();
+    final dio = Dio()..httpClientAdapter = adapter;
+    final client = TmdbClient(apiKey: 'key', dio: dio);
+
+    final aliases = await client.alternativeTitles(42, TmdbMediaType.tv);
+
+    expect(aliases, <String>['The Three-Body Problem', '三体']);
+  });
+
+  test('季度详情合并中文集名和英文补充字段', () async {
+    final adapter = _CapabilitiesAdapter();
+    final dio = Dio()..httpClientAdapter = adapter;
+    final client = TmdbClient(apiKey: 'key', dio: dio);
+
+    final season = await client.seasonDetails(42, 1);
+
+    expect(season.seasonNumber, 1);
+    expect(season.episodes.single.name, '第一个故事');
+    expect(season.episodes.single.episodeNumber, 1);
+    expect(season.episodes.single.overview, 'English episode overview');
+    expect(season.episodes.single.stillUrl, '/episode-1-en.jpg');
+  });
+
   test('v3 API Key 使用 api_key 查询参数', () async {
     final adapter = _RecordingAdapter();
     final dio = Dio()..httpClientAdapter = adapter;
@@ -474,6 +518,100 @@ class _SeasonDetailsAdapter implements HttpClientAdapter {
       200,
       headers: {
         Headers.contentTypeHeader: ['application/json'],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+class _CapabilitiesAdapter implements HttpClientAdapter {
+  final List<RequestOptions> requests = <RequestOptions>[];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    requests.add(options);
+    final path = options.uri.path;
+    String body;
+    if (path.endsWith('/search/movie')) {
+      body = '''
+        {
+          "page": 2,
+          "total_pages": 3,
+          "results": [
+            {
+              "id": 1,
+              "title": "Avatar",
+              "popularity": 12.5,
+              "vote_count": 321
+            }
+          ]
+        }
+      ''';
+    } else if (path.endsWith('/tv/42/alternative_titles')) {
+      body = '''
+        {
+          "results": [
+            {"title": "The Three-Body Problem"},
+            {"title": "三体"},
+            {"title": "The Three-Body Problem"},
+            {"title": ""}
+          ]
+        }
+      ''';
+    } else if (path.endsWith('/tv/42/season/1')) {
+      final language = options.queryParameters['language'];
+      body = language == 'en-US'
+          ? '''
+            {
+              "id": 100,
+              "season_number": 1,
+              "name": "Season 1",
+              "episode_count": 1,
+              "overview": "English season overview",
+              "episodes": [
+                {
+                  "id": 101,
+                  "episode_number": 1,
+                  "name": "The First Story",
+                  "overview": "English episode overview",
+                  "air_date": "2023-01-15",
+                  "still_path": "/episode-1-en.jpg",
+                  "vote_average": 8.5
+                }
+              ]
+            }
+          '''
+          : '''
+            {
+              "id": 100,
+              "season_number": 1,
+              "name": "第 1 季",
+              "episode_count": 1,
+              "episodes": [
+                {
+                  "id": 101,
+                  "episode_number": 1,
+                  "name": "第一个故事",
+                  "overview": "",
+                  "air_date": "2023-01-15"
+                }
+              ]
+            }
+          ''';
+    } else {
+      throw StateError('未处理的 TMDB 测试请求：$path');
+    }
+    return ResponseBody.fromString(
+      body,
+      200,
+      headers: <String, List<String>>{
+        Headers.contentTypeHeader: <String>['application/json'],
       },
     );
   }

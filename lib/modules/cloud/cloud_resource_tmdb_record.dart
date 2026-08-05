@@ -35,10 +35,13 @@ class CloudResourceTmdbRecord {
     this.tmdbId,
     this.mediaType,
     this.title,
+    this.aliases = const <String>[],
     this.genres = const <String>[],
     this.originalTitle,
     this.overview,
     this.rating,
+    this.popularity,
+    this.voteCount,
     this.releaseDate,
     this.posterUrl,
     this.backdropUrl,
@@ -73,10 +76,13 @@ class CloudResourceTmdbRecord {
       tmdbId: metadata.id,
       mediaType: metadata.mediaType,
       title: metadata.title,
+      aliases: metadata.aliases,
       genres: metadata.genres,
       originalTitle: metadata.originalTitle,
       overview: metadata.overview,
       rating: metadata.rating,
+      popularity: metadata.popularity,
+      voteCount: metadata.voteCount,
       releaseDate: metadata.releaseDate,
       posterUrl: metadata.posterUrl,
       backdropUrl: metadata.backdropUrl,
@@ -180,10 +186,13 @@ class CloudResourceTmdbRecord {
               TmdbMediaType.tv,
             ),
       title: _asString(json['title']),
+      aliases: _asStringList(json['aliases']),
       genres: _asStringList(json['genres']),
       originalTitle: _asString(json['originalTitle']),
       overview: _asString(json['overview']),
       rating: _asDouble(json['rating']),
+      popularity: _asDouble(json['popularity']),
+      voteCount: _asNullableInt(json['voteCount']),
       releaseDate: _asString(json['releaseDate']),
       posterUrl: _asString(json['posterUrl']),
       backdropUrl: _asString(json['backdropUrl']),
@@ -218,10 +227,13 @@ class CloudResourceTmdbRecord {
   final int? tmdbId;
   final TmdbMediaType? mediaType;
   final String? title;
+  final List<String> aliases;
   final List<String> genres;
   final String? originalTitle;
   final String? overview;
   final double? rating;
+  final double? popularity;
+  final int? voteCount;
   final String? releaseDate;
   final String? posterUrl;
   final String? backdropUrl;
@@ -276,10 +288,13 @@ class CloudResourceTmdbRecord {
       tmdbId: tmdbId,
       mediaType: mediaType,
       title: title,
+      aliases: aliases,
       genres: genres,
       originalTitle: originalTitle,
       overview: overview,
       rating: rating,
+      popularity: popularity,
+      voteCount: voteCount,
       releaseDate: releaseDate,
       posterUrl: posterUrl,
       backdropUrl: backdropUrl,
@@ -309,10 +324,13 @@ class CloudResourceTmdbRecord {
       tmdbId: tmdbId,
       mediaType: mediaType,
       title: title,
+      aliases: aliases,
       genres: genres,
       originalTitle: originalTitle,
       overview: overview,
       rating: rating,
+      popularity: popularity,
+      voteCount: voteCount,
       releaseDate: releaseDate,
       posterUrl: posterUrl,
       backdropUrl: backdropUrl,
@@ -336,10 +354,13 @@ class CloudResourceTmdbRecord {
       if (tmdbId != null) 'tmdbId': tmdbId,
       if (mediaType != null) 'mediaType': mediaType!.name,
       if (title != null) 'title': title,
+      if (aliases.isNotEmpty) 'aliases': aliases,
       if (genres.isNotEmpty) 'genres': genres,
       if (originalTitle != null) 'originalTitle': originalTitle,
       if (overview != null) 'overview': overview,
       if (rating != null) 'rating': rating,
+      if (popularity != null) 'popularity': popularity,
+      if (voteCount != null) 'voteCount': voteCount,
       if (releaseDate != null) 'releaseDate': releaseDate,
       if (posterUrl != null) 'posterUrl': posterUrl,
       if (backdropUrl != null) 'backdropUrl': backdropUrl,
@@ -367,10 +388,13 @@ class CloudResourceTmdbRecord {
             tmdbId == other.tmdbId &&
             mediaType == other.mediaType &&
             title == other.title &&
+            _stringListsEqual(aliases, other.aliases) &&
             _stringListsEqual(genres, other.genres) &&
             originalTitle == other.originalTitle &&
             overview == other.overview &&
             rating == other.rating &&
+            popularity == other.popularity &&
+            voteCount == other.voteCount &&
             releaseDate == other.releaseDate &&
             posterUrl == other.posterUrl &&
             backdropUrl == other.backdropUrl &&
@@ -393,10 +417,13 @@ class CloudResourceTmdbRecord {
         tmdbId,
         mediaType,
         title,
+        Object.hashAll(aliases),
         Object.hashAll(genres),
         originalTitle,
         overview,
         rating,
+        popularity,
+        voteCount,
         releaseDate,
         posterUrl,
         backdropUrl,
@@ -419,10 +446,13 @@ class CloudResourceTmdbRecord {
       tmdbId: tmdbId,
       mediaType: mediaType,
       title: title,
+      aliases: aliases,
       genres: genres,
       originalTitle: originalTitle,
       overview: overview,
       rating: rating,
+      popularity: popularity,
+      voteCount: voteCount,
       releaseDate: releaseDate,
       posterUrl: posterUrl,
       backdropUrl: backdropUrl,

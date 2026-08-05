@@ -1,4 +1,5 @@
 import 'package:kanyingyin/modules/local/local_file_item.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_episode_title_resolver.dart';
 import 'package:path/path.dart' as p;
 
 class LocalSeriesGrouper {
@@ -270,7 +271,18 @@ class LocalVideoGroup {
   }
 
   String _playbackTitle(LocalFileItem episode) {
-    return p.basenameWithoutExtension(episode.name);
+    final original = p.basenameWithoutExtension(episode.name);
+    final info = episode.episodeInfo;
+    if (info == null) return original;
+    final override = episode.seriesTitleOverride?.trim();
+    return const TmdbEpisodeTitleResolver().resolve(
+      seriesTitle:
+          override != null && override.isNotEmpty ? override : info.seriesName,
+      seasonNumber: info.seasonNumber,
+      episodeNumber: info.episodeNumber,
+      episodeName: info.episodeTitle,
+      originalFileName: original,
+    );
   }
 
   static bool _isGeneratedThumbnail(String path) {

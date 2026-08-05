@@ -5,6 +5,7 @@ import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/repositories/cloud_episode_match_rule_repository.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_episode_title_resolver.dart';
 import 'package:path/path.dart' as p;
 
 final class CloudEpisodeMatchSaveOutcome {
@@ -210,11 +211,14 @@ final class CloudEpisodeMatchService {
     );
     switch (assignment.mode) {
       case ManualEpisodeAssignmentMode.mapped:
-        return enriched.withEpisodeMapping(
-          seasonNumber: assignment.seasonNumber,
-          episodeNumber: assignment.episodeNumber,
-          keepOriginal: false,
-          tmdbId: metadata.id,
+        return _withEpisodeTitle(
+          enriched.withEpisodeMapping(
+            seasonNumber: assignment.seasonNumber,
+            episodeNumber: assignment.episodeNumber,
+            keepOriginal: false,
+            tmdbId: metadata.id,
+          ),
+          metadata,
         );
       case ManualEpisodeAssignmentMode.keepOriginal:
         return enriched.withEpisodeMapping(
@@ -231,13 +235,44 @@ final class CloudEpisodeMatchService {
           grandParentName: p.posix.basename(p.posix.dirname(parentPath)),
           expectedSeriesName: enriched.seriesName,
         );
-        return enriched.withEpisodeMapping(
-          seasonNumber: automatic?.seasonNumber,
-          episodeNumber: automatic?.episodeNumber,
-          keepOriginal: automatic == null,
-          tmdbId: metadata.id,
+        return _withEpisodeTitle(
+          enriched.withEpisodeMapping(
+            seasonNumber: automatic?.seasonNumber,
+            episodeNumber: automatic?.episodeNumber,
+            keepOriginal: automatic == null,
+            tmdbId: metadata.id,
+          ),
+          metadata,
         );
     }
+  }
+
+  CloudMediaIndexItem _withEpisodeTitle(
+    CloudMediaIndexItem item,
+    TmdbMetadata metadata,
+  ) {
+    final seasonNumber = item.seasonNumber;
+    final episodeNumber = item.episodeNumber;
+    if (seasonNumber == null || episodeNumber == null) return item;
+    String? episodeName;
+    for (final season in metadata.seasons) {
+      if (season.seasonNumber != seasonNumber) continue;
+      for (final episode in season.episodes) {
+        if (episode.episodeNumber == episodeNumber) {
+          episodeName = episode.name;
+          break;
+        }
+      }
+      break;
+    }
+    final displayName = const TmdbEpisodeTitleResolver().resolveWithExtension(
+      seriesTitle: metadata.title,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+      episodeName: episodeName,
+      originalFileName: item.remoteName,
+    );
+    return item.copyWith(displayName: displayName);
   }
 
   String _ruleKey(CloudMediaIndexItem item) {

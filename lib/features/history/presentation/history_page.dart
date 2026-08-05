@@ -11,6 +11,7 @@ import 'package:kanyingyin/pages/local/local_controller.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
+import 'package:kanyingyin/services/local_playback_request_builder.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -126,13 +127,17 @@ class _HistoryPageState extends State<HistoryPage> {
         .map((episode) => <String, String>{
               'path': episode.path,
               'name': episode.name,
-              'title': episode.name,
+              'title': episode.displayTitle,
             })
+        .toList(growable: false);
+    final playbackEntries = series.episodes
+        .map(LocalPlaybackEntry.fromIndexItem)
         .toList(growable: false);
     await _video.openFilePlayback(
       filePath: entry.mediaPath,
       seriesTitle: series.displayTitle,
       directoryFiles: directoryFiles,
+      playbackEntries: playbackEntries,
       playlistAlreadyIsolated: true,
     );
   }
@@ -171,7 +176,7 @@ class _HistoryPageState extends State<HistoryPage> {
         remotePath: candidate.remotePath,
         stableId:
             '${candidate.sourceId}:${candidate.remoteId}:${candidate.remotePath}',
-        title: candidate.remoteName,
+        title: candidate.displayName,
         subtitleRemoteId: subtitle?.id,
         subtitleRemotePath: subtitle?.path,
         posterUrl: candidate.tmdbPosterUrl,

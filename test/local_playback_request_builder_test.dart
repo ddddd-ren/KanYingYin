@@ -1,9 +1,66 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/modules/local/local_media_index_item.dart';
+import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/local_playback_request_builder.dart';
 
 void main() {
+  test('索引中的 TMDB 集名进入本地播放列表标识', () async {
+    final item = LocalMediaIndexItem(
+      path: r'D:\Anime\Show\Show.S01E01.mkv',
+      name: 'Show.S01E01.mkv',
+      parentPath: r'D:\Anime\Show',
+      sourcePath: r'D:\Anime',
+      size: 100,
+      modified: DateTime.utc(2026, 8, 6),
+      seriesName: 'Show',
+      seasonNumber: 1,
+      episodeNumber: 1,
+      indexedAt: DateTime.utc(2026, 8, 6),
+      tmdb: TmdbMetadata(
+        id: 196285,
+        mediaType: TmdbMediaType.tv,
+        title: '异世界悠闲农家',
+        language: 'zh-CN',
+        matchedAt: DateTime.utc(2026, 8, 6),
+        matchConfidence: 1,
+        seasons: const <TmdbSeasonMetadata>[
+          TmdbSeasonMetadata(
+            id: 1,
+            seasonNumber: 1,
+            name: '第 1 季',
+            episodeCount: 1,
+            episodes: <TmdbEpisodeMetadata>[
+              TmdbEpisodeMetadata(id: 11, episodeNumber: 1, name: '万能农具'),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    final request = await LocalPlaybackRequestBuilder().build(
+      filePath: item.path,
+      fileName: '异世界悠闲农家',
+      playbackEntries: <LocalPlaybackEntry>[
+        LocalPlaybackEntry.fromIndexItem(item),
+      ],
+      playlistAlreadyIsolated: true,
+      autoLoadSubtitle: false,
+    );
+
+    expect(request.road.identifier, <String>[
+      '异世界悠闲农家 S01E01 万能农具',
+    ]);
+  });
+
+  test('本地媒体库页面把索引最终标题传给播放请求', () {
+    final source = File('lib/pages/local/local_page.dart').readAsStringSync();
+
+    expect(source, contains('return item.displayTitle;'));
+    expect(source, contains("'title': indexed.displayTitle"));
+  });
+
   test('LocalPlaybackRequestBuilder builds playlist request', () async {
     final request = await LocalPlaybackRequestBuilder().build(
       filePath: r'D:\Anime\Show\02.mkv',

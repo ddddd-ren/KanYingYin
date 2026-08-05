@@ -79,6 +79,19 @@ class _LocalPageState extends State<LocalPage>
 
   Future<void> _playGroup(LocalVideoGroup group) async {
     final firstEpisode = group.firstEpisode;
+    final indexedItemsByPath = <String, LocalMediaIndexItem>{
+      for (final item in localController.localLibraryItems)
+        LocalMediaIndexItem.normalizePath(item.path): item,
+    };
+    final directoryFiles = group.playlistFilesForPlayback.map((file) {
+      final indexed =
+          indexedItemsByPath[LocalMediaIndexItem.normalizePath(file['path']!)];
+      if (indexed == null) return file;
+      return <String, String>{
+        ...file,
+        'title': indexed.displayTitle,
+      };
+    }).toList(growable: false);
     AppLogger().i(
       'LocalPage: playing local series: ${group.title} '
       '(${group.episodeCount} episodes)',
@@ -86,7 +99,7 @@ class _LocalPageState extends State<LocalPage>
     await localVideoController.openFilePlayback(
       filePath: firstEpisode.path,
       seriesTitle: group.title,
-      directoryFiles: group.playlistFilesForPlayback,
+      directoryFiles: directoryFiles,
       playlistAlreadyIsolated: true,
       autoLoadSubtitle: Modular.get<TypedSettings>().getTyped<bool>(
         SettingBoxKey.localAutoLoadSubtitle,
@@ -108,15 +121,7 @@ class _LocalPageState extends State<LocalPage>
             })
         .toList(growable: false);
     final playbackEntries = series.episodes
-        .map(
-          (item) => LocalPlaybackEntry(
-            location: item.location,
-            parentLocation: item.parentLocation,
-            name: item.name,
-            title: _playbackTitle(item),
-            subtitlePath: item.subtitlePath,
-          ),
-        )
+        .map(LocalPlaybackEntry.fromIndexItem)
         .toList(growable: false);
     AppLogger().i(
         'LocalPage: playing library episode: ${episode.path} (${directoryFiles.length} videos in series)');
@@ -174,7 +179,7 @@ class _LocalPageState extends State<LocalPage>
   }
 
   String _playbackTitle(LocalMediaIndexItem item) {
-    return p.basenameWithoutExtension(item.name);
+    return item.displayTitle;
   }
 
   Future<void> _pickDirectory() async {

@@ -397,7 +397,7 @@ void main() {
     final updated = controller.detailsFor(video);
     expect(updated.episodeNumber, 2);
     expect(updated.tmdbTitle, '异世界悠闲农家');
-    expect(updated.displayName, '异世界悠闲农家 S03E02.mkv');
+    expect(updated.displayName, '异世界悠闲农家 S03E02 第一位村民.mkv');
     expect(await ruleRepository.getBySource(_quarkSource.id), hasLength(1));
     controller.dispose();
   });
@@ -1432,6 +1432,34 @@ void main() {
       <String>['first', 'second'],
     );
     expect(request.selectedStableId, request.targets.last.stableId);
+  });
+
+  test('网盘播放请求保留已经解析的 TMDB 集名', () {
+    const video = CloudFileEntry(
+      id: 'episode-1',
+      remotePath: '/Show/Show.S01E01.mkv',
+      name: '异世界悠闲农家 S01E01 万能农具.mkv',
+      size: 200,
+      modifiedAt: null,
+      isDirectory: false,
+    );
+    final group = CloudResourceMediaGroup(
+      stableKey: 'show-season-1',
+      seriesName: '异世界悠闲农家',
+      isSeries: true,
+      videos: const <CloudFileEntry>[video],
+      seasons: const <CloudResourceSeasonGroup>[],
+      record: null,
+    );
+
+    final request = buildCloudResourcePlaybackRequest(
+      sourceId: 'source',
+      group: group,
+      selected: video,
+      subtitleFor: (_) => null,
+    );
+
+    expect(request.targets.single.title, '异世界悠闲农家 S01E01 万能农具.mkv');
   });
 
   testWidgets('移除来源先提示不删除远程文件', (tester) async {

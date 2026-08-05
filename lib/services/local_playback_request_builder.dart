@@ -318,6 +318,7 @@ class LocalPlaybackEntry {
       location: item.location,
       parentLocation: item.parentLocation,
       name: item.name,
+      title: item.displayTitle,
       subtitlePath: item.subtitlePath,
     );
   }

@@ -131,6 +131,102 @@ void main() {
       findsOneWidget,
     );
   });
+
+  for (final category in MediaLibraryCategory.values) {
+    testWidgets('${category.label}入口的每张海报都显示媒体操作菜单', (tester) async {
+      final mediaType = category == MediaLibraryCategory.movie
+          ? TmdbMediaType.movie
+          : TmdbMediaType.tv;
+      final genres = category == MediaLibraryCategory.anime
+          ? const <String>['动画']
+          : const <String>[];
+      final item = _series(
+        key: 'local|${category.name}',
+        title: '${category.label}测试资源',
+        sourceKind: MediaSourceKind.local,
+        sourceId: 'local',
+        sourceName: '本地',
+        mediaType: mediaType,
+        genres: genres,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaCategoryPage(
+            category: category,
+            initialize: () async {},
+            libraryProvider: () => CloudMediaLibrary(
+              series: <MediaLibrarySeries>[item],
+              filters: const <MediaLibrarySourceFilter>[
+                MediaLibrarySourceFilter('all', '全部', null),
+                MediaLibrarySourceFilter(
+                  'local',
+                  '本地',
+                  MediaSourceKind.local,
+                ),
+              ],
+            ),
+            onPlayEpisode: (_, __) async {},
+            observeLibrary: false,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('媒体操作'), findsOneWidget);
+    });
+  }
+
+  testWidgets('网盘分类菜单隐藏视频后立即移除海报', (tester) async {
+    final cloudMovie = _series(
+      key: 'quark|hidden-movie',
+      title: '待隐藏网盘电影',
+      sourceKind: MediaSourceKind.cloud,
+      sourceId: 'quark',
+      sourceName: '夸克网盘',
+      mediaType: TmdbMediaType.movie,
+    );
+    var currentLibrary = CloudMediaLibrary(
+      series: <MediaLibrarySeries>[cloudMovie],
+      filters: const <MediaLibrarySourceFilter>[
+        MediaLibrarySourceFilter('all', '全部', null),
+        MediaLibrarySourceFilter('quark', '夸克网盘', MediaSourceKind.cloud),
+      ],
+    );
+    List<MediaLibraryEpisode>? hiddenEpisodes;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaCategoryPage(
+          category: MediaLibraryCategory.movie,
+          initialize: () async {},
+          libraryProvider: () => currentLibrary,
+          onPlayEpisode: (_, __) async {},
+          onHideEpisodes: (series, episodes) async {
+            hiddenEpisodes = episodes;
+            currentLibrary = CloudMediaLibrary(
+              series: const <MediaLibrarySeries>[],
+              filters: currentLibrary.filters,
+            );
+          },
+          observeLibrary: false,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('媒体操作'));
+    await tester.pumpAndSettle();
+    expect(find.text('隐藏视频'), findsOneWidget);
+    await tester.tap(find.text('隐藏视频'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '隐藏'));
+    await tester.pumpAndSettle();
+
+    expect(hiddenEpisodes, isNotNull);
+    expect(hiddenEpisodes, hasLength(1));
+    expect(find.text('待隐藏网盘电影'), findsNothing);
+  });
 }
 
 MediaLibrarySeries _series({
@@ -140,6 +236,7 @@ MediaLibrarySeries _series({
   required String sourceId,
   required String sourceName,
   required TmdbMediaType mediaType,
+  List<String> genres = const <String>[],
 }) {
   final episode = sourceKind == MediaSourceKind.local
       ? MediaLibraryEpisode.local(
@@ -183,5 +280,6 @@ MediaLibrarySeries _series({
     isAvailable: true,
     episodes: <MediaLibraryEpisode>[episode],
     mediaType: mediaType,
+    genres: genres,
   );
 }

@@ -18,6 +18,9 @@ typedef TmdbPosterDownloader = Future<String?> Function(
   String posterUrl,
   String savePath,
 );
+typedef TmdbScrapeEngineFactory = TmdbScrapeEngine Function(
+  ITmdbClient client,
+);
 
 class LocalTmdbScrapeService {
   LocalTmdbScrapeService({
@@ -28,6 +31,7 @@ class LocalTmdbScrapeService {
     this.subjectBuilder = const LocalTmdbSubjectBuilder(),
     this.mergePolicy = const TmdbMetadataMergePolicy(),
     this.posterPolicy = const TmdbPosterPolicy(),
+    this.engineFactory,
   }) : posterDownloader = posterDownloader ??
             ((url, path) =>
                 PosterService().downloadPosterTo(url, path, overwrite: true));
@@ -39,6 +43,10 @@ class LocalTmdbScrapeService {
   final LocalTmdbSubjectBuilder subjectBuilder;
   final TmdbMetadataMergePolicy mergePolicy;
   final TmdbPosterPolicy posterPolicy;
+  final TmdbScrapeEngineFactory? engineFactory;
+
+  TmdbScrapeEngine _engineFor(ITmdbClient client) =>
+      engineFactory?.call(client) ?? TmdbScrapeEngine(client: client);
 
   Future<TmdbPreparedSearchOutcome> searchPrepared({
     required String apiKey,
@@ -63,6 +71,7 @@ class LocalTmdbScrapeService {
     final subject = TmdbScrapeSubject(
       stableKey: base.stableKey,
       titleCandidates: <String>[request.queryTitle],
+      manualSearchTitle: request.queryTitle,
       year: request.queryYear,
       seasonNumbers: base.seasonNumbers,
       episodeNumbers: base.episodeNumbers,
@@ -72,7 +81,8 @@ class LocalTmdbScrapeService {
       matchOrigin: base.matchOrigin,
       ruleVersion: base.ruleVersion,
     );
-    final outcome = await TmdbScrapeEngine(client: clientFactory(key)).search(
+    final client = clientFactory(key);
+    final outcome = await _engineFor(client).search(
       subject,
       request.options.copyWith(mediaTypeMode: request.mediaTypeMode),
     );
@@ -134,7 +144,7 @@ class LocalTmdbScrapeService {
 
     try {
       final client = clientFactory(apiKey.trim());
-      final search = await TmdbScrapeEngine(client: client).search(
+      final search = await _engineFor(client).search(
         subject,
         resolvedOptions,
       );
@@ -164,7 +174,7 @@ class LocalTmdbScrapeService {
         best.metadata.mediaType,
         language: resolvedOptions.language,
       );
-      final hydratedDetails = await TmdbScrapeEngine(client: client)
+      final hydratedDetails = await _engineFor(client)
           .hydrateSeasons(
             details,
             seasonNumbers: subject.seasonNumbers,
@@ -244,7 +254,7 @@ class LocalTmdbScrapeService {
         seriesName: seriesName,
         items: seriesItems,
       );
-      final hydratedDetails = await TmdbScrapeEngine(client: client)
+      final hydratedDetails = await _engineFor(client)
           .hydrateSeasons(
             details,
             seasonNumbers: subject.seasonNumbers,

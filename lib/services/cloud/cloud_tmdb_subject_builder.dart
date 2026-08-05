@@ -33,6 +33,7 @@ class CloudTmdbSubjectBuilder {
     return TmdbScrapeSubject(
       stableKey: work.workKey,
       titleCandidates: candidates,
+      manualSearchTitle: record?.scrapeTitleOverride,
       year: work.seasons.map((season) => season.year).nonNulls.firstOrNull,
       seasonNumbers: seasons,
       episodeNumbers: episodes,
@@ -64,6 +65,7 @@ class CloudTmdbSubjectBuilder {
     return TmdbScrapeSubject(
       stableKey: target.stableKey,
       titleCandidates: candidates,
+      manualSearchTitle: target.customTitle,
       seasonNumbers:
           season != null && season > 0 ? <int>{season} : const <int>{},
       episodeNumbers:
@@ -106,10 +108,13 @@ TmdbMetadata? _metadataFromResource(CloudResourceTmdbRecord record) {
     id: id,
     mediaType: mediaType,
     title: title,
+    aliases: record.aliases,
     originalTitle: record.originalTitle,
     overview: record.overview,
     releaseDate: record.releaseDate,
     rating: record.rating,
+    popularity: record.popularity,
+    voteCount: record.voteCount,
     posterUrl: record.posterUrl,
     backdropUrl: record.backdropUrl,
     language: 'zh-CN',

@@ -5,6 +5,7 @@ import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/cloud/cloud_series_identity_resolver.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_grouping_metadata.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_grouping_policy.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
@@ -243,7 +244,11 @@ class CloudResourceCollectionGrouper {
       final record = recordsByWorkKey[work.workKey];
       var aggregateKey =
           _workGroupingPolicy.matchedGroupKey(work.sourceId, record);
-      if (aggregateKey == null && work.seasons.isNotEmpty) {
+      final effectiveSeasonNumbers = workItems
+          .map(CloudMediaGroupingMetadata.seasonNumber)
+          .whereType<int>()
+          .toSet();
+      if (aggregateKey == null && effectiveSeasonNumbers.isNotEmpty) {
         final inheritedKeys = <String>{};
         for (final title in _workTitleAliases(work, record)) {
           inheritedKeys.addAll(matchedKeysByTitle[title] ?? const <String>{});
@@ -275,7 +280,7 @@ class CloudResourceCollectionGrouper {
             growable: false,
           );
       final seasonNumbers = aggregate.items
-          .map((item) => item.seasonNumber)
+          .map(CloudMediaGroupingMetadata.seasonNumber)
           .whereType<int>()
           .where((season) => season > 0)
           .toSet()
@@ -316,7 +321,10 @@ class CloudResourceCollectionGrouper {
           displaySeasonNumbers.length == 1 && displaySeasonNumbers.single == 1;
       for (final seasonNumber in seasonNumbers) {
         final seasonItems = aggregate.items
-            .where((item) => item.seasonNumber == seasonNumber)
+            .where(
+              (item) =>
+                  CloudMediaGroupingMetadata.seasonNumber(item) == seasonNumber,
+            )
             .toList(growable: false);
         if (seasonItems.isEmpty) continue;
         final seasonMetadata = _seasonMetadata(record, seasonNumber);

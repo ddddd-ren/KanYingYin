@@ -116,7 +116,7 @@ void main() {
         series: <MediaLibrarySeries>[movie, anime, tv],
         selectedTags: const <String>{'电视剧'},
       ).map((item) => item.title),
-      const <String>['网盘动画', '网盘电视剧'],
+      const <String>['网盘电视剧'],
     );
   });
 }

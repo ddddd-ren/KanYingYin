@@ -373,6 +373,75 @@ void main() {
       );
     });
 
+    test('匹配电视剧的 S02E00 独立索引资源按路径季号并入第二季', () {
+      const title = '规则标题';
+      final matched = _cloud(
+        'openlist',
+        '/规则标题第二季/规则标题 S02E01.mkv',
+        season: 2,
+        workKey: 'openlist|work|matched-s2',
+        seriesName: title,
+      );
+      final standalone = CloudMediaIndexItem(
+        sourceId: 'openlist',
+        remoteId: 'standalone-s2e0',
+        remotePath: '/来自其他目录/规则标题 S02E00.mkv',
+        name: '规则标题 S02E00.mkv',
+        workKey: 'openlist|movie|standalone-s2e0',
+        size: 10,
+        modifiedAt: DateTime(2026),
+        seriesName: title,
+        mediaType: CloudMediaType.movie,
+      );
+      final record = CloudWorkTmdbRecord.matched(
+        sourceId: 'openlist',
+        workKey: matched.workKey!,
+        workRootId: 'matched-s2',
+        workRootPath: '/规则标题第二季',
+        remoteName: title,
+        metadata: TmdbMetadata(
+          id: 94664,
+          mediaType: TmdbMediaType.tv,
+          title: title,
+          language: 'zh-CN',
+          matchedAt: DateTime(2026),
+          matchConfidence: 1,
+          genres: const <String>['动画'],
+          seasons: const <TmdbSeasonMetadata>[
+            TmdbSeasonMetadata(
+              id: 2,
+              seasonNumber: 2,
+              name: '第 2 季',
+              episodeCount: 12,
+              posterUrl: '/season-2.jpg',
+            ),
+          ],
+        ),
+        checkedAt: DateTime(2026),
+        tmdbMatchOrigin: TmdbMatchOrigin.manual,
+      );
+
+      final library = const CloudMediaLibraryAggregator().build(
+        localItems: const <LocalMediaIndexItem>[],
+        cloudItems: <CloudMediaIndexItem>[matched, standalone],
+        cloudSources: sources,
+        workRecordsByKey: <String, CloudWorkTmdbRecord>{
+          record.workKey: record,
+        },
+      );
+
+      expect(library.series, hasLength(1));
+      expect(library.series.single.title, '$title S02');
+      expect(library.series.single.episodes, hasLength(2));
+      expect(
+        library.series.single.episodes
+            .firstWhere(
+                (episode) => episode.remotePath == standalone.remotePath)
+            .seasonNumber,
+        2,
+      );
+    });
+
     test('同名标题对应多个 TMDB 作品时未匹配资源保持独立', () {
       CloudWorkTmdbRecord record(CloudMediaIndexItem item, int tmdbId) {
         return CloudWorkTmdbRecord.matched(

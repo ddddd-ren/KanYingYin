@@ -1,9 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_engine.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_cache.dart';
 
 import 'fixtures/tmdb_scrape_corpus.dart';
 
@@ -15,6 +18,8 @@ void main() {
     var topThreeCorrect = 0;
     var automaticCount = 0;
     var automaticCorrect = 0;
+    var unexpectedAutomaticCount = 0;
+    var coldRequestCount = 0;
 
     for (final sample in tmdbScrapeCorpus) {
       final client = _CorpusClient(sample);
@@ -47,8 +52,10 @@ void main() {
       if (outcome.ranked.shouldAutoMatch) {
         automaticCount++;
         if (topOne) automaticCorrect++;
+        if (!sample.expectedAutoMatch) unexpectedAutomaticCount++;
       }
-      print(
+      coldRequestCount += client.queries.length;
+      stdout.writeln(
         '${sample.name}\t${sample.expectedIdentity}\t'
         '${bestIdentity ?? '-'}\t${outcome.ranked.shouldAutoMatch}\t'
         '${ranked.length}\t${client.queries.length}',
@@ -56,12 +63,41 @@ void main() {
     }
 
     final total = tmdbScrapeCorpus.length;
-    print(
+    expect(unexpectedAutomaticCount, 0);
+    final cacheHitP95Milliseconds = await _cacheHitP95Milliseconds();
+    final averageColdRequests = coldRequestCount / total;
+    stdout.writeln(
       'TMDB benchmark: total=$total, top1=$topOneCorrect/$total, '
       'top3=$topThreeCorrect/$total, auto=$automaticCount, '
-      'autoCorrect=$automaticCorrect/$automaticCount',
+      'autoCorrect=$automaticCorrect/$automaticCount, '
+      'avgColdRequests=${averageColdRequests.toStringAsFixed(2)}, '
+      'cacheHitP95Ms=${cacheHitP95Milliseconds.toStringAsFixed(3)}',
     );
   });
+}
+
+Future<double> _cacheHitP95Milliseconds() async {
+  final cache = TmdbScrapeCache();
+  const key = 'search|tv|zh-CN|benchmark|page:1';
+  await cache.getOrLoad<List<int>>(
+    key,
+    () async => const <int>[1],
+    kind: TmdbScrapeCacheKind.search,
+  );
+  final samples = <int>[];
+  for (var index = 0; index < 100; index += 1) {
+    final stopwatch = Stopwatch()..start();
+    await cache.getOrLoad<List<int>>(
+      key,
+      () async => const <int>[1],
+      kind: TmdbScrapeCacheKind.search,
+    );
+    stopwatch.stop();
+    samples.add(stopwatch.elapsedMicroseconds);
+  }
+  samples.sort();
+  final p95Index = ((samples.length * 95 + 99) ~/ 100) - 1;
+  return samples[p95Index] / Duration.microsecondsPerMillisecond;
 }
 
 class _CorpusClient implements ITmdbClient {
@@ -94,6 +130,7 @@ class _CorpusClient implements ITmdbClient {
       mediaType: sample.expectedType,
       title: sample.expectedTitle,
       year: sample.year,
+      aliases: sample.aliases,
     );
     if (!sample.expectedAutoMatch) {
       return <TmdbMetadata>[
@@ -129,11 +166,13 @@ TmdbMetadata _metadata({
   required TmdbMediaType mediaType,
   required String title,
   required int? year,
+  List<String> aliases = const <String>[],
 }) {
   return TmdbMetadata(
     id: id,
     mediaType: mediaType,
     title: title,
+    aliases: aliases,
     releaseDate: year == null ? null : '$year-01-01',
     language: 'zh-CN',
     matchedAt: DateTime.utc(2026),

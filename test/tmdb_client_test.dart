@@ -5,7 +5,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
-import 'package:kanyingyin/services/tmdb/tmdb_client_capabilities.dart';
 
 void main() {
   test('分页搜索保留页码、总页数和候选热度字段', () async {

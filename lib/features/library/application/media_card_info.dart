@@ -139,9 +139,8 @@ class UnifiedMediaCardInfoBuilder {
         sourceName: '本地',
         isAvailable: true,
         episodes: episodes,
-        mediaType: mediaTypeLabel == '电影'
-            ? TmdbMediaType.movie
-            : TmdbMediaType.tv,
+        mediaType:
+            mediaTypeLabel == '电影' ? TmdbMediaType.movie : TmdbMediaType.tv,
       ),
     );
     final badges = info.badges

@@ -220,9 +220,8 @@ class _PagedClient implements ITmdbClient, ITmdbClientCapabilities {
     return TmdbSearchPage(
       page: page,
       totalPages: 2,
-      results: page == 1
-          ? <TmdbMetadata>[first]
-          : <TmdbMetadata>[first, second],
+      results:
+          page == 1 ? <TmdbMetadata>[first] : <TmdbMetadata>[first, second],
     );
   }
 
@@ -250,7 +249,8 @@ class _PagedClient implements ITmdbClient, ITmdbClientCapabilities {
     String query,
     TmdbMediaType mediaType, {
     String language = 'zh-CN',
-  }) async => const <TmdbMetadata>[];
+  }) async =>
+      const <TmdbMetadata>[];
 
   @override
   Future<TmdbMetadata> details(
@@ -271,14 +271,16 @@ class _SeasonClient implements ITmdbClient, ITmdbClientCapabilities {
     TmdbMediaType mediaType, {
     String language = 'zh-CN',
     required int page,
-  }) => throw UnimplementedError();
+  }) =>
+      throw UnimplementedError();
 
   @override
   Future<List<String>> alternativeTitles(
     int id,
     TmdbMediaType mediaType, {
     String language = 'zh-CN',
-  }) => throw UnimplementedError();
+  }) =>
+      throw UnimplementedError();
 
   @override
   Future<TmdbSeasonMetadata> seasonDetails(
@@ -304,14 +306,16 @@ class _SeasonClient implements ITmdbClient, ITmdbClientCapabilities {
     String query,
     TmdbMediaType mediaType, {
     String language = 'zh-CN',
-  }) => throw UnimplementedError();
+  }) =>
+      throw UnimplementedError();
 
   @override
   Future<TmdbMetadata> details(
     int id,
     TmdbMediaType mediaType, {
     String language = 'zh-CN',
-  }) => throw UnimplementedError();
+  }) =>
+      throw UnimplementedError();
 }
 
 TmdbMetadata _metadata({

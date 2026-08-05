@@ -27,6 +27,7 @@ import 'package:kanyingyin/services/file_system_media_entry_provider.dart';
 import 'package:kanyingyin/services/local_media_entry_provider.dart';
 import 'package:kanyingyin/services/media_recognition_settings.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
 /// 注册本地媒体库及其与网盘媒体索引的集成依赖。
@@ -118,6 +119,7 @@ void registerLibraryBindings(Injector i) {
         await Modular.get<CloudLibraryController>().scanSource(sourceId);
       },
       tmdbApiKeyProvider: Modular.get<TmdbApiKeyProvider>(),
+      tmdbClientContextRegistry: Modular.get<TmdbClientContextRegistry>(),
       tmdbScrapeOptionsProvider: () {
         final settings = Modular.get<TypedSettings>();
         try {

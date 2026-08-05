@@ -11,6 +11,7 @@ import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_engine.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_cache.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scraper.dart';
 import 'package:path/path.dart' as p;
 
@@ -21,6 +22,7 @@ typedef TmdbPosterDownloader = Future<String?> Function(
 typedef TmdbScrapeEngineFactory = TmdbScrapeEngine Function(
   ITmdbClient client,
 );
+typedef TmdbScrapeCacheFactory = TmdbScrapeCache Function(String apiKey);
 
 class LocalTmdbScrapeService {
   LocalTmdbScrapeService({
@@ -32,6 +34,7 @@ class LocalTmdbScrapeService {
     this.mergePolicy = const TmdbMetadataMergePolicy(),
     this.posterPolicy = const TmdbPosterPolicy(),
     this.engineFactory,
+    this.cacheFactory,
   }) : posterDownloader = posterDownloader ??
             ((url, path) =>
                 PosterService().downloadPosterTo(url, path, overwrite: true));
@@ -44,9 +47,17 @@ class LocalTmdbScrapeService {
   final TmdbMetadataMergePolicy mergePolicy;
   final TmdbPosterPolicy posterPolicy;
   final TmdbScrapeEngineFactory? engineFactory;
+  final TmdbScrapeCacheFactory? cacheFactory;
+  final Map<String, TmdbScrapeCache> _fallbackCaches =
+      <String, TmdbScrapeCache>{};
 
-  TmdbScrapeEngine _engineFor(ITmdbClient client) =>
-      engineFactory?.call(client) ?? TmdbScrapeEngine(client: client);
+  TmdbScrapeEngine _engineFor(ITmdbClient client, String apiKey) {
+    final custom = engineFactory;
+    if (custom != null) return custom(client);
+    final cache = cacheFactory?.call(apiKey) ??
+        (_fallbackCaches[apiKey] ??= TmdbScrapeCache());
+    return TmdbScrapeEngine(client: client, cache: cache);
+  }
 
   Future<TmdbPreparedSearchOutcome> searchPrepared({
     required String apiKey,
@@ -82,7 +93,8 @@ class LocalTmdbScrapeService {
       ruleVersion: base.ruleVersion,
     );
     final client = clientFactory(key);
-    final outcome = await _engineFor(client).search(
+    final engine = _engineFor(client, key);
+    final outcome = await engine.search(
       subject,
       request.options.copyWith(mediaTypeMode: request.mediaTypeMode),
     );
@@ -143,8 +155,10 @@ class LocalTmdbScrapeService {
     }
 
     try {
-      final client = clientFactory(apiKey.trim());
-      final search = await _engineFor(client).search(
+      final key = apiKey.trim();
+      final client = clientFactory(key);
+      final engine = _engineFor(client, key);
+      final search = await engine.search(
         subject,
         resolvedOptions,
       );
@@ -169,22 +183,21 @@ class LocalTmdbScrapeService {
         );
       }
 
-      final details = await client.details(
+      final details = await engine.details(
         best.metadata.id,
         best.metadata.mediaType,
         language: resolvedOptions.language,
       );
-      final hydratedDetails = await _engineFor(client)
-          .hydrateSeasons(
-            details,
-            seasonNumbers: subject.seasonNumbers,
-            language: resolvedOptions.language,
-          );
+      final hydratedDetails = await engine.hydrateSeasons(
+        details,
+        seasonNumbers: subject.seasonNumbers,
+        language: resolvedOptions.language,
+      );
       final merged = <TmdbMetadata>[];
       for (final item in seriesItems) {
         final metadata = mergePolicy.merge(
           existing: item.tmdb,
-            fetched: hydratedDetails,
+          fetched: hydratedDetails,
           options: resolvedOptions,
           locks: TmdbFieldLocks(
             title: item.titleLocked,
@@ -244,8 +257,10 @@ class LocalTmdbScrapeService {
     }
 
     try {
-      final client = clientFactory(apiKey.trim());
-      final details = await client.details(
+      final key = apiKey.trim();
+      final client = clientFactory(key);
+      final engine = _engineFor(client, key);
+      final details = await engine.details(
         candidate.id,
         candidate.mediaType,
         language: options.language,
@@ -254,12 +269,11 @@ class LocalTmdbScrapeService {
         seriesName: seriesName,
         items: seriesItems,
       );
-      final hydratedDetails = await _engineFor(client)
-          .hydrateSeasons(
-            details,
-            seasonNumbers: subject.seasonNumbers,
-            language: options.language,
-          );
+      final hydratedDetails = await engine.hydrateSeasons(
+        details,
+        seasonNumbers: subject.seasonNumbers,
+        language: options.language,
+      );
       final merged = <TmdbMetadata>[];
       for (final item in seriesItems) {
         final metadata = mergePolicy.merge(

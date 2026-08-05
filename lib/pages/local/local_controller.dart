@@ -79,6 +79,7 @@ abstract class _LocalController with Store {
     CloudTmdbMetadataService? cloudTmdbMetadataService,
     LocalTmdbScrapeService? tmdbScrapeService,
     TmdbApiKeyProvider? tmdbApiKeyProvider,
+    TmdbClientContextRegistry? tmdbClientContextRegistry,
     TmdbScrapeOptions Function()? tmdbScrapeOptionsProvider,
     bool Function()? tmdbAutoScrapeProvider,
     LibraryGenreBackfillService? genreBackfillService,
@@ -100,6 +101,8 @@ abstract class _LocalController with Store {
           tmdbScrapeService: tmdbScrapeService,
           tmdbApiKeyProvider:
               tmdbApiKeyProvider ?? TmdbApiKeyProvider(userKeyReader: () => ''),
+          tmdbClientContextRegistry:
+              tmdbClientContextRegistry ?? TmdbClientContextRegistry(),
           tmdbScrapeOptionsProvider: tmdbScrapeOptionsProvider,
           tmdbAutoScrapeProvider: tmdbAutoScrapeProvider,
           genreBackfillService: genreBackfillService,
@@ -121,6 +124,7 @@ abstract class _LocalController with Store {
     CloudTmdbMetadataService? cloudTmdbMetadataService,
     LocalTmdbScrapeService? tmdbScrapeService,
     required TmdbApiKeyProvider tmdbApiKeyProvider,
+    required TmdbClientContextRegistry tmdbClientContextRegistry,
     TmdbScrapeOptions Function()? tmdbScrapeOptionsProvider,
     bool Function()? tmdbAutoScrapeProvider,
     LibraryGenreBackfillService? genreBackfillService,
@@ -136,11 +140,13 @@ abstract class _LocalController with Store {
               mediaIndexRepository: mediaIndexRepository,
             ),
         _seriesGrouper = const LocalSeriesGrouper(),
+        _tmdbClientContextRegistry = tmdbClientContextRegistry,
         _tmdbScrapeService = tmdbScrapeService ??
             LocalTmdbScrapeService(
               indexRepository: mediaIndexRepository,
               metadataRepository: TmdbMetadataRepository(),
-              clientFactory: (apiKey) => TmdbClient(apiKey: apiKey),
+              clientFactory: tmdbClientContextRegistry.clientFor,
+              cacheFactory: tmdbClientContextRegistry.cacheFor,
             ),
         _tmdbApiKeyProvider = tmdbApiKeyProvider,
         _tmdbScrapeOptionsProvider = tmdbScrapeOptionsProvider ??
@@ -168,6 +174,7 @@ abstract class _LocalController with Store {
   final ILocalLibraryPreferences _preferences;
   final LocalLibraryMetadataCoordinator _metadataCoordinator;
   final LocalSeriesGrouper _seriesGrouper;
+  final TmdbClientContextRegistry _tmdbClientContextRegistry;
   final LocalTmdbScrapeService _tmdbScrapeService;
   final TmdbApiKeyProvider _tmdbApiKeyProvider;
   final TmdbScrapeOptions Function() _tmdbScrapeOptionsProvider;
@@ -186,7 +193,8 @@ abstract class _LocalController with Store {
           LibraryGenreBackfillService(
             localRepository: _mediaIndexRepository,
             cloudRepository: _cloudMediaIndexRepository,
-            clientFactory: (apiKey) => TmdbClient(apiKey: apiKey),
+            clientFactory: (apiKey) =>
+                _tmdbClientContextRegistry.clientFor(apiKey),
           );
   final ObservableMap<String, bool> _sourceAccessibility = ObservableMap();
   late final LocalLibrarySourceCoordinator _sourceCoordinator =
@@ -1200,9 +1208,11 @@ abstract class _LocalController with Store {
         }
       },
     );
+    final context = _tmdbClientContextRegistry.contextFor(apiKey);
     return _cloudTmdbMetadataService = CloudTmdbMetadataService(
       repository: _cloudMediaIndexRepository,
-      client: TmdbClient(apiKey: apiKey),
+      client: context.client,
+      cache: context.cache,
       posterCache: cache,
     );
   }

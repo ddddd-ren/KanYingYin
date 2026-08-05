@@ -3,6 +3,7 @@ import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/services/media_recognition_settings.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/shaders/shaders_controller.dart';
 import 'package:kanyingyin/utils/storage.dart';
 
@@ -17,5 +18,6 @@ void registerInfrastructureBindings(
   i.addSingleton<TmdbApiKeyProvider>(
     () => TmdbApiKeyProvider(userKeyReader: tmdbCredentialManager.read),
   );
+  i.addSingleton<TmdbClientContextRegistry>(TmdbClientContextRegistry.new);
   i.addSingleton<ShadersController>(() => ShadersController());
 }

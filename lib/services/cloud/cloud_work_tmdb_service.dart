@@ -14,6 +14,7 @@ import 'package:kanyingyin/services/tmdb/tmdb_scrape_engine.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_policy.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_cache.dart';
 
 class CloudWorkTmdbOutcome {
   const CloudWorkTmdbOutcome({required this.candidates, this.selected});
@@ -44,16 +45,15 @@ class CloudWorkTmdbService {
     CloudPosterCache? posterCache,
     DateTime Function()? now,
     TmdbScrapeEngine? engine,
+    TmdbScrapeCache? cache,
   })  : _repository = repository,
         _indexRepository = indexRepository,
-        _client = client,
-        _engine = engine ?? TmdbScrapeEngine(client: client),
+        _engine = engine ?? TmdbScrapeEngine(client: client, cache: cache),
         _posterCache = posterCache,
         _now = now ?? DateTime.now;
 
   final CloudWorkTmdbRepository _repository;
   final CloudMediaIndexRepository _indexRepository;
-  final ITmdbClient _client;
   final TmdbScrapeEngine _engine;
   final CloudPosterCache? _posterCache;
   final DateTime Function() _now;
@@ -210,7 +210,7 @@ class CloudWorkTmdbService {
       work,
       record: previous,
     );
-    final fetched = await _client.details(
+    final fetched = await _engine.details(
       candidate.id,
       candidate.mediaType,
       language: options.language,

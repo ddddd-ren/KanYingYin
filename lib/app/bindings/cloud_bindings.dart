@@ -78,15 +78,20 @@ void registerCloudBindings(Injector i) {
   i.addSingleton<CloudResourceTmdbCoordinator>(
     () => CloudResourceTmdbCoordinator(
       repository: Modular.get<CloudResourceTmdbRepository>(),
-      serviceFactory: (apiKey) async => CloudResourceTmdbService(
-        repository: Modular.get<CloudResourceTmdbRepository>(),
-        indexRepository: Modular.get<CloudMediaIndexRepository>(),
-        client: TmdbClient(apiKey: apiKey),
-        posterCache: CloudPosterCache(
-          cacheRoot: await defaultCloudCacheRoot(),
-          downloader: _downloadCloudPoster,
-        ),
-      ),
+      serviceFactory: (apiKey) async {
+        final context =
+            Modular.get<TmdbClientContextRegistry>().contextFor(apiKey);
+        return CloudResourceTmdbService(
+          repository: Modular.get<CloudResourceTmdbRepository>(),
+          indexRepository: Modular.get<CloudMediaIndexRepository>(),
+          client: context.client,
+          cache: context.cache,
+          posterCache: CloudPosterCache(
+            cacheRoot: await defaultCloudCacheRoot(),
+            downloader: _downloadCloudPoster,
+          ),
+        );
+      },
       apiKeyProvider: Modular.get<TmdbApiKeyProvider>().read,
       optionsProvider: _tmdbScrapeOptions,
       seriesMatchService: Modular.get<CloudSeriesMatchService>(),
@@ -97,15 +102,20 @@ void registerCloudBindings(Injector i) {
       repository: Modular.get<CloudWorkTmdbRepository>(),
       legacyRepository: Modular.get<CloudResourceTmdbRepository>(),
       indexRepository: Modular.get<CloudMediaIndexRepository>(),
-      serviceFactory: (apiKey) async => CloudWorkTmdbService(
-        repository: Modular.get<CloudWorkTmdbRepository>(),
-        indexRepository: Modular.get<CloudMediaIndexRepository>(),
-        client: TmdbClient(apiKey: apiKey),
-        posterCache: CloudPosterCache(
-          cacheRoot: await defaultCloudCacheRoot(),
-          downloader: _downloadCloudPoster,
-        ),
-      ),
+      serviceFactory: (apiKey) async {
+        final context =
+            Modular.get<TmdbClientContextRegistry>().contextFor(apiKey);
+        return CloudWorkTmdbService(
+          repository: Modular.get<CloudWorkTmdbRepository>(),
+          indexRepository: Modular.get<CloudMediaIndexRepository>(),
+          client: context.client,
+          cache: context.cache,
+          posterCache: CloudPosterCache(
+            cacheRoot: await defaultCloudCacheRoot(),
+            downloader: _downloadCloudPoster,
+          ),
+        );
+      },
       apiKeyProvider: Modular.get<TmdbApiKeyProvider>().read,
       optionsProvider: _tmdbScrapeOptions,
     ),

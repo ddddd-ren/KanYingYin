@@ -5,6 +5,7 @@ import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+import 'package:kanyingyin/services/cloud/cloud_work_grouping_policy.dart';
 
 enum MediaSourceKind { local, cloud }
 
@@ -190,7 +191,12 @@ class CloudMediaLibrary {
 }
 
 class CloudMediaLibraryAggregator {
-  const CloudMediaLibraryAggregator();
+  const CloudMediaLibraryAggregator({
+    CloudWorkGroupingPolicy workGroupingPolicy =
+        const CloudWorkGroupingPolicy(),
+  }) : _workGroupingPolicy = workGroupingPolicy;
+
+  final CloudWorkGroupingPolicy _workGroupingPolicy;
 
   CloudMediaLibrary build({
     required Iterable<LocalMediaIndexItem> localItems,
@@ -235,11 +241,29 @@ class CloudMediaLibraryAggregator {
       ));
     }
 
+    final availableCloudItems = cloudItems
+        .where((item) => sources[item.sourceId]?.enabled == true)
+        .toList(growable: false);
+    final matchedKeysByTitle = <String, Set<String>>{};
+    for (final item in availableCloudItems) {
+      final record = _recordForItem(item, workRecordsByKey);
+      final matchedKey =
+          _workGroupingPolicy.matchedGroupKey(item.sourceId, record);
+      if (matchedKey == null) continue;
+      for (final title in _cloudTitleAliases(item, record)) {
+        matchedKeysByTitle
+            .putIfAbsent('${item.sourceId}|$title', () => <String>{})
+            .add(matchedKey);
+      }
+    }
+
     final groups = <String, List<CloudMediaIndexItem>>{};
-    for (final item in cloudItems) {
-      if (sources[item.sourceId]?.enabled != true) continue;
+    for (final item in availableCloudItems) {
       groups
-          .putIfAbsent(_cloudGroupKey(item, workRecordsByKey), () => [])
+          .putIfAbsent(
+            _cloudGroupKey(item, workRecordsByKey, matchedKeysByTitle),
+            () => [],
+          )
           .add(item);
     }
     for (final entry in groups.entries) {
@@ -356,19 +380,53 @@ class CloudMediaLibraryAggregator {
     return isSeries ? TmdbMediaType.tv : TmdbMediaType.movie;
   }
 
-  static String _cloudGroupKey(
+  String _cloudGroupKey(
+    CloudMediaIndexItem item,
+    Map<String, CloudWorkTmdbRecord> records,
+    Map<String, Set<String>> matchedKeysByTitle,
+  ) {
+    final workKey = item.workKey;
+    final record = workKey == null ? null : records[workKey];
+    var groupKey = _workGroupingPolicy.matchedGroupKey(item.sourceId, record);
+    if (groupKey == null && (item.seasonNumber ?? 0) > 0) {
+      final inheritedKeys = <String>{};
+      for (final title in _cloudTitleAliases(item, record)) {
+        inheritedKeys.addAll(
+          matchedKeysByTitle['${item.sourceId}|$title'] ?? const <String>{},
+        );
+      }
+      if (inheritedKeys.length == 1) groupKey = inheritedKeys.single;
+    }
+    final normalizedWorkKey = workKey?.trim() ?? '';
+    groupKey ??= normalizedWorkKey.isNotEmpty
+        ? '${item.sourceId}|work|$normalizedWorkKey'
+        : '${item.sourceId}|series|${item.seriesName.trim().toLowerCase()}';
+    return '$groupKey|${_groupVariant(item)}';
+  }
+
+  CloudWorkTmdbRecord? _recordForItem(
     CloudMediaIndexItem item,
     Map<String, CloudWorkTmdbRecord> records,
   ) {
     final workKey = item.workKey;
-    final metadata = workKey == null ? null : records[workKey]?.metadata;
-    final normalizedWorkKey = workKey?.trim() ?? '';
-    final identity = metadata != null
-        ? 'tmdb|${metadata.mediaType.name}|${metadata.id}'
-        : normalizedWorkKey.isNotEmpty
-            ? 'work|$normalizedWorkKey'
-            : 'series|${item.seriesName.trim().toLowerCase()}';
-    return '${item.sourceId}|$identity|${_groupVariant(item)}';
+    return workKey == null ? null : records[workKey];
+  }
+
+  Set<String> _cloudTitleAliases(
+    CloudMediaIndexItem item,
+    CloudWorkTmdbRecord? record,
+  ) {
+    return _workGroupingPolicy.titleAliases(
+      candidates: <String?>[
+        item.seriesName,
+        item.tmdbTitle,
+        item.tmdbOriginalTitle,
+        record?.remoteName,
+        record?.metadata?.title,
+        record?.metadata?.originalTitle,
+      ],
+      seasonNumbers: <int>[if (item.seasonNumber != null) item.seasonNumber!],
+    );
   }
 
   static CloudWorkTmdbRecord? _workRecord(

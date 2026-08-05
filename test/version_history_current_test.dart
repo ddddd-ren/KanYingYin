@@ -5,13 +5,13 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一二七统一媒体分类资源和详情', () {
-    final entries = versionHistoryForCurrent('2.1.127');
+  test('二点一二八统一同名网盘作品归并', () {
+    final entries = versionHistoryForCurrent('2.1.128');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.version, '2.1.127');
+    expect(entry.version, '2.1.128');
     expect(entry.isPrerelease, isTrue);
     for (final text in <String>[
       'Windows',
@@ -20,20 +20,15 @@ void main() {
       '动漫',
       '电视剧',
       '分类',
-      '本地',
       '网盘',
+      '网盘媒体库',
       'TMDB',
       '手动匹配',
       '季度海报',
-      '海报操作菜单',
-      '浮窗',
-      '本地媒体库',
-      '总大小',
-      '最新日期',
-      '隐藏',
-      '媒体详情',
-      '停用来源',
-      '作品键',
+      '同名',
+      '唯一',
+      'S02E00',
+      '歧义',
       '不会修改或删除',
     ]) {
       expect(changes, contains(text));

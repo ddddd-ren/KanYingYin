@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 /// 统一的毛玻璃表面，负责裁剪、背景模糊、半透明色和细边框。
+/// 标准化模糊参数：轻度模糊 10，中度 20，重度 30
 class GlassSurface extends StatelessWidget {
   const GlassSurface({
     super.key,
@@ -11,7 +12,7 @@ class GlassSurface extends StatelessWidget {
     this.color,
     this.border,
     this.boxShadow,
-    this.blurSigma = 18,
+    this.blurSigma = 20, // 默认中度模糊，从 18 调整到 20
     this.clipBehavior = Clip.antiAlias,
   });
 
@@ -22,6 +23,72 @@ class GlassSurface extends StatelessWidget {
   final List<BoxShadow>? boxShadow;
   final double blurSigma;
   final Clip clipBehavior;
+
+  /// 轻度模糊预设 (10)
+  factory GlassSurface.light({
+    Key? key,
+    required Widget child,
+    BorderRadius borderRadius = const BorderRadius.all(Radius.circular(12)),
+    Color? color,
+    BoxBorder? border,
+    List<BoxShadow>? boxShadow,
+    Clip clipBehavior = Clip.antiAlias,
+  }) {
+    return GlassSurface(
+      key: key,
+      borderRadius: borderRadius,
+      color: color,
+      border: border,
+      boxShadow: boxShadow,
+      blurSigma: 10,
+      clipBehavior: clipBehavior,
+      child: child,
+    );
+  }
+
+  /// 中度模糊预设 (20，默认)
+  factory GlassSurface.medium({
+    Key? key,
+    required Widget child,
+    BorderRadius borderRadius = const BorderRadius.all(Radius.circular(12)),
+    Color? color,
+    BoxBorder? border,
+    List<BoxShadow>? boxShadow,
+    Clip clipBehavior = Clip.antiAlias,
+  }) {
+    return GlassSurface(
+      key: key,
+      borderRadius: borderRadius,
+      color: color,
+      border: border,
+      boxShadow: boxShadow,
+      blurSigma: 20,
+      clipBehavior: clipBehavior,
+      child: child,
+    );
+  }
+
+  /// 重度模糊预设 (30)
+  factory GlassSurface.heavy({
+    Key? key,
+    required Widget child,
+    BorderRadius borderRadius = const BorderRadius.all(Radius.circular(12)),
+    Color? color,
+    BoxBorder? border,
+    List<BoxShadow>? boxShadow,
+    Clip clipBehavior = Clip.antiAlias,
+  }) {
+    return GlassSurface(
+      key: key,
+      borderRadius: borderRadius,
+      color: color,
+      border: border,
+      boxShadow: boxShadow,
+      blurSigma: 30,
+      clipBehavior: clipBehavior,
+      child: child,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,9 +140,8 @@ class GlassDialog extends StatelessWidget {
       elevation: 0,
       insetPadding: insetPadding,
       clipBehavior: Clip.antiAlias,
-      child: GlassSurface(
-        borderRadius: BorderRadius.circular(12),
-        blurSigma: 24,
+      child: GlassSurface.heavy( // 使用重度模糊预设
+        borderRadius: BorderRadius.circular(16), // 从 12 增加到 16
         color: scheme.surfaceContainerHigh.withValues(alpha: 0.72),
         border: Border.all(
           color: scheme.outlineVariant.withValues(alpha: 0.48),

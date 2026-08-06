@@ -555,10 +555,15 @@ void main() {
         ),
       );
 
-      final cardMaterial =
-          tester.widgetList<Material>(find.byType(Material)).singleWhere(
-                (material) => material.borderRadius == BorderRadius.circular(8),
-              );
+      final cardMaterial = tester
+          .widgetList<Material>(
+            find.descendant(
+              of: find.byType(ImmersiveMediaCard),
+              matching: find.byType(Material),
+            ),
+          )
+          .first;
+      expect(cardMaterial.borderRadius, BorderRadius.circular(12));
       expect(cardMaterial.clipBehavior, Clip.antiAlias);
       final opacity =
           tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity));

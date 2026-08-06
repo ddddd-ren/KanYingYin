@@ -27,10 +27,13 @@ import 'package:kanyingyin/pages/player/widgets/subtitle_settings_overlay.dart';
 import 'package:kanyingyin/pages/player/widgets/track_language_confirmation_dialog.dart';
 import 'package:kanyingyin/features/player/presentation/player_overlay_coordinator.dart';
 import 'package:kanyingyin/features/player/presentation/player_shortcut_handler.dart';
+import 'package:kanyingyin/features/player/presentation/tv_remote_key_policy.dart';
 import 'package:kanyingyin/features/player/presentation/player_exit_coordinator.dart';
 import 'package:kanyingyin/features/player/application/anime4k_policy.dart';
 import 'package:kanyingyin/features/player/application/player_audio_service_coordinator.dart';
 import 'package:path/path.dart' as p;
+import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 
 class PlayerItem extends StatefulWidget {
   const PlayerItem({
@@ -43,6 +46,7 @@ class PlayerItem extends StatefulWidget {
     required this.pauseForTimedShutdown,
     required this.exitCoordinator,
     this.disableAnimations = false,
+    this.capabilities,
   });
 
   final VoidCallback openMenu;
@@ -54,6 +58,7 @@ class PlayerItem extends StatefulWidget {
   final bool disableAnimations;
   final VoidCallback pauseForTimedShutdown;
   final PlayerExitCoordinator exitCoordinator;
+  final AppPlatformCapabilities? capabilities;
 
   @override
   State<PlayerItem> createState() => _PlayerItemState();
@@ -77,6 +82,10 @@ class _PlayerItemState extends State<PlayerItem>
   final PlayerOverlayCoordinator _overlayCoordinator =
       PlayerOverlayCoordinator();
   late final PlayerExitCoordinator _exitCoordinator;
+  late final AppPlatformCapabilities _capabilities;
+  final FocusScopeNode _tvControlsFocusNode = FocusScopeNode(
+    debugLabel: 'tv-player-controls',
+  );
   PlayerOverlay _lastOverlay = PlayerOverlay.none;
   bool _acceptingInput = true;
 
@@ -102,6 +111,8 @@ class _PlayerItemState extends State<PlayerItem>
   late mobx.ReactionDisposer _fullscreenListener;
   late mobx.ReactionDisposer _anime4kStateReaction;
   bool _anime4kFailureShown = false;
+
+  bool get _isAndroidTv => _capabilities.isAndroidTv;
 
   bool get _canUsePlayer =>
       mounted && _acceptingInput && playerController.hasActivePlayer;
@@ -387,6 +398,124 @@ class _PlayerItemState extends State<PlayerItem>
     startHideTimer();
   }
 
+  KeyEventResult _handlePlayerKeyEvent(KeyEvent event) {
+    if (!_acceptingInput) return KeyEventResult.ignored;
+    final keyLabel = event.logicalKey.keyLabel.isNotEmpty
+        ? event.logicalKey.keyLabel
+        : event.logicalKey.debugName ?? '';
+    if (_isAndroidTv) {
+      final route = TvRemoteKeyPolicy.routeFor(
+        keyLabel,
+        controlsVisible: playerController.showVideoController,
+        controlsFocused: _tvControlsFocusNode.hasFocus,
+      );
+      if (route == TvRemoteRoute.ignored) return KeyEventResult.ignored;
+      if (event is KeyUpEvent) return KeyEventResult.handled;
+      if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+        return KeyEventResult.ignored;
+      }
+      if (event is KeyRepeatEvent &&
+          route != TvRemoteRoute.seekBackward &&
+          route != TvRemoteRoute.seekForward &&
+          route != TvRemoteRoute.volumeUp &&
+          route != TvRemoteRoute.volumeDown) {
+        return KeyEventResult.handled;
+      }
+      _dispatchTvRemoteRoute(route);
+      return KeyEventResult.handled;
+    }
+
+    final phase = switch (event) {
+      KeyDownEvent() => PlayerShortcutPhase.down,
+      KeyRepeatEvent() => PlayerShortcutPhase.repeat,
+      KeyUpEvent() => PlayerShortcutPhase.up,
+      _ => null,
+    };
+    if (phase == null) return KeyEventResult.ignored;
+    return _shortcutHandler.handleKey(keyLabel, phase)
+        ? KeyEventResult.handled
+        : KeyEventResult.ignored;
+  }
+
+  void _dispatchTvRemoteRoute(TvRemoteRoute route) {
+    switch (route) {
+      case TvRemoteRoute.ignored:
+        return;
+      case TvRemoteRoute.playPause:
+        if (_canUsePlayer) playerController.playOrPause();
+        return;
+      case TvRemoteRoute.seekBackward:
+        unawaited(handleShortcutRewind());
+        return;
+      case TvRemoteRoute.seekForward:
+        unawaited(handleShortcutForwardUp());
+        return;
+      case TvRemoteRoute.volumeUp:
+        unawaited(handleShortcutVolumeChange('up'));
+        return;
+      case TvRemoteRoute.volumeDown:
+        unawaited(handleShortcutVolumeChange('down'));
+        return;
+      case TvRemoteRoute.focusControls:
+        _focusTvControls();
+        return;
+      case TvRemoteRoute.hideControls:
+        hideVideoController();
+        return;
+      case TvRemoteRoute.back:
+        _handleTvBack();
+        return;
+      case TvRemoteRoute.menu:
+        widget.openMenu();
+        return;
+    }
+  }
+
+  void _handleTvBack() {
+    if (_overlayCoordinator.visible == PlayerOverlay.subtitleSettings) {
+      closeSubtitleSettingsOverlay();
+      return;
+    }
+    if (playerController.showVideoController) {
+      hideVideoController();
+      return;
+    }
+    widget.onBackPressed(context);
+  }
+
+  void _focusTvControls() {
+    if (!_isAndroidTv) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          !playerController.showVideoController ||
+          playerController.lockPanel) {
+        return;
+      }
+      _tvControlsFocusNode.requestFocus();
+      if (_tvControlsFocusNode.hasPrimaryFocus) {
+        _tvControlsFocusNode.nextFocus();
+      }
+    });
+  }
+
+  void _focusTvVideoSurface() {
+    if (!_isAndroidTv || !mounted) return;
+    _tvControlsFocusNode.unfocus();
+    widget.keyboardFocus.requestFocus();
+  }
+
+  Widget _wrapTvControlFocus(Widget child) {
+    if (!_isAndroidTv) return child;
+    return ExcludeFocus(
+      excluding: !playerController.showVideoController ||
+          playerController.lockPanel,
+      child: FocusScope(
+        node: _tvControlsFocusNode,
+        child: child,
+      ),
+    );
+  }
+
   void _handleMouseScroller() {
     if (!_canUsePlayer) return;
     playerController.showVolume = true;
@@ -612,6 +741,7 @@ class _PlayerItemState extends State<PlayerItem>
     hideTimer?.cancel();
     startHideTimer();
     playerController.showVideoController = true;
+    _focusTvControls();
   }
 
   void hideVideoController() {
@@ -619,6 +749,7 @@ class _PlayerItemState extends State<PlayerItem>
     animationController?.reverse();
     hideTimer?.cancel();
     playerController.showVideoController = false;
+    _focusTvVideoSurface();
   }
 
   Future<void> setPlaybackSpeed(double speed) async {
@@ -692,6 +823,7 @@ class _PlayerItemState extends State<PlayerItem>
       if (mounted && playerController.canHidePlayerPanel) {
         playerController.showVideoController = false;
         animationController?.reverse();
+        _focusTvVideoSurface();
       }
       hideTimer = null;
     });
@@ -1068,6 +1200,7 @@ class _PlayerItemState extends State<PlayerItem>
   @override
   void initState() {
     super.initState();
+    _capabilities = widget.capabilities ?? detectAppPlatform();
     _exitCoordinator = widget.exitCoordinator;
     _exitCoordinator.addListener(_stopInteractiveWorkForExit);
     _initKeyboardActions();
@@ -1157,6 +1290,7 @@ class _PlayerItemState extends State<PlayerItem>
     playerController.brightnessSeeking = false;
     playerController.volumeSeeking = false;
     playerController.canHidePlayerPanel = true;
+    _tvControlsFocusNode.dispose();
     unawaited(_audioServiceCoordinator.dispose());
     super.dispose();
   }
@@ -1228,35 +1362,8 @@ class _PlayerItemState extends State<PlayerItem>
                             // I don't know why, but the focus node will break popscope.
                             focusNode: widget.keyboardFocus,
                             autofocus: true,
-                            onKeyEvent: (focusNode, KeyEvent event) {
-                              if (!_acceptingInput) {
-                                return KeyEventResult.ignored;
-                              }
-                              bool handled = false;
-                              final keyLabel =
-                                  event.logicalKey.keyLabel.isNotEmpty
-                                      ? event.logicalKey.keyLabel
-                                      : event.logicalKey.debugName ?? '';
-                              if (event is KeyDownEvent) {
-                                handled = _shortcutHandler.handleKey(
-                                  keyLabel,
-                                  PlayerShortcutPhase.down,
-                                );
-                              } else if (event is KeyRepeatEvent) {
-                                handled = _shortcutHandler.handleKey(
-                                  keyLabel,
-                                  PlayerShortcutPhase.repeat,
-                                );
-                              } else if (event is KeyUpEvent) {
-                                handled = _shortcutHandler.handleKey(
-                                  keyLabel,
-                                  PlayerShortcutPhase.up,
-                                );
-                              }
-                              return handled
-                                  ? KeyEventResult.handled
-                                  : KeyEventResult.ignored;
-                            },
+                            onKeyEvent: (_, event) =>
+                                _handlePlayerKeyEvent(event),
                             child: const PlayerItemSurface())),
                     (playerController.isBuffering ||
                             videoPageController.loading)
@@ -1301,8 +1408,9 @@ class _PlayerItemState extends State<PlayerItem>
                       ),
                     ),
                     // 播放器控制面板
-                    (needFullPanel(context))
-                        ? PlayerItemPanel(
+                    _wrapTvControlFocus(
+                      (needFullPanel(context))
+                          ? PlayerItemPanel(
                             onBackPressed: widget.onBackPressed,
                             setPlaybackSpeed: setPlaybackSpeed,
                             changeEpisode: widget.changeEpisode,
@@ -1326,8 +1434,10 @@ class _PlayerItemState extends State<PlayerItem>
                             disableAnimations: widget.disableAnimations,
                             handleScreenShot: handleScreenshot,
                             skipOP: skipOP,
+                            tvMode: _isAndroidTv,
+                            onTvBack: _handleTvBack,
                           )
-                        : SmallestPlayerItemPanel(
+                          : SmallestPlayerItemPanel(
                             onBackPressed: widget.onBackPressed,
                             setPlaybackSpeed: setPlaybackSpeed,
                             handleFullscreen: handleFullscreen,
@@ -1348,7 +1458,11 @@ class _PlayerItemState extends State<PlayerItem>
                             pauseForTimedShutdown: widget.pauseForTimedShutdown,
                             disableAnimations: widget.disableAnimations,
                             skipOP: skipOP,
+                            openMenu: widget.openMenu,
+                            tvMode: _isAndroidTv,
+                            onTvBack: _handleTvBack,
                           ),
+                    ),
                     // 播放器手势控制
                     PlayerGestures(
                       playerController: playerController,

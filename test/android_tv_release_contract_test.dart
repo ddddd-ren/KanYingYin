@@ -12,4 +12,23 @@ void main() {
     expect(gradle, contains('versionCode = androidVersionCode'));
     expect(gradle, contains('create("tvTest")'));
   });
+
+  test('TV 构建脚本保存并验证独立包记录', () {
+    final script = File('tool/android/build_tv_test.ps1').readAsStringSync();
+
+    for (final text in <String>[
+      'private-output',
+      'aapt dump badging',
+      'aapt dump xmltree',
+      'leanback-launchable-activity',
+      'android.hardware.touchscreen',
+      'android:banner',
+      'apksigner verify --verbose --print-certs',
+      'verify_full_media_bundle.ps1',
+      'Get-FileHash',
+      'SHA256',
+    ]) {
+      expect(script, contains(text), reason: text);
+    }
+  });
 }

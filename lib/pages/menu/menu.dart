@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/bean/widget/embedded_native_control_area.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
+import 'package:kanyingyin/features/tv/presentation/tv_back_navigation_guard.dart';
 import 'package:kanyingyin/pages/navigation/navigation_config.dart';
 import 'package:kanyingyin/pages/router.dart';
 import 'package:kanyingyin/utils/constants.dart';
@@ -64,34 +65,38 @@ class _ScaffoldMenu extends State<ScaffoldMenu> {
       create: (context) => NavigationBarState(),
       child: Consumer<NavigationBarState>(
         builder: (context, state, _) {
-          return AdaptiveNavigationShell(
-            capabilities: detectAppPlatform(),
-            selectedIndex: state.selectedIndex,
-            destinations: appNavigationDestinations,
-            navigationHidden: state.isHide,
-            topBar:
-                _showCustomWindowControls ? _desktopTitleBar(context) : null,
-            navigationWrapper: (child) => EmbeddedNativeControlArea(
-              child: AnimatedOpacity(
-                duration: StyleString.fastAnimationDuration,
-                opacity: state.isHide ? 0 : 1,
-                child: child,
+          final capabilities = detectAppPlatform();
+          return TvBackNavigationGuard(
+            enabled: capabilities.isAndroidTv,
+            child: AdaptiveNavigationShell(
+              capabilities: capabilities,
+              selectedIndex: state.selectedIndex,
+              destinations: appNavigationDestinations,
+              navigationHidden: state.isHide,
+              topBar:
+                  _showCustomWindowControls ? _desktopTitleBar(context) : null,
+              navigationWrapper: (child) => EmbeddedNativeControlArea(
+                child: AnimatedOpacity(
+                  duration: StyleString.fastAnimationDuration,
+                  opacity: state.isHide ? 0 : 1,
+                  child: child,
+                ),
               ),
+              onDestinationSelected: (index) {
+                state.updateSelectedIndex(index);
+                Modular.to.navigate('/tab${menu.getPath(index)}/');
+              },
+              onThemeModeChanged: (mode) async {
+                final themeProvider =
+                    Provider.of<ThemeProvider>(context, listen: false);
+                themeProvider.setThemeMode(mode);
+                await Modular.get<TypedSettings>().put(
+                  SettingBoxKey.themeMode,
+                  mode == ThemeMode.dark ? 'dark' : 'light',
+                );
+              },
+              content: const RouterOutlet(),
             ),
-            onDestinationSelected: (index) {
-              state.updateSelectedIndex(index);
-              Modular.to.navigate('/tab${menu.getPath(index)}/');
-            },
-            onThemeModeChanged: (mode) async {
-              final themeProvider =
-                  Provider.of<ThemeProvider>(context, listen: false);
-              themeProvider.setThemeMode(mode);
-              await Modular.get<TypedSettings>().put(
-                SettingBoxKey.themeMode,
-                mode == ThemeMode.dark ? 'dark' : 'light',
-              );
-            },
-            content: const RouterOutlet(),
           );
         },
       ),

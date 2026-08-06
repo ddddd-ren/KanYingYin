@@ -19,6 +19,8 @@ void main() {
       'Android TV/Google TV',
       'tvTest',
       '遥控器',
+      '搜索框',
+      '连续返回两次',
       '同一局域网',
       '手机扫码配置',
       'VIDAA',

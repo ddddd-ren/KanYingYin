@@ -5,6 +5,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/services/storage/storage_path_resolver.dart';
 
 void main() {
+  test('Windows 首次存储默认不依赖固定 D 盘路径', () {
+    final source = File(
+      'lib/services/storage/storage_path_resolver.dart',
+    ).readAsStringSync();
+    expect(source, contains('legacyData.parent'));
+    expect(source, contains('legacyCache.path'));
+    expect(source, isNot(contains("Directory(r'D:\\看影音')")));
+  });
+
   test('启动配置读写保留数据和缓存目录', () {
     const config = StorageStartupConfig(
       dataRoot: r'D:\看影音\数据',

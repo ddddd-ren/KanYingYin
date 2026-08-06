@@ -58,6 +58,20 @@ const VersionHistory _androidThirdRelease = VersionHistory(
   ],
 );
 
+const VersionHistory _androidFourthRelease = VersionHistory(
+  version: '1.0.3',
+  date: '2026-08-06',
+  changes: [
+    'Android 新增电影、动漫和电视剧分类入口，可直接浏览本地与个人网盘资源',
+    '剧集支持逐视频匹配 TMDB 季度和集数，选集显示“当前剧名 S01E01 TMDB 集名”',
+    'TMDB 集名只用于补充单集名称，不会覆盖用户设置的剧名，也不会修改本地文件、网盘路径、字幕关联或播放入口',
+    '多季度、多版本和不同目录的作品会按统一规则归并，并保留对应季度海报、集数和播放资源',
+    'TMDB 请求使用共享缓存并合并重复请求；没有 TMDB Key、断网或请求失败时，扫描、浏览和播放仍可使用',
+    'Android 继续支持字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+    '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件',
+  ],
+);
+
 const VersionHistory _androidAdaptiveQuarkSystemBarsPrerelease = VersionHistory(
   version: '2.1.103',
   date: '2026-08-03',
@@ -149,6 +163,23 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 );
 
 const List<VersionHistory> versionHistoryList = [
+  VersionHistory(
+    version: '1.0.6',
+    date: '2026-08-06',
+    changes: [
+      '本轮同步提供 Windows 1.0.6 与 Android 1.0.3 正式版，分别使用 Inno Setup EXE、APK 和 AAB 交付',
+      '新增电影、动漫和电视剧分类入口，可直接聚合本地与个人网盘资源，并支持来源筛选、搜索和播放',
+      '本地与网盘剧集支持逐视频匹配 TMDB 季度和集数，重新扫描后仍会保留已保存的匹配结果',
+      '选集现在显示“当前剧名 S01E01 TMDB 集名”；TMDB 集名只补充集名，不会覆盖用户设置的剧名',
+      '多季度、多版本和不同目录的作品会按统一规则归并，并保留季度海报、集数、字幕关联和原始播放入口',
+      'TMDB 请求使用共享缓存并合并重复请求；没有 TMDB Key、断网或请求失败时，扫描、浏览和播放仍可继续',
+      'Windows EXE 安装程序默认使用当前用户目录，安装时可以自选目录；不再要求用户拥有 D 盘，也不再生成 MSIX',
+      '应用数据和缓存目录可在设置中分别选择；迁移失败时会保留并继续使用原目录',
+      '诊断日志继续脱敏并隐藏本地文件路径、凭据和远程敏感信息',
+      'Android 继续支持字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件，也不会改变远程路径和播放 ID',
+    ],
+  ),
   VersionHistory(
     version: '2.1.136',
     date: '2026-08-06',
@@ -2390,6 +2421,9 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '1.0.6' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[_androidFourthRelease];
+  }
   if (currentVersion == '1.0.5' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[_androidThirdRelease];
   }

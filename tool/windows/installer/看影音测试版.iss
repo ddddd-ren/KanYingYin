@@ -46,8 +46,5 @@ Filename: "{app}\{#MyAppExeName}"; Description: "启动{#MyAppName}并验证安�
 [Code]
 function DefaultInstallDir(Param: String): String;
 begin
-  if DirExists('D:\') then
-    Result := 'D:\看影音'
-  else
-    Result := ExpandConstant('{localappdata}\Programs\看影音');
+  Result := ExpandConstant('{localappdata}\Programs\看影音');
 end;

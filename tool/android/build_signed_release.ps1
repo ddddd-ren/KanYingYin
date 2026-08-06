@@ -51,12 +51,15 @@ if (-not [string]::IsNullOrWhiteSpace($VersionFixturePath)) {
     $pubspecPath = $VersionFixturePath
 }
 $pubspecVersion = Get-PubspecVersion -Path $pubspecPath
-$androidVersion = $pubspecVersion.Name
-$androidVersionCode = $pubspecVersion.Code
 if ($VersionOnly) {
-    Write-Output "$androidVersion+$androidVersionCode"
+    Write-Output "$($pubspecVersion.Name)+$($pubspecVersion.Code)"
     return
 }
+if ($pubspecVersion.Name -ne '1.0.6' -or $pubspecVersion.Code -ne 10006) {
+    throw "Windows pubspec 版本必须为 1.0.6+10006，实际为 $($pubspecVersion.Name)+$($pubspecVersion.Code)"
+}
+$androidVersion = '1.0.3'
+$androidVersionCode = 10003
 $requiredVariables = @(
     'KANYINGYIN_ANDROID_KEYSTORE',
     'KANYINGYIN_ANDROID_STORE_PASSWORD',

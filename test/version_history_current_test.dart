@@ -5,6 +5,57 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('一点零六正式版展示分类、剧集匹配和自选目录更新', () {
+    final entries = versionHistoryForCurrent('1.0.6');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.isPrerelease, isFalse);
+    for (final text in <String>[
+      'Windows',
+      'Android',
+      '电影',
+      '动漫',
+      '电视剧',
+      '剧集',
+      'TMDB',
+      'S01E01',
+      '自选目录',
+      '迁移',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+    expect(changes, isNot(contains(r'D:\看影音')));
+  });
+
+  test('Android 一点零三正式版只展示 Android 功能', () {
+    final entries = versionHistoryForCurrent(
+      '1.0.6',
+      platform: AppPlatformKind.android,
+    );
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.version, '1.0.3');
+    expect(entry.isPrerelease, isFalse);
+    for (final text in <String>[
+      'Android',
+      '电影',
+      '动漫',
+      '电视剧',
+      'TMDB',
+      'S01E01',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+    expect(changes, isNot(contains('Windows')));
+    expect(changes, isNot(contains('EXE')));
+  });
+
   test('二点一三六修复有效剧名并改用 EXE 交付', () {
     final entries = versionHistoryForCurrent('2.1.136');
 

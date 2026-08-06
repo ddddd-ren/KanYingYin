@@ -4,10 +4,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Android Release 从 pubspec 读取版本并使用本机环境签名', () {
-    final pubspec = File('pubspec.yaml').readAsStringSync();
+  test('Android Release 使用正式版版本并使用本机环境签名', () {
     final gradle = File('android/app/build.gradle.kts').readAsStringSync();
-    final version = _parsePubspecVersion(pubspec);
 
     for (final variable in const <String>[
       'KANYINGYIN_ANDROID_KEYSTORE',
@@ -21,19 +19,10 @@ void main() {
     expect(gradle, contains('isShrinkResources = true'));
     expect(gradle, contains('proguard-rules.pro'));
     expect(gradle, isNot(contains('signingConfigs.getByName("debug")')));
-    expect(gradle, contains('.file("../pubspec.yaml")'));
-    expect(gradle, contains('readLines(Charsets.UTF_8)'));
-    expect(gradle, contains('pubspecVersionLines.size != 1'));
-    expect(gradle, contains('pubspecVersionPattern.matchEntire('));
-    expect(gradle, contains('.toIntOrNull()'));
-    expect(gradle, contains('androidVersionCode > 2100000000'));
+    expect(gradle, contains('val androidVersionName = "1.0.3"'));
+    expect(gradle, contains('val androidVersionCode = 10003'));
     expect(gradle, contains('versionCode = androidVersionCode'));
     expect(gradle, contains('versionName = androidVersionName'));
-    expect(gradle, isNot(contains('val androidVersionName = "')));
-    expect(gradle, isNot(contains('1.0.2')));
-    expect(gradle, isNot(contains('10002')));
-    expect(version.name, isNotEmpty);
-    expect(version.code, greaterThan(0));
   });
 
   test('Android Release 忽略未启用的 Play Core 延迟组件引用', () {
@@ -64,18 +53,9 @@ void main() {
     );
     expect(script, contains(r'$appName-$androidVersion.apk'));
     expect(script, contains(r'$appName-$androidVersion.aab'));
-    expect(script, contains('function Get-PubspecVersion'));
-    expect(
-      script,
-      contains(r"$pubspecPath = Join-Path $projectRoot 'pubspec.yaml'"),
-    );
-    expect(script, contains(r'$pubspecVersion = Get-PubspecVersion'));
-    expect(script, contains(r'$androidVersion = $pubspecVersion.Name'));
-    expect(script, contains(r'$androidVersionCode = $pubspecVersion.Code'));
-    expect(script, contains('2100000000'));
-    expect(script, isNot(contains('1.0.2')));
-    expect(script, isNot(contains('10002')));
-    expect(script, isNot(contains('1.0.5+10005')));
+    expect(script, contains(r"$androidVersion = '1.0.3'"));
+    expect(script, contains(r'$androidVersionCode = 10003'));
+    expect(script, contains('Windows pubspec 版本必须为 1.0.6+10006'));
     expect(script, contains('[char]0x770B'));
     expect(script, contains('com.kanyingyin.player'));
   });
@@ -221,16 +201,4 @@ void main() {
             );
     expect(keys, isEmpty);
   });
-}
-
-({String name, int code}) _parsePubspecVersion(String source) {
-  final matches = RegExp(
-    r'^version:\s*(\d+\.\d+\.\d+)\+([1-9]\d*)\s*$',
-    multiLine: true,
-  ).allMatches(source).toList(growable: false);
-  expect(matches, hasLength(1), reason: 'pubspec.yaml 必须包含唯一合法版本');
-  return (
-    name: matches.single.group(1)!,
-    code: int.parse(matches.single.group(2)!),
-  );
 }

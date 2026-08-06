@@ -3,29 +3,28 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('当前发布配置统一为二点一三六双平台测试版', () {
+  test('当前发布配置为 Windows 一点零六和 Android 一点零三正式版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
     final currentReleaseNotes = releaseNotes.substring(
-      releaseNotes.indexOf('## 2.1.136+20136'),
-      releaseNotes.indexOf('\n## 2.1.135+20135'),
+      releaseNotes.indexOf('## 1.0.6+10006'),
+      releaseNotes.indexOf('\n## 2.1.136+20136'),
     );
 
-    expect(pubspec, contains('version: 2.1.136+20136'));
-    expect(pubspec, contains('msix_version: 2.1.136.0'));
+    expect(pubspec, contains('version: 1.0.6+10006'));
+    expect(pubspec, contains('msix_version: 1.0.6.0'));
     for (final source in <String>[currentReleaseNotes, updateDialogCopy]) {
-      expect(source, contains('Windows 测试版'));
-      expect(source, contains('Android 测试版'));
-      expect(source, contains('2.1.136'));
-      expect(source, contains('20136'));
-      expect(source, contains('测试版'));
+      expect(source, contains('Windows 正式版'));
+      expect(source, contains('Android 正式版'));
+      expect(source, contains('1.0.6'));
+      expect(source, contains('1.0.3'));
+      expect(source, contains('正式版'));
       expect(source, contains('TMDB'));
       expect(source, contains('TMDB 集名'));
-      expect(source, contains('D:\\看影音'));
+      expect(source, isNot(contains('D:\\看影音')));
       expect(source, contains('EXE'));
       expect(source, contains('APK/AAB'));
-      expect(source, contains('Full'));
       expect(source, isNot(contains('本轮未打包')));
       expect(source, contains('断网'));
     }

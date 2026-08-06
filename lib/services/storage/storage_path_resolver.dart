@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -179,10 +178,7 @@ class StoragePathResolver {
         config = null;
       }
     }
-    final windows = detectAppPlatform().desktopShell;
-    final defaultRoot = windows && await Directory(r'D:\').exists()
-        ? Directory(r'D:\看影音')
-        : legacyData.parent;
+    final defaultRoot = legacyData.parent;
     if (config != null) {
       return StoragePathResolver.fromStartupConfig(
         config: config,
@@ -192,11 +188,7 @@ class StoragePathResolver {
       );
     }
     final dataRoot = Directory(p.join(defaultRoot.path, '数据'));
-    final cacheRoot = Directory(
-      windows && await Directory(r'D:\').exists()
-          ? p.join(defaultRoot.path, '缓存')
-          : legacyCache.path,
-    );
+    final cacheRoot = Directory(legacyCache.path);
     return StoragePathResolver(
       dataRoot: dataRoot,
       cacheRoot: cacheRoot,

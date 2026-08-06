@@ -98,11 +98,27 @@ try {
 
     Push-Location $projectRoot
     try {
-        & $flutter build apk --release --flavor $Flavor --no-pub
-        if ($LASTEXITCODE -ne 0) { throw 'Android APK release build failed' }
+        $previousErrorAction = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $apkBuildOutput = & $flutter build apk --release --flavor $Flavor --no-pub 2>&1
+            $apkBuildExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $previousErrorAction
+        }
+        $apkBuildOutput | ForEach-Object { $_.ToString() } | Write-Output
+        if ($apkBuildExitCode -ne 0) { throw 'Android APK release build failed' }
         if (-not $ApkOnly) {
-            & $flutter build appbundle --release --flavor $Flavor --no-pub
-            if ($LASTEXITCODE -ne 0) { throw 'Android AAB release build failed' }
+            $previousErrorAction = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            try {
+                $aabBuildOutput = & $flutter build appbundle --release --flavor $Flavor --no-pub 2>&1
+                $aabBuildExitCode = $LASTEXITCODE
+            } finally {
+                $ErrorActionPreference = $previousErrorAction
+            }
+            $aabBuildOutput | ForEach-Object { $_.ToString() } | Write-Output
+            if ($aabBuildExitCode -ne 0) { throw 'Android AAB release build failed' }
         }
     }
     finally {

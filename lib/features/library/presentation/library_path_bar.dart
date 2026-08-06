@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:kanyingyin/features/library/presentation/directory_address_dropdown.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 
 typedef LibraryPathSubmit = Future<String?> Function(String path);
 
@@ -159,6 +161,7 @@ class LibraryPathBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final isAndroidTv = detectAppPlatform().isAndroidTv;
     return Column(
       children: [
         Container(
@@ -345,28 +348,57 @@ class LibraryPathBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(9),
               border: Border.all(color: colors.outlineVariant, width: 0.75),
             ),
-            child: TextField(
-              controller: searchController,
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                hintText: '搜索当前目录',
-                prefixIcon: const Icon(Icons.search, size: 18),
-                suffixIcon: data.searchKeyword.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: '清空搜索',
-                        icon: const Icon(Icons.close, size: 18),
-                        onPressed: onClearSearch,
-                      ),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Focus(
+              canRequestFocus: false,
+              skipTraversal: true,
+              onKeyEvent: isAndroidTv ? _handleTvSearchKeyEvent : null,
+              child: TextField(
+                controller: searchController,
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  hintText: '搜索当前目录',
+                  prefixIcon: const Icon(Icons.search, size: 18),
+                  suffixIcon: data.searchKeyword.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: '清空搜索',
+                          icon: const Icon(Icons.close, size: 18),
+                          onPressed: onClearSearch,
+                        ),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+                onChanged: onSearchChanged,
               ),
-              onChanged: onSearchChanged,
             ),
           ),
         ),
       ],
     );
+  }
+
+  KeyEventResult _handleTvSearchKeyEvent(FocusNode _, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final direction = switch (event.logicalKey) {
+      LogicalKeyboardKey.arrowLeft => TraversalDirection.left,
+      LogicalKeyboardKey.arrowRight => TraversalDirection.right,
+      LogicalKeyboardKey.arrowUp => TraversalDirection.up,
+      LogicalKeyboardKey.arrowDown => TraversalDirection.down,
+      _ => null,
+    };
+    if (direction != null) {
+      final moved =
+          FocusManager.instance.primaryFocus?.focusInDirection(direction) ??
+              false;
+      return moved ? KeyEventResult.handled : KeyEventResult.ignored;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.escape ||
+        event.logicalKey == LogicalKeyboardKey.goBack ||
+        event.logicalKey == LogicalKeyboardKey.browserBack) {
+      FocusManager.instance.primaryFocus?.unfocus();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   ButtonStyle _iconButtonStyle(

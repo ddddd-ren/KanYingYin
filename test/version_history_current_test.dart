@@ -80,7 +80,7 @@ void main() {
     }
   });
 
-  test('二点一三八支持自定义安装目录', () {
+  test('二点一三八支持自定义安装目录和 Android TV 测试版', () {
     final entries = versionHistoryForCurrent('2.1.138');
 
     expect(entries, hasLength(1));
@@ -95,6 +95,14 @@ void main() {
       '目录选择页',
       '自选',
       '实际安装目录',
+      'Android TV 测试版',
+      'Android TV/Google TV',
+      'tvTest',
+      '遥控器',
+      '同一局域网',
+      '手机扫码配置',
+      'VIDAA',
+      '实机验收未完成',
       '不会修改或删除',
     ]) {
       expect(changes, contains(text));

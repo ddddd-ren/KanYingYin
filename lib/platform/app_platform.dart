@@ -9,6 +9,10 @@ class AppPlatformCapabilities {
     required this.windowBrightness,
     required this.hardwareDecoders,
     required this.videoRenderers,
+    this.television = false,
+    this.touchscreen = false,
+    this.androidSdkInt = 0,
+    this.webViewAvailable = false,
   });
 
   static const windows = AppPlatformCapabilities(
@@ -47,9 +51,35 @@ class AppPlatformCapabilities {
   final bool windowBrightness;
   final List<String> hardwareDecoders;
   final List<String> videoRenderers;
+  final bool television;
+  final bool touchscreen;
+  final int androidSdkInt;
+  final bool webViewAvailable;
 
   bool get isWindows => kind == AppPlatformKind.windows;
   bool get isAndroid => kind == AppPlatformKind.android;
+  bool get isAndroidTv => isAndroid && television;
+
+  AppPlatformCapabilities copyWith({
+    bool? television,
+    bool? touchscreen,
+    int? androidSdkInt,
+    bool? webViewAvailable,
+  }) {
+    return AppPlatformCapabilities(
+      kind: kind,
+      desktopShell: desktopShell,
+      storageAccessFramework: storageAccessFramework,
+      systemPictureInPicture: systemPictureInPicture,
+      windowBrightness: windowBrightness,
+      hardwareDecoders: hardwareDecoders,
+      videoRenderers: videoRenderers,
+      television: television ?? this.television,
+      touchscreen: touchscreen ?? this.touchscreen,
+      androidSdkInt: androidSdkInt ?? this.androidSdkInt,
+      webViewAvailable: webViewAvailable ?? this.webViewAvailable,
+    );
+  }
 
   bool supportsAnime4k(String renderer) {
     if (isWindows) return true;

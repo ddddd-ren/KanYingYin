@@ -44,6 +44,12 @@ class AndroidPlatformChannel {
     return _invokeBool('requestNotificationPermission');
   }
 
+  Future<Map<Object?, Object?>?> getDeviceCapabilities() {
+    return _channel.invokeMapMethod<Object?, Object?>(
+      'getDeviceCapabilities',
+    );
+  }
+
   Future<Map<Object?, Object?>?> pickDocumentDirectory() {
     return _channel.invokeMapMethod<Object?, Object?>('pickDirectory');
   }

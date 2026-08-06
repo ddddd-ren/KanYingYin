@@ -17,4 +17,20 @@ void main() {
       contains('d3d11va-copy'),
     );
   });
+
+  test('Android TV 能力副本保留基础平台边界', () {
+    final capabilities = AppPlatformCapabilities.android.copyWith(
+      television: true,
+      touchscreen: false,
+      androidSdkInt: 24,
+      webViewAvailable: false,
+    );
+
+    expect(capabilities.isAndroidTv, isTrue);
+    expect(capabilities.isAndroid, isTrue);
+    expect(capabilities.desktopShell, isFalse);
+    expect(capabilities.touchscreen, isFalse);
+    expect(capabilities.androidSdkInt, 24);
+    expect(capabilities.webViewAvailable, isFalse);
+  });
 }

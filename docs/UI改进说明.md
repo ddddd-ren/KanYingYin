@@ -2,8 +2,8 @@
 
 ## 版本信息
 - 分支：`feature/ui-improvements`
-- 提交数：5个
-- 改动文件：11个
+- 提交数：7个功能提交
+- 改动文件：11个功能文件
 - 新增代码：~1100行
 
 ## 改进概览
@@ -311,7 +311,7 @@ commit 01ddae5
 - ✅ `flutter test` 通过（1690/1691，1个原有失败）
 - ✅ `flutter analyze` 无问题
 - ✅ Windows Release构建成功
-- ✅ MSIX安装包已生成并复制到桌面（202MB，SHA-256: 91bbb3d4...）
+- ✅ Inno Setup EXE 测试版安装包已生成并复制到桌面（69,702,161 字节，SHA-256: FA55896FADEE39B2C9916255AD10333F691687F62550C67AFCB761CE64E9D359）
 - ✅ 所有改动已提交到 `feature/ui-improvements` 分支
 - ✅ 提交信息清晰规范
 - ✅ 保持现有功能完整性

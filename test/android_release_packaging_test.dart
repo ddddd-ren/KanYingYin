@@ -55,7 +55,7 @@ void main() {
     expect(script, contains(r'$appName-$androidVersion.aab'));
     expect(script, contains(r"$androidVersion = '1.0.3'"));
     expect(script, contains(r'$androidVersionCode = 10003'));
-    expect(script, contains('Windows pubspec 版本必须为 1.0.6+10006'));
+    expect(script, contains('Windows pubspec 版本必须为 2.1.136+20136'));
     expect(script, contains('[char]0x770B'));
     expect(script, contains('com.kanyingyin.player'));
   });

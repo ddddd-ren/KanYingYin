@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('一点零六正式版双平台版本和发布文案保持一致', () {
-    const expectedVersion = '1.0.6';
-    const expectedBuildNumber = '10006';
+  test('Windows 二点一三六测试版和 Android 一点零三正式版版本文案保持一致', () {
+    const expectedVersion = '2.1.136';
+    const expectedBuildNumber = '20136';
     const expectedAndroidVersion = '1.0.3';
     const expectedAndroidVersionCode = '10003';
     final pubspec = File('pubspec.yaml').readAsStringSync();
@@ -85,7 +85,7 @@ void main() {
     expect(updateDialogCopy, contains('Android 应用版本：$expectedAndroidVersion'));
     expect(updateDialogCopy,
         contains('Android versionCode：$expectedAndroidVersionCode'));
-    expect(updateDialogCopy, contains('看影音 $version 正式版'));
+    expect(updateDialogCopy, contains('看影音 $version 测试版'));
     expect(updateDialogCopy, contains('Android 弹窗正文'));
     expect(
       updateDialogCopy,
@@ -98,7 +98,7 @@ void main() {
     expect(
       versionHistory.indexOf("version: '$version'", versionHistoryListStart),
       lessThan(
-        versionHistory.indexOf("version: '2.1.136'", versionHistoryListStart),
+        versionHistory.indexOf("version: '2.1.135'", versionHistoryListStart),
       ),
     );
     expect(versionHistory, contains("version: '1.0.2'"));
@@ -132,25 +132,21 @@ void main() {
     ]) {
       for (final text in <String>[
         'Windows',
-        'Android',
-        '分类',
-        '剧集',
-        'TMDB',
-        '自选目录',
-        '迁移',
-        '诊断日志',
-        '本地文件路径',
+        '主题色',
+        '骨架屏',
+        '空状态',
+        '媒体卡片',
         '不会修改或删除',
       ]) {
         expect(currentCopy, contains(text));
       }
     }
-    expect(currentReleaseNotes, contains('正式版'));
-    expect(updateDialogCopy, contains('Windows 正式版 EXE'));
+    expect(currentReleaseNotes, contains('测试版'));
+    expect(updateDialogCopy, contains('Windows 测试版 EXE'));
     expect(updateDialogCopy, contains('Android 正式版 APK/AAB'));
-    expect(currentReleaseNotes, contains('APK/AAB'));
+    expect(releaseNotes, contains('APK/AAB'));
     expect(currentReleaseNotes, isNot(contains('本轮未打包')));
-    expect(currentVersionHistory, isNot(contains('isPrerelease: true')));
+    expect(currentVersionHistory, contains('isPrerelease: true'));
   });
 }
 

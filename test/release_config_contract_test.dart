@@ -3,31 +3,28 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('当前发布配置为 Windows 一点零六和 Android 一点零三正式版', () {
+  test('当前发布配置为 Windows 二点一三六测试版和 Android 一点零三正式版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
     final currentReleaseNotes = releaseNotes.substring(
-      releaseNotes.indexOf('## 1.0.6+10006'),
-      releaseNotes.indexOf('\n## 2.1.136+20136'),
+      releaseNotes.indexOf('## 2.1.136+20136'),
+      releaseNotes.indexOf('\n## 2.1.135+20135'),
     );
 
-    expect(pubspec, contains('version: 1.0.6+10006'));
-    expect(pubspec, contains('msix_version: 1.0.6.0'));
-    for (final source in <String>[currentReleaseNotes, updateDialogCopy]) {
-      expect(source, contains('Windows 正式版'));
-      expect(source, contains('Android 正式版'));
-      expect(source, contains('1.0.6'));
-      expect(source, contains('1.0.3'));
-      expect(source, contains('正式版'));
-      expect(source, contains('TMDB'));
-      expect(source, contains('TMDB 集名'));
-      expect(source, isNot(contains('D:\\看影音')));
-      expect(source, contains('EXE'));
-      expect(source, contains('APK/AAB'));
-      expect(source, isNot(contains('本轮未打包')));
-      expect(source, contains('断网'));
-    }
+    expect(pubspec, contains('version: 2.1.136+20136'));
+    expect(pubspec, contains('msix_version: 2.1.136.0'));
+    expect(currentReleaseNotes, contains('Windows 测试版'));
+    expect(currentReleaseNotes, contains('2.1.136'));
+    expect(currentReleaseNotes, contains('主题色'));
+    expect(currentReleaseNotes, contains('骨架屏'));
+    expect(currentReleaseNotes, contains('空状态'));
+    expect(currentReleaseNotes, contains('EXE'));
+    expect(currentReleaseNotes, contains('本轮不再生成 MSIX'));
+    expect(updateDialogCopy, contains('Windows 测试版 EXE'));
+    expect(updateDialogCopy, contains('Android 正式版'));
+    expect(updateDialogCopy, contains('2.1.136'));
+    expect(updateDialogCopy, contains('1.0.3'));
   });
 
   test('直接依赖使用与锁文件兼容的明确约束', () {

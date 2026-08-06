@@ -139,10 +139,12 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
                 blurSigma: 12, // 从 10 增加到 12
                 color: Colors.black.withValues(alpha: 0.32), // 从 0.28 增强到 0.32
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.18), // 从 0.16 增强到 0.18
+                  color:
+                      Colors.white.withValues(alpha: 0.18), // 从 0.16 增强到 0.18
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 12), // 从 (10,8,10,10) 调整
+                  padding: const EdgeInsets.fromLTRB(
+                      12, 10, 12, 12), // 从 (10,8,10,10) 调整
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
@@ -151,7 +153,8 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
                         widget.title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: textTheme.titleLarge?.copyWith( // 从 titleMedium 升级到 titleLarge
+                        style: textTheme.titleLarge?.copyWith(
+                          // 从 titleMedium 升级到 titleLarge
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
                           height: 1.2, // 从 1.15 调整到 1.2

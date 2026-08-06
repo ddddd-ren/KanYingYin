@@ -39,12 +39,12 @@ val pubspecVersionPattern =
 val pubspecVersionMatch =
     pubspecVersionPattern.matchEntire(pubspecVersionLines.single())
         ?: throw GradleException("pubspec.yaml 的 version 格式无效")
-val androidVersionName = pubspecVersionMatch.groupValues[1]
-val androidVersionCode = pubspecVersionMatch.groupValues[2].toIntOrNull()
-    ?: throw GradleException("pubspec.yaml 的 build number 超出 Android 整数范围")
-if (androidVersionCode > 2100000000) {
-    throw GradleException("pubspec.yaml 的 build number 超出 Android versionCode 上限")
+if (pubspecVersionMatch.groupValues[1] != "1.0.6" ||
+    pubspecVersionMatch.groupValues[2] != "10006") {
+    throw GradleException("pubspec.yaml 必须为 1.0.6+10006")
 }
+val androidVersionName = "1.0.3"
+val androidVersionCode = 10003
 
 android {
     namespace = "com.kanyingyin.player"

@@ -3,16 +3,23 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Inno Setup 使用当前用户安装并默认写入 D 盘', () {
+  test('Inno Setup 使用当前用户安装并允许完全自选目录', () {
     final source = File('tool/windows/installer/看影音测试版.iss').readAsStringSync();
+    final instructions =
+        File('tool/windows/installer/安装说明.txt').readAsStringSync();
     expect(source, contains('PrivilegesRequired=lowest'));
-    expect(source, contains("Result := 'D:\\看影音'"));
+    expect(source,
+        contains("Result := ExpandConstant('{localappdata}\\Programs\\看影音')"));
+    expect(source, isNot(contains("Result := 'D:\\看影音'")));
     expect(source, contains('DefaultDirName={code:DefaultInstallDir}'));
     expect(source, contains('Excludes: "*.msix,msix_verify_*\\*"'));
     expect(source, isNot(contains('Get-AppxPackage')));
     expect(source, isNot(contains('Remove-AppxPackage')));
     expect(source, isNot(contains('是否卸载旧的 MSIX 版本')));
     expect(source, isNot(contains('Name: "{autodesktop}')));
+    expect(instructions, contains('用户可以自选任意可用盘符和目录'));
+    expect(instructions, isNot(contains(r'D:\看影音')));
+    expect(instructions, isNot(contains('MSIX')));
   });
 
   test('构建脚本强制预检 ISCC 并输出桌面哈希', () {
@@ -59,7 +66,8 @@ void main() {
       ),
     );
     expect(runner, contains('#define VERSION_AS_STRING VERSION_TRIPLE'));
-    expect(runner, isNot(contains('#define VERSION_AS_STRING FLUTTER_VERSION')));
+    expect(
+        runner, isNot(contains('#define VERSION_AS_STRING FLUTTER_VERSION')));
     expect(buildScript, contains(r'$releaseVersion -ne $version'));
     expect(
       buildScript,

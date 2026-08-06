@@ -217,6 +217,7 @@ class LibraryMediaGrid extends StatelessWidget {
           title: '没有匹配的文件',
           description: '尝试使用其他关键词搜索',
           actionLabel: '清空搜索',
+          actionIcon: Icons.clear,
           action: onClearSearch,
         );
       }
@@ -226,7 +227,10 @@ class LibraryMediaGrid extends StatelessWidget {
           title: '请先设置本地文件目录',
           description: '设置 → 界面 → 本地文件默认路径',
           actionLabel: '选择文件夹',
-          action: onPickDirectory == null ? null : () async => await onPickDirectory!(),
+          actionIcon: Icons.folder_outlined,
+          action: onPickDirectory == null
+              ? null
+              : () async => await onPickDirectory!(),
         );
       }
       return EmptyState(
@@ -234,7 +238,10 @@ class LibraryMediaGrid extends StatelessWidget {
         title: '没有可识别的视频',
         description: '仅显示大于 800MB 的视频文件',
         actionLabel: '切换文件夹',
-        action: onPickDirectory == null ? null : () async => await onPickDirectory!(),
+        actionIcon: Icons.folder_outlined,
+        action: onPickDirectory == null
+            ? null
+            : () async => await onPickDirectory!(),
       );
     }
     return GridView.builder(

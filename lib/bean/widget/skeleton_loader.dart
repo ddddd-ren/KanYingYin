@@ -32,7 +32,33 @@ class _SkeletonLoaderState extends State<SkeletonLoader>
     _controller = AnimationController(
       vsync: this,
       duration: widget.duration,
-    )..repeat();
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _maybeStartAnimation();
+  }
+
+  @override
+  void didUpdateWidget(SkeletonLoader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.enabled != widget.enabled) {
+      _maybeStartAnimation();
+    }
+  }
+
+  void _maybeStartAnimation() {
+    final disableAnimations =
+        MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    if (widget.enabled && !disableAnimations) {
+      if (!_controller.isAnimating) {
+        _controller.repeat();
+      }
+    } else {
+      _controller.stop();
+    }
   }
 
   @override
@@ -49,10 +75,10 @@ class _SkeletonLoaderState extends State<SkeletonLoader>
 
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final baseColor =
-        widget.baseColor ?? colorScheme.surfaceContainerHighest.withValues(alpha: 0.3);
-    final highlightColor =
-        widget.highlightColor ?? colorScheme.surfaceContainerHighest.withValues(alpha: 0.6);
+    final baseColor = widget.baseColor ??
+        colorScheme.surfaceContainerHighest.withValues(alpha: 0.3);
+    final highlightColor = widget.highlightColor ??
+        colorScheme.surfaceContainerHighest.withValues(alpha: 0.6);
 
     return AnimatedBuilder(
       animation: _controller,

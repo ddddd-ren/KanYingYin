@@ -9,6 +9,7 @@ class EmptyState extends StatelessWidget {
     this.description,
     this.action,
     this.actionLabel,
+    this.actionIcon,
     this.iconSize = 80,
   });
 
@@ -17,6 +18,7 @@ class EmptyState extends StatelessWidget {
   final String? description;
   final VoidCallback? action;
   final String? actionLabel;
+  final IconData? actionIcon;
   final double iconSize;
 
   @override
@@ -61,7 +63,7 @@ class EmptyState extends StatelessWidget {
                 const SizedBox(height: 32),
                 FilledButton.icon(
                   onPressed: action,
-                  icon: const Icon(Icons.add_circle_outline),
+                  icon: Icon(actionIcon ?? Icons.add_circle_outline),
                   label: Text(actionLabel!),
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
@@ -93,6 +95,7 @@ class EmptyStates {
         description: '添加本地文件夹或网盘账号，开始构建您的媒体库',
         action: onAddSource,
         actionLabel: '添加媒体源',
+        actionIcon: Icons.add_circle_outline,
       );
 
   /// 搜索无结果
@@ -115,6 +118,7 @@ class EmptyStates {
         description: '无法访问媒体源，请检查路径是否正确或网络连接',
         action: onRetry,
         actionLabel: '重新扫描',
+        actionIcon: Icons.refresh,
       );
 
   /// 网络错误
@@ -127,6 +131,7 @@ class EmptyStates {
         description: '无法连接到服务器，请检查网络设置',
         action: onRetry,
         actionLabel: onRetry != null ? '重试' : null,
+        actionIcon: Icons.refresh,
       );
 
   /// 空目录
@@ -161,5 +166,6 @@ class EmptyStates {
         description: message,
         action: onRetry,
         actionLabel: onRetry != null ? '重试' : null,
+        actionIcon: Icons.refresh,
       );
 }

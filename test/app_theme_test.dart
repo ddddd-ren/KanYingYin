@@ -27,8 +27,8 @@ void main() {
     final cardShape = theme.cardTheme.shape! as RoundedRectangleBorder;
     final dialogShape = theme.dialogTheme.shape! as RoundedRectangleBorder;
 
-    expect(cardShape.borderRadius, BorderRadius.circular(8));
-    expect(dialogShape.borderRadius, BorderRadius.circular(12));
+    expect(cardShape.borderRadius, BorderRadius.circular(12));
+    expect(dialogShape.borderRadius, BorderRadius.circular(16));
   });
 
   test('主题工厂不再暴露动态配色入口', () {

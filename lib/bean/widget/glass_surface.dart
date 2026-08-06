@@ -140,7 +140,8 @@ class GlassDialog extends StatelessWidget {
       elevation: 0,
       insetPadding: insetPadding,
       clipBehavior: Clip.antiAlias,
-      child: GlassSurface.heavy( // 使用重度模糊预设
+      child: GlassSurface.heavy(
+        // 使用重度模糊预设
         borderRadius: BorderRadius.circular(16), // 从 12 增加到 16
         color: scheme.surfaceContainerHigh.withValues(alpha: 0.72),
         border: Border.all(

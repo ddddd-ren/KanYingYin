@@ -25,13 +25,15 @@ class KSettingsSection extends StatelessWidget {
       children: [
         if (title != null || description != null)
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12), // 从 (10,0,10,9) 调整
+            padding:
+                const EdgeInsets.fromLTRB(12, 0, 12, 12), // 从 (10,0,10,9) 调整
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (title != null)
                   DefaultTextStyle.merge(
-                    style: theme.textTheme.titleMedium?.copyWith( // 从 labelLarge 升级到 titleMedium
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      // 从 labelLarge 升级到 titleMedium
                       color: scheme.primary,
                       fontWeight: FontWeight.w700,
                       fontSize: 15, // 明确设置字号
@@ -55,9 +57,11 @@ class KSettingsSection extends StatelessWidget {
         GlassSurface(
           borderRadius: BorderRadius.circular(16), // 从 14 增加到 16
           blurSigma: 20, // 从 16 增加到 20（使用标准中度模糊）
-          color: scheme.surfaceContainerLow.withValues(alpha: 0.68), // 从 0.62 增加到 0.68
+          color: scheme.surfaceContainerLow
+              .withValues(alpha: 0.68), // 从 0.62 增加到 0.68
           border: Border.all(
-            color: scheme.outlineVariant.withValues(alpha: 0.52), // 从 0.62 调整到 0.52
+            color: scheme.outlineVariant
+                .withValues(alpha: 0.52), // 从 0.62 调整到 0.52
             width: 1.2, // 添加边框宽度
           ),
           boxShadow: [
@@ -76,7 +80,8 @@ class KSettingsSection extends StatelessWidget {
                   Divider(
                     height: 1,
                     indent: 64,
-                    color: scheme.outlineVariant.withValues(alpha: 0.4), // 从 0.5 降低到 0.4
+                    color: scheme.outlineVariant
+                        .withValues(alpha: 0.4), // 从 0.5 降低到 0.4
                   ),
               ],
             ],

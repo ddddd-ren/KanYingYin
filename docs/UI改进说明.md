@@ -2,9 +2,9 @@
 
 ## 版本信息
 - 分支：`feature/ui-improvements`
-- 提交数：3个
-- 改动文件：9个
-- 新增代码：~700行
+- 提交数：5个
+- 改动文件：11个
+- 新增代码：~1100行
 
 ## 改进概览
 
@@ -308,9 +308,9 @@ commit 01ddae5
 
 ## 七、验收清单
 
-- ✅ `flutter test` 通过（1689/1691，2个原有失败）
+- ✅ `flutter test` 通过（1690/1691，1个原有失败）
 - ✅ `flutter analyze` 无问题
-- ✅ Windows Release构建成功
+- ⏳ Windows Release构建（待重新构建）
 - ✅ 所有改动已提交到 `feature/ui-improvements` 分支
 - ✅ 提交信息清晰规范
 - ✅ 保持现有功能完整性

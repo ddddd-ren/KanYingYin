@@ -53,11 +53,10 @@ class _TvBackNavigationGuardState extends State<TvBackNavigationGuard> {
         onPopInvokedWithResult: (didPop, _) {
           if (didPop) return;
           Navigator.of(dialogContext).pop(false);
-          unawaited(_requestExit());
         },
         child: AlertDialog(
           title: const Text('退出看影音？'),
-          content: const Text('再次按返回键，或选择“退出”关闭应用。'),
+          content: const Text('请点击”退出”按钮关闭应用。'),
           actions: [
             TextButton(
               autofocus: true,

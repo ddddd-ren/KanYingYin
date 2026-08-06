@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_back_navigation_guard.dart';
 
 void main() {
-  testWidgets('TV 返回键先退出输入，再确认，连续返回才退出应用', (tester) async {
+  testWidgets('TV 返回键先退出输入，再确认，必须点击退出按钮才退出应用', (tester) async {
     final searchFocusNode = FocusNode();
     addTearDown(searchFocusNode.dispose);
     var exitCount = 0;
@@ -44,7 +44,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('退出看影音？'), findsNothing);
-    expect(exitCount, 1);
+    expect(exitCount, 0);
   });
 
   testWidgets('TV 退出确认可用遥控器按钮取消或退出', (tester) async {

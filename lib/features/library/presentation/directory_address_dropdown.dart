@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 typedef DirectoryChildrenLoader = Future<List<DirectoryNavigationItem>>
     Function(String path);
@@ -182,44 +183,53 @@ class _DirectoryAddressDropdownState extends State<DirectoryAddressDropdown> {
             maximumSize: WidgetStatePropertyAll<Size>(Size(360, 320)),
           ),
           menuChildren: _menuItems(context),
-          builder: (context, controller, child) => TextField(
-            key: widget.addressKey,
-            controller: _controller,
-            focusNode: _focusNode,
-            enabled: !_disabled,
-            textInputAction: TextInputAction.go,
-            onSubmitted: (_) => _submit(),
-            decoration: InputDecoration(
-              hintText: widget.hintText,
-              prefixIcon: const Icon(Icons.folder_outlined, size: 18),
-              suffixIcon: _loadingChildren || _submitting
-                  ? const Padding(
-                      padding: EdgeInsets.all(10),
-                      child: SizedBox.square(
-                        dimension: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+          builder: (context, controller, child) => CallbackShortcuts(
+            bindings: <ShortcutActivator, VoidCallback>{
+              const SingleActivator(LogicalKeyboardKey.escape): () {
+                if (controller.isOpen) {
+                  controller.close();
+                }
+              },
+            },
+            child: TextField(
+              key: widget.addressKey,
+              controller: _controller,
+              focusNode: _focusNode,
+              enabled: !_disabled,
+              textInputAction: TextInputAction.go,
+              onSubmitted: (_) => _submit(),
+              decoration: InputDecoration(
+                hintText: widget.hintText,
+                prefixIcon: const Icon(Icons.folder_outlined, size: 18),
+                suffixIcon: _loadingChildren || _submitting
+                    ? const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : IconButton(
+                        tooltip: '展开子文件夹',
+                        onPressed: _disabled ? null : _toggleChildren,
+                        icon: Icon(
+                          controller.isOpen
+                              ? Icons.arrow_drop_up_rounded
+                              : Icons.arrow_drop_down_rounded,
+                          size: 20,
+                        ),
                       ),
-                    )
-                  : IconButton(
-                      tooltip: '展开子文件夹',
-                      onPressed: _disabled ? null : _toggleChildren,
-                      icon: Icon(
-                        controller.isOpen
-                            ? Icons.arrow_drop_up_rounded
-                            : Icons.arrow_drop_down_rounded,
-                        size: 20,
-                      ),
-                    ),
-              isDense: true,
-              filled: true,
-              fillColor: colors.surface,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: colors.outlineVariant),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: colors.outlineVariant),
+                isDense: true,
+                filled: true,
+                fillColor: colors.surface,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: colors.outlineVariant),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: colors.outlineVariant),
+                ),
               ),
             ),
           ),

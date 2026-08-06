@@ -82,6 +82,35 @@ void main() {
     expect(restored.manualOverride, isFalse);
   });
 
+  test('单集人工匹配可同时更正作品归属且不修改其他视频', () async {
+    final items = repository.getAll();
+    final target = items.first;
+    final sibling = items.last;
+
+    await service.save(
+      resourceIds: <String>[target.id],
+      assignments: <ManualEpisodeAssignment>[
+        ManualEpisodeAssignment.mapped(
+          resourceId: target.id,
+          seasonNumber: 1,
+          episodeNumber: 2,
+        ),
+      ],
+      metadata: _metadata(),
+      selectedSeasonNumber: 1,
+      seriesNameOverride: '异世界悠闲农家',
+    );
+
+    final updatedById = <String, LocalMediaIndexItem>{
+      for (final item in repository.getAll()) item.id: item,
+    };
+    expect(updatedById[target.id]!.seriesName, '异世界悠闲农家');
+    expect(updatedById[target.id]!.episodeNumber, 2);
+    expect(updatedById[target.id]!.manualOverride, isTrue);
+    expect(updatedById[sibling.id]!.seriesName, 'Show');
+    expect(updatedById[sibling.id]!.tmdb, isNull);
+  });
+
   test('显式清空季集字段可以 JSON 往返', () {
     final cleared = _item(
       r'D:\Library\Show\Show.S01E01.mkv',

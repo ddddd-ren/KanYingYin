@@ -3,6 +3,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/pages/local/local_controller.dart';
+import 'package:kanyingyin/pages/local/local_episode_scrape_flow.dart';
+import 'package:kanyingyin/pages/local/manual_episode_match_flow.dart';
 import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
 
@@ -10,10 +13,12 @@ class LocalSeriesDetailPage extends StatelessWidget {
   const LocalSeriesDetailPage({
     super.key,
     required this.series,
+    required this.controller,
     required this.onPlay,
   });
 
   final LocalMediaSeries series;
+  final LocalController controller;
   final void Function(LocalMediaIndexItem episode) onPlay;
 
   @override
@@ -79,12 +84,66 @@ class LocalSeriesDetailPage extends StatelessWidget {
               leading: const Icon(Icons.play_circle_outline),
               title: Text(episode.displayTitle),
               subtitle: Text(episode.toFileItem().formattedSize),
+              trailing: PopupMenuButton<String>(
+                tooltip: '单集操作',
+                onSelected: (value) =>
+                    _handleEpisodeAction(context, episode, value),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'scrape', child: Text('重新识别此集')),
+                  PopupMenuItem(value: 'match', child: Text('手动匹配此集')),
+                  PopupMenuItem(
+                    value: 'episode',
+                    child: Text('匹配季度和集数'),
+                  ),
+                  PopupMenuItem(value: 'reassign', child: Text('更正作品归属')),
+                ],
+              ),
               onTap: () => onPlay(episode),
             ),
           const SizedBox(height: 20),
         ],
       ),
     );
+  }
+
+  Future<void> _handleEpisodeAction(
+    BuildContext context,
+    LocalMediaIndexItem episode,
+    String action,
+  ) async {
+    switch (action) {
+      case 'scrape':
+        await scrapeLocalEpisode(
+          context: context,
+          controller: controller,
+          episode: episode,
+        );
+        return;
+      case 'match':
+        await openLocalEpisodeTmdbDialog(
+          context: context,
+          controller: controller,
+          episode: episode,
+        );
+        return;
+      case 'episode':
+        await openLocalManualEpisodeMatch(
+          context: context,
+          controller: controller,
+          originalName: episode.name,
+          paths: <String>[episode.path],
+        );
+        return;
+      case 'reassign':
+        await openLocalManualEpisodeMatch(
+          context: context,
+          controller: controller,
+          originalName: episode.name,
+          paths: <String>[episode.path],
+          reassignSeriesName: true,
+        );
+        return;
+    }
   }
 
   TmdbMetadata? get _metadata {

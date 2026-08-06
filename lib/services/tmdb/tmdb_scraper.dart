@@ -11,6 +11,7 @@ class TmdbScrapeResult {
   final List<TmdbMetadata> candidates;
   final Object? error;
   final int posterDownloadFailures;
+  final List<String> isolatedItemIds;
 
   const TmdbScrapeResult({
     required this.status,
@@ -18,6 +19,7 @@ class TmdbScrapeResult {
     this.candidates = const [],
     this.error,
     this.posterDownloadFailures = 0,
+    this.isolatedItemIds = const [],
   });
 }
 

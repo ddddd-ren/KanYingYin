@@ -101,6 +101,45 @@ class LocalTmdbScrapeService {
     return TmdbPreparedSearchOutcome(ranked: outcome.ranked);
   }
 
+  Future<TmdbPreparedSearchOutcome> searchItemPrepared({
+    required String apiKey,
+    required String itemId,
+    required TmdbPreparedSearchRequest request,
+  }) async {
+    final key = apiKey.trim();
+    if (key.isEmpty) {
+      throw StateError('请先在设置中填写 TMDB API Key');
+    }
+    final item = _findItem(itemId);
+    if (item == null) {
+      throw StateError('本地媒体索引中不存在该视频');
+    }
+    final base = subjectBuilder.build(
+      seriesName: item.seriesName,
+      items: <LocalMediaIndexItem>[item],
+    );
+    final subject = TmdbScrapeSubject(
+      stableKey: item.id,
+      titleCandidates: <String>[request.queryTitle],
+      manualSearchTitle: request.queryTitle,
+      year: request.queryYear,
+      seasonNumbers: base.seasonNumbers,
+      episodeNumbers: base.episodeNumbers,
+      mediaEvidence: base.mediaEvidence,
+      existingMetadata: item.tmdb,
+      fieldLocks: base.fieldLocks,
+      matchOrigin: item.tmdbMatchOrigin,
+      ruleVersion: item.tmdbRuleVersion,
+    );
+    final client = clientFactory(key);
+    final engine = _engineFor(client, key);
+    final outcome = await engine.search(
+      subject,
+      request.options.copyWith(mediaTypeMode: request.mediaTypeMode),
+    );
+    return TmdbPreparedSearchOutcome(ranked: outcome.ranked);
+  }
+
   Future<TmdbScrapeResult> scrapeSeries({
     required String apiKey,
     required String seriesName,
@@ -169,19 +208,15 @@ class LocalTmdbScrapeService {
           .toList(growable: false);
       final best = search.ranked.best;
       if (!search.ranked.shouldAutoMatch || best == null) {
-        await _markPending(seriesItems);
-        return TmdbScrapeResult(
-          status: TmdbScrapeStatus.pending,
-          metadata: subject.existingMetadata,
-          candidates: candidates,
+        final isolated = await _markPending(
+          seriesItems,
+          clearAutomaticMatches: force,
         );
-      }
-      if (_isProtectedConflict(subject, best.metadata)) {
-        await _markPending(seriesItems);
         return TmdbScrapeResult(
           status: TmdbScrapeStatus.pending,
           metadata: subject.existingMetadata,
           candidates: candidates,
+          isolatedItemIds: isolated,
         );
       }
 
@@ -196,7 +231,20 @@ class LocalTmdbScrapeService {
         language: resolvedOptions.language,
       );
       final merged = <TmdbMetadata>[];
+      final isolatedItemIds = <String>[];
       for (final item in seriesItems) {
+        if (_isProtectedConflict(item, best.metadata)) {
+          isolatedItemIds.add(item.id);
+          if (!_hasProtectedMatch(item)) {
+            await indexRepository.updateItem(
+              item.copyWith(
+                scrapeStatus: TmdbScrapeStatus.pending,
+                tmdbRuleVersion: currentTmdbRuleVersion,
+              ),
+            );
+          }
+          continue;
+        }
         final metadata = mergePolicy.merge(
           existing: item.tmdb,
           fetched: hydratedDetails,
@@ -218,23 +266,228 @@ class LocalTmdbScrapeService {
             tmdb: metadata,
             tmdbIdentity: _tmdbIdentity(metadata),
             scrapeStatus: TmdbScrapeStatus.matched,
-            tmdbMatchOrigin: TmdbMatchOrigin.automatic,
+            tmdbMatchOrigin: item.tmdbMatchOrigin == TmdbMatchOrigin.manual
+                ? TmdbMatchOrigin.manual
+                : TmdbMatchOrigin.automatic,
             tmdbRuleVersion: currentTmdbRuleVersion,
           ),
         );
       }
+      if (merged.isEmpty) {
+        return TmdbScrapeResult(
+          status: TmdbScrapeStatus.pending,
+          metadata: subject.existingMetadata,
+          candidates: candidates,
+          isolatedItemIds: isolatedItemIds,
+        );
+      }
       await metadataRepository.save(normalizedKey, merged.first);
-      final failures = await _downloadPosters(seriesItems, resolvedOptions);
+      final failures = await _downloadPosters(
+        seriesItems
+            .where((item) => !isolatedItemIds.contains(item.id))
+            .toList(growable: false),
+        resolvedOptions,
+      );
       return TmdbScrapeResult(
         status: TmdbScrapeStatus.matched,
         metadata: merged.first,
+        candidates: candidates,
+        posterDownloadFailures: failures,
+        isolatedItemIds: isolatedItemIds,
+      );
+    } catch (error) {
+      return TmdbScrapeResult(
+        status: TmdbScrapeStatus.failed,
+        metadata: subject.existingMetadata,
+        error: error,
+      );
+    }
+  }
+
+  Future<TmdbScrapeResult> scrapeItem({
+    required String apiKey,
+    required String itemId,
+    bool force = true,
+    TmdbScrapeOptions options = const TmdbScrapeOptions.defaults(),
+  }) async {
+    final key = apiKey.trim();
+    if (key.isEmpty) {
+      return const TmdbScrapeResult(status: TmdbScrapeStatus.none);
+    }
+    final item = _findItem(itemId);
+    if (item == null) {
+      return TmdbScrapeResult(
+        status: TmdbScrapeStatus.failed,
+        error: StateError('本地媒体索引中不存在该视频'),
+      );
+    }
+    final subject = subjectBuilder.build(
+      seriesName: item.seriesName,
+      items: <LocalMediaIndexItem>[item],
+    );
+    final resolvedOptions = item.episodeInfo == null
+        ? options
+        : options.copyWith(mediaTypeMode: TmdbMediaTypeMode.tv);
+    try {
+      final client = clientFactory(key);
+      final engine = _engineFor(client, key);
+      final search = await engine.search(subject, resolvedOptions);
+      final candidates = search.ranked.candidates
+          .map((candidate) => candidate.metadata)
+          .toList(growable: false);
+      final best = search.ranked.best;
+      if (!search.ranked.shouldAutoMatch || best == null) {
+        final isolated = force && !_hasProtectedMatch(item)
+            ? await _resetAutomaticMatchToPending(item)
+            : await _markPending(<LocalMediaIndexItem>[item]);
+        return TmdbScrapeResult(
+          status: TmdbScrapeStatus.pending,
+          metadata: item.tmdb,
+          candidates: candidates,
+          isolatedItemIds: isolated,
+        );
+      }
+      if (_isProtectedConflict(item, best.metadata,
+          allowAutomaticReplacement: force)) {
+        return TmdbScrapeResult(
+          status: TmdbScrapeStatus.pending,
+          metadata: item.tmdb,
+          candidates: candidates,
+          isolatedItemIds: <String>[item.id],
+        );
+      }
+      final details = await engine.details(
+        best.metadata.id,
+        best.metadata.mediaType,
+        language: resolvedOptions.language,
+      );
+      final hydrated = await engine.hydrateSeasons(
+        details,
+        seasonNumbers: <int>[
+          if ((item.seasonNumber ?? 0) > 0) item.seasonNumber!
+        ],
+        language: resolvedOptions.language,
+      );
+      final metadata = mergePolicy.merge(
+        existing: item.tmdb,
+        fetched: hydrated,
+        options: resolvedOptions,
+        locks: TmdbFieldLocks(
+          title: item.titleLocked,
+          overview: item.overviewLocked,
+          poster: item.posterLocked,
+        ),
+        matchConfidence: best.score,
+        existingSeasons: hydrated.mediaType == TmdbMediaType.tv
+            ? const <int>{}
+            : subject.seasonNumbers,
+      );
+      final updated = item.copyWith(
+        tmdb: metadata,
+        tmdbIdentity: _tmdbIdentity(metadata),
+        scrapeStatus: TmdbScrapeStatus.matched,
+        tmdbMatchOrigin: TmdbMatchOrigin.automatic,
+        tmdbRuleVersion: currentTmdbRuleVersion,
+      );
+      await indexRepository.updateItem(updated);
+      await metadataRepository.save(
+          item.seriesName.trim().toLowerCase(), metadata);
+      final failures = await _downloadPosters(
+        <LocalMediaIndexItem>[updated],
+        resolvedOptions,
+      );
+      return TmdbScrapeResult(
+        status: TmdbScrapeStatus.matched,
+        metadata: metadata,
         candidates: candidates,
         posterDownloadFailures: failures,
       );
     } catch (error) {
       return TmdbScrapeResult(
         status: TmdbScrapeStatus.failed,
-        metadata: subject.existingMetadata,
+        metadata: item.tmdb,
+        error: error,
+      );
+    }
+  }
+
+  Future<TmdbScrapeResult> selectItemCandidate({
+    required String apiKey,
+    required String itemId,
+    required TmdbMetadata candidate,
+    String? seriesNameOverride,
+    TmdbScrapeOptions options = const TmdbScrapeOptions.defaults(),
+  }) async {
+    final key = apiKey.trim();
+    if (key.isEmpty) {
+      return const TmdbScrapeResult(status: TmdbScrapeStatus.none);
+    }
+    final item = _findItem(itemId);
+    if (item == null) {
+      return TmdbScrapeResult(
+        status: TmdbScrapeStatus.failed,
+        error: StateError('本地媒体索引中不存在该视频'),
+      );
+    }
+    try {
+      final client = clientFactory(key);
+      final engine = _engineFor(client, key);
+      final details = await engine.details(
+        candidate.id,
+        candidate.mediaType,
+        language: options.language,
+      );
+      final subject = subjectBuilder.build(
+        seriesName: item.seriesName,
+        items: <LocalMediaIndexItem>[item],
+      );
+      final hydrated = await engine.hydrateSeasons(
+        details,
+        seasonNumbers: <int>[
+          if ((item.seasonNumber ?? 0) > 0) item.seasonNumber!
+        ],
+        language: options.language,
+      );
+      final metadata = mergePolicy.merge(
+        existing: item.tmdb,
+        fetched: hydrated,
+        options: options,
+        locks: TmdbFieldLocks(
+          title: item.titleLocked,
+          overview: item.overviewLocked,
+          poster: item.posterLocked,
+        ),
+        matchConfidence: 1,
+        existingSeasons: hydrated.mediaType == TmdbMediaType.tv
+            ? const <int>{}
+            : subject.seasonNumbers,
+      );
+      final updated = item.copyWith(
+        seriesName: seriesNameOverride?.trim().isEmpty == true
+            ? item.seriesName
+            : seriesNameOverride?.trim(),
+        tmdb: metadata,
+        tmdbIdentity: _tmdbIdentity(metadata),
+        scrapeStatus: TmdbScrapeStatus.matched,
+        tmdbMatchOrigin: TmdbMatchOrigin.manual,
+        tmdbRuleVersion: currentTmdbRuleVersion,
+      );
+      await indexRepository.updateItem(updated);
+      await metadataRepository.save(
+          updated.seriesName.trim().toLowerCase(), metadata);
+      final failures = await _downloadPosters(
+        <LocalMediaIndexItem>[updated],
+        options,
+      );
+      return TmdbScrapeResult(
+        status: TmdbScrapeStatus.matched,
+        metadata: metadata,
+        posterDownloadFailures: failures,
+      );
+    } catch (error) {
+      return TmdbScrapeResult(
+        status: TmdbScrapeStatus.failed,
+        metadata: item.tmdb,
         error: error,
       );
     }
@@ -320,20 +573,21 @@ class LocalTmdbScrapeService {
   }
 
   bool _isProtectedConflict(
-    TmdbScrapeSubject subject,
-    TmdbMetadata selected,
-  ) {
-    final existing = subject.existingMetadata;
+    LocalMediaIndexItem item,
+    TmdbMetadata selected, {
+    bool allowAutomaticReplacement = false,
+  }) {
+    final existing = item.tmdb;
     if (existing == null ||
         (existing.id == selected.id &&
             existing.mediaType == selected.mediaType)) {
       return false;
     }
-    return subject.ruleVersion < currentTmdbRuleVersion ||
-        subject.matchOrigin == TmdbMatchOrigin.manual ||
-        subject.fieldLocks.title ||
-        subject.fieldLocks.overview ||
-        subject.fieldLocks.poster;
+    if (_hasProtectedMatch(item)) {
+      return true;
+    }
+    return !allowAutomaticReplacement &&
+        item.tmdbRuleVersion < currentTmdbRuleVersion;
   }
 
   bool _needsEpisodeHydration(LocalMediaIndexItem item) {
@@ -345,15 +599,60 @@ class LocalTmdbScrapeService {
     return !item.hasTmdbEpisodeTitle;
   }
 
-  Future<void> _markPending(List<LocalMediaIndexItem> items) async {
+  Future<List<String>> _markPending(
+    List<LocalMediaIndexItem> items, {
+    bool clearAutomaticMatches = false,
+  }) async {
+    final isolated = <String>[];
     for (final item in items) {
+      if (_hasProtectedMatch(item)) {
+        isolated.add(item.id);
+        continue;
+      }
+      final clearAutomatic = clearAutomaticMatches &&
+          item.tmdbMatchOrigin == TmdbMatchOrigin.automatic;
       await indexRepository.updateItem(
         item.copyWith(
+          clearTmdb: clearAutomatic,
+          clearTmdbIdentity: clearAutomatic,
           scrapeStatus: TmdbScrapeStatus.pending,
+          tmdbMatchOrigin: clearAutomatic
+              ? TmdbMatchOrigin.legacyUnknown
+              : item.tmdbMatchOrigin,
           tmdbRuleVersion: currentTmdbRuleVersion,
         ),
       );
     }
+    return isolated;
+  }
+
+  bool _hasProtectedMatch(LocalMediaIndexItem item) {
+    return item.tmdbMatchOrigin == TmdbMatchOrigin.manual ||
+        item.titleLocked ||
+        item.overviewLocked ||
+        item.posterLocked;
+  }
+
+  Future<List<String>> _resetAutomaticMatchToPending(
+    LocalMediaIndexItem item,
+  ) async {
+    await indexRepository.updateItem(
+      item.copyWith(
+        clearTmdb: true,
+        clearTmdbIdentity: true,
+        scrapeStatus: TmdbScrapeStatus.pending,
+        tmdbMatchOrigin: TmdbMatchOrigin.legacyUnknown,
+        tmdbRuleVersion: currentTmdbRuleVersion,
+      ),
+    );
+    return const <String>[];
+  }
+
+  LocalMediaIndexItem? _findItem(String itemId) {
+    for (final item in indexRepository.getAll()) {
+      if (item.id == itemId) return item;
+    }
+    return null;
   }
 
   Future<int> _downloadPosters(

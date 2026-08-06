@@ -1299,6 +1299,49 @@ abstract class _LocalController with Store {
     );
   }
 
+  Future<TmdbPreparedSearchOutcome> searchLocalTmdbItem(
+    String itemId,
+    TmdbPreparedSearchRequest request,
+  ) {
+    return _tmdbScrapeService.searchItemPrepared(
+      apiKey: _tmdbApiKey,
+      itemId: itemId,
+      request: request,
+    );
+  }
+
+  Future<TmdbScrapeResult> scrapeEpisodeWithTmdb(
+    String itemId, {
+    bool force = true,
+    TmdbScrapeOptions? options,
+  }) async {
+    final result = await _tmdbScrapeService.scrapeItem(
+      apiKey: _tmdbApiKey,
+      itemId: itemId,
+      force: force,
+      options: options ?? tmdbScrapeOptions,
+    );
+    _reloadLocalLibraryIndexSafe();
+    return result;
+  }
+
+  Future<TmdbScrapeResult> selectTmdbCandidateForEpisode(
+    String itemId,
+    TmdbMetadata candidate, {
+    String? seriesNameOverride,
+    TmdbScrapeOptions? options,
+  }) async {
+    final result = await _tmdbScrapeService.selectItemCandidate(
+      apiKey: _tmdbApiKey,
+      itemId: itemId,
+      candidate: candidate,
+      seriesNameOverride: seriesNameOverride,
+      options: options ?? tmdbScrapeOptions,
+    );
+    _reloadLocalLibraryIndexSafe();
+    return result;
+  }
+
   ManualEpisodeMatchController manualEpisodeMatchControllerForPaths({
     required Iterable<String> paths,
     required TmdbMetadata selectedSeries,
@@ -1364,12 +1407,14 @@ abstract class _LocalController with Store {
     required List<ManualEpisodeAssignment> assignments,
     required TmdbMetadata metadata,
     required int selectedSeasonNumber,
+    String? seriesNameOverride,
   }) async {
     await LocalEpisodeMatchService(repository: _mediaIndexRepository).save(
       resourceIds: paths.map(LocalMediaIndexItem.normalizePath),
       assignments: assignments,
       metadata: metadata,
       selectedSeasonNumber: selectedSeasonNumber,
+      seriesNameOverride: seriesNameOverride,
     );
     _reloadLocalLibraryIndexSafe();
   }

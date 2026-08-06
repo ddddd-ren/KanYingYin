@@ -314,6 +314,203 @@ void main() {
     expect(item.tmdbRuleVersion, currentTmdbRuleVersion);
   });
 
+  test('批量刮削隔离人工匹配项并继续更新未确认剧集', () async {
+    final manual = _item('a.mkv').copyWith(
+      tmdb: TmdbMetadata(
+        id: 9,
+        mediaType: TmdbMediaType.movie,
+        title: '人工确认作品',
+        language: 'zh-CN',
+        matchedAt: DateTime(2026),
+        matchConfidence: 1,
+      ),
+      tmdbIdentity: 'movie:9',
+      scrapeStatus: TmdbScrapeStatus.matched,
+      tmdbMatchOrigin: TmdbMatchOrigin.manual,
+      tmdbRuleVersion: currentTmdbRuleVersion,
+    );
+    final automatic = _item('b.mkv');
+    final index = _MemoryIndexRepository([manual, automatic]);
+    final service = LocalTmdbScrapeService(
+      indexRepository: index,
+      metadataRepository: _MemoryMetadataRepository(),
+      clientFactory: (_) => _FakeClient(),
+      posterDownloader: _successfulDownload,
+    );
+
+    final result = await service.scrapeSeries(
+      apiKey: 'configured-key',
+      seriesName: '流浪地球',
+      mediaType: TmdbMediaType.movie,
+      force: true,
+    );
+
+    final savedManual = index.getByPath(manual.path)!;
+    final savedAutomatic = index.getByPath(automatic.path)!;
+    expect(result.status, TmdbScrapeStatus.matched);
+    expect(result.isolatedItemIds, <String>[manual.id]);
+    expect(savedManual.tmdb?.id, 9);
+    expect(savedManual.scrapeStatus, TmdbScrapeStatus.matched);
+    expect(savedManual.tmdbMatchOrigin, TmdbMatchOrigin.manual);
+    expect(savedAutomatic.tmdb?.id, 1);
+    expect(savedAutomatic.tmdbMatchOrigin, TmdbMatchOrigin.automatic);
+  });
+
+  test('单集自动刮削只更新目标视频且不锁定自动季集识别', () async {
+    final target = _item('a.mkv').copyWith(
+      seasonNumber: 1,
+      episodeNumber: 1,
+    );
+    final sibling = _item('b.mkv').copyWith(
+      seasonNumber: 1,
+      episodeNumber: 2,
+    );
+    final index = _MemoryIndexRepository([target, sibling]);
+    final service = LocalTmdbScrapeService(
+      indexRepository: index,
+      metadataRepository: _MemoryMetadataRepository(),
+      clientFactory: (_) => _FakeClient(),
+      posterDownloader: _successfulDownload,
+    );
+
+    final result = await service.scrapeItem(
+      apiKey: 'configured-key',
+      itemId: target.id,
+      options: const TmdbScrapeOptions.defaults().copyWith(
+        mediaTypeMode: TmdbMediaTypeMode.tv,
+      ),
+    );
+
+    final savedTarget = index.getByPath(target.path)!;
+    final savedSibling = index.getByPath(sibling.path)!;
+    expect(result.status, TmdbScrapeStatus.matched);
+    expect(savedTarget.tmdb?.id, 1);
+    expect(savedTarget.tmdbIdentity, 'tv:1');
+    expect(savedTarget.manualOverride, isFalse);
+    expect(savedTarget.tmdbMatchOrigin, TmdbMatchOrigin.automatic);
+    expect(savedSibling.tmdb, isNull);
+    expect(savedSibling.scrapeStatus, TmdbScrapeStatus.none);
+  });
+
+  test('单集重新识别无结果时清除旧自动 TMDB 身份', () async {
+    final target = _item('a.mkv').copyWith(
+      seasonNumber: 1,
+      episodeNumber: 1,
+      tmdb: TmdbMetadata(
+        id: 9,
+        mediaType: TmdbMediaType.tv,
+        title: '错误作品',
+        language: 'zh-CN',
+        matchedAt: DateTime(2026),
+        matchConfidence: 0.9,
+      ),
+      tmdbIdentity: 'tv:9',
+      scrapeStatus: TmdbScrapeStatus.matched,
+      tmdbMatchOrigin: TmdbMatchOrigin.automatic,
+      tmdbRuleVersion: currentTmdbRuleVersion,
+    );
+    final index = _MemoryIndexRepository([target]);
+    final service = LocalTmdbScrapeService(
+      indexRepository: index,
+      metadataRepository: _MemoryMetadataRepository(),
+      clientFactory: (_) => _EmptyClient(),
+      posterDownloader: _successfulDownload,
+    );
+
+    final result = await service.scrapeItem(
+      apiKey: 'configured-key',
+      itemId: target.id,
+      force: true,
+      options: const TmdbScrapeOptions.defaults().copyWith(
+        mediaTypeMode: TmdbMediaTypeMode.tv,
+      ),
+    );
+
+    final saved = index.getByPath(target.path)!;
+    expect(result.status, TmdbScrapeStatus.pending);
+    expect(saved.tmdb, isNull);
+    expect(saved.tmdbIdentity, isNull);
+    expect(saved.scrapeStatus, TmdbScrapeStatus.pending);
+    expect(saved.tmdbMatchOrigin, TmdbMatchOrigin.legacyUnknown);
+  });
+
+  test('批量重新匹配无结果时清除未锁定集的旧自动身份', () async {
+    final target = _item('a.mkv').copyWith(
+      tmdb: TmdbMetadata(
+        id: 9,
+        mediaType: TmdbMediaType.movie,
+        title: '错误作品',
+        language: 'zh-CN',
+        matchedAt: DateTime(2026),
+        matchConfidence: 0.9,
+      ),
+      tmdbIdentity: 'movie:9',
+      scrapeStatus: TmdbScrapeStatus.matched,
+      tmdbMatchOrigin: TmdbMatchOrigin.automatic,
+      tmdbRuleVersion: currentTmdbRuleVersion,
+    );
+    final index = _MemoryIndexRepository([target]);
+    final service = LocalTmdbScrapeService(
+      indexRepository: index,
+      metadataRepository: _MemoryMetadataRepository(),
+      clientFactory: (_) => _EmptyClient(),
+      posterDownloader: _successfulDownload,
+    );
+
+    final result = await service.scrapeSeries(
+      apiKey: 'configured-key',
+      seriesName: '流浪地球',
+      mediaType: TmdbMediaType.movie,
+      force: true,
+    );
+
+    final saved = index.getByPath(target.path)!;
+    expect(result.status, TmdbScrapeStatus.pending);
+    expect(saved.tmdb, isNull);
+    expect(saved.tmdbIdentity, isNull);
+    expect(saved.scrapeStatus, TmdbScrapeStatus.pending);
+  });
+
+  test('单集手动选择候选可更正作品归属且不修改同组其他视频', () async {
+    final target = _item('a.mkv', seriesName: '错误剧名').copyWith(
+      seasonNumber: 1,
+      episodeNumber: 1,
+    );
+    final sibling = _item('b.mkv', seriesName: '错误剧名').copyWith(
+      seasonNumber: 1,
+      episodeNumber: 2,
+    );
+    final index = _MemoryIndexRepository([target, sibling]);
+    final client = _FakeClient();
+    final service = LocalTmdbScrapeService(
+      indexRepository: index,
+      metadataRepository: _MemoryMetadataRepository(),
+      clientFactory: (_) => client,
+      posterDownloader: _successfulDownload,
+    );
+    final candidate = (await client.search('正确剧名', TmdbMediaType.tv)).single;
+
+    final result = await service.selectItemCandidate(
+      apiKey: 'configured-key',
+      itemId: target.id,
+      candidate: candidate,
+      seriesNameOverride: '正确剧名',
+      options: const TmdbScrapeOptions.defaults().copyWith(
+        mediaTypeMode: TmdbMediaTypeMode.tv,
+      ),
+    );
+
+    final savedTarget = index.getByPath(target.path)!;
+    final savedSibling = index.getByPath(sibling.path)!;
+    expect(result.status, TmdbScrapeStatus.matched);
+    expect(savedTarget.seriesName, '正确剧名');
+    expect(savedTarget.tmdbIdentity, 'tv:1');
+    expect(savedTarget.tmdbMatchOrigin, TmdbMatchOrigin.manual);
+    expect(savedTarget.manualOverride, isFalse);
+    expect(savedSibling.seriesName, '错误剧名');
+    expect(savedSibling.tmdb, isNull);
+  });
+
   test('匹配成功后按目录去重下载 TMDB 海报并更新索引封面', () async {
     final index = _MemoryIndexRepository([
       _item('Season 1/a.mkv'),
@@ -574,6 +771,26 @@ class _FakeClient implements ITmdbClient {
     String language = 'zh-CN',
   }) async {
     return [await details(1, mediaType, language: language)];
+  }
+}
+
+class _EmptyClient implements ITmdbClient {
+  @override
+  Future<TmdbMetadata> details(
+    int id,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) {
+    throw StateError('无结果时不应读取详情');
+  }
+
+  @override
+  Future<List<TmdbMetadata>> search(
+    String query,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) async {
+    return const <TmdbMetadata>[];
   }
 }
 

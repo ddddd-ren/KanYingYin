@@ -21,6 +21,7 @@ final class LocalEpisodeMatchService {
     required List<ManualEpisodeAssignment> assignments,
     required TmdbMetadata metadata,
     required int selectedSeasonNumber,
+    String? seriesNameOverride,
   }) async {
     if (metadata.mediaType != TmdbMediaType.tv) {
       throw StateError('剧集匹配只支持 TMDB 电视剧');
@@ -72,6 +73,7 @@ final class LocalEpisodeMatchService {
         item: item,
         assignment: assignment,
         metadata: metadata,
+        seriesNameOverride: seriesNameOverride,
       );
     }
     try {
@@ -90,6 +92,7 @@ final class LocalEpisodeMatchService {
     required LocalMediaIndexItem item,
     required ManualEpisodeAssignment assignment,
     required TmdbMetadata metadata,
+    String? seriesNameOverride,
   }) {
     switch (assignment.mode) {
       case ManualEpisodeAssignmentMode.mapped:
@@ -99,6 +102,7 @@ final class LocalEpisodeMatchService {
           manualOverride: true,
           metadata: metadata,
           matchOrigin: TmdbMatchOrigin.manual,
+          seriesName: seriesNameOverride,
         );
       case ManualEpisodeAssignmentMode.keepOriginal:
         return item.withEpisodeMapping(
@@ -107,6 +111,7 @@ final class LocalEpisodeMatchService {
           manualOverride: true,
           metadata: metadata,
           matchOrigin: TmdbMatchOrigin.manual,
+          seriesName: seriesNameOverride,
         );
       case ManualEpisodeAssignmentMode.restoreAutomatic:
         final parentName = p.basename(item.parentPath);
@@ -123,6 +128,7 @@ final class LocalEpisodeMatchService {
           manualOverride: false,
           metadata: metadata,
           matchOrigin: TmdbMatchOrigin.manual,
+          seriesName: seriesNameOverride,
         );
     }
   }

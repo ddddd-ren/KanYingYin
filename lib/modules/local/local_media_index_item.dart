@@ -364,6 +364,8 @@ class LocalMediaIndexItem {
     String? codec,
     TmdbMetadata? tmdb,
     String? tmdbIdentity,
+    bool clearTmdb = false,
+    bool clearTmdbIdentity = false,
     bool? titleLocked,
     bool? posterLocked,
     bool? overviewLocked,
@@ -403,8 +405,9 @@ class LocalMediaIndexItem {
       resolution: resolution ?? this.resolution,
       source: source ?? this.source,
       codec: codec ?? this.codec,
-      tmdb: tmdb ?? this.tmdb,
-      tmdbIdentity: tmdbIdentity ?? this.tmdbIdentity,
+      tmdb: clearTmdb ? null : tmdb ?? this.tmdb,
+      tmdbIdentity:
+          clearTmdbIdentity ? null : tmdbIdentity ?? this.tmdbIdentity,
       titleLocked: titleLocked ?? this.titleLocked,
       posterLocked: posterLocked ?? this.posterLocked,
       overviewLocked: overviewLocked ?? this.overviewLocked,
@@ -425,6 +428,7 @@ class LocalMediaIndexItem {
     required bool manualOverride,
     TmdbMetadata? metadata,
     TmdbMatchOrigin? matchOrigin,
+    String? seriesName,
   }) {
     final effectiveMetadata = metadata ?? tmdb;
     return LocalMediaIndexItem(
@@ -434,7 +438,7 @@ class LocalMediaIndexItem {
       sourceLocation: sourceLocation,
       size: size,
       modified: modified,
-      seriesName: seriesName,
+      seriesName: seriesName ?? this.seriesName,
       indexedAt: indexedAt,
       cover: cover,
       subtitlePath: subtitlePath,

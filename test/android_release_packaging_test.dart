@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Android Release 使用正式版版本并使用本机环境签名', () {
+  test('Android Release 使用统一版本并使用本机环境签名', () {
     final gradle = File('android/app/build.gradle.kts').readAsStringSync();
 
     for (final variable in const <String>[
@@ -19,8 +19,20 @@ void main() {
     expect(gradle, contains('isShrinkResources = true'));
     expect(gradle, contains('proguard-rules.pro'));
     expect(gradle, isNot(contains('signingConfigs.getByName("debug")')));
-    expect(gradle, contains('val androidVersionName = "1.0.3"'));
-    expect(gradle, contains('val androidVersionCode = 10003'));
+    expect(
+      gradle,
+      contains(
+        'val androidVersionName = pubspecVersionMatch.groupValues[1]',
+      ),
+    );
+    expect(
+      gradle,
+      contains(
+        'val androidVersionCode = pubspecVersionMatch.groupValues[2].toInt()',
+      ),
+    );
+    expect(gradle, contains('create("mobile")'));
+    expect(gradle, contains('create("tvTest")'));
     expect(gradle, contains('versionCode = androidVersionCode'));
     expect(gradle, contains('versionName = androidVersionName'));
   });
@@ -39,10 +51,15 @@ void main() {
     ).readAsStringSync();
 
     expect(script, contains(r"$flutter = 'D:\flutter\bin\flutter.bat'"));
-    expect(script, contains(r'& $flutter build apk --release --no-pub'));
     expect(
       script,
-      contains(r'& $flutter build appbundle --release --no-pub'),
+      contains(r'& $flutter build apk --release --flavor $Flavor --no-pub'),
+    );
+    expect(
+      script,
+      contains(
+        r'& $flutter build appbundle --release --flavor $Flavor --no-pub',
+      ),
     );
     expect(script, contains('apksigner.bat'));
     expect(script, contains('jarsigner.exe'));
@@ -51,13 +68,18 @@ void main() {
       script,
       contains('-storepass:env KANYINGYIN_ANDROID_STORE_PASSWORD'),
     );
-    expect(script, contains(r'$appName-$androidVersion.apk'));
-    expect(script, contains(r'$appName-$androidVersion.aab'));
-    expect(script, contains(r"$androidVersion = '1.0.3'"));
-    expect(script, contains(r'$androidVersionCode = 10003'));
-    expect(script, contains('Windows pubspec 版本必须为 2.1.138+20138'));
+    expect(script, contains(r'$apkTarget = Join-Path $desktop'));
+    expect(script, contains(r'$aabTarget = Join-Path $desktop'));
+    expect(script, contains(r'$androidVersion = $pubspecVersion.Name'));
+    expect(script, contains(r'$androidVersionCode = $pubspecVersion.Code'));
+    expect(script, contains("[ValidateSet('mobile', 'tvTest')]"));
+    expect(script, contains(r'[switch]$ApkOnly'));
     expect(script, contains('[char]0x770B'));
     expect(script, contains('com.kanyingyin.player'));
+    expect(
+      File('tool/android/build_tv_test.ps1').readAsStringSync(),
+      contains(r'& $script -Flavor tvTest -ApkOnly'),
+    );
   });
 
   test('Android Gradle 版本正则严格校验 fixture', () {

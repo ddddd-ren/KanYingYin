@@ -4,9 +4,9 @@
 
 - 应用版本：2.1.138
 - Windows EXE 安装器版本：2.1.138 测试版
-- 本轮交付：Windows 测试版 EXE；Android 正式版 APK/AAB
-- Android 应用版本：1.0.3
-- Android versionCode：10003
+- 本轮交付：Windows 测试版 EXE；Android 测试版 APK/AAB
+- Android 应用版本：2.1.138
+- Android versionCode：20138
 - 日期：2026-08-06
 
 ## 弹窗标题
@@ -28,7 +28,7 @@
 
 ### 弹窗标题
 
-看影音 Android 1.0.3 正式版
+看影音 Android 2.1.138 测试版
 
 - Android 新增电影、动漫和电视剧分类入口，可直接浏览本地与个人网盘资源。
 - 剧集支持逐视频匹配 TMDB 季度和集数，选集显示“当前剧名 S01E01 TMDB 集名”。

@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('当前发布配置为 Windows 二点一三八测试版和 Android 一点零三正式版', () {
+  test('当前发布配置为 Windows 和 Android 二点一三八测试版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
@@ -21,9 +21,9 @@ void main() {
     expect(currentReleaseNotes, contains('实际安装目录'));
     expect(currentReleaseNotes, contains('EXE'));
     expect(updateDialogCopy, contains('Windows 测试版 EXE'));
-    expect(updateDialogCopy, contains('Android 正式版'));
+    expect(updateDialogCopy, contains('Android 测试版'));
     expect(updateDialogCopy, contains('2.1.138'));
-    expect(updateDialogCopy, contains('1.0.3'));
+    expect(updateDialogCopy, contains('2.1.138'));
   });
 
   test('直接依赖使用与锁文件兼容的明确约束', () {

@@ -39,12 +39,8 @@ val pubspecVersionPattern =
 val pubspecVersionMatch =
     pubspecVersionPattern.matchEntire(pubspecVersionLines.single())
         ?: throw GradleException("pubspec.yaml 的 version 格式无效")
-if (pubspecVersionMatch.groupValues[1] != "1.0.6" ||
-    pubspecVersionMatch.groupValues[2] != "10006") {
-    throw GradleException("pubspec.yaml 必须为 1.0.6+10006")
-}
-val androidVersionName = "1.0.3"
-val androidVersionCode = 10003
+val androidVersionName = pubspecVersionMatch.groupValues[1]
+val androidVersionCode = pubspecVersionMatch.groupValues[2].toInt()
 
 android {
     namespace = "com.kanyingyin.player"
@@ -66,6 +62,18 @@ android {
         targetSdk = 36
         versionCode = androidVersionCode
         versionName = androidVersionName
+    }
+
+    flavorDimensions += "device"
+    productFlavors {
+        create("mobile") {
+            dimension = "device"
+            applicationId = "com.kanyingyin.player"
+        }
+        create("tvTest") {
+            dimension = "device"
+            applicationId = "com.kanyingyin.player.tvtest"
+        }
     }
 
     signingConfigs {

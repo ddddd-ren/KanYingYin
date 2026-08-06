@@ -6,6 +6,7 @@ import 'package:kanyingyin/features/library/application/media_library_query.dart
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
+import 'package:kanyingyin/pages/local/local_episode_scrape_flow.dart';
 import 'package:kanyingyin/pages/local/manual_episode_match_flow.dart';
 import 'package:kanyingyin/pages/local/local_series_detail_page.dart';
 import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
@@ -511,6 +512,7 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
             await Navigator.of(ctx).push(MaterialPageRoute<void>(
               builder: (_) => LocalSeriesDetailPage(
                 series: series,
+                controller: widget.controller,
                 onPlay: (episode) => widget.onPlay(series, episode),
               ),
             ));
@@ -726,11 +728,66 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
         overflow: TextOverflow.ellipsis,
         style: tt.labelSmall?.copyWith(color: cs.outline),
       ),
-      trailing: ep.subtitlePath != null
-          ? Icon(Icons.closed_caption_outlined, size: 18, color: cs.primary)
-          : null,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (ep.subtitlePath != null)
+            Icon(Icons.closed_caption_outlined, size: 18, color: cs.primary),
+          PopupMenuButton<String>(
+            tooltip: '单集操作',
+            icon: const Icon(Icons.more_vert, size: 18),
+            onSelected: (value) => _handleEpisodeAction(ctx, ep, value),
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'scrape', child: Text('重新识别此集')),
+              PopupMenuItem(value: 'match', child: Text('手动匹配此集')),
+              PopupMenuItem(value: 'episode', child: Text('匹配季度和集数')),
+              PopupMenuItem(value: 'reassign', child: Text('更正作品归属')),
+            ],
+          ),
+        ],
+      ),
       onTap: () => widget.onPlay(series, ep),
     );
+  }
+
+  Future<void> _handleEpisodeAction(
+    BuildContext context,
+    LocalMediaIndexItem episode,
+    String action,
+  ) async {
+    switch (action) {
+      case 'scrape':
+        await scrapeLocalEpisode(
+          context: context,
+          controller: widget.controller,
+          episode: episode,
+        );
+        return;
+      case 'match':
+        await openLocalEpisodeTmdbDialog(
+          context: context,
+          controller: widget.controller,
+          episode: episode,
+        );
+        return;
+      case 'episode':
+        await openLocalManualEpisodeMatch(
+          context: context,
+          controller: widget.controller,
+          originalName: episode.name,
+          paths: <String>[episode.path],
+        );
+        return;
+      case 'reassign':
+        await openLocalManualEpisodeMatch(
+          context: context,
+          controller: widget.controller,
+          originalName: episode.name,
+          paths: <String>[episode.path],
+          reassignSeriesName: true,
+        );
+        return;
+    }
   }
 
   String _epSub(LocalMediaIndexItem ep) {

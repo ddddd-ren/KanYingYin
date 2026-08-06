@@ -5,6 +5,7 @@ import 'package:kanyingyin/modules/local/local_episode_info.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/media_location.dart';
 import 'package:kanyingyin/repositories/local_media_index_repository.dart';
+import 'package:kanyingyin/repositories/local_series_title_override_repository.dart';
 import 'package:kanyingyin/services/android_document_cache.dart';
 import 'package:kanyingyin/services/file_system_media_entry_provider.dart';
 import 'package:kanyingyin/services/local_episode_parser.dart';
@@ -128,6 +129,7 @@ class LocalMediaIndexer
     ILocalMediaProbe? mediaProbe,
     LocalCoverFinder? coverFinder,
     LocalMediaIndexMetadataRefresher? metadataRefresher,
+    ILocalSeriesTitleOverrideRepository? seriesTitleOverrideRepository,
     List<LocalMediaEntryProvider>? entryProviders,
     AndroidDocumentCache? documentCache,
     int minRecognizedVideoSizeBytes =
@@ -148,6 +150,8 @@ class LocalMediaIndexer
               episodeParser: episodeParser,
               subtitleMatcher: subtitleMatcher,
             ),
+        _seriesTitleOverrideRepository = seriesTitleOverrideRepository ??
+            LocalSeriesTitleOverrideRepository(),
         _minRecognizedVideoSizeBytesProvider =
             minRecognizedVideoSizeBytesProvider ??
                 (() => minRecognizedVideoSizeBytes);
@@ -160,6 +164,7 @@ class LocalMediaIndexer
   final List<LocalMediaEntryProvider> _entryProviders;
   final AndroidDocumentCache? _documentCache;
   final LocalMediaIndexMetadataRefresher _metadataRefresher;
+  final ILocalSeriesTitleOverrideRepository _seriesTitleOverrideRepository;
   final int Function() _minRecognizedVideoSizeBytesProvider;
 
   @override
@@ -483,6 +488,21 @@ class LocalMediaIndexer
         }
 
         final episodeInfo = _episodeParser.parse(located.logicalPath);
+        final seriesTitleOverride = _seriesTitleOverrideRepository
+            .getForDirectory(located.parentLocation.value);
+        final effectiveEpisodeInfo =
+            seriesTitleOverride == null || episodeInfo == null
+                ? episodeInfo
+                : LocalEpisodeInfo(
+                    seriesName: seriesTitleOverride,
+                    seasonNumber: episodeInfo.seasonNumber,
+                    episodeNumber: episodeInfo.episodeNumber,
+                    episodeTitle: episodeInfo.episodeTitle,
+                    releaseGroup: episodeInfo.releaseGroup,
+                    resolution: episodeInfo.resolution,
+                    source: episodeInfo.source,
+                    codec: episodeInfo.codec,
+                  );
         final documentMediaInfo = entry.location.isDocument && enrichMediaInfo
             ? await _mediaProbe.probe(entry.location.value)
             : null;
@@ -500,7 +520,7 @@ class LocalMediaIndexer
                 entry,
                 sourceLocation: sourceLocation,
                 oldItem: oldItem,
-                episodeInfo: episodeInfo,
+                episodeInfo: effectiveEpisodeInfo,
                 enrichMediaInfo: enrichMediaInfo,
                 generateThumbnails: generateThumbnails,
               )
@@ -511,7 +531,8 @@ class LocalMediaIndexer
                 sourceLocation: sourceLocation,
                 size: entry.size,
                 modified: entry.modified,
-                seriesName: episodeInfo?.seriesName ??
+                seriesName: seriesTitleOverride ??
+                    episodeInfo?.seriesName ??
                     p.basename(located.logicalParentPath),
                 seasonNumber: episodeInfo?.seasonNumber,
                 episodeNumber: episodeInfo?.episodeNumber,
@@ -542,6 +563,7 @@ class LocalMediaIndexer
           codec: oldItem?.manualOverride == true
               ? oldItem?.codec
               : episodeInfo?.codec,
+          seriesName: seriesTitleOverride ?? item.seriesName,
           manualOverride: oldItem?.manualOverride ?? false,
         );
         indexed.add(resolvedItem);

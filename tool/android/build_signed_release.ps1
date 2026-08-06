@@ -55,8 +55,8 @@ if ($VersionOnly) {
     Write-Output "$($pubspecVersion.Name)+$($pubspecVersion.Code)"
     return
 }
-if ($pubspecVersion.Name -ne '2.1.136' -or $pubspecVersion.Code -ne 20136) {
-    throw "Windows pubspec 版本必须为 2.1.136+20136，实际为 $($pubspecVersion.Name)+$($pubspecVersion.Code)"
+if ($pubspecVersion.Name -ne '2.1.137' -or $pubspecVersion.Code -ne 20137) {
+    throw "Windows pubspec 版本必须为 2.1.137+20137，实际为 $($pubspecVersion.Name)+$($pubspecVersion.Code)"
 }
 $androidVersion = '1.0.3'
 $androidVersionCode = 10003

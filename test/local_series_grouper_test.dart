@@ -286,6 +286,55 @@ void main() {
     expect(groups.map((group) => group.episodeCount), [1, 1]);
   });
 
+  test('LocalSeriesGrouper 不合并同目录内 TMDB 身份冲突的剧集', () {
+    final groups = const LocalSeriesGrouper().group([
+      _video(
+        path: r'D:\Anime\Show\Show S01E01.mkv',
+        name: 'Show S01E01.mkv',
+        seriesName: 'Show',
+        seasonNumber: 1,
+        episodeNumber: 1,
+        tmdbIdentity: 'tv:101',
+      ),
+      _video(
+        path: r'D:\Anime\Show\Show S01E02.mkv',
+        name: 'Show S01E02.mkv',
+        seriesName: 'Show',
+        seasonNumber: 1,
+        episodeNumber: 2,
+        tmdbIdentity: 'tv:202',
+      ),
+    ]);
+
+    expect(groups, hasLength(2));
+    expect(groups.map((group) => group.episodeCount), <int>[1, 1]);
+  });
+
+  test('LocalSeriesGrouper 使用目录剧名覆盖合并解析漂移的同季度剧集', () {
+    final groups = const LocalSeriesGrouper().group([
+      _video(
+        path: r'D:\Anime\Show\Show S01E01.mkv',
+        name: 'Show S01E01.mkv',
+        seriesName: 'Show',
+        seasonNumber: 1,
+        episodeNumber: 1,
+        seriesTitleOverride: '锁定剧名',
+      ),
+      _video(
+        path: r'D:\Anime\Show\Show Final Part S01E02.mkv',
+        name: 'Show Final Part S01E02.mkv',
+        seriesName: 'Show Final Part',
+        seasonNumber: 1,
+        episodeNumber: 2,
+        seriesTitleOverride: '锁定剧名',
+      ),
+    ]);
+
+    expect(groups, hasLength(1));
+    expect(groups.single.title, '锁定剧名');
+    expect(groups.single.episodeCount, 2);
+  });
+
   test('LocalSeriesGrouper 将同一文件夹内的最终章归入主剧集', () {
     final groups = const LocalSeriesGrouper().group([
       _video(

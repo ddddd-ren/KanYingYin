@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/repositories/local_media_index_repository.dart';
+import 'package:kanyingyin/repositories/local_series_title_override_repository.dart';
 import 'package:kanyingyin/services/local_media_indexer.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/services/local_media_probe.dart';
@@ -87,6 +88,39 @@ void main() {
     expect(second.addedCount, 0);
     expect(second.updatedCount, 0);
     expect(repository.getAll().single.indexedAt.isAfter(oldIndexedAt), isTrue);
+  });
+
+  test('LocalMediaIndexer 只从目录剧名覆盖继承新视频的系列名', () async {
+    final tempDir =
+        await Directory.systemTemp.createTemp('kanyingyin_index_title_lock_');
+    addTearDown(() async {
+      if (await tempDir.exists()) await tempDir.delete(recursive: true);
+    });
+    final seriesDir = Directory(p.join(tempDir.path, 'Show'));
+    await seriesDir.create();
+    final first = File(p.join(seriesDir.path, 'Show S01E01.mkv'));
+    await first.writeAsString('first');
+
+    final repository = _MemoryMediaIndexRepository();
+    final titleOverrides = _FixedTitleOverrideRepository(
+      <String, String>{seriesDir.path.toLowerCase(): '锁定剧名'},
+    );
+    final indexer = LocalMediaIndexer(
+      repository: repository,
+      mediaProbe: const _FakeMediaProbe({}),
+      minRecognizedVideoSizeBytes: 0,
+      seriesTitleOverrideRepository: titleOverrides,
+    );
+
+    await indexer.indexSource(tempDir.path);
+    final second = File(p.join(seriesDir.path, 'Show Final Part S01E02.mkv'));
+    await second.writeAsString('second');
+    await indexer.indexSource(tempDir.path);
+
+    expect(repository.getAll(), hasLength(2));
+    expect(repository.getAll().map((item) => item.seriesName),
+        everyElement('锁定剧名'));
+    expect(repository.getByPath(second.path)!.episodeNumber, 2);
   });
 
   test('LocalMediaIndexer reuses unchanged directory index items', () async {
@@ -516,6 +550,21 @@ LocalMediaIndexer _testIndexer({
     mediaProbe: mediaProbe,
     minRecognizedVideoSizeBytes: 0,
   );
+}
+
+class _FixedTitleOverrideRepository
+    implements ILocalSeriesTitleOverrideRepository {
+  _FixedTitleOverrideRepository(this.values);
+
+  final Map<String, String> values;
+
+  @override
+  String? getForDirectory(String directoryPath) =>
+      values[directoryPath.toLowerCase()];
+
+  @override
+  Future<void> saveForDirectories(
+      Iterable<String> directoryPaths, String title) async {}
 }
 
 class _FakeMediaProbe implements ILocalMediaProbe {

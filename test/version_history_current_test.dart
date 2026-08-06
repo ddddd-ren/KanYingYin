@@ -56,33 +56,24 @@ void main() {
     expect(changes, isNot(contains('EXE')));
   });
 
-  test('二点一三六修复有效剧名并改用 EXE 交付', () {
-    final entries = versionHistoryForCurrent('2.1.136');
+  test('二点一三七支持单集刮削和错误隔离', () {
+    final entries = versionHistoryForCurrent('2.1.137');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     final changes = entry.changes.join('\n');
-    expect(entry.version, '2.1.136');
+    expect(entry.version, '2.1.137');
     expect(entry.isPrerelease, isTrue);
     for (final text in <String>[
       'Windows',
-      'Android',
+      '单集',
       '本地',
-      '网盘',
       'TMDB',
-      'S01E01',
-      '回魂计',
-      'D:\\看影音',
-      'Inno Setup',
-      'EXE',
-      'APK/AAB',
-      'v2 签名',
-      'Full',
-      '20136',
-      'MSIX',
+      '隔离',
+      '作品归属',
+      '季度',
+      '集数',
       '断网',
-      '远程路径',
-      '远程 ID',
       '不会修改或删除',
     ]) {
       expect(changes, contains(text));

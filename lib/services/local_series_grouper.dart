@@ -38,6 +38,11 @@ class LocalSeriesGrouper {
     for (final bucket in buckets) {
       final known = bucket.descriptor;
       if (known.hasTitleOverride) continue;
+      if (known.tmdbIdentity != null &&
+          descriptor.tmdbIdentity != null &&
+          known.tmdbIdentity != descriptor.tmdbIdentity) {
+        continue;
+      }
       if (known.key == descriptor.key ||
           _isRelatedTitle(known.key, descriptor.key) ||
           _isRelatedTitle(descriptor.key, known.key)) {
@@ -64,6 +69,11 @@ class LocalSeriesGrouper {
   bool _sameCollection(_SeriesDescriptor left, _SeriesDescriptor right) {
     final leftIdentity = left.tmdbIdentity;
     final rightIdentity = right.tmdbIdentity;
+    if (leftIdentity != null &&
+        rightIdentity != null &&
+        leftIdentity != rightIdentity) {
+      return false;
+    }
     if (leftIdentity != null && leftIdentity == rightIdentity) {
       final leftSeason = _seasonFromCollectionKey(left.collectionKey);
       final rightSeason = _seasonFromCollectionKey(right.collectionKey);
@@ -75,6 +85,11 @@ class LocalSeriesGrouper {
       if (leftSeason == null && rightSeason == null) return true;
       return _collectionTypeKey(left.collectionKey) ==
           _collectionTypeKey(right.collectionKey);
+    }
+    if (left.directoryKey == right.directoryKey &&
+        (left.hasTitleOverride || right.hasTitleOverride)) {
+      return left.baseTitle == right.baseTitle &&
+          left.collectionKey == right.collectionKey;
     }
     if (left.collectionKey != right.collectionKey) return false;
     if (left.directoryKey == right.directoryKey) return true;

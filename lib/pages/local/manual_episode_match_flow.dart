@@ -11,6 +11,8 @@ Future<void> openLocalManualEpisodeMatch({
   required LocalController controller,
   required String originalName,
   required List<String> paths,
+  String? seriesNameOverride,
+  bool reassignSeriesName = false,
 }) async {
   final messenger = ScaffoldMessenger.of(context);
   try {
@@ -74,6 +76,8 @@ Future<void> openLocalManualEpisodeMatch({
             assignments: assignments,
             metadata: metadata,
             selectedSeasonNumber: seasonNumber,
+            seriesNameOverride:
+                reassignSeriesName ? metadata.title : seriesNameOverride,
           );
           saved = true;
         },

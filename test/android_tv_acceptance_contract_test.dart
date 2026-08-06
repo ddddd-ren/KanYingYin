@@ -8,9 +8,9 @@ void main() {
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final currentSection = _markdownVersionSection(
       releaseNotes,
-      '2.1.140+20140',
+      '2.1.141+20141',
     );
-    final currentHistory = versionHistoryForCurrent('2.1.140');
+    final currentHistory = versionHistoryForCurrent('2.1.141');
 
     expect(currentHistory, hasLength(1));
     final historyText = currentHistory.single.changes.join('\n');
@@ -21,12 +21,12 @@ void main() {
       '遥控器',
       '搜索框',
       '路径输入框',
-      '需选择“退出”',
+      '侧边导航栏',
       '同一局域网',
       '手机扫码配置',
       'VIDAA',
       '不支持',
-      '实机验收未完成',
+      '实机复验尚未完成',
     ]) {
       expect(currentSection, contains(text), reason: 'RELEASE_NOTES 缺少 $text');
       expect(historyText, contains(text), reason: '版本历史缺少 $text');

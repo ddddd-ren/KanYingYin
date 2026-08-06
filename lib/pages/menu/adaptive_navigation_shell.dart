@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_focus_surface.dart';
 import 'package:kanyingyin/pages/navigation/navigation_config.dart';
@@ -49,6 +50,7 @@ class AdaptiveNavigationShell extends StatelessWidget {
           context,
           expanded: platform.isAndroidTv ||
               constraints.maxWidth >= expandedSidebarBreakpoint,
+          isAndroidTv: platform.isAndroidTv,
         );
       },
     );
@@ -221,7 +223,11 @@ class AdaptiveNavigationShell extends StatelessWidget {
     );
   }
 
-  Widget _desktopLayout(BuildContext context, {required bool expanded}) {
+  Widget _desktopLayout(
+    BuildContext context, {
+    required bool expanded,
+    required bool isAndroidTv,
+  }) {
     final colors = Theme.of(context).colorScheme;
     final primaryDestinations =
         destinations.take(destinations.length - 1).toList();
@@ -246,6 +252,27 @@ class AdaptiveNavigationShell extends StatelessWidget {
             onThemeModeChanged: onThemeModeChanged,
           );
     final wrappedNavigation = navigationWrapper?.call(navigation) ?? navigation;
+    final navigationGroup = FocusTraversalGroup(
+      key: const ValueKey<String>('tv-navigation-focus-group'),
+      child: wrappedNavigation,
+    );
+    final contentGroup = FocusTraversalGroup(
+      key: const ValueKey<String>('tv-content-focus-group'),
+      child: content,
+    );
+    final contentSurface = Padding(
+      padding: const EdgeInsets.only(right: 8, bottom: 8),
+      child: GlassSurface(
+        key: const ValueKey<String>('navigation-content-surface'),
+        borderRadius: BorderRadius.circular(12),
+        blurSigma: 14,
+        color: colors.surface.withValues(alpha: 0.66),
+        border: Border.all(
+          color: colors.outlineVariant.withValues(alpha: 0.45),
+        ),
+        child: contentGroup,
+      ),
+    );
     return Scaffold(
       backgroundColor: colors.surfaceContainerLowest,
       body: Column(
@@ -254,37 +281,142 @@ class AdaptiveNavigationShell extends StatelessWidget {
           Expanded(
             child: FocusTraversalGroup(
               policy: WidgetOrderTraversalPolicy(),
-              child: Row(
-                children: [
-                  FocusTraversalGroup(
-                    key: const ValueKey<String>('tv-navigation-focus-group'),
-                    child: wrappedNavigation,
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 8, bottom: 8),
-                      child: GlassSurface(
-                        key: const ValueKey<String>('navigation-content-surface'),
-                        borderRadius: BorderRadius.circular(12),
-                        blurSigma: 14,
-                        color: colors.surface.withValues(alpha: 0.66),
-                        border: Border.all(
-                          color: colors.outlineVariant.withValues(alpha: 0.45),
-                        ),
-                        child: FocusTraversalGroup(
-                          key: const ValueKey<String>('tv-content-focus-group'),
-                          child: content,
-                        ),
-                      ),
+              child: isAndroidTv
+                  ? _TvFocusBridge(
+                      navigation: navigationGroup,
+                      content: contentSurface,
+                    )
+                  : Row(
+                      children: [
+                        navigationGroup,
+                        Expanded(child: contentSurface),
+                      ],
                     ),
-                  ),
-                ],
-              ),
             ),
           ),
         ],
       ),
     );
+  }
+}
+
+class _TvFocusBridge extends StatefulWidget {
+  const _TvFocusBridge({
+    required this.navigation,
+    required this.content,
+  });
+
+  final Widget navigation;
+  final Widget content;
+
+  @override
+  State<_TvFocusBridge> createState() => _TvFocusBridgeState();
+}
+
+class _TvFocusBridgeState extends State<_TvFocusBridge> {
+  late final FocusScopeNode _navigationScope = FocusScopeNode(
+    debugLabel: 'Android TV navigation focus scope',
+    skipTraversal: true,
+    onKeyEvent: _handleNavigationKeyEvent,
+  );
+  late final FocusScopeNode _contentScope = FocusScopeNode(
+    debugLabel: 'Android TV content focus scope',
+    skipTraversal: true,
+    directionalTraversalEdgeBehavior: TraversalEdgeBehavior.parentScope,
+    onKeyEvent: _handleContentKeyEvent,
+  );
+  FocusNode? _lastContentFocus;
+
+  @override
+  void dispose() {
+    _navigationScope.dispose();
+    _contentScope.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        FocusScope.withExternalFocusNode(
+          focusScopeNode: _navigationScope,
+          child: widget.navigation,
+        ),
+        Expanded(
+          child: FocusScope.withExternalFocusNode(
+            focusScopeNode: _contentScope,
+            child: widget.content,
+          ),
+        ),
+      ],
+    );
+  }
+
+  KeyEventResult _handleNavigationKeyEvent(
+    FocusNode _,
+    KeyEvent event,
+  ) {
+    if (event is! KeyDownEvent ||
+        event.logicalKey != LogicalKeyboardKey.arrowRight) {
+      return KeyEventResult.ignored;
+    }
+    final moved =
+        FocusManager.instance.primaryFocus?.focusInDirection(
+              TraversalDirection.right,
+            ) ??
+            false;
+    if (moved) return KeyEventResult.handled;
+    _requestContentFocus();
+    return KeyEventResult.handled;
+  }
+
+  KeyEventResult _handleContentKeyEvent(
+    FocusNode _,
+    KeyEvent event,
+  ) {
+    if (event is! KeyDownEvent ||
+        event.logicalKey != LogicalKeyboardKey.arrowLeft) {
+      return KeyEventResult.ignored;
+    }
+    final primaryFocus = FocusManager.instance.primaryFocus;
+    if (primaryFocus != null) _lastContentFocus = primaryFocus;
+    final moved =
+        primaryFocus?.focusInDirection(TraversalDirection.left) ?? false;
+    if (moved) return KeyEventResult.handled;
+    _requestNavigationFocus();
+    return KeyEventResult.handled;
+  }
+
+  void _requestNavigationFocus() {
+    final focusedChild = _navigationScope.focusedChild;
+    if (focusedChild != null && focusedChild.canRequestFocus) {
+      focusedChild.requestFocus();
+      return;
+    }
+    final firstChild = _navigationScope.traversalDescendants
+        .where((node) => node.canRequestFocus && !node.skipTraversal)
+        .firstOrNull;
+    firstChild?.requestFocus();
+  }
+
+  void _requestContentFocus() {
+    final lastFocus = _lastContentFocus;
+    if (lastFocus?.context != null && lastFocus!.canRequestFocus) {
+      lastFocus.requestFocus();
+      return;
+    }
+    _findFirstFocusable(_contentScope)?.requestFocus();
+  }
+
+  FocusNode? _findFirstFocusable(FocusNode node) {
+    for (final child in node.children) {
+      if (child.canRequestFocus && !child.skipTraversal) {
+        return child;
+      }
+      final descendant = _findFirstFocusable(child);
+      if (descendant != null) return descendant;
+    }
+    return null;
   }
 }
 

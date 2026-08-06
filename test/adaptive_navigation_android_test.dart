@@ -5,6 +5,7 @@ import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/features/library/presentation/directory_address_dropdown.dart';
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
 import 'package:kanyingyin/features/library/presentation/library_path_bar.dart';
+import 'package:kanyingyin/features/tv/presentation/tv_focus_surface.dart';
 import 'package:kanyingyin/pages/menu/adaptive_navigation_shell.dart';
 import 'package:kanyingyin/pages/navigation/navigation_config.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
@@ -297,19 +298,14 @@ void main() {
 
     final contentGroup =
         find.byKey(const ValueKey<String>('tv-content-focus-group'));
-    for (var index = 0; index < 20; index++) {
-      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await tester.pump();
-      if (find
-          .descendant(
-            of: contentGroup,
-            matching: find.byKey(const ValueKey<String>('tv-focused-surface')),
-          )
-          .evaluate()
-          .isNotEmpty) {
-        break;
-      }
-    }
+    final unfocusedCard = find.descendant(
+      of: contentGroup,
+      matching: find.byKey(const ValueKey<String>('tv-unfocused-surface')),
+    );
+    expect(unfocusedCard, findsOneWidget);
+    final cardFocus = Focus.of(tester.element(unfocusedCard));
+    cardFocus.requestFocus();
+    await tester.pumpAndSettle();
     expect(
       find.descendant(
         of: contentGroup,
@@ -326,6 +322,59 @@ void main() {
     expect(
       find.descendant(
         of: navigationGroup,
+        matching: find.byKey(const ValueKey<String>('tv-focused-surface')),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Android TV 页面内层焦点范围按左键后焦点进入侧栏', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 720);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final tvCapabilities =
+        AppPlatformCapabilities.android.copyWith(television: true);
+    installAppPlatformCapabilities(tvCapabilities);
+    addTearDown(
+      () => installAppPlatformCapabilities(AppPlatformCapabilities.windows),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AdaptiveNavigationShell(
+          capabilities: tvCapabilities,
+          selectedIndex: 0,
+          destinations: appNavigationDestinations,
+          onDestinationSelected: (_) {},
+          content: FocusScope(
+            child: FocusTraversalGroup(
+              child: TvFocusSurface(
+                autofocus: true,
+                onPressed: () {},
+                child: const SizedBox(width: 320, height: 180),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey<String>('tv-content-focus-group')),
+        matching: find.byKey(const ValueKey<String>('tv-focused-surface')),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pump();
+
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey<String>('tv-navigation-focus-group')),
         matching: find.byKey(const ValueKey<String>('tv-focused-surface')),
       ),
       findsOneWidget,

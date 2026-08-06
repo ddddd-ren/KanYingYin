@@ -15,6 +15,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.provider.DocumentsContract
 import android.util.Rational
+import android.webkit.WebView
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
@@ -81,6 +82,7 @@ class MainActivity : AudioServiceActivity() {
                     "openWithMime" -> handleOpenWithMime(call.arguments, result)
                     "requestNotificationPermission" ->
                         handleRequestNotificationPermission(result)
+                    "getDeviceCapabilities" -> handleGetDeviceCapabilities(result)
                     "pickDirectory" -> handlePickDirectory(result)
                     "canAccessDocument" -> handleCanAccessDocument(call, result)
                     "listDocumentChildren" -> handleListDocumentChildren(call, result)
@@ -88,6 +90,31 @@ class MainActivity : AudioServiceActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    private fun handleGetDeviceCapabilities(result: MethodChannel.Result) {
+        try {
+            result.success(deviceCapabilities())
+        } catch (_: Exception) {
+            result.error("CapabilityProbeFailed", "无法读取 Android 设备能力", null)
+        }
+    }
+
+    private fun deviceCapabilities(): Map<String, Any> {
+        val uiMode = resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK
+        return mapOf(
+            "sdkInt" to Build.VERSION.SDK_INT,
+            "leanback" to packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK),
+            "television" to (
+                packageManager.hasSystemFeature(PackageManager.FEATURE_TELEVISION) ||
+                    uiMode == Configuration.UI_MODE_TYPE_TELEVISION
+                ),
+            "touchscreen" to packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN),
+            "webView" to (
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                    WebView.getCurrentWebViewPackage() != null
+                ),
+        )
     }
 
     private fun handlePickDirectory(result: MethodChannel.Result) {

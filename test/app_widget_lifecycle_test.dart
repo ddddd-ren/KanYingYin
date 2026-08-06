@@ -15,7 +15,7 @@ void main() {
 
     expect(appWidgetSource, contains('AndroidSystemUiSurface('));
     expect(appWidgetSource, contains('builder: (context, child)'));
-    expect(appWidgetSource, contains('capabilities: detectAppPlatform()'));
+    expect(appWidgetSource, contains('capabilities: widget.capabilities'));
   });
 
   group('WindowsAppShellService', () {

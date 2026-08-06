@@ -93,4 +93,26 @@ void main() {
     expect(received?.method, 'requestNotificationPermission');
     expect(received?.arguments, isNull);
   });
+
+  test('Android 设备能力使用固定平台方法', () async {
+    MethodCall? received;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+      received = call;
+      return <String, Object?>{
+        'sdkInt': 36,
+        'leanback': true,
+        'television': true,
+        'touchscreen': false,
+        'webView': true,
+      };
+    });
+    const client = AndroidPlatformChannel(channel: channel);
+
+    final result = await client.getDeviceCapabilities();
+
+    expect(received?.method, 'getDeviceCapabilities');
+    expect(result?['sdkInt'], 36);
+    expect(result?['leanback'], isTrue);
+  });
 }

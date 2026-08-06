@@ -68,7 +68,7 @@ void _installGlobalErrorLogging() {
 
 Future<void> _startApplication() async {
   MediaKit.ensureInitialized();
-  final capabilities = detectAppPlatform();
+  final capabilities = await loadAppPlatformCapabilities();
   final bootstrap = AppBootstrap(
     capabilities: capabilities,
     desktopWindow: const WindowsDesktopWindowPort(),
@@ -146,7 +146,7 @@ Future<void> _startApplication() async {
       create: (_) => ThemeProvider(),
       child: ModularApp(
         module: AppModule(tmdbCredentialManager: tmdbCredentialManager),
-        child: const AppWidget(),
+        child: AppWidget(capabilities: capabilities),
       ),
     ),
   );

@@ -4,7 +4,7 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/platform/android/android_system_ui_surface.dart';
-import 'package:kanyingyin/platform/app_platform_io.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_shell_host.dart';
 import 'package:kanyingyin/providers/theme_provider.dart';
 import 'package:kanyingyin/theme/app_theme.dart';
@@ -38,7 +38,12 @@ Color parseStoredThemeColor(Object? storedValue) {
 }
 
 class AppWidget extends StatefulWidget {
-  const AppWidget({super.key});
+  const AppWidget({
+    super.key,
+    required this.capabilities,
+  });
+
+  final AppPlatformCapabilities capabilities;
 
   @override
   State<AppWidget> createState() => _AppWidgetState();
@@ -118,12 +123,12 @@ class _AppWidgetState extends State<AppWidget> {
       themeMode: themeProvider.themeMode,
       routerConfig: Modular.routerConfig,
       builder: (context, child) => AndroidSystemUiSurface(
-        capabilities: detectAppPlatform(),
+        capabilities: widget.capabilities,
         child: child ?? const SizedBox.shrink(),
       ),
     );
     return AppShellHost(
-      capabilities: detectAppPlatform(),
+      capabilities: widget.capabilities,
       child: app,
     );
   }

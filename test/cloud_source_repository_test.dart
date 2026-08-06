@@ -277,6 +277,73 @@ void main() {
       expect(sources.single.enabled, isTrue);
       expect(sources.single.lastScannedAt, isNull);
     });
+
+    test('配对导出按来源返回强类型凭据且字符串表示脱敏', () async {
+      await repository.save(_source('source-1'));
+      await credentials.write(
+        'source-1',
+        const CloudCredential(password: 'secret-password'),
+      );
+
+      final exported = await repository.exportForPairing();
+
+      expect(exported, hasLength(1));
+      expect(exported.single.source.id, 'source-1');
+      expect(exported.single.credential?.password, 'secret-password');
+      expect(exported.single.toString(), isNot(contains('secret-password')));
+    });
+
+    test('配对导入合并来源并以传入凭据为准', () async {
+      await repository.save(_source('existing'));
+      await credentials.write(
+        'existing',
+        const CloudCredential(token: 'old-token'),
+      );
+
+      await repository.importForPairing(<CloudSourcePairingEntry>[
+        CloudSourcePairingEntry(
+          source: _source('existing').copyWith(name: '已更新'),
+          credential: const CloudCredential(token: 'new-token'),
+        ),
+        CloudSourcePairingEntry(source: _source('new-source')),
+      ]);
+
+      expect((await repository.getById('existing'))?.name, '已更新');
+      expect(await repository.getById('new-source'), isNotNull);
+      expect((await credentials.read('existing'))?.token, 'new-token');
+      expect(await credentials.read('new-source'), isNull);
+    });
+
+    test('配对来源写入失败时恢复原来源与凭据', () async {
+      final failingStorage = _FailingSourceStorage();
+      final rollbackCredentials = MemoryCloudCredentialStore();
+      final rollbackRepository = CloudSourceRepository(
+        storage: failingStorage,
+        credentialStore: rollbackCredentials,
+      );
+      await rollbackRepository.save(_source('source-1'));
+      await rollbackCredentials.write(
+        'source-1',
+        const CloudCredential(token: 'old-token'),
+      );
+      failingStorage.failNextWrite = true;
+
+      await expectLater(
+        rollbackRepository.importForPairing(<CloudSourcePairingEntry>[
+          CloudSourcePairingEntry(
+            source: _source('source-1').copyWith(name: '错误更新'),
+            credential: const CloudCredential(token: 'new-token'),
+          ),
+        ]),
+        throwsStateError,
+      );
+
+      expect((await rollbackRepository.getById('source-1'))?.name, 'source-1');
+      expect(
+        (await rollbackCredentials.read('source-1'))?.token,
+        'old-token',
+      );
+    });
   });
 
   group('SecureCloudCredentialStore', () {

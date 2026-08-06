@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 
 class CloudSourcesSettingsPage extends StatefulWidget {
@@ -10,11 +12,13 @@ class CloudSourcesSettingsPage extends StatefulWidget {
     this.controller,
     this.onSourceDeleted,
     this.onSourceScanned,
+    this.capabilities,
   });
 
   final CloudLibraryController? controller;
   final Future<void> Function()? onSourceDeleted;
   final Future<void> Function(String sourceId)? onSourceScanned;
+  final AppPlatformCapabilities? capabilities;
 
   @override
   State<CloudSourcesSettingsPage> createState() =>
@@ -92,6 +96,7 @@ class _CloudSourcesSettingsPageState extends State<CloudSourcesSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final capabilities = widget.capabilities ?? detectAppPlatform();
     return KSettingsScaffold(
       title: '网盘数据源',
       description: '管理个人夸克、百度、迅雷与 OpenList 网盘媒体来源；OpenList 功能仍在调试。',
@@ -100,6 +105,18 @@ class _CloudSourcesSettingsPageState extends State<CloudSourcesSettingsPage> {
           : ListView(
               padding: const EdgeInsets.all(24),
               children: [
+                if (capabilities.isAndroidTv) ...[
+                  ListTile(
+                    leading: const Icon(Icons.qr_code_2),
+                    title: const Text('手机扫码配置'),
+                    subtitle: const Text('使用同一局域网中的手机填写 TV 配置'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Modular.to.pushNamed(
+                      '/settings/cloud-sources/tv-pairing',
+                    ),
+                  ),
+                  const Divider(height: 24),
+                ],
                 if (_controller.sources.isEmpty)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 40),

@@ -1,0 +1,109 @@
+import 'dart:convert';
+import 'dart:math';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/features/tv_pairing/domain/tv_pairing_models.dart';
+import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
+
+void main() {
+  test('配对令牌为 32 字节、五分钟有效且只能消费一次', () {
+    final now = DateTime.utc(2026, 8, 6, 12);
+    final session = TvPairingSession.issue(
+      now: now,
+      random: Random(7),
+    );
+
+    expect(base64Url.decode(base64Url.normalize(session.token)), hasLength(32));
+    expect(session.isExpired(DateTime.utc(2026, 8, 6, 12, 4)), isFalse);
+    expect(session.isExpired(DateTime.utc(2026, 8, 6, 12, 5)), isTrue);
+    expect(session.consume(session.token, now: now), isTrue);
+    expect(session.consume(session.token, now: now), isFalse);
+    expect(session.consume('wrong-token', now: now), isFalse);
+  });
+
+  test('二维码载荷只包含地址、端口、一次性令牌和协议版本', () {
+    const payload = TvPairingQrPayload(
+      host: '192.168.1.10',
+      port: 38765,
+      pairingToken: 'temporary-token',
+      protocolVersion: 1,
+    );
+
+    expect(payload.toJson().keys.toSet(), {
+      'host',
+      'port',
+      'pairingToken',
+      'protocolVersion',
+    });
+    final uri = Uri.parse(payload.toQrData());
+    expect(uri.host, '192.168.1.10');
+    expect(uri.port, 38765);
+    expect(uri.path, '/pair');
+    expect(uri.queryParameters, {
+      'token': 'temporary-token',
+      'v': '1',
+    });
+    expect(payload.toQrData(), isNot(contains('password')));
+    expect(payload.toQrData(), isNot(contains('tmdb')));
+  });
+
+  test('强类型配置载荷往返保留来源与凭据且字符串表示脱敏', () {
+    const source = CloudSource(
+      id: 'cloud-1',
+      type: CloudSourceType.openList,
+      name: '家庭网盘',
+      baseUrl: 'https://cloud.example.com',
+      rootPaths: <String>['/电影'],
+    );
+    const credential = CloudCredential(
+      username: 'viewer',
+      password: 'secret-password',
+      refreshToken: 'secret-refresh-token',
+    );
+    const payload = TvPairingPayload(
+      protocolVersion: 1,
+      deviceName: '客厅电视',
+      tmdbApiKey: 'secret-tmdb-key',
+      cloudSources: <TvPairingCloudSourceRecord>[
+        TvPairingCloudSourceRecord(
+          source: source,
+          credential: credential,
+        ),
+      ],
+    );
+
+    final decoded = TvPairingPayload.decode(payload.encode());
+
+    expect(decoded.deviceName, '客厅电视');
+    expect(decoded.tmdbApiKey, 'secret-tmdb-key');
+    expect(decoded.cloudSources.single.source, source);
+    expect(decoded.cloudSources.single.credential?.password, 'secret-password');
+    expect(payload.toString(), isNot(contains('secret-password')));
+    expect(payload.toString(), isNot(contains('secret-refresh-token')));
+    expect(payload.toString(), isNot(contains('secret-tmdb-key')));
+  });
+
+  test('超过 256KB 的配置载荷被拒绝', () {
+    final payload = TvPairingPayload(
+      protocolVersion: 1,
+      deviceName: '电视',
+      tmdbApiKey: 'a' * (TvPairingPayload.maxPayloadBytes + 1),
+      cloudSources: const <TvPairingCloudSourceRecord>[],
+    );
+
+    expect(payload.encode, throwsA(isA<TvPairingPayloadTooLargeException>()));
+  });
+
+  test('协议版本必须是整数', () {
+    expect(
+      () => TvPairingPayload.fromJson(<String, dynamic>{
+        'protocolVersion': 1.0,
+        'deviceName': '电视',
+        'tmdbApiKey': '',
+        'cloudSources': <Object?>[],
+      }),
+      throwsA(isA<TvPairingInvalidPayloadException>()),
+    );
+  });
+}

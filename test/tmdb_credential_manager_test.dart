@@ -73,6 +73,23 @@ void main() {
     expect(manager.read(), isEmpty);
     expect(await store.read(), isNull);
   });
+
+  test('配对接口从当前值导出并写入安全存储', () async {
+    final store = MemoryTmdbCredentialStore('old-key');
+    final manager = TmdbCredentialManager(
+      store: store,
+      legacyReader: () => '',
+      legacyDelete: () async {},
+      warningLogger: (_) {},
+    );
+    await manager.initialize();
+
+    expect(manager.exportForPairing(), 'old-key');
+    await manager.importForPairing(' new-key ');
+
+    expect(manager.exportForPairing(), 'new-key');
+    expect(await store.read(), 'new-key');
+  });
 }
 
 class _FailingTmdbCredentialStore implements TmdbCredentialStore {

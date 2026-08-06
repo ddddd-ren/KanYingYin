@@ -68,6 +68,10 @@ class TmdbCredentialManager {
 
   String read() => _current;
 
+  String exportForPairing() => _current;
+
+  Future<void> importForPairing(String value) => save(value);
+
   Future<void> initialize() async {
     final legacy = _readLegacy();
     try {

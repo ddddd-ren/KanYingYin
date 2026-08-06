@@ -31,6 +31,9 @@ import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_motion.dart';
 import 'package:kanyingyin/features/history/presentation/history_page.dart';
+import 'package:kanyingyin/features/tv_pairing/application/tv_pairing_controller.dart';
+import 'package:kanyingyin/features/tv_pairing/presentation/tv_pairing_page.dart';
+import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 
 void _child(
   RouteManager r,
@@ -163,6 +166,16 @@ class SettingsModule extends Module {
       r,
       "/cloud-sources/add",
       child: (_) => const CloudSourceTypePickerPage(),
+    );
+    _child(
+      r,
+      "/cloud-sources/tv-pairing",
+      child: (_) => TvPairingPage(
+        controller: TvPairingController(
+          sourceRepository: Modular.get<CloudSourceRepository>(),
+          tmdbCredentialManager: Modular.get<TmdbCredentialManager>(),
+        ),
+      ),
     );
     _child(
       r,

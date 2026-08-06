@@ -3,8 +3,11 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
+import 'package:kanyingyin/features/tv/presentation/tv_layout_policy.dart';
 import 'package:kanyingyin/bean/widget/skeleton_loader.dart';
 import 'package:kanyingyin/bean/widget/empty_state.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 
 typedef LibraryMediaAction = FutureOr<void> Function(
   LibraryMediaItemViewData item,
@@ -161,6 +164,7 @@ class LibraryMediaGrid extends StatelessWidget {
     this.onRetry,
     this.onClearSearch,
     this.trailingBuilder,
+    this.capabilities,
   });
 
   final LibraryMediaGridViewData data;
@@ -171,20 +175,27 @@ class LibraryMediaGrid extends StatelessWidget {
   final FutureOr<void> Function()? onRetry;
   final VoidCallback? onClearSearch;
   final LibraryMediaTrailingBuilder? trailingBuilder;
+  final AppPlatformCapabilities? capabilities;
 
   @override
   Widget build(BuildContext context) {
+    final policy = TvLayoutPolicy.forCapabilities(
+      capabilities ?? detectAppPlatform(),
+    );
     if (data.isLoading && data.items.isEmpty) {
-      return GridView.builder(
-        padding: const EdgeInsets.all(12),
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 300,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 0.68,
+      return FocusTraversalGroup(
+        key: const ValueKey<String>('library-media-grid-focus-group'),
+        child: GridView.builder(
+          padding: policy.gridPadding(const EdgeInsets.all(12)),
+          gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: policy.posterMaxCrossAxisExtent(300),
+            crossAxisSpacing: policy.gridSpacing(12),
+            mainAxisSpacing: policy.gridSpacing(12),
+            childAspectRatio: 0.68,
+          ),
+          itemCount: 8, // 显示8个骨架屏占位
+          itemBuilder: (context, index) => const MediaCardSkeleton(),
         ),
-        itemCount: 8, // 显示8个骨架屏占位
-        itemBuilder: (context, index) => const MediaCardSkeleton(),
       );
     }
     if (data.errorMessage != null && data.items.isEmpty) {
@@ -231,31 +242,34 @@ class LibraryMediaGrid extends StatelessWidget {
             : () async => await onPickDirectory!(),
       );
     }
-    return GridView.builder(
-      controller: scrollController,
-      padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 300,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 0.68,
+    return FocusTraversalGroup(
+      key: const ValueKey<String>('library-media-grid-focus-group'),
+      child: GridView.builder(
+        controller: scrollController,
+        padding: policy.gridPadding(const EdgeInsets.all(12)),
+        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: policy.posterMaxCrossAxisExtent(300),
+          crossAxisSpacing: policy.gridSpacing(12),
+          mainAxisSpacing: policy.gridSpacing(12),
+          childAspectRatio: 0.68,
+        ),
+        itemCount: data.items.length,
+        findChildIndexCallback: (key) {
+          if (key is! ValueKey<String>) return null;
+          final index = data.items.indexWhere((item) => item.id == key.value);
+          return index < 0 ? null : index;
+        },
+        itemBuilder: (context, index) {
+          final item = data.items[index];
+          return _LibraryMediaTile(
+            key: ValueKey<String>(item.id),
+            item: item,
+            onPlay: onPlay,
+            onShowActions: onShowActions,
+            trailingBuilder: trailingBuilder,
+          );
+        },
       ),
-      itemCount: data.items.length,
-      findChildIndexCallback: (key) {
-        if (key is! ValueKey<String>) return null;
-        final index = data.items.indexWhere((item) => item.id == key.value);
-        return index < 0 ? null : index;
-      },
-      itemBuilder: (context, index) {
-        final item = data.items[index];
-        return _LibraryMediaTile(
-          key: ValueKey<String>(item.id),
-          item: item,
-          onPlay: onPlay,
-          onShowActions: onShowActions,
-          trailingBuilder: trailingBuilder,
-        );
-      },
     );
   }
 }

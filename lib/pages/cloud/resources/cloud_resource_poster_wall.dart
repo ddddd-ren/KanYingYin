@@ -9,6 +9,9 @@ import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_card_view_data.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
+import 'package:kanyingyin/features/tv/presentation/tv_layout_policy.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 
 typedef CloudResourceGroupAction = FutureOr<void> Function(
   CloudResourceMediaGroup group,
@@ -32,6 +35,7 @@ class CloudResourcePosterWall extends StatelessWidget {
     this.onMatchEpisodes,
     this.onDetails,
     this.onHide,
+    this.capabilities,
   });
 
   final String sourceId;
@@ -49,6 +53,7 @@ class CloudResourcePosterWall extends StatelessWidget {
   final CloudResourceGroupAction? onMatchEpisodes;
   final CloudResourceGroupAction? onDetails;
   final CloudResourceGroupAction? onHide;
+  final AppPlatformCapabilities? capabilities;
 
   @override
   Widget build(BuildContext context) {
@@ -63,82 +68,88 @@ class CloudResourcePosterWall extends StatelessWidget {
   }
 
   Widget _mediaGrid(BuildContext context) {
-    return GridView.builder(
-      padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 300,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: 0.68,
+    final policy = TvLayoutPolicy.forCapabilities(
+      capabilities ?? detectAppPlatform(),
+    );
+    return FocusTraversalGroup(
+      key: const ValueKey<String>('cloud-resource-poster-focus-group'),
+      child: GridView.builder(
+        padding: policy.gridPadding(const EdgeInsets.all(12)),
+        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: policy.posterMaxCrossAxisExtent(300),
+          mainAxisSpacing: policy.gridSpacing(12),
+          crossAxisSpacing: policy.gridSpacing(12),
+          childAspectRatio: 0.68,
+        ),
+        itemCount: collection.groups.length,
+        findChildIndexCallback: (key) {
+          if (key is! ValueKey<String>) return null;
+          final index = collection.groups.indexWhere(
+            (group) => group.stableKey == key.value,
+          );
+          return index < 0 ? null : index;
+        },
+        itemBuilder: (context, index) {
+          final group = collection.groups[index];
+          final anchor = group.anchor;
+          final scraping = group.isWorkScoped
+              ? scrapingKeys.contains(group.workKey)
+              : group.videos.any(
+                  (video) => scrapingKeys.contains(_resourceKey(video)),
+                );
+          final hasSubtitle = group.videos.any(
+            (video) => subtitleVideoKeys.contains(_resourceKey(video)),
+          );
+          final data = group.isWorkScoped
+              ? CloudResourceCardViewData.fromGroup(
+                  group: group,
+                  scraping: scraping,
+                  hasSubtitle: hasSubtitle,
+                  sourceName: sourceName,
+                )
+              : CloudResourceCardViewData.fromEntry(
+                  entry: anchor,
+                  record: group.record,
+                  scraping: scraping,
+                  hasSubtitle: hasSubtitle,
+                  sourceName: sourceName,
+                );
+          final range = data.unifiedSubtitle.contains(' · ')
+              ? data.unifiedSubtitle.substring(
+                  data.unifiedSubtitle.indexOf(' · ') + 3,
+                )
+              : '';
+          final displaySubtitle = !group.isSeries && group.videos.length <= 1
+              ? anchor.name
+              : group.isSeries
+                  ? '${group.uniqueEpisodeCount} 集'
+                  : data.unifiedSubtitle.isNotEmpty
+                      ? data.unifiedSubtitle
+                      : group.videos.length > 1
+                          ? '${group.videos.length} 个版本'
+                          : anchor.name;
+          final displayDetails = data.unifiedDetails.isNotEmpty
+              ? [
+                  if (range.isNotEmpty) range,
+                  data.unifiedDetails,
+                ].join(' · ')
+              : data.details;
+          return ImmersiveMediaCard(
+            key: ValueKey<String>(group.stableKey),
+            cover: _mediaPoster(context, group, data),
+            title: group.isWorkScoped
+                ? group.displayName
+                : group.record?.effectiveTitle ?? group.seriesName,
+            subtitle: displaySubtitle,
+            details: displayDetails,
+            badges: _badges(group, data),
+            loading: scraping,
+            overlayMode: ImmersiveMediaCardOverlayMode.hover,
+            trailing: _resourceMenu(context, group),
+            onTap: () => onOpenGroup(group),
+          );
+        },
       ),
-      itemCount: collection.groups.length,
-      findChildIndexCallback: (key) {
-        if (key is! ValueKey<String>) return null;
-        final index = collection.groups.indexWhere(
-          (group) => group.stableKey == key.value,
-        );
-        return index < 0 ? null : index;
-      },
-      itemBuilder: (context, index) {
-        final group = collection.groups[index];
-        final anchor = group.anchor;
-        final scraping = group.isWorkScoped
-            ? scrapingKeys.contains(group.workKey)
-            : group.videos.any(
-                (video) => scrapingKeys.contains(_resourceKey(video)),
-              );
-        final hasSubtitle = group.videos.any(
-          (video) => subtitleVideoKeys.contains(_resourceKey(video)),
-        );
-        final data = group.isWorkScoped
-            ? CloudResourceCardViewData.fromGroup(
-                group: group,
-                scraping: scraping,
-                hasSubtitle: hasSubtitle,
-                sourceName: sourceName,
-              )
-            : CloudResourceCardViewData.fromEntry(
-                entry: anchor,
-                record: group.record,
-                scraping: scraping,
-                hasSubtitle: hasSubtitle,
-                sourceName: sourceName,
-              );
-        final range = data.unifiedSubtitle.contains(' · ')
-            ? data.unifiedSubtitle.substring(
-                data.unifiedSubtitle.indexOf(' · ') + 3,
-              )
-            : '';
-        final displaySubtitle = !group.isSeries && group.videos.length <= 1
-            ? anchor.name
-            : group.isSeries
-                ? '${group.uniqueEpisodeCount} 集'
-                : data.unifiedSubtitle.isNotEmpty
-                    ? data.unifiedSubtitle
-                    : group.videos.length > 1
-                        ? '${group.videos.length} 个版本'
-                        : anchor.name;
-        final displayDetails = data.unifiedDetails.isNotEmpty
-            ? [
-                if (range.isNotEmpty) range,
-                data.unifiedDetails,
-              ].join(' · ')
-            : data.details;
-        return ImmersiveMediaCard(
-          key: ValueKey<String>(group.stableKey),
-          cover: _mediaPoster(context, group, data),
-          title: group.isWorkScoped
-              ? group.displayName
-              : group.record?.effectiveTitle ?? group.seriesName,
-          subtitle: displaySubtitle,
-          details: displayDetails,
-          badges: _badges(group, data),
-          loading: scraping,
-          overlayMode: ImmersiveMediaCardOverlayMode.hover,
-          trailing: _resourceMenu(context, group),
-          onTap: () => onOpenGroup(group),
-        );
-      },
     );
   }
 

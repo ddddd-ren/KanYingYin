@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/bean/widget/glass_surface.dart';
+import 'package:kanyingyin/features/tv/presentation/tv_focus_surface.dart';
 
 enum ImmersiveMediaCardOverlayMode { hover, always }
 
@@ -53,55 +54,71 @@ class ImmersiveMediaCard extends StatefulWidget {
 
 class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
   bool _hovered = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final overlayVisible =
-        widget.overlayMode == ImmersiveMediaCardOverlayMode.always || _hovered;
+        widget.overlayMode == ImmersiveMediaCardOverlayMode.always ||
+            _hovered ||
+            _focused;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-        transform: Matrix4.translationValues(0, _hovered ? -4 : 0, 0),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(12), // 从 8 增加到 12
-          clipBehavior: Clip.antiAlias,
-          elevation: _hovered ? 8 : 0,
-          shadowColor: colors.shadow.withValues(alpha: 0.3),
-          child: InkWell(
-            onTap: widget.onTap,
-            onLongPress: widget.onLongPress,
-            onSecondaryTap: widget.onSecondaryTap,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                widget.cover,
-                AnimatedOpacity(
-                  opacity: overlayVisible ? 1 : 0,
-                  duration: const Duration(milliseconds: 160),
-                  curve: Curves.easeOut,
-                  child: _buildOverlay(context),
+      child: TvFocusSurface(
+        enabled: widget.onTap != null && !widget.loading,
+        onPressed: widget.onTap,
+        reserveFocusSpace: false,
+        onFocusChange: (focused) {
+          if (mounted) setState(() => _focused = focused);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          transform: Matrix4.translationValues(0, _hovered ? -4 : 0, 0),
+          child: Focus(
+            canRequestFocus: false,
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(12), // 从 8 增加到 12
+              clipBehavior: Clip.antiAlias,
+              elevation: _hovered ? 8 : 0,
+              shadowColor: colors.shadow.withValues(alpha: 0.3),
+              child: InkWell(
+                onTap: widget.onTap,
+                onLongPress: widget.onLongPress,
+                onSecondaryTap: widget.onSecondaryTap,
+                canRequestFocus: false,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    widget.cover,
+                    AnimatedOpacity(
+                      opacity: overlayVisible ? 1 : 0,
+                      duration: const Duration(milliseconds: 160),
+                      curve: Curves.easeOut,
+                      child: _buildOverlay(context),
+                    ),
+                    if (_hovered)
+                      IgnorePointer(
+                        child: ColoredBox(
+                          color: Colors.white.withValues(alpha: 0.04),
+                        ),
+                      ),
+                    if (widget.loading)
+                      IgnorePointer(
+                        child: ColoredBox(
+                          color: colors.scrim.withValues(alpha: 0.34),
+                          child:
+                              const Center(child: CircularProgressIndicator()),
+                        ),
+                      ),
+                    if (widget.trailing != null)
+                      Positioned(top: 4, right: 4, child: widget.trailing!),
+                  ],
                 ),
-                if (_hovered)
-                  IgnorePointer(
-                    child: ColoredBox(
-                      color: Colors.white.withValues(alpha: 0.04),
-                    ),
-                  ),
-                if (widget.loading)
-                  IgnorePointer(
-                    child: ColoredBox(
-                      color: colors.scrim.withValues(alpha: 0.34),
-                      child: const Center(child: CircularProgressIndicator()),
-                    ),
-                  ),
-                if (widget.trailing != null)
-                  Positioned(top: 4, right: 4, child: widget.trailing!),
-              ],
+              ),
             ),
           ),
         ),

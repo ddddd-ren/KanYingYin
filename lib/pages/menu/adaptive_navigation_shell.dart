@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/bean/widget/glass_surface.dart';
+import 'package:kanyingyin/features/tv/presentation/tv_focus_surface.dart';
 import 'package:kanyingyin/pages/navigation/navigation_config.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 
 const double compactNavigationBreakpoint = 640;
 const double expandedSidebarBreakpoint = 960;
@@ -19,6 +22,7 @@ class AdaptiveNavigationShell extends StatelessWidget {
     this.navigationHidden = false,
     this.navigationWrapper,
     this.onThemeModeChanged,
+    this.capabilities,
   });
 
   final int selectedIndex;
@@ -29,18 +33,22 @@ class AdaptiveNavigationShell extends StatelessWidget {
   final bool navigationHidden;
   final NavigationWrapper? navigationWrapper;
   final ValueChanged<ThemeMode>? onThemeModeChanged;
+  final AppPlatformCapabilities? capabilities;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final platform = capabilities ?? detectAppPlatform();
         if (navigationHidden) return _contentOnly(context);
-        if (constraints.maxWidth < compactNavigationBreakpoint) {
+        if (!platform.isAndroidTv &&
+            constraints.maxWidth < compactNavigationBreakpoint) {
           return _bottomLayout(context);
         }
         return _desktopLayout(
           context,
-          expanded: constraints.maxWidth >= expandedSidebarBreakpoint,
+          expanded: platform.isAndroidTv ||
+              constraints.maxWidth >= expandedSidebarBreakpoint,
         );
       },
     );
@@ -52,7 +60,12 @@ class AdaptiveNavigationShell extends StatelessWidget {
       body: Column(
         children: [
           if (topBar != null) topBar!,
-          Expanded(child: content),
+          Expanded(
+            child: FocusTraversalGroup(
+              key: const ValueKey<String>('tv-content-focus-group'),
+              child: content,
+            ),
+          ),
         ],
       ),
     );
@@ -95,57 +108,69 @@ class AdaptiveNavigationShell extends StatelessWidget {
         child: Column(
           children: [
             if (topBar != null) topBar!,
-            Expanded(child: content),
+            Expanded(
+              child: FocusTraversalGroup(
+                key: const ValueKey<String>('tv-content-focus-group'),
+                child: content,
+              ),
+            ),
           ],
         ),
       ),
-      bottomNavigationBar: GlassSurface(
-        key: const ValueKey<String>('compact-bottom-navigation-surface'),
-        borderRadius: BorderRadius.zero,
-        blurSigma: 18,
-        color: navigationColor.withValues(alpha: 0.78),
-        border: Border(
-          top: BorderSide(
-            color: Theme.of(context)
-                .colorScheme
-                .outlineVariant
-                .withValues(alpha: 0.32),
+      bottomNavigationBar: FocusTraversalGroup(
+        key: const ValueKey<String>('tv-navigation-focus-group'),
+        child: GlassSurface(
+          key: const ValueKey<String>('compact-bottom-navigation-surface'),
+          borderRadius: BorderRadius.zero,
+          blurSigma: 18,
+          color: navigationColor.withValues(alpha: 0.78),
+          border: Border(
+            top: BorderSide(
+              color: Theme.of(context)
+                  .colorScheme
+                  .outlineVariant
+                  .withValues(alpha: 0.32),
+            ),
           ),
-        ),
-        child: SafeArea(
-          key: const ValueKey<String>('compact-bottom-navigation-safe-area'),
-          top: false,
-          child: NavigationBar(
-            key: const ValueKey<String>('compact-bottom-navigation'),
-            backgroundColor: Colors.transparent,
-            surfaceTintColor: Colors.transparent,
-            selectedIndex: selectedBottomIndex,
-            onDestinationSelected: (index) async {
-              if (index == 0) {
-                final selected = await _showCategorySelector(
-                  context,
-                  categoryDestinations,
+          child: SafeArea(
+            key: const ValueKey<String>('compact-bottom-navigation-safe-area'),
+            top: false,
+            child: NavigationBar(
+              key: const ValueKey<String>('compact-bottom-navigation'),
+              backgroundColor: Colors.transparent,
+              surfaceTintColor: Colors.transparent,
+              selectedIndex: selectedBottomIndex,
+              onDestinationSelected: (index) async {
+                if (index == 0) {
+                  final previousFocus = FocusManager.instance.primaryFocus;
+                  final selected = await _showCategorySelector(
+                    context,
+                    categoryDestinations,
+                  );
+                  if (selected != null) onDestinationSelected(selected);
+                  if (previousFocus?.canRequestFocus == true) {
+                    previousFocus!.requestFocus();
+                  }
+                  return;
+                }
+                onDestinationSelected(
+                  visibleDestinations[index - 1].globalIndex,
                 );
-                if (selected != null) onDestinationSelected(selected);
-                return;
-              }
-              onDestinationSelected(
-                visibleDestinations[index - 1].globalIndex,
-              );
-            },
-            destinations: [
-              const NavigationDestination(
-                selectedIcon: Icon(Icons.category_rounded),
-                icon: Icon(Icons.category_outlined),
-                label: '分类',
-              ),
-              for (final item in visibleDestinations)
-                NavigationDestination(
-                  selectedIcon: Icon(item.destination.selectedIcon),
-                  icon: Icon(item.destination.icon),
-                  label: item.destination.label,
+              },
+              destinations: [
+                const NavigationDestination(
+                  selectedIcon: Icon(Icons.category_rounded),
+                  icon: Icon(Icons.category_outlined),
+                  label: '分类',
                 ),
-            ],
+                for (final item in visibleDestinations)
+                  NavigationDestination(
+                    selectedIcon: Icon(item.destination.selectedIcon),
+                    icon: Icon(item.destination.icon),
+                    label: item.destination.label,
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -163,26 +188,33 @@ class AdaptiveNavigationShell extends StatelessWidget {
   ) {
     return showModalBottomSheet<int>(
       context: context,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final item in categories)
-                ListTile(
-                  leading: Icon(
-                    selectedIndex == item.globalIndex
-                        ? item.destination.selectedIcon
-                        : item.destination.icon,
+      builder: (context) => FocusTraversalGroup(
+        key: const ValueKey<String>('tv-category-focus-group'),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var index = 0; index < categories.length; index++)
+                  Focus(
+                    autofocus: index == 0,
+                    child: ListTile(
+                      leading: Icon(
+                        selectedIndex == categories[index].globalIndex
+                            ? categories[index].destination.selectedIcon
+                            : categories[index].destination.icon,
+                      ),
+                      title: Text(categories[index].destination.label),
+                      trailing: selectedIndex == categories[index].globalIndex
+                          ? const Icon(Icons.check)
+                          : null,
+                      onTap: () => Navigator.of(context)
+                          .pop(categories[index].globalIndex),
+                    ),
                   ),
-                  title: Text(item.destination.label),
-                  trailing: selectedIndex == item.globalIndex
-                      ? const Icon(Icons.check)
-                      : null,
-                  onTap: () => Navigator.of(context).pop(item.globalIndex),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -222,7 +254,10 @@ class AdaptiveNavigationShell extends StatelessWidget {
           Expanded(
             child: Row(
               children: [
-                wrappedNavigation,
+                FocusTraversalGroup(
+                  key: const ValueKey<String>('tv-navigation-focus-group'),
+                  child: wrappedNavigation,
+                ),
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.only(right: 8, bottom: 8),
@@ -234,7 +269,10 @@ class AdaptiveNavigationShell extends StatelessWidget {
                       border: Border.all(
                         color: colors.outlineVariant.withValues(alpha: 0.45),
                       ),
-                      child: content,
+                      child: FocusTraversalGroup(
+                        key: const ValueKey<String>('tv-content-focus-group'),
+                        child: content,
+                      ),
                     ),
                   ),
                 ),
@@ -462,36 +500,40 @@ class _SidebarDestination extends StatelessWidget {
     return Material(
       color: selected ? colors.secondaryContainer : Colors.transparent,
       borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-          child: Row(
-            children: [
-              Icon(
-                selected ? destination.selectedIcon : destination.icon,
-                size: 21,
-                color: selected
-                    ? colors.onSecondaryContainer
-                    : colors.onSurfaceVariant,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  destination.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: selected
-                            ? colors.onSecondaryContainer
-                            : colors.onSurfaceVariant,
-                        fontWeight:
-                            selected ? FontWeight.w600 : FontWeight.w500,
-                      ),
+      child: TvFocusSurface(
+        onPressed: onTap,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          canRequestFocus: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+            child: Row(
+              children: [
+                Icon(
+                  selected ? destination.selectedIcon : destination.icon,
+                  size: 21,
+                  color: selected
+                      ? colors.onSecondaryContainer
+                      : colors.onSurfaceVariant,
                 ),
-              ),
-            ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    destination.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: selected
+                              ? colors.onSecondaryContainer
+                              : colors.onSurfaceVariant,
+                          fontWeight:
+                              selected ? FontWeight.w600 : FontWeight.w500,
+                        ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

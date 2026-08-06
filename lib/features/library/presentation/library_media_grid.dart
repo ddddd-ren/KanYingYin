@@ -174,8 +174,6 @@ class LibraryMediaGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
     if (data.isLoading && data.items.isEmpty) {
       return GridView.builder(
         padding: const EdgeInsets.all(12),

@@ -2,16 +2,16 @@
 
 ## 当前版本
 
-- 应用版本：1.0.6
-- Windows EXE 安装器版本：1.0.6
-- 本轮交付：Windows 正式版 EXE；Android 正式版 APK/AAB
+- 应用版本：2.1.136
+- Windows EXE 安装器版本：2.1.136 测试版
+- 本轮交付：Windows 测试版 EXE；Android 正式版 APK/AAB
 - Android 应用版本：1.0.3
 - Android versionCode：10003
 - 日期：2026-08-06
 
 ## 弹窗标题
 
-看影音 1.0.6 正式版
+看影音 2.1.136 测试版
 
 ## Windows 弹窗正文
 

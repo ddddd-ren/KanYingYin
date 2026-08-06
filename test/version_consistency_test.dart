@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('Windows 和 Android 二点一四零测试版版本文案保持一致', () {
-    const expectedVersion = '2.1.140';
-    const expectedBuildNumber = '20140';
+  test('Windows 和 Android 二点一四一测试版版本文案保持一致', () {
+    const expectedVersion = '2.1.141';
+    const expectedBuildNumber = '20141';
     const expectedAndroidVersion = expectedVersion;
     const expectedAndroidVersionCode = expectedBuildNumber;
     final pubspec = File('pubspec.yaml').readAsStringSync();

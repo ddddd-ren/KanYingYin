@@ -3,27 +3,27 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('当前发布配置为 Windows 和 Android 二点一四零测试版', () {
+  test('当前发布配置为 Windows 和 Android 二点一四一测试版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
     final currentReleaseNotes = releaseNotes.substring(
-      releaseNotes.indexOf('## 2.1.140+20140'),
-      releaseNotes.indexOf('\n## 2.1.139+20139'),
+      releaseNotes.indexOf('## 2.1.141+20141'),
+      releaseNotes.indexOf('\n## 2.1.140+20140'),
     );
 
-    expect(pubspec, contains('version: 2.1.140+20140'));
-    expect(pubspec, contains('msix_version: 2.1.140.0'));
-    expect(currentReleaseNotes, contains('Windows 测试版'));
-    expect(currentReleaseNotes, contains('2.1.140'));
-    expect(currentReleaseNotes, contains('安装向导'));
-    expect(currentReleaseNotes, contains('目录选择页'));
-    expect(currentReleaseNotes, contains('实际安装目录'));
+    expect(pubspec, contains('version: 2.1.141+20141'));
+    expect(pubspec, contains('msix_version: 2.1.141.0'));
+    expect(currentReleaseNotes, contains('Windows 和 Android TV 测试版'));
+    expect(currentReleaseNotes, contains('2.1.141'));
+    expect(currentReleaseNotes, contains('页面路由内部'));
+    expect(currentReleaseNotes, contains('焦点'));
+    expect(currentReleaseNotes, contains('侧边导航栏'));
     expect(currentReleaseNotes, contains('EXE'));
     expect(updateDialogCopy, contains('Windows 测试版 EXE'));
     expect(updateDialogCopy, contains('Android 测试版'));
-    expect(updateDialogCopy, contains('2.1.140'));
-    expect(updateDialogCopy, contains('2.1.140'));
+    expect(updateDialogCopy, contains('2.1.141'));
+    expect(updateDialogCopy, contains('2.1.141'));
   });
 
   test('直接依赖使用与锁文件兼容的明确约束', () {

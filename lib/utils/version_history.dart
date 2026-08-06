@@ -164,6 +164,23 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.140',
+    date: '2026-08-07',
+    isPrerelease: true,
+    changes: [
+      'Android TV 测试版可侧载到 Android TV/Google TV 设备；当前为可安装测试包，实机验收未完成',
+      'TV 使用独立 tvTest 安装包和包名，电视界面支持遥控器焦点导航',
+      '修复 Android TV 本地媒体库路径输入框捕获左方向键，导致焦点无法回到侧边导航栏的问题',
+      'TV 输入框按上下左右方向键时优先执行焦点导航，Windows 和普通 Android 保留文本编辑行为',
+      '保留 Android TV 海报卡片在内容区与侧边导航栏之间的遥控器焦点切换',
+      '搜索框第一次返回退出当前输入；根页面首次返回显示退出确认，确认框内按返回只关闭对话框，需选择“退出”才关闭应用',
+      '手机扫码配置要求 TV 与手机连接同一局域网，二维码不会包含账号密码、Cookie、Refresh Token 或 TMDB Key',
+      '不支持海信 VIDAA 原生系统安装；没有 Android API 或 ADB 证据前不会标记为兼容通过',
+      'Android TV 测试包继续使用 tvTest flavor，可侧载到 Android TV/Google TV；真实海信设备验收仍需单独完成',
+      '本次更新不会修改或删除本地及个人网盘原始视频、字幕或其他文件',
+    ],
+  ),
+  VersionHistory(
     version: '1.0.6',
     date: '2026-08-06',
     changes: [

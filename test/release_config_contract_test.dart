@@ -3,27 +3,27 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('当前发布配置为 Windows 和 Android 二点一三八测试版', () {
+  test('当前发布配置为 Windows 和 Android 二点一四零测试版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
     final currentReleaseNotes = releaseNotes.substring(
-      releaseNotes.indexOf('## 2.1.138+20138'),
-      releaseNotes.indexOf('\n## 2.1.137+20137'),
+      releaseNotes.indexOf('## 2.1.140+20140'),
+      releaseNotes.indexOf('\n## 2.1.139+20139'),
     );
 
-    expect(pubspec, contains('version: 2.1.138+20138'));
-    expect(pubspec, contains('msix_version: 2.1.138.0'));
+    expect(pubspec, contains('version: 2.1.140+20140'));
+    expect(pubspec, contains('msix_version: 2.1.140.0'));
     expect(currentReleaseNotes, contains('Windows 测试版'));
-    expect(currentReleaseNotes, contains('2.1.138'));
+    expect(currentReleaseNotes, contains('2.1.140'));
     expect(currentReleaseNotes, contains('安装向导'));
     expect(currentReleaseNotes, contains('目录选择页'));
     expect(currentReleaseNotes, contains('实际安装目录'));
     expect(currentReleaseNotes, contains('EXE'));
     expect(updateDialogCopy, contains('Windows 测试版 EXE'));
     expect(updateDialogCopy, contains('Android 测试版'));
-    expect(updateDialogCopy, contains('2.1.138'));
-    expect(updateDialogCopy, contains('2.1.138'));
+    expect(updateDialogCopy, contains('2.1.140'));
+    expect(updateDialogCopy, contains('2.1.140'));
   });
 
   test('直接依赖使用与锁文件兼容的明确约束', () {

@@ -252,31 +252,34 @@ class AdaptiveNavigationShell extends StatelessWidget {
         children: [
           if (topBar != null) topBar!,
           Expanded(
-            child: Row(
-              children: [
-                FocusTraversalGroup(
-                  key: const ValueKey<String>('tv-navigation-focus-group'),
-                  child: wrappedNavigation,
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 8, bottom: 8),
-                    child: GlassSurface(
-                      key: const ValueKey<String>('navigation-content-surface'),
-                      borderRadius: BorderRadius.circular(12),
-                      blurSigma: 14,
-                      color: colors.surface.withValues(alpha: 0.66),
-                      border: Border.all(
-                        color: colors.outlineVariant.withValues(alpha: 0.45),
-                      ),
-                      child: FocusTraversalGroup(
-                        key: const ValueKey<String>('tv-content-focus-group'),
-                        child: content,
+            child: FocusTraversalGroup(
+              policy: WidgetOrderTraversalPolicy(),
+              child: Row(
+                children: [
+                  FocusTraversalGroup(
+                    key: const ValueKey<String>('tv-navigation-focus-group'),
+                    child: wrappedNavigation,
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 8, bottom: 8),
+                      child: GlassSurface(
+                        key: const ValueKey<String>('navigation-content-surface'),
+                        borderRadius: BorderRadius.circular(12),
+                        blurSigma: 14,
+                        color: colors.surface.withValues(alpha: 0.66),
+                        border: Border.all(
+                          color: colors.outlineVariant.withValues(alpha: 0.45),
+                        ),
+                        child: FocusTraversalGroup(
+                          key: const ValueKey<String>('tv-content-focus-group'),
+                          child: content,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],

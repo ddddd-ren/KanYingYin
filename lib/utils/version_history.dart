@@ -2451,6 +2451,19 @@ const List<VersionHistory> versionHistoryList = [
       '关于页面已移除不属于看影音的外部链接',
     ],
   ),
+  VersionHistory(
+    version: '2.1.139',
+    date: '2026-08-07',
+    changes: [
+      '修复 Android TV 遥控器方向键焦点无法移动到侧边导航栏的问题',
+      'Android TV 在桌面布局中增加焦点遍历策略，支持左右键在导航栏和内容区之间切换',
+      '修复本地媒体库文件夹下拉菜单展开时，按返回键误弹退出对话框的问题',
+      '文件夹下拉菜单现在可以用 ESC 键或返回键正常关闭',
+      '修复 Android TV 退出确认对话框中按返回键直接退出应用的问题',
+      '退出确认弹窗必须点击"退出"按钮才能退出应用，按返回键会关闭弹窗',
+      '更新测试用例以匹配新的退出交互行为',
+    ],
+  ),
 ];
 
 List<VersionHistory> versionHistoryForCurrent(

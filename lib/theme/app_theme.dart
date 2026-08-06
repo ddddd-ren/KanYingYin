@@ -11,6 +11,11 @@ abstract final class AppTheme {
   static const Color lightBackground = Color(0xFFF4F6F8);
   static const Color lightRaisedSurface = Color(0xFFFFFFFF);
 
+  // 暖色调深色主题变体
+  static const Color warmDarkBackground = Color(0xFF1A1816);
+  static const Color warmDarkSurface = Color(0xFF232220);
+  static const Color warmDarkRaisedSurface = Color(0xFF2C2A27);
+
   static ThemeData light({String? fontFamily, Color? seedColor}) {
     final usesBrandColor = seedColor == null || seedColor == brandBlue;
     final scheme = ColorScheme.fromSeed(
@@ -68,12 +73,14 @@ abstract final class AppTheme {
     required String? fontFamily,
     required Color scaffoldBackgroundColor,
   }) {
+    final textTheme = _buildTextTheme(fontFamily);
     final base = ThemeData(
       useMaterial3: true,
       fontFamily: fontFamily,
       brightness: colorScheme.brightness,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: scaffoldBackgroundColor,
+      textTheme: textTheme,
       progressIndicatorTheme: progressIndicatorTheme2024,
       sliderTheme: sliderTheme2024,
       pageTransitionsTheme: pageTransitionsTheme2024,
@@ -92,7 +99,7 @@ abstract final class AppTheme {
         color: colorScheme.surfaceContainerLow,
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12), // 从 8 增加到 12
         ),
       ),
       dialogTheme: DialogThemeData(
@@ -101,14 +108,14 @@ abstract final class AppTheme {
         surfaceTintColor: Colors.transparent,
         shadowColor: colorScheme.shadow.withValues(alpha: 0.28),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16), // 从 12 增加到 16
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: colorScheme.surfaceContainerHigh,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12), // 从 8 增加到 12
           borderSide: BorderSide.none,
         ),
       ),
@@ -116,24 +123,129 @@ abstract final class AppTheme {
         backgroundColor: colorScheme.surfaceContainerLow,
         elevation: 0,
         indicatorShape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12), // 从 8 增加到 12
         ),
       ),
       navigationRailTheme: NavigationRailThemeData(
         backgroundColor: colorScheme.surfaceContainerLow,
         elevation: 0,
         indicatorShape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12), // 从 8 增加到 12
         ),
       ),
       tooltipTheme: TooltipThemeData(
         decoration: BoxDecoration(
           color: colorScheme.inverseSurface,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(8), // 从 6 增加到 8
         ),
         textStyle: base.textTheme.bodySmall?.copyWith(
           color: colorScheme.onInverseSurface,
         ),
+      ),
+    );
+  }
+
+  /// 构建优化的文本主题，提升行高和层级清晰度
+  static TextTheme _buildTextTheme(String? fontFamily) {
+    return TextTheme(
+      displayLarge: TextStyle(
+        fontFamily: fontFamily,
+        fontSize: 57,
+        fontWeight: FontWeight.w400,
+        height: 1.2,
+        letterSpacing: -0.25,
+      ),
+      displayMedium: TextStyle(
+        fontFamily: fontFamily,
+        fontSize: 45,
+        fontWeight: FontWeight.w400,
+        height: 1.2,
+      ),
+      displaySmall: TextStyle(
+        fontFamily: fontFamily,
+        fontSize: 36,
+        fontWeight: FontWeight.w400,
+        height: 1.2,
+      ),
+      headlineLarge: TextStyle(
+        fontFamily: fontFamily,
+        fontSize: 32,
+        fontWeight: FontWeight.w600,
+        height: 1.3,
+      ),
+      headlineMedium: TextStyle(
+        fontFamily: fontFamily,
+        fontSize: 28,
+        fontWeight: FontWeight.w600,
+        height: 1.3,
+      ),
+      headlineSmall: TextStyle(
+        fontFamily: fontFamily,
+        fontSize: 24,
+        fontWeight: FontWeight.w600,
+        height: 1.3,
+      ),
+      titleLarge: TextStyle(
+        fontFamily: fontFamily,
+        fontSize: 22,
+        fontWeight: FontWeight.w500,
+        height: 1.4,
+      ),
+      titleMedium: TextStyle(
+        fontFamily: fontFamily,
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+        height: 1.5,
+        letterSpacing: 0.15,
+      ),
+      titleSmall: TextStyle(
+        fontFamily: fontFamily,
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+        height: 1.5,
+        letterSpacing: 0.1,
+      ),
+      bodyLarge: TextStyle(
+        fontFamily: fontFamily,
+        fontSize: 16,
+        fontWeight: FontWeight.w400,
+        height: 1.6,
+        letterSpacing: 0.5,
+      ),
+      bodyMedium: TextStyle(
+        fontFamily: fontFamily,
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+        height: 1.6,
+        letterSpacing: 0.25,
+      ),
+      bodySmall: TextStyle(
+        fontFamily: fontFamily,
+        fontSize: 12,
+        fontWeight: FontWeight.w400,
+        height: 1.5,
+        letterSpacing: 0.4,
+      ),
+      labelLarge: TextStyle(
+        fontFamily: fontFamily,
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+        height: 1.4,
+        letterSpacing: 0.1,
+      ),
+      labelMedium: TextStyle(
+        fontFamily: fontFamily,
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+        height: 1.4,
+        letterSpacing: 0.5,
+      ),
+      labelSmall: TextStyle(
+        fontFamily: fontFamily,
+        fontSize: 11,
+        fontWeight: FontWeight.w500,
+        height: 1.4,
+        letterSpacing: 0.5,
       ),
     );
   }

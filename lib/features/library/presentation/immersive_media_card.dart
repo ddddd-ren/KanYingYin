@@ -62,40 +62,47 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: widget.onTap,
-          onLongPress: widget.onLongPress,
-          onSecondaryTap: widget.onSecondaryTap,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              widget.cover,
-              AnimatedOpacity(
-                opacity: overlayVisible ? 1 : 0,
-                duration: const Duration(milliseconds: 160),
-                curve: Curves.easeOut,
-                child: _buildOverlay(context),
-              ),
-              if (_hovered)
-                IgnorePointer(
-                  child: ColoredBox(
-                    color: Colors.white.withValues(alpha: 0.04),
-                  ),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        transform: Matrix4.translationValues(0, _hovered ? -4 : 0, 0),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(12), // 从 8 增加到 12
+          clipBehavior: Clip.antiAlias,
+          elevation: _hovered ? 8 : 0,
+          shadowColor: colors.shadow.withValues(alpha: 0.3),
+          child: InkWell(
+            onTap: widget.onTap,
+            onLongPress: widget.onLongPress,
+            onSecondaryTap: widget.onSecondaryTap,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                widget.cover,
+                AnimatedOpacity(
+                  opacity: overlayVisible ? 1 : 0,
+                  duration: const Duration(milliseconds: 160),
+                  curve: Curves.easeOut,
+                  child: _buildOverlay(context),
                 ),
-              if (widget.loading)
-                IgnorePointer(
-                  child: ColoredBox(
-                    color: colors.scrim.withValues(alpha: 0.34),
-                    child: const Center(child: CircularProgressIndicator()),
+                if (_hovered)
+                  IgnorePointer(
+                    child: ColoredBox(
+                      color: Colors.white.withValues(alpha: 0.04),
+                    ),
                   ),
-                ),
-              if (widget.trailing != null)
-                Positioned(top: 4, right: 4, child: widget.trailing!),
-            ],
+                if (widget.loading)
+                  IgnorePointer(
+                    child: ColoredBox(
+                      color: colors.scrim.withValues(alpha: 0.34),
+                      child: const Center(child: CircularProgressIndicator()),
+                    ),
+                  ),
+                if (widget.trailing != null)
+                  Positioned(top: 4, right: 4, child: widget.trailing!),
+              ],
+            ),
           ),
         ),
       ),
@@ -114,28 +121,28 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
               end: Alignment.bottomCenter,
               colors: [
                 Colors.transparent,
-                Colors.black.withValues(alpha: 0.2),
-                Colors.black.withValues(alpha: 0.82),
+                Colors.black.withValues(alpha: 0.3),
+                Colors.black.withValues(alpha: 0.88), // 从 0.82 增强到 0.88
               ],
-              stops: const [0, 0.42, 1],
+              stops: const [0, 0.38, 1], // 从 [0, 0.42, 1] 调整
             ),
           ),
         ),
         Align(
           alignment: Alignment.bottomCenter,
           child: Padding(
-            padding: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.only(bottom: 10), // 从 8 增加到 10
             child: SizedBox(
               width: double.infinity,
               child: GlassSurface(
-                borderRadius: BorderRadius.circular(8),
-                blurSigma: 10,
-                color: Colors.black.withValues(alpha: 0.28),
+                borderRadius: BorderRadius.circular(10),
+                blurSigma: 12, // 从 10 增加到 12
+                color: Colors.black.withValues(alpha: 0.32), // 从 0.28 增强到 0.32
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.16),
+                  color: Colors.white.withValues(alpha: 0.18), // 从 0.16 增强到 0.18
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 12), // 从 (10,8,10,10) 调整
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
@@ -144,10 +151,11 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
                         widget.title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: textTheme.titleMedium?.copyWith(
+                        style: textTheme.titleLarge?.copyWith( // 从 titleMedium 升级到 titleLarge
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
-                          height: 1.15,
+                          height: 1.2, // 从 1.15 调整到 1.2
+                          fontSize: 16, // 明确设置字号
                           shadows: const <Shadow>[
                             Shadow(color: Colors.black54, blurRadius: 4),
                           ],
@@ -173,7 +181,7 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
                           overflow: TextOverflow.ellipsis,
                           style: textTheme.labelSmall?.copyWith(
                             color: Colors.white.withValues(alpha: 0.78),
-                            height: 1.25,
+                            height: 1.3, // 从 1.25 调整到 1.3
                           ),
                         ),
                       ],

@@ -13,4 +13,9 @@ const List<ColorTheme> colorThemeTypes = [
   (color: Colors.yellow, label: '黄色'),
   (color: Colors.orange, label: '橙色'),
   (color: Colors.deepOrange, label: '深橙色'),
+  (color: Color(0xFFC4612F), label: '陶土色'),
+  (color: Color(0xFF8B4513), label: '棕褐色'),
+  (color: Color(0xFF2E7D32), label: '森林绿'),
+  (color: Color(0xFF1565C0), label: '海洋蓝'),
+  (color: Color(0xFF4A148C), label: '深紫色'),
 ];

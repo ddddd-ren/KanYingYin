@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/bean/widget/glass_surface.dart';
+import 'package:kanyingyin/features/library/presentation/directory_address_dropdown.dart';
+import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
 import 'package:kanyingyin/features/library/presentation/library_path_bar.dart';
 import 'package:kanyingyin/pages/menu/adaptive_navigation_shell.dart';
 import 'package:kanyingyin/pages/navigation/navigation_config.dart';
@@ -177,6 +179,150 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
     await tester.pump();
 
+    expect(
+      find.descendant(
+        of: navigationGroup,
+        matching: find.byKey(const ValueKey<String>('tv-focused-surface')),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Android TV 路径输入框按左键后焦点进入侧栏', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 720);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    installAppPlatformCapabilities(
+      AppPlatformCapabilities.android.copyWith(television: true),
+    );
+    addTearDown(
+      () => installAppPlatformCapabilities(AppPlatformCapabilities.windows),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AdaptiveNavigationShell(
+          capabilities: AppPlatformCapabilities.android.copyWith(
+            television: true,
+          ),
+          selectedIndex: 0,
+          destinations: appNavigationDestinations,
+          onDestinationSelected: (_) {},
+          content: Center(
+            child: SizedBox(
+              width: 520,
+              child: DirectoryAddressDropdown(
+                currentPath: r'D:\TV',
+                enabled: true,
+                loadChildren: (_) async =>
+                    const <DirectoryNavigationItem>[],
+                onChildSelected: (_) {},
+                onSubmitted: (_) async => null,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final addressField = find.byKey(
+      const ValueKey<String>('directory-address'),
+    );
+    await tester.tap(addressField);
+    await tester.pump();
+    final editable = tester.widget<EditableText>(
+      find.descendant(of: addressField, matching: find.byType(EditableText)),
+    );
+    expect(editable.focusNode.hasFocus, isTrue);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pump();
+
+    final navigationGroup =
+        find.byKey(const ValueKey<String>('tv-navigation-focus-group'));
+    expect(
+      find.descendant(
+        of: navigationGroup,
+        matching: find.byKey(const ValueKey<String>('tv-focused-surface')),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Android TV 本地媒体卡按左键后焦点进入侧栏', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 720);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final tvCapabilities =
+        AppPlatformCapabilities.android.copyWith(television: true);
+    installAppPlatformCapabilities(tvCapabilities);
+    addTearDown(
+      () => installAppPlatformCapabilities(AppPlatformCapabilities.windows),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AdaptiveNavigationShell(
+          capabilities: tvCapabilities,
+          selectedIndex: 0,
+          destinations: appNavigationDestinations,
+          onDestinationSelected: (_) {},
+          content: LibraryMediaGrid(
+            capabilities: tvCapabilities,
+            data: LibraryMediaGridViewData(
+              items: const <LibraryMediaItemViewData>[
+                LibraryMediaItemViewData(
+                  id: 'show-1',
+                  title: '测试影片',
+                  subtitle: '第 1 季',
+                  infoText: 'MKV  1.0 GB',
+                  modifiedText: '2026-08-07',
+                  hasMultipleEpisodes: true,
+                  hasSubtitle: true,
+                  scrapeLabel: '已刮削',
+                ),
+              ],
+            ),
+            onPlay: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final contentGroup =
+        find.byKey(const ValueKey<String>('tv-content-focus-group'));
+    for (var index = 0; index < 20; index++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      if (find
+          .descendant(
+            of: contentGroup,
+            matching: find.byKey(const ValueKey<String>('tv-focused-surface')),
+          )
+          .evaluate()
+          .isNotEmpty) {
+        break;
+      }
+    }
+    expect(
+      find.descendant(
+        of: contentGroup,
+        matching: find.byKey(const ValueKey<String>('tv-focused-surface')),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pump();
+
+    final navigationGroup =
+        find.byKey(const ValueKey<String>('tv-navigation-focus-group'));
     expect(
       find.descendant(
         of: navigationGroup,

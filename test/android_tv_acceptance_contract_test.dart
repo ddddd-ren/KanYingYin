@@ -8,9 +8,9 @@ void main() {
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final currentSection = _markdownVersionSection(
       releaseNotes,
-      '2.1.138+20138',
+      '2.1.140+20140',
     );
-    final currentHistory = versionHistoryForCurrent('2.1.138');
+    final currentHistory = versionHistoryForCurrent('2.1.140');
 
     expect(currentHistory, hasLength(1));
     final historyText = currentHistory.single.changes.join('\n');
@@ -20,7 +20,8 @@ void main() {
       'tvTest',
       '遥控器',
       '搜索框',
-      '连续返回两次',
+      '路径输入框',
+      '需选择“退出”',
       '同一局域网',
       '手机扫码配置',
       'VIDAA',

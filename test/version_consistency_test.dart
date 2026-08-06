@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('Windows 和 Android 二点一三八测试版版本文案保持一致', () {
-    const expectedVersion = '2.1.138';
-    const expectedBuildNumber = '20138';
+  test('Windows 和 Android 二点一四零测试版版本文案保持一致', () {
+    const expectedVersion = '2.1.140';
+    const expectedBuildNumber = '20140';
     const expectedAndroidVersion = expectedVersion;
     const expectedAndroidVersionCode = expectedBuildNumber;
     final pubspec = File('pubspec.yaml').readAsStringSync();
@@ -135,11 +135,10 @@ void main() {
       currentVersionHistory,
     ]) {
       for (final text in <String>[
-        'Windows',
-        '安装',
-        '目录',
-        '自选',
-        '实际安装目录',
+        'Android TV',
+        '路径输入框',
+        '焦点',
+        '侧边导航栏',
         '不会修改或删除',
       ]) {
         expect(currentCopy, contains(text));

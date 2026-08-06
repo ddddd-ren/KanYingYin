@@ -1,7 +1,10 @@
 [CmdletBinding()]
 param(
     [switch]$VersionOnly,
-    [string]$VersionFixturePath
+    [string]$VersionFixturePath,
+    [ValidateSet('mobile', 'tvTest')]
+    [string]$Flavor = 'mobile',
+    [switch]$ApkOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -55,11 +58,8 @@ if ($VersionOnly) {
     Write-Output "$($pubspecVersion.Name)+$($pubspecVersion.Code)"
     return
 }
-if ($pubspecVersion.Name -ne '2.1.138' -or $pubspecVersion.Code -ne 20138) {
-    throw "Windows pubspec 版本必须为 2.1.138+20138，实际为 $($pubspecVersion.Name)+$($pubspecVersion.Code)"
-}
-$androidVersion = '1.0.3'
-$androidVersionCode = 10003
+$androidVersion = $pubspecVersion.Name
+$androidVersionCode = $pubspecVersion.Code
 $requiredVariables = @(
     'KANYINGYIN_ANDROID_KEYSTORE',
     'KANYINGYIN_ANDROID_STORE_PASSWORD',
@@ -90,27 +90,37 @@ try {
         throw 'D:\flutter 3.41.9 was not found'
     }
 
-    $expectedPackage = 'com.kanyingyin.player'
+    $expectedPackage = if ($Flavor -eq 'tvTest') {
+        'com.kanyingyin.player.tvtest'
+    } else {
+        'com.kanyingyin.player'
+    }
 
     Push-Location $projectRoot
     try {
-        & $flutter build apk --release --no-pub
+        & $flutter build apk --release --flavor $Flavor --no-pub
         if ($LASTEXITCODE -ne 0) { throw 'Android APK release build failed' }
-        & $flutter build appbundle --release --no-pub
-        if ($LASTEXITCODE -ne 0) { throw 'Android AAB release build failed' }
+        if (-not $ApkOnly) {
+            & $flutter build appbundle --release --flavor $Flavor --no-pub
+            if ($LASTEXITCODE -ne 0) { throw 'Android AAB release build failed' }
+        }
     }
     finally {
         Pop-Location
     }
 
-    $apk = Join-Path $projectRoot 'build\app\outputs\flutter-apk\app-release.apk'
-    $aab = Join-Path $projectRoot 'build\app\outputs\bundle\release\app-release.aab'
+    $apk = Join-Path $projectRoot "build\app\outputs\flutter-apk\app-$Flavor-release.apk"
+    $aab = Join-Path $projectRoot "build\app\outputs\bundle\${Flavor}Release\app-$Flavor-release.aab"
     if (-not (Test-Path -LiteralPath $apk -PathType Leaf)) { throw 'Release APK was not generated' }
-    if (-not (Test-Path -LiteralPath $aab -PathType Leaf)) { throw 'Release AAB was not generated' }
+    if (-not $ApkOnly -and -not (Test-Path -LiteralPath $aab -PathType Leaf)) {
+        throw 'Release AAB was not generated'
+    }
 
     $fullBundleVerifier = Join-Path $PSScriptRoot 'verify_full_media_bundle.ps1'
     & $fullBundleVerifier -PackagePath $apk -PackageKind 'apk'
-    & $fullBundleVerifier -PackagePath $aab -PackageKind 'aab'
+    if (-not $ApkOnly) {
+        & $fullBundleVerifier -PackagePath $aab -PackageKind 'aab'
+    }
 
     $sdk = Join-Path $env:LOCALAPPDATA 'Android\Sdk'
     $buildTools = Get-ChildItem -LiteralPath (Join-Path $sdk 'build-tools') -Directory |
@@ -139,22 +149,33 @@ try {
         throw 'APK versionName is incorrect'
     }
 
-    $aabVerification = & $jarsigner -verify -strict -keystore $keystore `
-        -storepass:env KANYINGYIN_ANDROID_STORE_PASSWORD $aab 2>&1
-    $aabVerificationCode = $LASTEXITCODE
-    if ($aabVerificationCode -ne 0) {
-        $aabVerification | Write-Output
-        throw 'AAB signature verification failed'
+    if (-not $ApkOnly) {
+        $aabVerification = & $jarsigner -verify -strict -keystore $keystore `
+            -storepass:env KANYINGYIN_ANDROID_STORE_PASSWORD $aab 2>&1
+        $aabVerificationCode = $LASTEXITCODE
+        if ($aabVerificationCode -ne 0) {
+            $aabVerification | Write-Output
+            throw 'AAB signature verification failed'
+        }
+        Write-Output 'AAB signature verification passed'
     }
-    Write-Output 'AAB signature verification passed'
 
     $desktop = [Environment]::GetFolderPath('Desktop')
     $appName = -join ([char]0x770B, [char]0x5F71, [char]0x97F3)
-    $apkTarget = Join-Path $desktop "$appName-$androidVersion.apk"
-    $aabTarget = Join-Path $desktop "$appName-$androidVersion.aab"
+    $artifactSuffix = if ($Flavor -eq 'tvTest') {
+        -join ([char]0x2D, [char]0x54, [char]0x56, [char]0x6D4B, [char]0x8BD5, [char]0x7248)
+    } else {
+        ''
+    }
+    $apkTarget = Join-Path $desktop "$appName-$androidVersion$artifactSuffix.apk"
     Copy-Item -LiteralPath $apk -Destination $apkTarget -Force
-    Copy-Item -LiteralPath $aab -Destination $aabTarget -Force
-    Write-Output "Android release verified: $apkTarget / $aabTarget"
+    if (-not $ApkOnly) {
+        $aabTarget = Join-Path $desktop "$appName-$androidVersion$artifactSuffix.aab"
+        Copy-Item -LiteralPath $aab -Destination $aabTarget -Force
+        Write-Output "Android release verified: $apkTarget / $aabTarget"
+    } else {
+        Write-Output "Android APK release verified: $apkTarget"
+    }
 }
 finally {
     foreach ($name in $requiredVariables) {

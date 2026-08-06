@@ -663,6 +663,7 @@ class _VideoPageState extends State<VideoPage>
           child: playerController.loading
               ? Container()
               : PlayerItem(
+                  capabilities: detectAppPlatform(),
                   exitCoordinator: _exitCoordinator,
                   openMenu: openTabBodyAnimated,
                   locateEpisode: menuJumpToCurrentEpisode,

@@ -17,6 +17,7 @@ import 'package:kanyingyin/services/timed_shutdown_service.dart';
 import 'package:kanyingyin/pages/player/widgets/embedded_track_menus.dart';
 import 'package:kanyingyin/features/player/application/anime4k_policy.dart';
 import 'package:kanyingyin/pages/player/widgets/anime4k_status_label.dart';
+import 'package:kanyingyin/features/player/presentation/tv_remote_key_policy.dart';
 
 class SmallestPlayerItemPanel extends StatefulWidget {
   const SmallestPlayerItemPanel({
@@ -38,6 +39,9 @@ class SmallestPlayerItemPanel extends StatefulWidget {
     required this.onConfirmTrackLanguage,
     required this.pauseForTimedShutdown,
     this.disableAnimations = false,
+    this.openMenu,
+    this.tvMode = false,
+    this.onTvBack,
   });
 
   final void Function(BuildContext) onBackPressed;
@@ -58,6 +62,9 @@ class SmallestPlayerItemPanel extends StatefulWidget {
   final void Function(EmbeddedTrackInfo track) onConfirmTrackLanguage;
   final VoidCallback pauseForTimedShutdown;
   final bool disableAnimations;
+  final VoidCallback? openMenu;
+  final bool tvMode;
+  final VoidCallback? onTvBack;
 
   @override
   State<SmallestPlayerItemPanel> createState() =>
@@ -179,10 +186,48 @@ class _SmallestPlayerItemPanelState extends State<SmallestPlayerItemPanel> {
     );
   }
 
+  KeyEventResult _handleTvControlKey(BuildContext context, KeyEvent event) {
+    if (!widget.tvMode || event is! KeyDownEvent) {
+      return KeyEventResult.ignored;
+    }
+    final keyLabel = event.logicalKey.keyLabel.isNotEmpty
+        ? event.logicalKey.keyLabel
+        : event.logicalKey.debugName ?? '';
+    switch (TvRemoteKeyPolicy.actionFor(keyLabel)) {
+      case TvRemoteAction.playPause:
+        playerController.playOrPause();
+        return KeyEventResult.handled;
+      case TvRemoteAction.back:
+        final onTvBack = widget.onTvBack;
+        if (onTvBack != null) {
+          onTvBack();
+        } else {
+          widget.onBackPressed(context);
+        }
+        return KeyEventResult.handled;
+      case TvRemoteAction.menu:
+        widget.openMenu?.call();
+        return KeyEventResult.handled;
+      default:
+        return KeyEventResult.ignored;
+    }
+  }
+
+  Widget _wrapTvControls(BuildContext context, Widget child) {
+    if (!widget.tvMode) return child;
+    return FocusTraversalGroup(
+      key: const ValueKey<String>('small-player-tv-controls-focus-group'),
+      child: Focus(
+        onKeyEvent: (_, event) => _handleTvControlKey(context, event),
+        child: child,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Observer(builder: (context) {
-      return Stack(
+      final panel = Stack(
         alignment: Alignment.center,
         children: [
           //顶部渐变区域
@@ -418,6 +463,7 @@ class _SmallestPlayerItemPanelState extends State<SmallestPlayerItemPanel> {
           ),
         ],
       );
+      return _wrapTvControls(context, panel);
     });
   }
 
@@ -502,6 +548,7 @@ class _SmallestPlayerItemPanelState extends State<SmallestPlayerItemPanel> {
         child: Row(
           children: [
             IconButton(
+              autofocus: widget.tvMode,
               color: Colors.white,
               icon: const Icon(Icons.arrow_back_rounded),
               tooltip: '返回',

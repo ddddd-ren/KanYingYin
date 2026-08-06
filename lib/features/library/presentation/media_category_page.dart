@@ -9,6 +9,9 @@ import 'package:kanyingyin/features/library/application/media_library_query.dart
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/features/library/application/media_card_info.dart';
 import 'package:kanyingyin/features/library/presentation/media_library_details_dialog.dart';
+import 'package:kanyingyin/features/tv/presentation/tv_layout_policy.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 
 class MediaCategoryPage extends StatefulWidget {
   const MediaCategoryPage({
@@ -19,6 +22,7 @@ class MediaCategoryPage extends StatefulWidget {
     required this.onPlayEpisode,
     this.onHideEpisodes,
     this.observeLibrary = true,
+    this.capabilities,
   });
 
   final MediaLibraryCategory category;
@@ -27,6 +31,7 @@ class MediaCategoryPage extends StatefulWidget {
   final MediaCategoryEpisodeAction onPlayEpisode;
   final MediaCategoryHideEpisodesAction? onHideEpisodes;
   final bool observeLibrary;
+  final AppPlatformCapabilities? capabilities;
 
   @override
   State<MediaCategoryPage> createState() => _MediaCategoryPageState();
@@ -228,16 +233,22 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
         ),
       );
     }
-    return GridView.builder(
-      padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 280,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 0.68,
+    final policy = TvLayoutPolicy.forCapabilities(
+      widget.capabilities ?? detectAppPlatform(),
+    );
+    return FocusTraversalGroup(
+      key: const ValueKey<String>('media-category-focus-group'),
+      child: GridView.builder(
+        padding: policy.gridPadding(const EdgeInsets.all(12)),
+        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: policy.posterMaxCrossAxisExtent(280),
+          crossAxisSpacing: policy.gridSpacing(12),
+          mainAxisSpacing: policy.gridSpacing(12),
+          childAspectRatio: 0.68,
+        ),
+        itemCount: series.length,
+        itemBuilder: (context, index) => _seriesCard(context, series[index]),
       ),
-      itemCount: series.length,
-      itemBuilder: (context, index) => _seriesCard(context, series[index]),
     );
   }
 
@@ -348,6 +359,10 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
   Future<List<MediaLibraryEpisode>?> _selectEpisodesToHide(
     MediaLibrarySeries series,
   ) {
+    final policy = TvLayoutPolicy.forCapabilities(
+      widget.capabilities ?? detectAppPlatform(),
+    );
+    final dialogWidth = policy.dialogMaxWidth(560);
     final episodes = series.episodes;
     if (episodes.isEmpty) {
       return Future<List<MediaLibraryEpisode>?>.value(null);
@@ -356,30 +371,39 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
       final episode = episodes.single;
       return showDialog<List<MediaLibraryEpisode>>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('隐藏视频'),
-          content: Text(
-            '确定从分类海报墙隐藏“${episode.name}”吗？\n\n'
-            '只会修改看影音中的显示，不会删除网盘文件。',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(
-                <MediaLibraryEpisode>[episode],
+        builder: (context) => ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: dialogWidth),
+          child: FocusTraversalGroup(
+            key: const ValueKey<String>('media-category-dialog-focus-group'),
+            child: AlertDialog(
+              title: const Text('隐藏视频'),
+              content: Text(
+                '确定从分类海报墙隐藏“${episode.name}”吗？\n\n'
+                '只会修改看影音中的显示，不会删除网盘文件。',
               ),
-              child: const Text('隐藏'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('取消'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(
+                    <MediaLibraryEpisode>[episode],
+                  ),
+                  child: const Text('隐藏'),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       );
     }
     return showDialog<List<MediaLibraryEpisode>>(
       context: context,
-      builder: (context) => _MediaCategoryHideDialog(episodes: episodes),
+      builder: (context) => _MediaCategoryHideDialog(
+        episodes: episodes,
+        maxWidth: dialogWidth,
+      ),
     );
   }
 
@@ -448,55 +472,61 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
       context: context,
       isScrollControlled: true,
       builder: (context) => SafeArea(
-        child: FractionallySizedBox(
-          heightFactor: 0.78,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        series.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium,
+        child: FocusTraversalGroup(
+          key: const ValueKey<String>('media-category-episode-focus-group'),
+          child: FractionallySizedBox(
+            heightFactor: 0.78,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          series.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      tooltip: '关闭',
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
+                      IconButton(
+                        tooltip: '关闭',
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: series.episodes.length,
-                  itemBuilder: (context, index) {
-                    final episode = series.episodes[index];
-                    return ListTile(
-                      leading: const Icon(Icons.play_circle_outline),
-                      title: Text(
-                        episode.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(
-                        episode.sourceKind == MediaSourceKind.local
-                            ? episode.localItem?.path ?? ''
-                            : episode.remotePath ?? '',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      onTap: () => Navigator.of(context).pop(episode),
-                    );
-                  },
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: series.episodes.length,
+                    itemBuilder: (context, index) {
+                      final episode = series.episodes[index];
+                      return Focus(
+                        autofocus: index == 0,
+                        child: ListTile(
+                          leading: const Icon(Icons.play_circle_outline),
+                          title: Text(
+                            episode.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            episode.sourceKind == MediaSourceKind.local
+                                ? episode.localItem?.path ?? ''
+                                : episode.remotePath ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          onTap: () => Navigator.of(context).pop(episode),
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -523,9 +553,13 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
 enum _MediaCategoryAction { play, details, copyPath, hide }
 
 class _MediaCategoryHideDialog extends StatefulWidget {
-  const _MediaCategoryHideDialog({required this.episodes});
+  const _MediaCategoryHideDialog({
+    required this.episodes,
+    required this.maxWidth,
+  });
 
   final List<MediaLibraryEpisode> episodes;
+  final double maxWidth;
 
   @override
   State<_MediaCategoryHideDialog> createState() =>
@@ -537,61 +571,68 @@ class _MediaCategoryHideDialogState extends State<_MediaCategoryHideDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      key: const ValueKey<String>('media-category-hide-dialog'),
-      title: const Text('选择要隐藏的视频'),
-      content: SizedBox(
-        width: 560,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 420),
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Text('隐藏只影响海报墙，不会删除网盘文件。'),
-              ),
-              for (final episode in widget.episodes)
-                CheckboxListTile(
-                  key: ValueKey<String>(
-                    'media-category-hide-${episode.stableId}',
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: widget.maxWidth),
+      child: FocusTraversalGroup(
+        key: const ValueKey<String>('media-category-dialog-focus-group'),
+        child: AlertDialog(
+          key: const ValueKey<String>('media-category-hide-dialog'),
+          title: const Text('选择要隐藏的视频'),
+          content: SizedBox(
+            width: widget.maxWidth,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 420),
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Text('隐藏只影响海报墙，不会删除网盘文件。'),
                   ),
-                  value: _selectedIds.contains(episode.stableId),
-                  title: Text(episode.name),
-                  subtitle: Text(episode.remotePath ?? ''),
-                  controlAffinity: ListTileControlAffinity.leading,
-                  onChanged: (selected) {
-                    setState(() {
-                      if (selected == true) {
-                        _selectedIds.add(episode.stableId);
-                      } else {
-                        _selectedIds.remove(episode.stableId);
-                      }
-                    });
-                  },
-                ),
-            ],
+                  for (final episode in widget.episodes)
+                    CheckboxListTile(
+                      key: ValueKey<String>(
+                        'media-category-hide-${episode.stableId}',
+                      ),
+                      value: _selectedIds.contains(episode.stableId),
+                      title: Text(episode.name),
+                      subtitle: Text(episode.remotePath ?? ''),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      onChanged: (selected) {
+                        setState(() {
+                          if (selected == true) {
+                            _selectedIds.add(episode.stableId);
+                          } else {
+                            _selectedIds.remove(episode.stableId);
+                          }
+                        });
+                      },
+                    ),
+                ],
+              ),
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: _selectedIds.isEmpty
+                  ? null
+                  : () => Navigator.of(context).pop(
+                        widget.episodes
+                            .where(
+                              (episode) =>
+                                  _selectedIds.contains(episode.stableId),
+                            )
+                            .toList(growable: false),
+                      ),
+              child: const Text('隐藏所选'),
+            ),
+          ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: _selectedIds.isEmpty
-              ? null
-              : () => Navigator.of(context).pop(
-                    widget.episodes
-                        .where(
-                          (episode) => _selectedIds.contains(episode.stableId),
-                        )
-                        .toList(growable: false),
-                  ),
-          child: const Text('隐藏所选'),
-        ),
-      ],
     );
   }
 }

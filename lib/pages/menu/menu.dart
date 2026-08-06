@@ -12,6 +12,7 @@ import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:provider/provider.dart';
 import 'package:kanyingyin/pages/menu/adaptive_navigation_shell.dart';
 import 'package:kanyingyin/providers/theme_provider.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 
 class ScaffoldMenu extends StatefulWidget {
   const ScaffoldMenu({super.key});
@@ -64,6 +65,7 @@ class _ScaffoldMenu extends State<ScaffoldMenu> {
       child: Consumer<NavigationBarState>(
         builder: (context, state, _) {
           return AdaptiveNavigationShell(
+            capabilities: detectAppPlatform(),
             selectedIndex: state.selectedIndex,
             destinations: appNavigationDestinations,
             navigationHidden: state.isHide,

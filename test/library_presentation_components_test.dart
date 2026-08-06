@@ -15,6 +15,8 @@ import 'package:kanyingyin/features/library/presentation/immersive_media_card.da
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
 import 'package:kanyingyin/features/library/presentation/library_path_bar.dart';
 import 'package:kanyingyin/features/library/presentation/library_source_menu.dart';
+import 'package:kanyingyin/features/tv/presentation/tv_focus_surface.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
 
 void main() {
   test('TMDB 匹配状态显示实际 current/total 而不是插值字面量', () {
@@ -736,6 +738,49 @@ void main() {
       expect(find.byIcon(Icons.video_collection_outlined), findsOneWidget);
 
       await tester.tap(find.byType(InkWell));
+      await tester.pump();
+      expect(played, item.id);
+    });
+
+    testWidgets('TV 网格使用宽卡片、焦点组和遥控器主动作', (tester) async {
+      String? played;
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 720);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: LibraryMediaGrid(
+              capabilities: AppPlatformCapabilities.android.copyWith(
+                television: true,
+              ),
+              data: LibraryMediaGridViewData(items: const [item]),
+              onPlay: (value) async => played = value.id,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final grid = tester.widget<GridView>(find.byType(GridView));
+      final delegate =
+          grid.gridDelegate as SliverGridDelegateWithMaxCrossAxisExtent;
+      expect(delegate.maxCrossAxisExtent, 400);
+      expect(delegate.crossAxisSpacing, 20);
+      expect(delegate.mainAxisSpacing, 20);
+      expect(grid.padding, const EdgeInsets.fromLTRB(28, 20, 28, 28));
+      expect(
+        find.byKey(
+          const ValueKey<String>('library-media-grid-focus-group'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byType(TvFocusSurface), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
       expect(played, item.id);
     });

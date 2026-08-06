@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/pages/menu/adaptive_navigation_shell.dart';
 import 'package:kanyingyin/pages/navigation/navigation_config.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
 
 void main() {
   testWidgets('Android 窄屏使用安全区和底部导航', (tester) async {
@@ -64,5 +65,36 @@ void main() {
           .withValues(alpha: 0.78),
     );
     expect(bottomSurface.blurSigma, 18);
+  });
+
+  testWidgets('Android TV 宽屏保持带文字的侧栏并建立焦点组', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(760, 720);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AdaptiveNavigationShell(
+          capabilities: AppPlatformCapabilities.android.copyWith(
+            television: true,
+          ),
+          selectedIndex: 0,
+          destinations: appNavigationDestinations,
+          onDestinationSelected: (_) {},
+          content: const Text('TV 内容'),
+        ),
+      ),
+    );
+
+    expect(
+      find.byKey(const ValueKey<String>('desktop-sidebar-expanded')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey<String>('tv-navigation-focus-group')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey<String>('tv-content-focus-group')),
+        findsOneWidget);
+    expect(find.text('电影'), findsOneWidget);
   });
 }

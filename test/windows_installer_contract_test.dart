@@ -12,12 +12,15 @@ void main() {
         contains("Result := ExpandConstant('{localappdata}\\Programs\\看影音')"));
     expect(source, isNot(contains("Result := 'D:\\看影音'")));
     expect(source, contains('DefaultDirName={code:DefaultInstallDir}'));
+    expect(source, contains('DisableDirPage=no'));
+    expect(source, contains('AppendDefaultDirName=no'));
     expect(source, contains('Excludes: "*.msix,msix_verify_*\\*"'));
     expect(source, isNot(contains('Get-AppxPackage')));
     expect(source, isNot(contains('Remove-AppxPackage')));
     expect(source, isNot(contains('是否卸载旧的 MSIX 版本')));
     expect(source, isNot(contains('Name: "{autodesktop}')));
-    expect(instructions, contains('用户可以自选任意可用盘符和目录'));
+    expect(instructions, contains('安装向导始终显示目录选择页'));
+    expect(instructions, contains('选择的目录就是程序实际安装目录'));
     expect(instructions, isNot(contains(r'D:\看影音')));
     expect(instructions, isNot(contains('MSIX')));
   });

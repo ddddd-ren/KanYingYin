@@ -100,7 +100,7 @@ OpenList、夸克、百度和迅雷网盘在本项目中仅作为用户自有媒
 | --- | --- |
 | 支持平台 | Windows 10/11 x64；Android 7.0+（API 24+） |
 | 安装格式 | EXE / APK |
-| 当前版本 | 2.1.137 |
+| 当前版本 | 2.1.138 |
 | 本轮交付 | Windows 测试版 EXE；Android 正式版 APK/AAB |
 | Android 版本 | 1.0.3 (10003) |
 | Dart 包名 | `kanyingyin` |
@@ -108,13 +108,13 @@ OpenList、夸克、百度和迅雷网盘在本项目中仅作为用户自有媒
 | Android 应用标识 | `com.kanyingyin.player` |
 | Flutter | 3.41.9 |
 
-项目同时支持 Windows 与 Android。本轮交付 Windows 2.1.137 测试版 EXE 安装程序；Android 当前保留 1.0.3 正式版 APK/AAB；
+项目同时支持 Windows 与 Android。本轮交付 Windows 2.1.138 测试版 EXE 安装程序；Android 当前保留 1.0.3 正式版 APK/AAB；
 安装目录和应用数据、缓存目录均可由用户自行选择。
 
 ## 安装
 
 1. Windows：从当前仓库的 [Releases](https://github.com/ddddd-ren/KanYingYin/releases)
-   下载 `看影音-版本号-测试版-安装程序.exe`，双击后可选择安装目录。
+   下载 `看影音-版本号-测试版-安装程序.exe`，安装向导会始终显示目录选择页，可直接指定实际安装目录。
 2. Android：下载 `看影音-版本号.apk`，允许当前文件管理器安装未知来源应用后
    按系统提示完成安装。
 3. Windows 新安装或首次启动时，如果桌面或开始菜单中没有快捷方式，应用会询问是否创建。

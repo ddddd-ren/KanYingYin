@@ -3,26 +3,26 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('当前发布配置为 Windows 二点一三七测试版和 Android 一点零三正式版', () {
+  test('当前发布配置为 Windows 二点一三八测试版和 Android 一点零三正式版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
     final currentReleaseNotes = releaseNotes.substring(
-      releaseNotes.indexOf('## 2.1.137+20137'),
-      releaseNotes.indexOf('\n## 2.1.136+20136'),
+      releaseNotes.indexOf('## 2.1.138+20138'),
+      releaseNotes.indexOf('\n## 2.1.137+20137'),
     );
 
-    expect(pubspec, contains('version: 2.1.137+20137'));
-    expect(pubspec, contains('msix_version: 2.1.137.0'));
+    expect(pubspec, contains('version: 2.1.138+20138'));
+    expect(pubspec, contains('msix_version: 2.1.138.0'));
     expect(currentReleaseNotes, contains('Windows 测试版'));
-    expect(currentReleaseNotes, contains('2.1.137'));
-    expect(currentReleaseNotes, contains('单集'));
-    expect(currentReleaseNotes, contains('隔离'));
-    expect(currentReleaseNotes, contains('作品归属'));
+    expect(currentReleaseNotes, contains('2.1.138'));
+    expect(currentReleaseNotes, contains('安装向导'));
+    expect(currentReleaseNotes, contains('目录选择页'));
+    expect(currentReleaseNotes, contains('实际安装目录'));
     expect(currentReleaseNotes, contains('EXE'));
     expect(updateDialogCopy, contains('Windows 测试版 EXE'));
     expect(updateDialogCopy, contains('Android 正式版'));
-    expect(updateDialogCopy, contains('2.1.137'));
+    expect(updateDialogCopy, contains('2.1.138'));
     expect(updateDialogCopy, contains('1.0.3'));
   });
 

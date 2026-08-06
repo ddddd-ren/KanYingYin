@@ -1,0 +1,317 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_modular/flutter_modular.dart';
+import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
+import 'package:kanyingyin/features/tv_pairing/application/tv_pairing_controller.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+
+class TvPairingPage extends StatefulWidget {
+  const TvPairingPage({
+    super.key,
+    required this.controller,
+    this.onManualConfiguration,
+    this.ownsController = true,
+  });
+
+  final TvPairingController controller;
+  final VoidCallback? onManualConfiguration;
+  final bool ownsController;
+
+  @override
+  State<TvPairingPage> createState() => _TvPairingPageState();
+}
+
+class _TvPairingPageState extends State<TvPairingPage> {
+  bool _confirmationOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_handleControllerChanged);
+    unawaited(widget.controller.start());
+  }
+
+  void _handleControllerChanged() {
+    if (!mounted) return;
+    setState(() {});
+    if (widget.controller.state == TvPairingState.awaitingConfirmation &&
+        !_confirmationOpen) {
+      _confirmationOpen = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_showConfirmation());
+      });
+    }
+  }
+
+  Future<void> _showConfirmation() async {
+    final summary = widget.controller.pendingSummary;
+    if (summary == null || !mounted) {
+      _confirmationOpen = false;
+      return;
+    }
+    final accepted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('确认手机配置'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('配置名称：${summary.deviceName}'),
+            const SizedBox(height: 8),
+            Text('网盘来源：${summary.cloudSourceCount} 个'),
+            const SizedBox(height: 8),
+            Text(summary.hasTmdbKey ? 'TMDB：将更新' : 'TMDB：保持不变'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            autofocus: true,
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('拒绝'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: const Icon(Icons.check),
+            label: const Text('确认写入'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    _confirmationOpen = false;
+    if (accepted == true) {
+      await widget.controller.confirmPending();
+    } else {
+      widget.controller.rejectPending();
+    }
+  }
+
+  void _openManualConfiguration() {
+    final callback = widget.onManualConfiguration;
+    if (callback != null) {
+      callback();
+    } else {
+      Modular.to.pop();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_handleControllerChanged);
+    if (widget.ownsController) {
+      widget.controller.dispose();
+    } else {
+      unawaited(widget.controller.cancel());
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return KSettingsScaffold(
+      title: '手机扫码配置',
+      description: '手机和电视需连接同一个局域网。',
+      maxWidth: 1040,
+      body: AnimatedSwitcher(
+        duration: SettingsMotion.contentDuration,
+        child: _buildBody(context),
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
+    return switch (widget.controller.state) {
+      TvPairingState.idle || TvPairingState.starting => const Center(
+          key: ValueKey<String>('tv-pairing-starting'),
+          child: CircularProgressIndicator(),
+        ),
+      TvPairingState.active ||
+      TvPairingState.awaitingConfirmation =>
+        _ActivePairingView(
+          key: const ValueKey<String>('tv-pairing-active'),
+          controller: widget.controller,
+          onCancel: widget.controller.cancel,
+          onManualConfiguration: _openManualConfiguration,
+        ),
+      TvPairingState.applying => const Center(
+          key: ValueKey<String>('tv-pairing-applying'),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 20),
+              Text('正在写入配置'),
+            ],
+          ),
+        ),
+      TvPairingState.success => _PairingResultView(
+          key: const ValueKey<String>('tv-pairing-success'),
+          icon: Icons.check_circle_outline,
+          title: '配置已写入',
+          message: '现在可以返回媒体库继续使用。',
+          primaryLabel: '返回',
+          onPrimary: () => Modular.to.pop(),
+        ),
+      TvPairingState.error => _PairingResultView(
+          key: const ValueKey<String>('tv-pairing-error'),
+          icon: Icons.error_outline,
+          title: widget.controller.errorMessage ?? '配对失败',
+          message: '请检查局域网连接后重试。',
+          primaryLabel: '重试',
+          onPrimary: widget.controller.start,
+          secondaryLabel: '手动配置',
+          onSecondary: _openManualConfiguration,
+        ),
+    };
+  }
+}
+
+class _ActivePairingView extends StatelessWidget {
+  const _ActivePairingView({
+    super.key,
+    required this.controller,
+    required this.onCancel,
+    required this.onManualConfiguration,
+  });
+
+  final TvPairingController controller;
+  final Future<void> Function() onCancel;
+  final VoidCallback onManualConfiguration;
+
+  @override
+  Widget build(BuildContext context) {
+    final endpoint = controller.endpoint;
+    if (endpoint == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final seconds = controller.remaining.inSeconds.clamp(0, 5 * 60);
+    final minutesText = (seconds ~/ 60).toString().padLeft(2, '0');
+    final secondsText = (seconds % 60).toString().padLeft(2, '0');
+    final pairingUrl = endpoint.pairUri.toString();
+    final scheme = Theme.of(context).colorScheme;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(32),
+      child: Center(
+        child: Wrap(
+          spacing: 40,
+          runSpacing: 28,
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: scheme.outlineVariant),
+              ),
+              child: QrImageView(
+                key: const ValueKey<String>('tv-pairing-qr'),
+                data: pairingUrl,
+                size: 300,
+                padding: const EdgeInsets.all(16),
+                backgroundColor: Colors.white,
+                semanticsLabel: '手机扫码配置二维码',
+              ),
+            ),
+            SizedBox(
+              width: 420,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('等待手机连接',
+                      style: Theme.of(context).textTheme.headlineSmall),
+                  const SizedBox(height: 16),
+                  SelectableText(
+                    pairingUrl,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    '$minutesText:$secondsText',
+                    key: const ValueKey<String>('tv-pairing-countdown'),
+                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                          color: scheme.primary,
+                        ),
+                  ),
+                  const SizedBox(height: 28),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      FilledButton.icon(
+                        autofocus: true,
+                        onPressed: onCancel,
+                        icon: const Icon(Icons.close),
+                        label: const Text('取消配对'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: onManualConfiguration,
+                        icon: const Icon(Icons.tune),
+                        label: const Text('手动配置'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PairingResultView extends StatelessWidget {
+  const _PairingResultView({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.message,
+    required this.primaryLabel,
+    required this.onPrimary,
+    this.secondaryLabel,
+    this.onSecondary,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final String primaryLabel;
+  final VoidCallback onPrimary;
+  final String? secondaryLabel;
+  final VoidCallback? onSecondary;
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon,
+                  size: 72, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(height: 20),
+              Text(title, style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 8),
+              Text(message),
+              const SizedBox(height: 28),
+              Wrap(
+                spacing: 12,
+                children: [
+                  FilledButton(onPressed: onPrimary, child: Text(primaryLabel)),
+                  if (secondaryLabel != null && onSecondary != null)
+                    OutlinedButton(
+                      onPressed: onSecondary,
+                      child: Text(secondaryLabel!),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+}

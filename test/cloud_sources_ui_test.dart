@@ -9,6 +9,7 @@ import 'package:kanyingyin/pages/cloud/openlist_directory_picker.dart';
 import 'package:kanyingyin/pages/cloud/openlist_source_editor.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
 import 'package:kanyingyin/pages/settings/cloud_sources_settings.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
@@ -20,6 +21,38 @@ import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/pages/cloud/quark/quark_share_import_action.dart';
 
 void main() {
+  testWidgets('手机扫码配置入口只在 Android TV 显示', (tester) async {
+    final storage = MemoryCloudSourceStorage();
+    final credentials = MemoryCloudCredentialStore();
+    final controller = CloudLibraryController(
+      repository: CloudSourceRepository(
+        storage: storage,
+        credentialStore: credentials,
+      ),
+      credentialStore: credentials,
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: CloudSourcesSettingsPage(
+        controller: controller,
+        capabilities: AppPlatformCapabilities.android.copyWith(
+          television: true,
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('手机扫码配置'), findsOneWidget);
+
+    await tester.pumpWidget(MaterialApp(
+      home: CloudSourcesSettingsPage(
+        controller: controller,
+        capabilities: AppPlatformCapabilities.android,
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('手机扫码配置'), findsNothing);
+    controller.dispose();
+  });
+
   testWidgets('网盘来源设置页显示入口和空状态', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(home: CloudSourcesSettingsPage()),

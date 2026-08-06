@@ -42,6 +42,7 @@ dependencies:
   connectivity_plus: ^7.3.0
   file_picker: ^11.0.2
   flutter_secure_storage: ^10.3.1
+  qr_flutter: ^4.1.0
 
   path_provider: ^2.1.5
   hive_ce: ^2.16.0

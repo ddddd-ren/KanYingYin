@@ -13,6 +13,30 @@ abstract interface class CloudSourceStorage {
   Future<void> write(List<Map<String, dynamic>> sources);
 }
 
+class CloudSourcePairingEntry {
+  const CloudSourcePairingEntry({
+    required this.source,
+    this.credential,
+  });
+
+  final CloudSource source;
+  final CloudCredential? credential;
+
+  @override
+  String toString() =>
+      'CloudSourcePairingEntry(sourceId: ${source.id}, hasCredential: ${credential != null})';
+}
+
+class CloudSourcePairingRollbackException implements Exception {
+  const CloudSourcePairingRollbackException(this.sourceIds);
+
+  final List<String> sourceIds;
+
+  @override
+  String toString() =>
+      'CloudSourcePairingRollbackException(sourceIds: ${sourceIds.join(',')})';
+}
+
 class HiveCloudSourceStorage implements CloudSourceStorage {
   static final Object _sharedSettingBoxIdentity = Object();
 
@@ -176,4 +200,104 @@ class CloudSourceRepository {
             .map((source) => source.toJson())
             .toList(growable: false),
       );
+
+  Future<List<CloudSourcePairingEntry>> exportForPairing() =>
+      _mutationLock.synchronized(() async {
+        final entries = <CloudSourcePairingEntry>[];
+        for (final source in await getAll()) {
+          entries.add(CloudSourcePairingEntry(
+            source: source,
+            credential: await _credentialStore.read(source.id),
+          ));
+        }
+        return List<CloudSourcePairingEntry>.unmodifiable(entries);
+      });
+
+  Future<void> importForPairing(List<CloudSourcePairingEntry> entries) =>
+      _mutationLock.synchronized(() async {
+        if (entries.isEmpty) return;
+        final sourceIds = <String>{};
+        for (final entry in entries) {
+          final sourceId = entry.source.id.trim();
+          if (sourceId.isEmpty) {
+            throw ArgumentError.value(sourceId, 'sourceId', '来源 ID 不能为空');
+          }
+          if (!sourceIds.add(sourceId)) {
+            throw ArgumentError.value(sourceId, 'sourceId', '来源 ID 不能重复');
+          }
+        }
+
+        final previousSources = await getAll();
+        final previousCredentials = <String, CloudCredential?>{};
+        for (final sourceId in sourceIds) {
+          previousCredentials[sourceId] = await _credentialStore.read(sourceId);
+        }
+
+        final mergedSources = List<CloudSource>.of(previousSources);
+        for (final entry in entries) {
+          final index = mergedSources.indexWhere(
+            (source) => source.id == entry.source.id,
+          );
+          if (index < 0) {
+            mergedSources.add(entry.source);
+          } else {
+            mergedSources[index] = entry.source;
+          }
+        }
+
+        try {
+          for (final entry in entries) {
+            final credential = entry.credential;
+            if (credential == null || credential.isEmpty) {
+              await _credentialStore.delete(entry.source.id);
+            } else {
+              await _credentialStore.write(entry.source.id, credential);
+            }
+          }
+          await _storage.write(
+            mergedSources
+                .map((source) => source.toJson())
+                .toList(growable: false),
+          );
+        } on Object {
+          await _restorePairingSnapshot(
+            previousSources: previousSources,
+            previousCredentials: previousCredentials,
+          );
+          rethrow;
+        }
+      });
+
+  Future<void> _restorePairingSnapshot({
+    required List<CloudSource> previousSources,
+    required Map<String, CloudCredential?> previousCredentials,
+  }) async {
+    var rollbackFailed = false;
+    try {
+      await _storage.write(
+        previousSources
+            .map((source) => source.toJson())
+            .toList(growable: false),
+      );
+    } on Object {
+      rollbackFailed = true;
+    }
+    for (final entry in previousCredentials.entries) {
+      try {
+        final credential = entry.value;
+        if (credential == null) {
+          await _credentialStore.delete(entry.key);
+        } else {
+          await _credentialStore.write(entry.key, credential);
+        }
+      } on Object {
+        rollbackFailed = true;
+      }
+    }
+    if (rollbackFailed) {
+      throw CloudSourcePairingRollbackException(
+        List<String>.unmodifiable(previousCredentials.keys),
+      );
+    }
+  }
 }

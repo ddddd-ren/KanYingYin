@@ -44,6 +44,9 @@ class _SkeletonLoaderState extends State<SkeletonLoader>
   @override
   void didUpdateWidget(SkeletonLoader oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.duration != widget.duration) {
+      _controller.duration = widget.duration;
+    }
     if (oldWidget.enabled != widget.enabled) {
       _maybeStartAnimation();
     }

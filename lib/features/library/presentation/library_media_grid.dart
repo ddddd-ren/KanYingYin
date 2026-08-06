@@ -190,25 +190,14 @@ class LibraryMediaGrid extends StatelessWidget {
       );
     }
     if (data.errorMessage != null && data.items.isEmpty) {
-      return Center(
-          child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.error_outline, size: 48, color: colors.error),
-                  const SizedBox(height: 12),
-                  Text(data.errorMessage!,
-                      textAlign: TextAlign.center,
-                      style:
-                          textTheme.bodyMedium?.copyWith(color: colors.error)),
-                  const SizedBox(height: 16),
-                  OutlinedButton(
-                      onPressed:
-                          onRetry == null ? null : () async => await onRetry!(),
-                      child: const Text('重试')),
-                ],
-              )));
+      return EmptyState(
+        icon: Icons.error_outline,
+        title: '加载失败',
+        description: data.errorMessage!,
+        actionLabel: '重试',
+        actionIcon: Icons.refresh,
+        action: onRetry == null ? null : () async => await onRetry!(),
+      );
     }
     if (data.items.isEmpty) {
       if (data.hasSearchFilter) {

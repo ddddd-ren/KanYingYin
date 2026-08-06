@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/bean/widget/glass_surface.dart';
+import 'package:kanyingyin/bean/widget/skeleton_loader.dart';
 import 'package:kanyingyin/features/library/presentation/directory_address_dropdown.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
@@ -580,7 +581,7 @@ void main() {
       expect(glassRect.left, closeTo(cardRect.left, 0.1));
       expect(glassRect.right, closeTo(cardRect.right, 0.1));
       expect(glassRect.top, greaterThan(cardRect.top));
-      expect(glassRect.bottom, closeTo(cardRect.bottom - 8, 0.1));
+      expect(glassRect.bottom, closeTo(cardRect.bottom - 10, 0.1));
       expect(glassRect.height, lessThan(cardRect.height));
       await tester.tap(find.byType(InkWell));
       expect(tapped, isTrue);
@@ -892,7 +893,7 @@ void main() {
           ),
         ),
       ));
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(MediaCardSkeleton), findsWidgets);
 
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(

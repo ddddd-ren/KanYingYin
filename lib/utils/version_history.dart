@@ -181,6 +181,17 @@ const List<VersionHistory> versionHistoryList = [
     ],
   ),
   VersionHistory(
+    version: '2.1.138',
+    date: '2026-08-06',
+    isPrerelease: true,
+    changes: [
+      'Windows EXE 安装向导现在始终显示目录选择页，安装时可以自选任意可用盘符和目录',
+      '用户在向导中选择的目录就是程序实际安装目录，不会再自动追加“看影音”子目录',
+      '默认安装位置仍为当前用户的应用目录，不要求管理员权限，也不要求电脑存在 D 盘',
+      '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件，也不会更改应用数据和缓存目录',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.137',
     date: '2026-08-06',
     isPrerelease: true,

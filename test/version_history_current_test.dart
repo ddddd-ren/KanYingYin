@@ -80,6 +80,27 @@ void main() {
     }
   });
 
+  test('二点一三八支持自定义安装目录', () {
+    final entries = versionHistoryForCurrent('2.1.138');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    final changes = entry.changes.join('\n');
+    expect(entry.version, '2.1.138');
+    expect(entry.isPrerelease, isTrue);
+    for (final text in <String>[
+      'Windows',
+      'EXE',
+      '安装向导',
+      '目录选择页',
+      '自选',
+      '实际安装目录',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('一点零五正式版综合二点一零一至二点一零三更新', () {
     final entries = versionHistoryForCurrent('1.0.5');
 

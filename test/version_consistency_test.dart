@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('Windows 二点一三七测试版和 Android 一点零三正式版版本文案保持一致', () {
-    const expectedVersion = '2.1.137';
-    const expectedBuildNumber = '20137';
+  test('Windows 二点一三八测试版和 Android 一点零三正式版版本文案保持一致', () {
+    const expectedVersion = '2.1.138';
+    const expectedBuildNumber = '20138';
     const expectedAndroidVersion = '1.0.3';
     const expectedAndroidVersionCode = '10003';
     final pubspec = File('pubspec.yaml').readAsStringSync();
@@ -98,7 +98,7 @@ void main() {
     expect(
       versionHistory.indexOf("version: '$version'", versionHistoryListStart),
       lessThan(
-        versionHistory.indexOf("version: '2.1.136'", versionHistoryListStart),
+        versionHistory.indexOf("version: '2.1.137'", versionHistoryListStart),
       ),
     );
     expect(versionHistory, contains("version: '1.0.2'"));
@@ -132,10 +132,10 @@ void main() {
     ]) {
       for (final text in <String>[
         'Windows',
-        '单集',
-        'TMDB',
-        '隔离',
-        '作品归属',
+        '安装',
+        '目录',
+        '自选',
+        '实际安装目录',
         '不会修改或删除',
       ]) {
         expect(currentCopy, contains(text));

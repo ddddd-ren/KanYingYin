@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
+import 'package:kanyingyin/bean/widget/skeleton_loader.dart';
+import 'package:kanyingyin/bean/widget/empty_state.dart';
 
 typedef LibraryMediaAction = FutureOr<void> Function(
   LibraryMediaItemViewData item,
@@ -175,7 +177,17 @@ class LibraryMediaGrid extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     if (data.isLoading && data.items.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return GridView.builder(
+        padding: const EdgeInsets.all(12),
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 300,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 0.68,
+        ),
+        itemCount: 8, // 显示8个骨架屏占位
+        itemBuilder: (context, index) => const MediaCardSkeleton(),
+      );
     }
     if (data.errorMessage != null && data.items.isEmpty) {
       return Center(
@@ -200,62 +212,30 @@ class LibraryMediaGrid extends StatelessWidget {
     }
     if (data.items.isEmpty) {
       if (data.hasSearchFilter) {
-        return Center(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.search_off, size: 48, color: colors.outline),
-          const SizedBox(height: 12),
-          Text('没有匹配的文件',
-              style: textTheme.bodyLarge?.copyWith(color: colors.outline)),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-              onPressed: onClearSearch,
-              icon: const Icon(Icons.close),
-              label: const Text('清空搜索')),
-        ]));
+        return EmptyState(
+          icon: Icons.search_off,
+          title: '没有匹配的文件',
+          description: '尝试使用其他关键词搜索',
+          actionLabel: '清空搜索',
+          action: onClearSearch,
+        );
       }
       if (data.currentPath.isEmpty) {
-        return Center(
-            child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.folder_open, size: 48, color: colors.outline),
-                    const SizedBox(height: 12),
-                    Text('请先设置本地文件目录',
-                        style: textTheme.bodyLarge
-                            ?.copyWith(color: colors.outline)),
-                    const SizedBox(height: 8),
-                    Text('设置 → 界面 → 本地文件默认路径',
-                        style: textTheme.bodySmall
-                            ?.copyWith(color: colors.outline)),
-                    const SizedBox(height: 16),
-                    FilledButton.icon(
-                        onPressed: onPickDirectory == null
-                            ? null
-                            : () async => await onPickDirectory!(),
-                        icon: const Icon(Icons.folder_open),
-                        label: const Text('选择文件夹')),
-                  ],
-                )));
+        return EmptyState(
+          icon: Icons.folder_open,
+          title: '请先设置本地文件目录',
+          description: '设置 → 界面 → 本地文件默认路径',
+          actionLabel: '选择文件夹',
+          action: onPickDirectory == null ? null : () async => await onPickDirectory!(),
+        );
       }
-      return Center(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.video_file_outlined, size: 48, color: colors.outline),
-        const SizedBox(height: 12),
-        Text('没有可识别的视频',
-            style: textTheme.bodyLarge?.copyWith(color: colors.outline)),
-        const SizedBox(height: 8),
-        Text('仅显示大于 800MB 的视频文件',
-            style: textTheme.bodySmall?.copyWith(color: colors.outline)),
-        const SizedBox(height: 16),
-        OutlinedButton.icon(
-            onPressed: onPickDirectory == null
-                ? null
-                : () async => await onPickDirectory!(),
-            icon: const Icon(Icons.folder_open),
-            label: const Text('切换文件夹')),
-      ]));
+      return EmptyState(
+        icon: Icons.video_file_outlined,
+        title: '没有可识别的视频',
+        description: '仅显示大于 800MB 的视频文件',
+        actionLabel: '切换文件夹',
+        action: onPickDirectory == null ? null : () async => await onPickDirectory!(),
+      );
     }
     return GridView.builder(
       controller: scrollController,

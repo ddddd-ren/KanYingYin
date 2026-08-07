@@ -5,8 +5,8 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一四五说明手机扫码导入配置和刮削资料', () {
-    final entries = versionHistoryForCurrent('2.1.145');
+  test('二点一四六说明个人预置包自动导入配置和刮削资料', () {
+    final entries = versionHistoryForCurrent('2.1.146');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
@@ -15,6 +15,10 @@ void main() {
     for (final text in <String>[
       'Windows',
       'Android TV',
+      '个人预置',
+      '首次启动',
+      '自动导入',
+      '不可公开分发',
       '海报墙',
       '五列',
       '两行',

@@ -4,13 +4,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('当前版本文案说明 Android TV 五列海报和手机文件导入', () {
+  test('当前版本文案说明 Android TV 个人预置自动导入', () {
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final currentSection = _markdownVersionSection(
       releaseNotes,
-      '2.1.145+20145',
+      '2.1.146+20146',
     );
-    final currentHistory = versionHistoryForCurrent('2.1.145');
+    final currentHistory = versionHistoryForCurrent('2.1.146');
 
     expect(currentHistory, hasLength(1));
     final historyText = currentHistory.single.changes.join('\n');
@@ -27,6 +27,10 @@ void main() {
       '配置文件',
       '刮削资料',
       '电视导入成功',
+      '个人预置',
+      '首次启动',
+      '自动导入',
+      '不可公开分发',
       '实机验收未完成',
     ]) {
       expect(currentSection, contains(text), reason: 'RELEASE_NOTES 缺少 $text');

@@ -36,6 +36,26 @@ void main() {
     expect(xunlei, same(CloudRangeRelayTuning.android));
   });
 
+  test('Android TV 的夸克和百度都使用保守调优', () {
+    final tv = AppPlatformCapabilities.android.copyWith(
+      television: true,
+      androidSdkInt: 28,
+    );
+
+    for (final providerType in <CloudSourceType>[
+      CloudSourceType.quark,
+      CloudSourceType.baidu,
+    ]) {
+      expect(
+        CloudRangeRelayService.tuningFor(
+          capabilities: tv,
+          providerType: providerType,
+        ),
+        same(CloudRangeRelayTuning.androidTv),
+      );
+    }
+  });
+
   test('Windows 所有提供方继续使用原有参数', () {
     for (final providerType in CloudSourceType.values) {
       expect(

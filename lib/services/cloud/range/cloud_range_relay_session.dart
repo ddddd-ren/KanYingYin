@@ -36,6 +36,7 @@ class CloudRangeRelayTuning {
     required this.maxConcurrentReads,
     required this.maxConcurrentPrefetch,
     required this.prefetchAheadChunks,
+    this.prefetchTailOnStart = true,
     this.adaptivePolicy,
   })  : assert(chunkSize > 0),
         assert(maxChunks > 0),
@@ -58,6 +59,15 @@ class CloudRangeRelayTuning {
     maxConcurrentReads: 4,
     maxConcurrentPrefetch: 3,
     prefetchAheadChunks: 6,
+  );
+
+  static const androidTv = CloudRangeRelayTuning(
+    chunkSize: 2 * 1024 * 1024,
+    maxChunks: 16,
+    maxConcurrentReads: 3,
+    maxConcurrentPrefetch: 1,
+    prefetchAheadChunks: 2,
+    prefetchTailOnStart: false,
   );
 
   static const androidHighThroughput = CloudRangeRelayTuning(
@@ -86,12 +96,15 @@ class CloudRangeRelayTuning {
   final int maxConcurrentReads;
   final int maxConcurrentPrefetch;
   final int prefetchAheadChunks;
+  final bool prefetchTailOnStart;
   final CloudRangeRelayAdaptivePolicy? adaptivePolicy;
 
   static CloudRangeRelayTuning forPlatform(
     AppPlatformCapabilities capabilities,
-  ) =>
-      capabilities.isAndroid ? android : windows;
+  ) {
+    if (!capabilities.isAndroid) return windows;
+    return capabilities.isAndroidTv ? androidTv : android;
+  }
 }
 
 class CloudRangeRelaySession implements CloudPlaybackLease {
@@ -230,7 +243,7 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
         message: '$providerName预缓冲中',
       );
       _launchPrefetch(0, _prefetchGeneration);
-      if (metadata.totalLength > chunkSize) {
+      if (tuning.prefetchTailOnStart && metadata.totalLength > chunkSize) {
         final tailOffset =
             ((metadata.totalLength - 1) ~/ chunkSize) * chunkSize;
         _launchPrefetch(tailOffset, _prefetchGeneration);

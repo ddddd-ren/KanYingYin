@@ -57,7 +57,7 @@ void main() {
     expect(activated, 0);
   });
 
-  test('TV 布局策略放大海报、间距和弹窗宽度', () {
+  test('TV 布局策略缩小海报并保持遥控器安全间距', () {
     final normal = TvLayoutPolicy.forCapabilities(
       AppPlatformCapabilities.android,
     );
@@ -68,8 +68,12 @@ void main() {
     expect(normal.posterMaxCrossAxisExtent(300), 300);
     expect(normal.gridSpacing(12), 12);
     expect(normal.dialogMaxWidth(560), 560);
-    expect(television.posterMaxCrossAxisExtent(300), greaterThan(300));
-    expect(television.gridSpacing(12), greaterThanOrEqualTo(16));
+    expect(television.posterMaxCrossAxisExtent(300), 260);
+    expect(television.gridSpacing(12), 16);
+    expect(
+      television.gridPadding(const EdgeInsets.all(12)),
+      const EdgeInsets.fromLTRB(20, 16, 20, 24),
+    );
     expect(television.dialogMaxWidth(560), greaterThan(560));
   });
 }

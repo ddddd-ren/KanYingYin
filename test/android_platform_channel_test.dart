@@ -122,11 +122,18 @@ void main() {
     final source = File(
       'android/app/src/main/kotlin/com/kanyingyin/player/MainActivity.kt',
     ).readAsStringSync();
+    final resolver = File(
+      'android/app/src/main/kotlin/com/kanyingyin/player/'
+      'AndroidPickedFileResolver.kt',
+    ).readAsStringSync();
 
     expect(source, contains('"pickFile" -> handlePickFile(call, result)'));
     expect(source, contains('Intent(Intent.ACTION_OPEN_DOCUMENT)'));
     expect(source, contains('Intent.CATEGORY_OPENABLE'));
     expect(source, contains('File.createTempFile'));
     expect(source, contains('FLAG_GRANT_READ_URI_PERMISSION'));
+    expect(source, contains('OpenableColumns.DISPLAY_NAME'));
+    expect(source, contains('resolvePickedFileExtension'));
+    expect('$source\n$resolver', contains('normalizedAllowed.single()'));
   });
 }

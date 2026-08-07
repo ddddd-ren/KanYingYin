@@ -379,4 +379,61 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('Android TV 子页面闭环焦点在最左侧仍能进入侧栏', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 720);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final tvCapabilities =
+        AppPlatformCapabilities.android.copyWith(television: true);
+    installAppPlatformCapabilities(tvCapabilities);
+    addTearDown(
+      () => installAppPlatformCapabilities(AppPlatformCapabilities.windows),
+    );
+    final loopScope = FocusScopeNode(
+      directionalTraversalEdgeBehavior: TraversalEdgeBehavior.closedLoop,
+    );
+    addTearDown(loopScope.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AdaptiveNavigationShell(
+          capabilities: tvCapabilities,
+          selectedIndex: 0,
+          destinations: appNavigationDestinations,
+          onDestinationSelected: (_) {},
+          content: FocusScope.withExternalFocusNode(
+            focusScopeNode: loopScope,
+            child: Row(
+              children: [
+                TvFocusSurface(
+                  autofocus: true,
+                  onPressed: () {},
+                  child: const SizedBox(width: 180, height: 120),
+                ),
+                TvFocusSurface(
+                  onPressed: () {},
+                  child: const SizedBox(width: 180, height: 120),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pump();
+
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey<String>('tv-navigation-focus-group')),
+        matching: find.byKey(const ValueKey<String>('tv-focused-surface')),
+      ),
+      findsOneWidget,
+    );
+  });
 }

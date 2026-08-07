@@ -46,6 +46,8 @@ class _VideoPageState extends State<VideoPage>
   bool _relayVisibilityResetScheduled = false;
   Timer? _relayStableTimer;
   final FocusNode keyboardFocus = FocusNode();
+  final GlobalKey<PlayerItemState> _playerItemKey =
+      GlobalKey<PlayerItemState>();
   final PlayerExitCoordinator _exitCoordinator = PlayerExitCoordinator();
   ReactionDisposer? _historyDisposer;
 
@@ -345,12 +347,25 @@ class _VideoPageState extends State<VideoPage>
   }
 
   void onBackPressed(BuildContext context) async {
+    final capabilities = detectAppPlatform();
     final action = PlayerBackPolicy.decide(
       overlayVisible: AppDialog.observer.hasAppDialog,
       fullscreen: localVideoController.isFullscreen && Utils.isDesktop(),
+      controlsVisible: playerController.showVideoController,
+      isAndroidTv: capabilities.isAndroidTv,
     );
     if (action == PlayerBackAction.closeOverlay) {
-      AppDialog.dismiss<void>();
+      if (AppDialog.observer.hasAppDialog) {
+        AppDialog.dismiss<void>();
+      } else if (capabilities.isAndroidTv &&
+          playerController.showVideoController) {
+        final playerItemMounted = _playerItemKey.currentState != null;
+        _playerItemKey.currentState?.hideVideoController();
+        if (!playerItemMounted) {
+          playerController.showVideoController = false;
+          keyboardFocus.requestFocus();
+        }
+      }
       return;
     }
     if (localVideoController.isPip && Utils.isDesktop()) {
@@ -367,7 +382,9 @@ class _VideoPageState extends State<VideoPage>
       localVideoController.isFullscreen = false;
       return;
     }
-    if (!Utils.isDesktop() && localVideoController.isFullscreen) {
+    if (!Utils.isDesktop() &&
+        !capabilities.isAndroidTv &&
+        localVideoController.isFullscreen) {
       await Utils.exitFullScreen();
       localVideoController.isFullscreen = false;
     }
@@ -663,6 +680,7 @@ class _VideoPageState extends State<VideoPage>
           child: playerController.loading
               ? Container()
               : PlayerItem(
+                  key: _playerItemKey,
                   capabilities: detectAppPlatform(),
                   exitCoordinator: _exitCoordinator,
                   openMenu: openTabBodyAnimated,

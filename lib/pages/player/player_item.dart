@@ -61,10 +61,10 @@ class PlayerItem extends StatefulWidget {
   final AppPlatformCapabilities? capabilities;
 
   @override
-  State<PlayerItem> createState() => _PlayerItemState();
+  State<PlayerItem> createState() => PlayerItemState();
 }
 
-class _PlayerItemState extends State<PlayerItem>
+class PlayerItemState extends State<PlayerItem>
     with
         WindowListener,
         WidgetsBindingObserver,

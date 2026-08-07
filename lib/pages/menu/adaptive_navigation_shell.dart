@@ -379,11 +379,42 @@ class _TvFocusBridgeState extends State<_TvFocusBridge> {
     }
     final primaryFocus = FocusManager.instance.primaryFocus;
     if (primaryFocus != null) _lastContentFocus = primaryFocus;
+    if (primaryFocus != null && !_hasFocusableToLeft(primaryFocus)) {
+      _requestNavigationFocus();
+      return KeyEventResult.handled;
+    }
     final moved =
         primaryFocus?.focusInDirection(TraversalDirection.left) ?? false;
     if (moved) return KeyEventResult.handled;
     _requestNavigationFocus();
     return KeyEventResult.handled;
+  }
+
+  bool _hasFocusableToLeft(FocusNode current) {
+    final currentRect = _focusRect(current);
+    if (currentRect == null) return true;
+    for (final candidate in _contentScope.traversalDescendants) {
+      if (identical(candidate, current) ||
+          !candidate.canRequestFocus ||
+          candidate.skipTraversal) {
+        continue;
+      }
+      final candidateRect = _focusRect(candidate);
+      if (candidateRect == null) continue;
+      final overlapsVertically = candidateRect.top < currentRect.bottom - 1 &&
+          candidateRect.bottom > currentRect.top + 1;
+      if (overlapsVertically &&
+          candidateRect.center.dx < currentRect.center.dx - 1) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Rect? _focusRect(FocusNode node) {
+    final renderObject = node.context?.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) return null;
+    return renderObject.localToGlobal(Offset.zero) & renderObject.size;
   }
 
   void _requestNavigationFocus() {

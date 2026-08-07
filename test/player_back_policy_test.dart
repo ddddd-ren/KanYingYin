@@ -19,6 +19,21 @@ void main() {
     );
   });
 
+  test('Android TV 控制层显示时系统返回键先关闭控制层', () {
+    final action = Function.apply(
+      PlayerBackPolicy.decide,
+      const <Object?>[],
+      <Symbol, Object?>{
+        #overlayVisible: false,
+        #fullscreen: true,
+        #controlsVisible: true,
+        #isAndroidTv: true,
+      },
+    );
+
+    expect(action, PlayerBackAction.closeOverlay);
+  });
+
   test('Android 全屏播放按一次返回键直接离开播放器', () {
     final source = File('lib/pages/video/video_page.dart').readAsStringSync();
 
@@ -30,10 +45,15 @@ void main() {
     );
     expect(
       source,
-      contains(
-        'if (!Utils.isDesktop() && localVideoController.isFullscreen)',
-      ),
+      contains('controlsVisible: playerController.showVideoController'),
     );
+    expect(source, contains('isAndroidTv: capabilities.isAndroidTv'));
+    expect(
+      source,
+      contains('_playerItemKey.currentState?.hideVideoController()'),
+    );
+    expect(source, contains('!capabilities.isAndroidTv'));
+    expect(source, contains('localVideoController.isFullscreen'));
     expect(source, contains('if (!context.mounted) return;'));
   });
 }

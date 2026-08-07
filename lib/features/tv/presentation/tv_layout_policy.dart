@@ -13,15 +13,15 @@ class TvLayoutPolicy {
   final bool isAndroidTv;
 
   double posterMaxCrossAxisExtent(double fallback) {
-    return isAndroidTv ? 400 : fallback;
+    return isAndroidTv ? 260 : fallback;
   }
 
   double gridSpacing(double fallback) {
-    return isAndroidTv ? 20 : fallback;
+    return isAndroidTv ? 16 : fallback;
   }
 
   EdgeInsets gridPadding(EdgeInsets fallback) {
-    return isAndroidTv ? const EdgeInsets.fromLTRB(28, 20, 28, 28) : fallback;
+    return isAndroidTv ? const EdgeInsets.fromLTRB(20, 16, 20, 24) : fallback;
   }
 
   double dialogMaxWidth(double fallback) {

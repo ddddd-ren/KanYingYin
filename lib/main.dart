@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:cryptography_flutter/cryptography_flutter.dart';
 import 'package:kanyingyin/app_module.dart';
 import 'package:kanyingyin/app_widget.dart';
 import 'package:kanyingyin/core/app_version.dart';
@@ -28,7 +27,6 @@ import 'package:kanyingyin/services/storage/app_data_migration_service.dart';
 void main() {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
-    FlutterCryptography.enable();
     _installGlobalErrorLogging();
     final sessionId = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
     AppLogger().i(

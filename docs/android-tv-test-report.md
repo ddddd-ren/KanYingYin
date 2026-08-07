@@ -2,44 +2,71 @@
 
 ## 当前结论
 
-当前版本可以安装并侧载到 Android TV/Google TV，代码和 APK 包验收已完成；真实 Android TV/海信设备的完整播放验收仍未完成，交付结论保持“可安装测试包，实机验收未完成”。
+2.1.142 的自动化、Windows Release、Inno 安装器构建和 Android TV 包验证已经通过。当前 ADB 设备列表为空，未安装到用户的海信电视，因此交付结论保持“构建与包验证通过，海信实机验收未完成”。
 
-## 构建证据
+## 质量门禁
 
-- 版本：`2.1.141 (20141)`
-- 包名：`com.kanyingyin.player.tvtest`
-- 桌面 APK：`看影音-2.1.141-TV测试版.apk`
-- APK SHA-256：`880a10a330366c6de26a3560d5a211d4a075c32212cf84eb6aa65f1759f2743b`
-- APK v2 签名：通过；签名证书摘要记录在 `tool/android/private-output/` 的最新 `signature.txt`。
-- Manifest：包含 `LEANBACK_LAUNCHER`、Banner，并将触摸屏和伪触摸屏声明为非必需。
-- Full `libmpv`：`arm64-v8a`、`armeabi-v7a`、`x86_64` 三个 ABI 均与固定 Full 资产哈希一致。
+- Dart 格式：`675` 个文件检查完成，`0` 个文件需要修改。
+- Flutter 测试：`1780/1780` 通过。
+- Flutter Analyze：`No issues found!`。
+- Windows Release：构建成功。
+- Android `tvTest` Release：构建成功。Kotlin 增量缓存曾报告跨盘根目录警告，Gradle 自动回退到非增量编译后成功产出，后续独立包验证全部通过。
 
-## 用户反馈复现与修复
+## Windows 交付证据
 
-用户在海信电视上复验 2.1.140 后反馈：焦点仍停留在本地媒体库内容区，无法按左键进入侧边导航栏。
+- 版本：`2.1.142`。
+- Release 主程序：`D:\KanYingYin\build\windows\x64\runner\Release\kanyingyin.exe`。
+- Release 主程序大小：`293376` 字节。
+- Release 主程序产品版本：`2.1.142`。
+- 桌面 Inno 安装器：`C:\Users\asus\Desktop\看影音-2.1.142-测试版-安装程序.exe`。
+- 安装器大小：`69810473` 字节。
+- 安装器产品版本：`2.1.142`。
+- 安装器 SHA-256：`D8529245F06B6D89E7EFA3E82B65A26BB435F9133B0F6770FE37DAEC0A4E7EF7`。
+- Authenticode 状态：`NotSigned`，测试版安装器未签名。
+- 本轮未执行安装、卸载或启动操作。
 
-已加入自动化回归并修复：
+## Android TV 交付证据
 
-- Android TV 外层为侧边导航栏和内容区建立独立焦点范围，并记录上次使用的内容焦点。
-- 页面路由内部的焦点范围允许在方向边界继续进入父级范围，真实路径输入框和搜索框按左键可以回到侧边导航栏。
-- 本地媒体卡片到达内容区左边界后会进入侧边导航栏，从侧栏按右键会恢复上次内容焦点。
-- 搜索框有焦点时第一次返回只清除输入焦点。
-- TV 根页面第一次返回显示退出确认；确认框内按返回只关闭对话框，需明确选择“退出”才关闭应用。
+- 版本：`2.1.142 (20142)`。
+- Flavor：`tvTest`。
+- 包名：`com.kanyingyin.player.tvtest`。
+- 最低版本：Android 7.0，API 24；目标 API 36。
+- 构建 APK：`D:\KanYingYin\build\app\outputs\flutter-apk\app-tvTest-release.apk`。
+- 桌面 APK：`C:\Users\asus\Desktop\看影音-2.1.142-TV测试版.apk`。
+- APK 大小：`134647154` 字节。
+- 源 APK 与桌面副本 SHA-256：`3E5A01181E3F2EE0B6977170A6A31C9AF719762D42EC8DA89899774162D83E1D`，两者一致。
+- APK v2 签名：通过；签名者数量为 `1`，证书 SHA-256 为 `aec3af6f3ef68cd65d4e1906508ecae9dc8720c808602dff3d219777c0663a46`。
+- Manifest：包含 `LEANBACK_LAUNCHER` 和 Banner；触摸屏声明为非必需。
+- Full `libmpv`：`arm64-v8a`、`armeabi-v7a`、`x86_64` 三个 ABI 均通过固定资产哈希验证。
+- 独立验证摘要：`tool/android/private-output/tv-test-20260807-085807-summary.json`，该目录为本机私有输出，不提交到仓库。
 
-自动化验证覆盖页面内层焦点范围、真实路径输入框、本地媒体卡片、目录下拉和返回键行为。由于当前 ADB 设备列表为空，以上修复尚未在用户海信电视上重新安装并复验。
+## 本轮自动化覆盖
 
-## 设备状态
+- 本地媒体库内容区、路径输入框、搜索框和内层焦点范围按左键进入侧边导航栏；从侧栏按右键恢复内容焦点。
+- TV 设置操作显示高对比边框、浅色背景、勾选和确认提示，中心键只触发一次。
+- 手机扫码配对覆盖“手机已连接、等待电视确认、正在写入、成功、拒绝、超时和写入失败”状态。
+- 手机页面可新增、编辑和删除 OpenList、夸克、百度和迅雷来源；新增非 OpenList 来源会提示在电视继续选择媒体目录。
+- `.kyyconfig` 使用密码加密，覆盖正确密码、错误密码、篡改和文件大小限制。
+- TMDB Key 和个人网盘来源按来源 ID 原子合并，写入失败会恢复原配置；不会修改或删除视频、字幕、索引、缓存和播放历史。
 
-| 设备 | ADB/API 证据 | 当前状态 | 备注 |
-| --- | --- | --- | --- |
-| 用户海信电视 | 当前环境未连接 ADB；系统类型和 API 尚未取得 | `not_android_verified` | 若为 VIDAA 原生系统，不支持 Android APK；取得 Android API/ABI 前不判定兼容 |
-| 标准 Android TV/Google TV | 未提供实机 | `pending` | 需要纯遥控器主流程和真实视频样本验收 |
+## 设备与安装状态
+
+ADB 输出只有 `List of devices attached`，没有已连接或已授权设备。
+
+| 项目 | 当前状态 | 备注 |
+| --- | --- | --- |
+| 用户海信电视 | `pending` | 未连接 ADB，Android API、ABI 和遥控器实机行为尚未取得证据 |
+| 标准 Android TV/Google TV | `pending` | 包级兼容检查通过，尚未完成真实设备安装与播放 |
+| Windows Inno 安装 | 未安装 | 注册表未发现看影音 Inno 记录，预期安装目录下没有 `kanyingyin.exe` |
+| 旧 Windows MSIX | 未发现 | `com.kanyingyin.player` 的 Appx 查询结果为空 |
+
+打包前后安装状态一致，已安装版本未由本次打包改变。若海信设备为 VIDAA 原生系统而没有 Android 底层，则不能安装本 APK。
 
 详细字段和记录规则见 [android-tv-test-matrix.md](android-tv-test-matrix.md)。
 
 ## 待完成项目
 
-- 连接设备并记录 Android API、ABI、Leanback、WebView 和 SAF 证据。
-- 在海信或标准 Android TV 上重测搜索框方向键、两次返回、冷启动、媒体库、播放器和息屏恢复。
-- 验证同一局域网手机扫码配置，以及访客网络/AP 隔离时的失败回退。
-- 完成 1080p、4K HEVC、字幕、音轨和个人网盘播放矩阵后，才可把设备结果改为 `passed`。
+- 连接海信电视并记录 Android API、ABI、Leanback、WebView 和 SAF 证据。
+- 安装 2.1.142 TV APK，重测本地媒体库左键进入侧栏、搜索框返回、根页面退出确认和设置焦点提示。
+- 实测同一局域网手机扫码、电视确认或拒绝、四类网盘配置、手机成功页和 `.kyyconfig` 正确或错误密码导入。
+- 完成 1080p、4K HEVC、字幕、音轨、硬件解码、Anime4K 和个人网盘播放矩阵后，才能把海信设备结果改为 `passed`。

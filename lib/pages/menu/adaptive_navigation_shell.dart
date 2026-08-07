@@ -360,11 +360,10 @@ class _TvFocusBridgeState extends State<_TvFocusBridge> {
         event.logicalKey != LogicalKeyboardKey.arrowRight) {
       return KeyEventResult.ignored;
     }
-    final moved =
-        FocusManager.instance.primaryFocus?.focusInDirection(
-              TraversalDirection.right,
-            ) ??
-            false;
+    final moved = FocusManager.instance.primaryFocus?.focusInDirection(
+          TraversalDirection.right,
+        ) ??
+        false;
     if (moved) return KeyEventResult.handled;
     _requestContentFocus();
     return KeyEventResult.handled;

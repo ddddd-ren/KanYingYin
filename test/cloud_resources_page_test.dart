@@ -20,6 +20,7 @@ import 'package:kanyingyin/pages/cloud/resources/cloud_resource_playback_request
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_poster_wall.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_page.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_media_tag_repository.dart';
 import 'package:kanyingyin/repositories/cloud_episode_match_rule_repository.dart';
@@ -300,6 +301,40 @@ Future<void> _openCloudMoreActions(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('Android TV 首次加载只恢复快照且 Windows 保持自动扫描', (tester) async {
+    final tvController = _RecordingLoadCloudResourcesController();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CloudResourcesPage(
+          controller: tvController,
+          capabilities: AppPlatformCapabilities.android.copyWith(
+            television: true,
+            androidSdkInt: 28,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(tvController.startScanValues, <bool>[false]);
+    tvController.dispose();
+
+    final windowsController = _RecordingLoadCloudResourcesController();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CloudResourcesPage(
+          key: const ValueKey<String>('windows-cloud-resources-page'),
+          controller: windowsController,
+          capabilities: AppPlatformCapabilities.windows,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(windowsController.startScanValues, <bool>[true]);
+    windowsController.dispose();
+  });
+
   test('网盘控制器加载完整季度并保存逐视频匹配', () async {
     final credentials = MemoryCloudCredentialStore();
     final sourceRepository = CloudSourceRepository(
@@ -2243,7 +2278,7 @@ class _HideVideoPageController extends CloudResourcesController {
   final Set<String> hiddenIds = <String>{};
 
   @override
-  Future<void> load() async {}
+  Future<void> load({bool startScan = true}) async {}
 
   @override
   CloudResourceCollection get collection {
@@ -2369,7 +2404,30 @@ class _SnapshotOnlyCloudResourcesController extends CloudResourcesController {
   });
 
   @override
-  Future<void> load() => reloadSourcesAndSnapshot();
+  Future<void> load({bool startScan = true}) => reloadSourcesAndSnapshot();
+}
+
+class _RecordingLoadCloudResourcesController extends CloudResourcesController {
+  factory _RecordingLoadCloudResourcesController() {
+    final credentials = MemoryCloudCredentialStore();
+    final repository = CloudSourceRepository(
+      storage: MemoryCloudSourceStorage(),
+      credentialStore: credentials,
+    );
+    return _RecordingLoadCloudResourcesController._(repository, credentials);
+  }
+
+  _RecordingLoadCloudResourcesController._(
+    CloudSourceRepository repository,
+    MemoryCloudCredentialStore credentials,
+  ) : super(repository: repository, credentialStore: credentials);
+
+  final List<bool> startScanValues = <bool>[];
+
+  @override
+  Future<void> load({bool startScan = true}) async {
+    startScanValues.add(startScan);
+  }
 }
 
 CloudFileEntry _pageVideo(String id, String path, String name) {

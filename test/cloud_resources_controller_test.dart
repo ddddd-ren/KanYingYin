@@ -795,6 +795,46 @@ void main() {
       fixture.controller.dispose();
     });
 
+    test('关闭自动扫描时先显示快照且手动刷新仍扫描', () async {
+      const source = CloudSource(
+        id: 'quark-snapshot',
+        type: CloudSourceType.quark,
+        name: '夸克缓存媒体库',
+        baseUrl: 'https://pan.quark.cn',
+        rootPaths: <String>['/影视'],
+        rootRefs: <CloudRemoteRef>[
+          CloudRemoteRef(id: 'root-fid', path: '/影视'),
+        ],
+      );
+      final client = _FakeCloudClient();
+      final fixture = await _Fixture.create(
+        sources: const <CloudSource>[source],
+        clients: <String, _FakeCloudClient>{source.id: client},
+        indexedItems: const <CloudMediaIndexItem>[
+          CloudMediaIndexItem(
+            sourceId: 'quark-snapshot',
+            remoteId: 'cached-video',
+            remotePath: '/影视/缓存电影.mkv',
+            name: '缓存电影.mkv',
+            size: 1024,
+            modifiedAt: null,
+            seriesName: '缓存电影',
+            mediaType: CloudMediaType.movie,
+          ),
+        ],
+      );
+
+      await fixture.controller.load(startScan: false);
+
+      expect(fixture.controller.entries.single.id, 'cached-video');
+      expect(client.listed, isEmpty);
+
+      await fixture.controller.refresh();
+
+      expect(client.listed, isNotEmpty);
+      fixture.controller.dispose();
+    });
+
     test('多根目录全部递归扫描且不显示虚拟根页', () async {
       final client = _FakeCloudClient();
       final fixture = await _Fixture.create(
@@ -1929,6 +1969,7 @@ class _Fixture {
   static Future<_Fixture> create({
     required List<CloudSource> sources,
     required Map<String, _FakeCloudClient> clients,
+    List<CloudMediaIndexItem> indexedItems = const <CloudMediaIndexItem>[],
     CloudResourceTmdbCoordinator? tmdbCoordinator,
     CloudWorkTmdbCoordinator? workTmdbCoordinator,
     CloudResourceAutoOrganizer? autoOrganizer,
@@ -1952,6 +1993,19 @@ class _Fixture {
     final indexRepository = CloudMediaIndexRepository(
       storage: MemoryCloudMediaIndexStorage(),
     );
+    for (final source in sources) {
+      final sourceItems = indexedItems
+          .where((item) => item.sourceId == source.id)
+          .toList(growable: false);
+      if (sourceItems.isEmpty) continue;
+      await indexRepository.replaceSource(
+        source.id,
+        sourceItems,
+        const <String, String>{},
+        const <String, List<CloudFileEntry>>{},
+        source.remoteRoots.map((root) => root.path).toList(growable: false),
+      );
+    }
     return _Fixture(
       controller: CloudResourcesController(
         repository: repository,

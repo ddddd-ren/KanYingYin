@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/platform/android/android_platform_channel.dart';
@@ -114,5 +116,17 @@ void main() {
     expect(received?.method, 'getDeviceCapabilities');
     expect(result?['sdkInt'], 36);
     expect(result?['leanback'], isTrue);
+  });
+
+  test('Android TV 文件选择由应用原生通道流式复制到缓存', () {
+    final source = File(
+      'android/app/src/main/kotlin/com/kanyingyin/player/MainActivity.kt',
+    ).readAsStringSync();
+
+    expect(source, contains('"pickFile" -> handlePickFile(call, result)'));
+    expect(source, contains('Intent(Intent.ACTION_OPEN_DOCUMENT)'));
+    expect(source, contains('Intent.CATEGORY_OPENABLE'));
+    expect(source, contains('File.createTempFile'));
+    expect(source, contains('FLAG_GRANT_READ_URI_PERMISSION'));
   });
 }

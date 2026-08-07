@@ -1,6 +1,7 @@
-import 'dart:typed_data';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/configuration_transfer/application/configuration_archive_codec.dart';
 import 'package:kanyingyin/features/configuration_transfer/application/configuration_importer.dart';
@@ -14,6 +15,21 @@ import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
 
 void main() {
+  test('TV 文件选择错误显示明确原因', () {
+    expect(
+      configurationTransferErrorMessage(
+        PlatformException(code: 'PickerUnavailable'),
+      ),
+      contains('系统文件选择器'),
+    );
+    expect(
+      configurationTransferErrorMessage(
+        PlatformException(code: 'InvalidExtension'),
+      ),
+      contains('.kyyconfig'),
+    );
+  });
+
   testWidgets('配置导出要求两次密码一致且成功信息不显示秘密', (tester) async {
     final fixture = await _TransferFixture.create(tmdbKey: 'tmdb-secret');
     Uint8List? saved;
@@ -117,6 +133,48 @@ void main() {
     expect(fixture.tmdbManager.read(), 'imported-key');
     expect(find.textContaining('cookie-secret'), findsNothing);
     expect(find.textContaining('imported-key'), findsNothing);
+  });
+
+  testWidgets('Android TV 导入配置先进入专用文件选择通道', (tester) async {
+    final fixture = await _TransferFixture.create(tmdbKey: 'target-key');
+    final encrypted = (await tester.runAsync(
+      () => ConfigurationArchiveCodec().encrypt(
+        PortableAppConfiguration.create(
+          exportedAt: DateTime.utc(2026, 8, 7),
+          appVersion: '2.1.142',
+          tmdbApiKey: '',
+          cloudSources: const <PortableCloudSourceConfiguration>[],
+        ),
+        password: 'password-a',
+      ),
+    ))!;
+    var pickerCalls = 0;
+    final directory = Directory.systemTemp.createTempSync('kyyconfig-tv-');
+    final selectedFile = File('${directory.path}/import.kyyconfig')
+      ..writeAsBytesSync(encrypted);
+    addTearDown(() {
+      if (directory.existsSync()) directory.deleteSync(recursive: true);
+    });
+
+    await tester.pumpWidget(MaterialApp(
+      home: ConfigurationTransferPage(
+        service: fixture.service,
+        capabilities: AppPlatformCapabilities.android.copyWith(
+          television: true,
+        ),
+        androidTvOpenFile: () async {
+          pickerCalls++;
+          return selectedFile.path;
+        },
+      ),
+    ));
+
+    await tester.tap(find.text('导入配置'));
+    await _waitForWidget(tester, find.text('输入配置密码'));
+
+    expect(pickerCalls, 1);
+    expect(find.text('输入配置密码'), findsOneWidget);
+    expect(selectedFile.existsSync(), isFalse);
   });
 }
 

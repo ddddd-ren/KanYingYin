@@ -9,6 +9,7 @@ import 'package:kanyingyin/features/configuration_transfer/application/configura
 import 'package:kanyingyin/features/configuration_transfer/domain/portable_app_configuration.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/platform/app_file_picker_io.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:path/path.dart' as path;
@@ -20,6 +21,7 @@ typedef ConfigurationSaveFile = Future<String?> Function(
   String fileName,
 );
 typedef ConfigurationOpenFile = Future<Uint8List?> Function();
+typedef ConfigurationAndroidTvOpenFile = Future<String?> Function();
 typedef ConfigurationShareEncryptedFile = Future<ConfigurationShareOutcome>
     Function(Uint8List bytes, String fileName);
 
@@ -31,6 +33,7 @@ class ConfigurationTransferPage extends StatefulWidget {
     required this.service,
     this.saveFile,
     this.openFile,
+    this.androidTvOpenFile,
     this.shareEncryptedFile,
     this.onImported,
     this.capabilities,
@@ -39,6 +42,7 @@ class ConfigurationTransferPage extends StatefulWidget {
   final ConfigurationTransferService service;
   final ConfigurationSaveFile? saveFile;
   final ConfigurationOpenFile? openFile;
+  final ConfigurationAndroidTvOpenFile? androidTvOpenFile;
   final ConfigurationShareEncryptedFile? shareEncryptedFile;
   final Future<void> Function()? onImported;
   final AppPlatformCapabilities? capabilities;
@@ -320,6 +324,28 @@ class _ConfigurationTransferPageState extends State<ConfigurationTransferPage> {
   }
 
   Future<Uint8List?> _defaultOpenFile() async {
+    if (_capabilities.isAndroidTv) {
+      final openFile = widget.androidTvOpenFile ?? _defaultAndroidTvOpenFile;
+      final selectedPath = await openFile();
+      if (selectedPath == null || selectedPath.trim().isEmpty) return null;
+      final file = File(selectedPath);
+      try {
+        if (!path.basename(file.path).toLowerCase().endsWith('.kyyconfig')) {
+          throw const ConfigurationFileExtensionException();
+        }
+        final length = await file.length();
+        if (length > ConfigurationArchiveCodec.maxEnvelopeBytes) {
+          throw ConfigurationArchiveTooLargeException(length);
+        }
+        return await file.readAsBytes();
+      } finally {
+        try {
+          if (await file.exists()) await file.delete();
+        } on Object {
+          // TV 文件选择通道只返回应用缓存文件，清理失败不覆盖导入结果。
+        }
+      }
+    }
     final result = await FilePicker.pickFiles(
       dialogTitle: '导入看影音配置',
       type: FileType.custom,
@@ -347,6 +373,14 @@ class _ConfigurationTransferPageState extends State<ConfigurationTransferPage> {
       throw ConfigurationArchiveTooLargeException(length);
     }
     return file.readAsBytes();
+  }
+
+  Future<String?> _defaultAndroidTvOpenFile() async {
+    return pickTvImportFile(
+      title: '导入看影音配置',
+      allowedExtensions: const <String>['kyyconfig'],
+      maxBytes: ConfigurationArchiveCodec.maxEnvelopeBytes,
+    );
   }
 
   Future<ConfigurationShareOutcome> _share(
@@ -457,6 +491,15 @@ class _ConfigurationTransferPageState extends State<ConfigurationTransferPage> {
 }
 
 String configurationTransferErrorMessage(Object error) {
+  if (error is PlatformException) {
+    return switch (error.code) {
+      'PickerUnavailable' => '电视没有可用的系统文件选择器，请安装文件管理器后重试',
+      'InvalidExtension' => '请选择 .kyyconfig 配置文件',
+      'FileTooLarge' => '配置文件超过允许的大小',
+      'ReadFailed' => '无法读取所选配置文件，请重试',
+      _ => '配置迁移失败，请检查文件后重试',
+    };
+  }
   if (error is ConfigurationArchivePasswordException) {
     return '密码至少需要 8 个字符';
   }

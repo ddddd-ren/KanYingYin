@@ -8,9 +8,9 @@ void main() {
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final currentSection = _markdownVersionSection(
       releaseNotes,
-      '2.1.142+20142',
+      '2.1.143+20143',
     );
-    final currentHistory = versionHistoryForCurrent('2.1.142');
+    final currentHistory = versionHistoryForCurrent('2.1.143');
 
     expect(currentHistory, hasLength(1));
     final historyText = currentHistory.single.changes.join('\n');
@@ -27,6 +27,10 @@ void main() {
       '百度',
       '迅雷',
       '.kyyconfig',
+      '系统文件选择器',
+      '选择当前目录',
+      '确定',
+      '应用缓存',
       '实机验收未完成',
     ]) {
       expect(currentSection, contains(text), reason: 'RELEASE_NOTES 缺少 $text');

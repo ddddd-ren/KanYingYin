@@ -164,6 +164,20 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.143',
+    date: '2026-08-07',
+    isPrerelease: true,
+    changes: [
+      'Android TV 测试版可侧载到 Android TV/Google TV 设备；使用 tvTest flavor，构建与包验证通过，海信实机验收未完成',
+      'Windows 与 Android 同步修复配置迁移入口，桌面端和 TV 端继续使用同一套加密配置格式',
+      'Android TV 导入 .kyymeta 和 .kyyconfig 时使用可遥控的系统文件选择器，文件会流式复制到应用缓存，读取后自动清理',
+      '系统文件选择失败会显示明确原因，不再让导入资料或导入配置看起来无响应',
+      '网盘目录页顶部的“选择当前目录”和“确定”现在有清晰的遥控器焦点，加载完成后先聚焦“选择当前目录”，选中后可按右键确认',
+      '手机扫码配置仍要求电视与手机连接同一局域网；OpenList、夸克、百度、迅雷和 .kyyconfig 配置迁移保持可用',
+      '配置写入失败会自动回滚，不会修改或删除视频、字幕、索引、缓存和播放历史',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.142',
     date: '2026-08-07',
     isPrerelease: true,

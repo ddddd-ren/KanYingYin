@@ -5,6 +5,29 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一四三说明 TV 文件选择和目录顶部焦点修复', () {
+    final entries = versionHistoryForCurrent('2.1.143');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    expect(entry.isPrerelease, isTrue);
+    final changes = entry.changes.join('\n');
+    for (final text in <String>[
+      'Android TV',
+      '系统文件选择器',
+      '.kyymeta',
+      '.kyyconfig',
+      '应用缓存',
+      '选择当前目录',
+      '确定',
+      '遥控器',
+      '不会修改或删除',
+      '海信实机验收未完成',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一四二说明 TV 配置迁移和焦点反馈', () {
     final entries = versionHistoryForCurrent('2.1.142');
 

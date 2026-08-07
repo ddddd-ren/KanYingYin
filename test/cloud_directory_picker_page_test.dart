@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/cloud/application/cloud_directory_address_resolver.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/pages/cloud/widgets/cloud_directory_picker_page.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 
 void main() {
@@ -78,6 +80,9 @@ void main() {
           initialSelection: const <CloudRemoteRef>[],
           loader: loader,
           resultBuilder: (selected) => selected,
+          capabilities: AppPlatformCapabilities.android.copyWith(
+            television: true,
+          ),
         ),
       ),
     );
@@ -105,6 +110,51 @@ void main() {
     expect(find.text('已选 1 个'), findsOneWidget);
     expect(find.text('当前目录没有子文件夹'), findsOneWidget);
     expect(find.byTooltip('上级目录'), findsOneWidget);
+  });
+
+  testWidgets('Android TV 目录页焦点可到达选择当前目录和确定', (tester) async {
+    Future<List<CloudFileEntry>> loader(CloudRemoteRef directory) async {
+      return const <CloudFileEntry>[];
+    }
+
+    List<CloudRemoteRef>? result;
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => FilledButton(
+          onPressed: () async {
+            result = await Navigator.of(context).push<List<CloudRemoteRef>>(
+              MaterialPageRoute(
+                builder: (_) => CloudDirectoryPickerPage<List<CloudRemoteRef>>(
+                  title: '选择网盘目录',
+                  root: const CloudRemoteRef(id: '0', path: '/'),
+                  initialSelection: const <CloudRemoteRef>[],
+                  loader: loader,
+                  resultBuilder: (selected) => selected,
+                  capabilities: AppPlatformCapabilities.android.copyWith(
+                    television: true,
+                  ),
+                ),
+              ),
+            );
+          },
+          child: const Text('打开'),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('打开'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey<String>('tv-focused-surface')),
+        findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(find.text('已选 1 个'), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(result, isNotNull);
   });
 
   testWidgets('地址解析失败保留当前列表和已选目录', (tester) async {

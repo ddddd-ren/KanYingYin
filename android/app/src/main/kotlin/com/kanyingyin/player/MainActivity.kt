@@ -31,10 +31,18 @@ class MainActivity : AudioServiceActivity() {
     private val directoryPickerRequestCode = 4201
     private val notificationPermissionRequestCode = 4202
     private val screenshotPermissionRequestCode = 4203
+    private val filePickerRequestCode = 4204
     private var pendingDirectoryPicker: MethodChannel.Result? = null
+    private var pendingFilePicker: PendingFilePicker? = null
     private var pendingNotificationPermission: MethodChannel.Result? = null
     private var pendingScreenshot: Pair<ByteArray, MethodChannel.Result>? = null
     private var tabletLandscapeLocked = false
+
+    private data class PendingFilePicker(
+        val result: MethodChannel.Result,
+        val allowedExtensions: Set<String>,
+        val maxBytes: Long,
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -84,6 +92,7 @@ class MainActivity : AudioServiceActivity() {
                         handleRequestNotificationPermission(result)
                     "getDeviceCapabilities" -> handleGetDeviceCapabilities(result)
                     "pickDirectory" -> handlePickDirectory(result)
+                    "pickFile" -> handlePickFile(call, result)
                     "canAccessDocument" -> handleCanAccessDocument(call, result)
                     "listDocumentChildren" -> handleListDocumentChildren(call, result)
                     "readSmallDocument" -> handleReadSmallDocument(call, result)
@@ -137,9 +146,57 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
+    private fun handlePickFile(call: MethodCall, result: MethodChannel.Result) {
+        if (pendingFilePicker != null) {
+            result.error("PickerBusy", "文件选择器正在使用", null)
+            return
+        }
+        val extensions = call.argument<List<*>>("allowedExtensions")
+            ?.mapNotNull { (it as? String)?.trim()?.lowercase() }
+            ?.filter { it.matches(Regex("[a-z0-9]{1,16}")) }
+            ?.toSet()
+            .orEmpty()
+        val maxBytes = call.argument<Number>("maxBytes")?.toLong() ?: 0L
+        if (extensions.isEmpty() || maxBytes <= 0L || maxBytes > 10L * 1024 * 1024 * 1024) {
+            result.error("InvalidInput", "文件选择参数无效", null)
+            return
+        }
+
+        val openDocument = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        val intent = if (openDocument.resolveActivity(packageManager) != null) {
+            openDocument
+        } else {
+            Intent(Intent.ACTION_GET_CONTENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+        }
+        if (intent.resolveActivity(packageManager) == null) {
+            result.error("PickerUnavailable", "电视没有可用的系统文件选择器", null)
+            return
+        }
+
+        pendingFilePicker = PendingFilePicker(result, extensions, maxBytes)
+        try {
+            startActivityForResult(intent, filePickerRequestCode)
+        } catch (_: Exception) {
+            pendingFilePicker = null
+            result.error("PickerUnavailable", "无法打开系统文件选择器", null)
+        }
+    }
+
     @Deprecated("Deprecated in Android")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == filePickerRequestCode) {
+            handleFilePickerResult(resultCode, data)
+            return
+        }
         if (requestCode != directoryPickerRequestCode) return
         val result = pendingDirectoryPicker ?: return
         pendingDirectoryPicker = null
@@ -172,9 +229,73 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
+    private fun handleFilePickerResult(resultCode: Int, data: Intent?) {
+        val pending = pendingFilePicker ?: return
+        pendingFilePicker = null
+        val documentUri = data?.data
+        if (resultCode != Activity.RESULT_OK || documentUri == null) {
+            pending.result.success(null)
+            return
+        }
+
+        var cacheFile: File? = null
+        try {
+            val name = queryDocumentName(documentUri)
+            val extension = name.substringAfterLast('.', "").lowercase()
+            if (extension !in pending.allowedExtensions) {
+                pending.result.error("InvalidExtension", "请选择指定格式的文件", null)
+                return
+            }
+            val directory = File(cacheDir, "tv-file-picker")
+            if (!directory.exists() && !directory.mkdirs()) {
+                pending.result.error("CacheUnavailable", "无法创建文件缓存目录", null)
+                return
+            }
+            val outputFile = File.createTempFile("import-", ".$extension", directory)
+            cacheFile = outputFile
+            var totalBytes = 0L
+            contentResolver.openInputStream(documentUri)?.use { input ->
+                outputFile.outputStream().use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        totalBytes += count
+                        if (totalBytes > pending.maxBytes) {
+                            outputFile.delete()
+                            pending.result.error("FileTooLarge", "文件超过允许的大小", null)
+                            return
+                        }
+                        output.write(buffer, 0, count)
+                    }
+                    output.flush()
+                }
+            } ?: run {
+                outputFile.delete()
+                pending.result.error("ReadFailed", "无法打开所选文件", null)
+                return
+            }
+            pending.result.success(
+                mapOf(
+                    "path" to outputFile.absolutePath,
+                    "name" to name,
+                    "size" to totalBytes,
+                ),
+            )
+        } catch (_: SecurityException) {
+            cacheFile?.delete()
+            pending.result.error("PermissionDenied", "无法读取所选文件", null)
+        } catch (_: Exception) {
+            cacheFile?.delete()
+            pending.result.error("ReadFailed", "无法缓存所选文件", null)
+        }
+    }
+
     override fun onDestroy() {
         pendingDirectoryPicker?.error("ActivityDestroyed", "目录选择已取消", null)
         pendingDirectoryPicker = null
+        pendingFilePicker?.result?.error("ActivityDestroyed", "文件选择已取消", null)
+        pendingFilePicker = null
         pendingNotificationPermission?.error(
             "ActivityDestroyed",
             "通知授权请求已取消",

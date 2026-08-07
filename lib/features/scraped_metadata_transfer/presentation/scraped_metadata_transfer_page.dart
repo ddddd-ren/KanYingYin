@@ -2,13 +2,19 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:kanyingyin/features/scraped_metadata_transfer/application/scraped_metadata_archive_codec.dart';
 import 'package:kanyingyin/features/scraped_metadata_transfer/application/scraped_metadata_transfer_service.dart';
 import 'package:kanyingyin/features/scraped_metadata_transfer/domain/scraped_metadata_transfer_models.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/pages/local/local_directory_picker.dart';
+import 'package:kanyingyin/platform/app_file_picker_io.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 
 typedef TransferSaveFilePicker = Future<String?> Function();
 typedef TransferOpenFilePicker = Future<String?> Function();
+typedef TransferTvOpenFilePicker = Future<String?> Function();
 typedef TransferLocalDirectoryPicker = Future<String?> Function(
   BuildContext context,
   PortableLocalSource source,
@@ -20,13 +26,17 @@ class ScrapedMetadataTransferPage extends StatefulWidget {
     required this.service,
     this.saveFilePicker,
     this.openFilePicker,
+    this.tvOpenFilePicker,
     this.localDirectoryPicker,
+    this.capabilities,
   });
 
   final ScrapedMetadataTransferService service;
   final TransferSaveFilePicker? saveFilePicker;
   final TransferOpenFilePicker? openFilePicker;
+  final TransferTvOpenFilePicker? tvOpenFilePicker;
   final TransferLocalDirectoryPicker? localDirectoryPicker;
+  final AppPlatformCapabilities? capabilities;
 
   @override
   State<ScrapedMetadataTransferPage> createState() =>
@@ -36,6 +46,9 @@ class ScrapedMetadataTransferPage extends StatefulWidget {
 class _ScrapedMetadataTransferPageState
     extends State<ScrapedMetadataTransferPage> {
   bool _busy = false;
+
+  AppPlatformCapabilities get _capabilities =>
+      widget.capabilities ?? detectAppPlatform();
 
   Future<void> _export() async {
     final selected =
@@ -54,11 +67,15 @@ class _ScrapedMetadataTransferPageState
   }
 
   Future<void> _import() async {
-    final selected =
-        await (widget.openFilePicker ?? _defaultOpenFilePicker).call();
-    if (selected == null || selected.trim().isEmpty) return;
     ScrapedMetadataImportSession? session;
+    String? tvCachePath;
     await _run(() async {
+      final isTv = _capabilities.isAndroidTv;
+      final selected = isTv
+          ? await (widget.tvOpenFilePicker ?? _defaultTvOpenFilePicker).call()
+          : await (widget.openFilePicker ?? _defaultOpenFilePicker).call();
+      if (selected == null || selected.trim().isEmpty) return;
+      if (isTv) tvCachePath = selected;
       session = await widget.service.inspect(File(selected));
       if (!mounted) {
         await session!.dispose();
@@ -80,6 +97,15 @@ class _ScrapedMetadataTransferPageState
       );
     }, errorPrefix: '导入刮削资料失败');
     await session?.dispose();
+    final cachePath = tvCachePath;
+    if (cachePath != null) {
+      try {
+        final file = File(cachePath);
+        if (await file.exists()) await file.delete();
+      } on Object {
+        // TV 文件选择通道只返回应用缓存文件，清理失败不覆盖导入结果。
+      }
+    }
   }
 
   Future<bool> _showImportPreview(
@@ -255,6 +281,14 @@ class _ScrapedMetadataTransferPageState
     return result?.files.singleOrNull?.path;
   }
 
+  static Future<String?> _defaultTvOpenFilePicker() async {
+    return pickTvImportFile(
+      title: '导入刮削资料',
+      allowedExtensions: const <String>['kyymeta'],
+      maxBytes: ScrapedMetadataArchiveCodec.maxExtractedBytes,
+    );
+  }
+
   static Future<String?> _defaultLocalDirectoryPicker(
     BuildContext context,
     PortableLocalSource source,
@@ -273,6 +307,15 @@ class _ScrapedMetadataTransferPageState
   }
 
   static String _errorMessage(Object error) {
+    if (error is PlatformException) {
+      return switch (error.code) {
+        'PickerUnavailable' => '电视没有可用的系统文件选择器，请安装文件管理器后重试',
+        'InvalidExtension' => '请选择 .kyymeta 刮削资料包',
+        'FileTooLarge' => '刮削资料包超过允许的大小',
+        'ReadFailed' => '无法读取所选刮削资料包，请重试',
+        _ => '请检查迁移包和磁盘空间后重试',
+      };
+    }
     final text = error.toString().trim();
     if (text.startsWith('FormatException: ')) {
       return text.substring('FormatException: '.length);

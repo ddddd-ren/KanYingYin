@@ -92,6 +92,32 @@ void main() {
       ),
     );
   });
+
+  test('Android TV 文件选择通过专用通道返回缓存文件', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(methodChannel, (call) async {
+      expect(call.method, 'pickFile');
+      final arguments = call.arguments as Map<Object?, Object?>;
+      expect(arguments['title'], '导入看影音配置');
+      expect(arguments['allowedExtensions'], <String>['kyyconfig']);
+      expect(arguments['maxBytes'], 512 * 1024);
+      return <String, Object?>{
+        'path': r'C:\cache\import.kyyconfig',
+        'name': 'import.kyyconfig',
+        'size': 3,
+      };
+    });
+
+    final file = await channel.pickFile(
+      title: '导入看影音配置',
+      allowedExtensions: const <String>['kyyconfig'],
+      maxBytes: 512 * 1024,
+    );
+
+    expect(file!.path, r'C:\cache\import.kyyconfig');
+    expect(file.name, 'import.kyyconfig');
+    expect(file.size, 3);
+  });
 }
 
 MediaLocation _documentLocation() {

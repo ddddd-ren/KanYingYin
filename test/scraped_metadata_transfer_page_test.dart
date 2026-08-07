@@ -6,6 +6,7 @@ import 'package:kanyingyin/features/scraped_metadata_transfer/application/scrape
 import 'package:kanyingyin/features/scraped_metadata_transfer/application/scraped_metadata_transfer_service.dart';
 import 'package:kanyingyin/features/scraped_metadata_transfer/domain/scraped_metadata_transfer_models.dart';
 import 'package:kanyingyin/features/scraped_metadata_transfer/presentation/scraped_metadata_transfer_page.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
 
 void main() {
   testWidgets(
@@ -93,6 +94,73 @@ void main() {
     },
     timeout: const Timeout(Duration(seconds: 15)),
   );
+
+  testWidgets('Android TV 导入刮削资料先进入专用文件选择通道', (tester) async {
+    final archiveDirectory =
+        Directory.systemTemp.createTempSync('kyymeta-tv-page-test-');
+    addTearDown(() {
+      if (archiveDirectory.existsSync()) {
+        archiveDirectory.deleteSync(recursive: true);
+      }
+    });
+    final archive = DecodedScrapedMetadataArchive(
+      payload: _payload(),
+      imageFiles: const <String, File>{},
+      temporaryDirectory: archiveDirectory,
+    );
+    final selectedFile = File('${archiveDirectory.path}/import.kyymeta')
+      ..writeAsBytesSync(<int>[1]);
+    var pickerCalls = 0;
+    final service = ScrapedMetadataTransferService(
+      buildExport: () => throw UnimplementedError(),
+      writeArchive: ({
+        required File output,
+        required ScrapedMetadataPayload payload,
+        required Map<String, File> images,
+      }) =>
+          throw UnimplementedError(),
+      readArchive: (_) async => archive,
+      buildPlan: (_, __) async => _plan(archive.payload),
+      importPlan: (_, __) async => const ScrapedMetadataTransferResult(
+        localCount: 0,
+        cloudCount: 0,
+        imageCount: 0,
+        skippedCount: 0,
+      ),
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: ScrapedMetadataTransferPage(
+        service: service,
+        capabilities: AppPlatformCapabilities.android.copyWith(
+          television: true,
+        ),
+        tvOpenFilePicker: () async {
+          pickerCalls++;
+          return selectedFile.path;
+        },
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 200));
+
+    await tester.tap(find.text('导入刮削资料'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(pickerCalls, 1);
+    expect(find.textContaining('将覆盖'), findsOneWidget);
+
+    await tester.tap(find.text('取消'));
+    await tester.pump();
+    await tester.runAsync(() async {
+      for (var attempt = 0; attempt < 100; attempt++) {
+        if (!selectedFile.existsSync()) return;
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+    });
+    await tester.pump();
+    expect(selectedFile.existsSync(), isFalse);
+  });
 }
 
 ScrapedMetadataPayload _payload() => ScrapedMetadataPayload(

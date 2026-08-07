@@ -2,7 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/features/cloud/application/cloud_directory_address_resolver.dart';
+import 'package:kanyingyin/features/tv/presentation/tv_focus_surface.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 
 typedef CloudDirectoryPickerResultBuilder<T> = T Function(
@@ -22,6 +25,7 @@ class CloudDirectoryPickerPage<T> extends StatefulWidget {
     required this.resultBuilder,
     this.singleSelection = false,
     this.selectionKeyBuilder,
+    this.capabilities,
   });
 
   final String title;
@@ -31,6 +35,7 @@ class CloudDirectoryPickerPage<T> extends StatefulWidget {
   final CloudDirectoryPickerResultBuilder<T> resultBuilder;
   final bool singleSelection;
   final CloudDirectorySelectionKeyBuilder? selectionKeyBuilder;
+  final AppPlatformCapabilities? capabilities;
 
   @override
   State<CloudDirectoryPickerPage<T>> createState() =>
@@ -48,6 +53,9 @@ class _CloudDirectoryPickerPageState<T>
   String? _errorMessage;
   bool _loading = true;
   int _navigationGeneration = 0;
+
+  AppPlatformCapabilities get _capabilities =>
+      widget.capabilities ?? detectAppPlatform();
 
   @override
   void initState() {
@@ -193,31 +201,57 @@ class _CloudDirectoryPickerPageState<T>
   static String _identityKey(CloudRemoteRef reference) =>
       '${reference.id}|${reference.path}';
 
+  Widget _buildToolbarAction({
+    required Widget child,
+    required bool enabled,
+    required VoidCallback onPressed,
+    bool autofocus = false,
+  }) {
+    if (!_capabilities.isAndroidTv) return child;
+    return TvFocusSurface(
+      autofocus: autofocus,
+      enabled: enabled,
+      onPressed: onPressed,
+      reserveFocusSpace: false,
+      child: ExcludeFocus(child: child),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
         actions: [
-          TextButton.icon(
-            key: const ValueKey<String>('select-current-directory'),
-            onPressed: _loading ? null : _toggleCurrent,
-            icon: Icon(
-              _selected.containsKey(_identityKey(_current))
-                  ? Icons.check_box_outlined
-                  : Icons.check_box_outline_blank,
+          _buildToolbarAction(
+            enabled: !_loading,
+            autofocus: !_loading,
+            onPressed: _toggleCurrent,
+            child: TextButton.icon(
+              key: const ValueKey<String>('select-current-directory'),
+              onPressed: _loading ? null : _toggleCurrent,
+              icon: Icon(
+                _selected.containsKey(_identityKey(_current))
+                    ? Icons.check_box_outlined
+                    : Icons.check_box_outline_blank,
+              ),
+              label: const Text('选择当前目录'),
             ),
-            label: const Text('选择当前目录'),
           ),
-          TextButton(
-            onPressed: _selected.isEmpty ? null : _complete,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('确定'),
-                const SizedBox(width: 6),
-                Text('已选 ${_selected.length} 个'),
-              ],
+          _buildToolbarAction(
+            enabled: _selected.isNotEmpty,
+            onPressed: _complete,
+            child: TextButton(
+              key: const ValueKey<String>('confirm-cloud-directories'),
+              onPressed: _selected.isEmpty ? null : _complete,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('确定'),
+                  const SizedBox(width: 6),
+                  Text('已选 ${_selected.length} 个'),
+                ],
+              ),
             ),
           ),
           const SizedBox(width: 8),

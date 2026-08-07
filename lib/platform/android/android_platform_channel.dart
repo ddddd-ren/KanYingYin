@@ -1,5 +1,17 @@
 import 'package:flutter/services.dart';
 
+class AndroidPickedFile {
+  const AndroidPickedFile({
+    required this.path,
+    required this.name,
+    required this.size,
+  });
+
+  final String path;
+  final String name;
+  final int size;
+}
+
 class AndroidPlatformChannel {
   const AndroidPlatformChannel({
     MethodChannel channel =
@@ -52,6 +64,40 @@ class AndroidPlatformChannel {
 
   Future<Map<Object?, Object?>?> pickDocumentDirectory() {
     return _channel.invokeMapMethod<Object?, Object?>('pickDirectory');
+  }
+
+  Future<AndroidPickedFile?> pickFile({
+    required String title,
+    required List<String> allowedExtensions,
+    required int maxBytes,
+  }) async {
+    if (maxBytes <= 0 || allowedExtensions.isEmpty) {
+      throw ArgumentError('文件选择参数无效');
+    }
+    final raw = await _channel.invokeMapMethod<Object?, Object?>(
+      'pickFile',
+      <String, Object>{
+        'title': title,
+        'allowedExtensions': allowedExtensions,
+        'maxBytes': maxBytes,
+      },
+    );
+    if (raw == null) return null;
+    final path = raw['path'];
+    final name = raw['name'];
+    final size = raw['size'];
+    if (path is! String ||
+        path.isEmpty ||
+        name is! String ||
+        name.isEmpty ||
+        size is! num) {
+      throw const FormatException('Android 文件选择响应无效');
+    }
+    return AndroidPickedFile(
+      path: path,
+      name: name,
+      size: size.toInt(),
+    );
   }
 
   Future<bool> canAccessDocument(String documentUri, String treeUri) {

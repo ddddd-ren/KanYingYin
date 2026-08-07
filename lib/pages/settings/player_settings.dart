@@ -4,6 +4,7 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/features/player/application/player_platform_policy.dart';
+import 'package:kanyingyin/features/player/application/player_color_profile.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/platform/android/android_system_service.dart';
@@ -297,6 +298,25 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                   },
                   title: Text('超分辨率', style: TextStyle(fontFamily: fontFamily)),
                 ),
+                if (platform.isWindows)
+                  KSettingsTile<void>.navigation(
+                    onPressed: (_) async {
+                      await Modular.to.pushNamed('/settings/player/color');
+                      if (mounted) setState(() {});
+                    },
+                    title:
+                        Text('色彩输出', style: TextStyle(fontFamily: fontFamily)),
+                    description: Text(
+                      '当前：${PlayerColorProfileParsing.fromStorage(
+                        setting.getTyped<String>(
+                          SettingBoxKey.playerColorProfile,
+                          defaultValue:
+                              PlayerColorProfile.automatic.storageValue,
+                        ),
+                      ).label}',
+                      style: TextStyle(fontFamily: fontFamily),
+                    ),
+                  ),
               ],
             ),
             KSettingsSection(

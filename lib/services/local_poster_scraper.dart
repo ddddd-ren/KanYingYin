@@ -90,13 +90,10 @@ class LocalPosterScraper implements ILocalPosterScraper {
         '(${groupItems.length} episodes)',
       );
 
-      // Search once per series.
-      final posterUrl = await _searchPoster(firstItem, displayName);
+      String? effectivePosterUrl;
 
-      String? effectivePosterUrl = posterUrl;
-
-      // TMDB 未返回海报时，尝试使用索引中已有的备用海报。
-      if (effectivePosterUrl == null && fallbackCover != null) {
+      // 优先复用统一 TMDB 刮削和索引结果，避免旧搜索选中不同作品。
+      if (fallbackCover != null) {
         for (final item in groupItems) {
           final fallback = await fallbackCover(item);
           if (fallback != null && fallback.isNotEmpty) {
@@ -108,6 +105,9 @@ class LocalPosterScraper implements ILocalPosterScraper {
           }
         }
       }
+
+      // 统一结果不可用时，再使用旧海报搜索作为兼容兜底。
+      effectivePosterUrl ??= await _searchPoster(firstItem, displayName);
 
       if (effectivePosterUrl == null) {
         AppLogger().w('LocalPosterScraper: no poster found for "$displayName"');

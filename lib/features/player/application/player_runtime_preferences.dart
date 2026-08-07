@@ -1,5 +1,6 @@
 import 'package:kanyingyin/features/player/application/anime4k_policy.dart';
 import 'package:kanyingyin/features/player/application/player_platform_policy.dart';
+import 'package:kanyingyin/features/player/application/player_color_profile.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
@@ -22,6 +23,7 @@ class PlayerRuntimeSettings {
     required this.proxyEnabled,
     required this.proxyUrl,
     required this.showPlayerError,
+    required this.colorProfile,
   });
 
   final double playSpeed;
@@ -40,6 +42,7 @@ class PlayerRuntimeSettings {
   final bool proxyEnabled;
   final String proxyUrl;
   final bool showPlayerError;
+  final PlayerColorProfile colorProfile;
 }
 
 /// 集中读取播放器启动所需设置，避免控制器直接了解持久化键。
@@ -128,6 +131,12 @@ class PlayerRuntimePreferences {
       showPlayerError: _settings.getTyped<bool>(
         SettingBoxKey.showPlayerError,
         defaultValue: true,
+      ),
+      colorProfile: PlayerColorProfileParsing.fromStorage(
+        _settings.getTyped<String>(
+          SettingBoxKey.playerColorProfile,
+          defaultValue: PlayerColorProfile.automatic.storageValue,
+        ),
       ),
     );
   }

@@ -164,6 +164,24 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.148',
+    date: '2026-08-08',
+    isPrerelease: true,
+    changes: [
+      'Android TV 播放器打开右侧选集列表后，按一次返回只收回选集并恢复视频焦点，再次返回才离开播放器',
+      'Android TV 离开播放器后继续保持横屏，不再按手机逻辑切换为竖屏或留下错位画面',
+      'Windows 本地海报优先使用统一 TMDB 刮削结果，本地与个人网盘使用相同查询、候选排序和 TMDB 身份',
+      'Windows 文件名识别新增 8bit、10bit、12bit 和 Hi10P 发布标签清理，避免位深文字混入 TMDB 搜索词',
+      'TMDB 图片下载统一读取应用网络与代理设置，连接失败时可恢复代理并重建客户端重试',
+      'Windows 播放设置新增自动、HDR 直通和 HDR 转 SDR 色彩方案；播放器不支持时会回退自动并继续播放',
+      '播放诊断日志记录色域、传递函数、矩阵、色阶、信号峰值、硬解和最终色彩方案，不记录媒体完整路径',
+      'Anime4K 着色器随应用版本安全更新，只接受内置 GLSL；更新中断保留上一版本，不执行第三方 Lua 或远程代码',
+      '手机扫码配置、.kyyconfig、.kyymeta 和个人网盘来源迁移保持兼容，配置写入失败仍会回滚',
+      'Android TV 测试包继续使用 tvTest flavor；包级验证完成后交付，海信实机验收未完成',
+      '本次更新不会修改或删除本地视频、字幕、个人网盘文件、媒体索引、缓存和播放历史',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.147',
     date: '2026-08-07',
     isPrerelease: true,

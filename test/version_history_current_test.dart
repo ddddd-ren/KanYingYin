@@ -5,6 +5,29 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一四八区分 TV 返回与 Windows 播放刮削更新', () {
+    final entries = versionHistoryForCurrent('2.1.148');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(entries.single.isPrerelease, isTrue);
+    for (final text in <String>[
+      'Android TV',
+      '选集',
+      '横屏',
+      'Windows',
+      'TMDB',
+      '10bit',
+      'HDR 直通',
+      'HDR 转 SDR',
+      'GLSL',
+      '不会修改或删除',
+      '海信实机验收未完成',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一四七说明 Android 9 TV 性能和选集焦点优化', () {
     final entries = versionHistoryForCurrent('2.1.147');
 

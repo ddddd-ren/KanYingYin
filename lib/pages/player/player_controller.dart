@@ -25,6 +25,7 @@ import 'package:kanyingyin/features/player/application/anime4k_policy.dart';
 import 'package:kanyingyin/features/player/application/anime4k_shader_executor.dart';
 import 'package:kanyingyin/features/player/application/embedded_track_language_preferences.dart';
 import 'package:kanyingyin/features/player/application/player_runtime_preferences.dart';
+import 'package:kanyingyin/features/player/application/player_color_profile.dart';
 import 'package:kanyingyin/features/player/application/player_decoder_recovery_policy.dart';
 import 'package:kanyingyin/features/player/application/player_resource_disposer.dart';
 import 'package:kanyingyin/features/player/application/player_subtitle_coordinator.dart';
@@ -361,6 +362,10 @@ abstract class _PlayerController with Store {
   bool lowMemoryMode = false;
   bool autoPlay = true;
   bool playerDebugMode = false;
+  PlayerColorProfile colorProfile = PlayerColorProfile.automatic;
+  PlayerColorProfile effectiveColorProfile = PlayerColorProfile.automatic;
+  String? colorProfileFallbackReason;
+  String? _lastColorDiagnostic;
   int buttonSkipTime = 80;
   int arrowKeySkipTime = 10;
 
@@ -679,6 +684,7 @@ abstract class _PlayerController with Store {
     playerVideoParamsSubscription =
         mediaPlayer!.stream.videoParams.listen((event) {
       playerVideoParams = event.toString();
+      _logPlayerColorDiagnostic(event);
     });
     await playerAudioParamsSubscription?.cancel();
     playerAudioParamsSubscription =
@@ -747,6 +753,12 @@ abstract class _PlayerController with Store {
     autoPlay = runtimeSettings.autoPlay;
     lowMemoryMode = runtimeSettings.lowMemoryMode;
     playerDebugMode = runtimeSettings.debugMode;
+    colorProfile = _capabilities.isWindows
+        ? runtimeSettings.colorProfile
+        : PlayerColorProfile.automatic;
+    effectiveColorProfile = PlayerColorProfile.automatic;
+    colorProfileFallbackReason = null;
+    _lastColorDiagnostic = null;
 
     final cachePolicy = CloudPlaybackCachePolicy.forTransport(
       initParams.transport,
@@ -778,6 +790,26 @@ abstract class _PlayerController with Store {
 
     var pp = mediaPlayer!.platform as NativePlayer;
     await _prepareSubtitleTrackState(pp);
+    final colorDecision = await PlayerColorProfileApplier(
+      pp.setProperty,
+    ).apply(
+      colorProfile,
+      hdrOutputSupported: _capabilities.isWindows,
+    );
+    effectiveColorProfile = colorDecision.effective;
+    colorProfileFallbackReason = colorDecision.fallbackReason;
+    if (colorDecision.isFallback) {
+      AppLogger().w(
+        'PlayerColor: requested=${colorProfile.name} '
+        'effective=${effectiveColorProfile.name} '
+        'reason=${colorDecision.fallbackReason}',
+      );
+    } else {
+      AppLogger().i(
+        'PlayerColor: requested=${colorProfile.name} '
+        'effective=${effectiveColorProfile.name}',
+      );
+    }
     // media-kit 默认启用硬盘作为双重缓存，这可以维持大缓存的前提下减轻内存压力
     // media-kit 内部硬盘缓存目录按照 Linux 配置，这导致该功能在其他平台上被损坏
     // 该设置可以在所有平台上正确启用双重缓存
@@ -921,6 +953,21 @@ abstract class _PlayerController with Store {
     _scheduleAnime4kEvaluation();
 
     return mediaPlayer!;
+  }
+
+  void _logPlayerColorDiagnostic(VideoParams params) {
+    final message = 'PlayerColor: input '
+        'primaries=${params.primaries ?? "unknown"} '
+        'transfer=${params.gamma ?? "unknown"} '
+        'matrix=${params.colormatrix ?? "unknown"} '
+        'levels=${params.colorlevels ?? "unknown"} '
+        'signalPeak=${params.sigPeak?.toStringAsFixed(3) ?? "unknown"} '
+        'light=${params.light ?? "unknown"} '
+        'hwdec=${hAenable ? hardwareDecoder : "no"} '
+        'profile=${effectiveColorProfile.name}';
+    if (_lastColorDiagnostic == message) return;
+    _lastColorDiagnostic = message;
+    AppLogger().i(message);
   }
 
   Future<bool> _handleAndroidVideoDecoderError(

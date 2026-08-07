@@ -61,6 +61,7 @@ class SettingBoxKey {
       showWindowButton = 'showWindowButton',
       exitBehavior = 'exitBehavior',
       playerDebugMode = 'playerDebugMode',
+      playerColorProfile = 'playerColorProfile',
       defaultSuperResolutionType = 'defaultSuperResolutionType',
       superResolutionWarn = 'superResolutionWarn',
       playerDisableAnimations = 'playerDisableAnimations',

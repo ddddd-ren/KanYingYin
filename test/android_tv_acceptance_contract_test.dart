@@ -4,28 +4,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('当前版本文案说明 Android 9 TV 性能和选集优化', () {
+  test('当前版本文案说明 TV 返回修复与现有配置兼容', () {
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final currentSection = _markdownVersionSection(
       releaseNotes,
-      '2.1.147+20147',
+      '2.1.148+20148',
     );
-    final currentHistory = versionHistoryForCurrent('2.1.147');
+    final currentHistory = versionHistoryForCurrent('2.1.148');
 
     expect(currentHistory, hasLength(1));
     final historyText = currentHistory.single.changes.join('\n');
     for (final text in <String>[
-      'Android TV/Google TV',
+      'Android TV',
       'tvTest',
-      'Android 9',
-      '缓存快照',
-      '夸克',
-      '百度',
-      '播放稳定性',
       '选集',
-      '遥控器焦点',
-      '正在播放',
-      '个人预置',
+      '横屏',
+      '手机扫码配置',
+      '.kyyconfig',
+      '个人网盘',
       '不会修改或删除',
       '实机验收未完成',
     ]) {

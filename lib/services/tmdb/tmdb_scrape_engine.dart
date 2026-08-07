@@ -124,6 +124,11 @@ class TmdbScrapeEngine {
     double? minimumLead,
   }) async {
     final plan = _policy.build(subject, options);
+    AppLogger().i(
+      'TMDB: 搜索计划 queries=${plan.queries.map(_safeQueryForLog).toList()} '
+      'types=${plan.mediaTypes.map((type) => type.name).toList()} '
+      'year=${plan.year ?? "unknown"}',
+    );
     TmdbScrapeSearchOutcome? fallback;
     for (final query in plan.queries) {
       final candidates = await _searchCandidates(
@@ -147,14 +152,35 @@ class TmdbScrapeEngine {
         queryTitle: query,
         ranked: ranked,
       );
-      if (ranked.shouldAutoMatch) return current;
+      final candidateSummary = ranked.candidates
+          .take(5)
+          .map(
+            (candidate) =>
+                '${candidate.metadata.mediaType.name}:${candidate.metadata.id}'
+                '@${candidate.score.toStringAsFixed(3)}',
+          )
+          .toList(growable: false);
+      AppLogger().i(
+        'TMDB: 候选 query=${_safeQueryForLog(query)} '
+        'candidates=$candidateSummary auto=${ranked.shouldAutoMatch}',
+      );
+      if (ranked.shouldAutoMatch) {
+        final selected = ranked.best;
+        AppLogger().i(
+          'TMDB: 自动匹配 '
+          '${selected?.metadata.mediaType.name ?? "unknown"}:'
+          '${selected?.metadata.id ?? 0} '
+          'score=${selected?.score.toStringAsFixed(3) ?? "0.000"}',
+        );
+        return current;
+      }
       final currentScore = ranked.best?.score ?? 0;
       final fallbackScore = fallback?.ranked.best?.score ?? -1;
       if (fallback == null || currentScore > fallbackScore) {
         fallback = current;
       }
     }
-    return fallback ??
+    final outcome = fallback ??
         const TmdbScrapeSearchOutcome(
           queryTitle: null,
           ranked: TmdbRankedResult(
@@ -162,6 +188,23 @@ class TmdbScrapeEngine {
             shouldAutoMatch: false,
           ),
         );
+    final best = outcome.ranked.best;
+    AppLogger().i(
+      best == null
+          ? 'TMDB: 搜索完成 status=no-candidate'
+          : 'TMDB: 搜索完成 status=pending '
+              'best=${best.metadata.mediaType.name}:${best.metadata.id} '
+              'score=${best.score.toStringAsFixed(3)}',
+    );
+    return outcome;
+  }
+
+  String _safeQueryForLog(String value) {
+    final normalized = value
+        .replaceAll(RegExp(r'[\\/]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return normalized.length <= 80 ? normalized : normalized.substring(0, 80);
   }
 
   Future<List<TmdbMetadata>> _searchCandidates(

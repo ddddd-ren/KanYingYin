@@ -352,6 +352,8 @@ class _VideoPageState extends State<VideoPage>
     final action = PlayerBackPolicy.decide(
       overlayVisible: AppDialog.observer.hasAppDialog,
       fullscreen: localVideoController.isFullscreen && Utils.isDesktop(),
+      episodePanelVisible:
+          capabilities.isAndroidTv && localVideoController.showTabBody,
       controlsVisible: playerController.showVideoController,
       isAndroidTv: capabilities.isAndroidTv,
     );
@@ -367,6 +369,10 @@ class _VideoPageState extends State<VideoPage>
           keyboardFocus.requestFocus();
         }
       }
+      return;
+    }
+    if (action == PlayerBackAction.closeEpisodePanel) {
+      closeTabBodyAnimated();
       return;
     }
     if (localVideoController.isPip && Utils.isDesktop()) {

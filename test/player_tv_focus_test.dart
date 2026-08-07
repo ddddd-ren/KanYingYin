@@ -117,4 +117,14 @@ void main() {
     expect(videoPage, contains('autofocus: isCurrent'));
     expect(videoPage, contains('FocusTraversalGroup('));
   });
+
+  test('TV 返回键优先收回选集侧栏并保留播放器焦点', () {
+    final videoPage =
+        File('lib/pages/video/video_page.dart').readAsStringSync();
+
+    expect(videoPage, contains('episodePanelVisible:'));
+    expect(videoPage, contains('PlayerBackAction.closeEpisodePanel'));
+    expect(videoPage, contains('closeTabBodyAnimated()'));
+    expect(videoPage, contains('keyboardFocus.requestFocus()'));
+  });
 }

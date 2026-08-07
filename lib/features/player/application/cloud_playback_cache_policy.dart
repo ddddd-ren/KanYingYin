@@ -52,6 +52,26 @@ class CloudPlaybackCachePolicy {
     'demuxer-max-back-bytes': '8MiB',
   }, playerBufferSize: 64 * 1024 * 1024);
 
+  static const CloudPlaybackCachePolicy androidTvRangeRelay =
+      CloudPlaybackCachePolicy._(<String, String>{
+    'stream-buffer-size': '4MiB',
+    'cache-pause-initial': 'yes',
+    'cache-pause-wait': '5',
+    'cache-secs': '30',
+    'demuxer-max-bytes': '48MiB',
+    'demuxer-max-back-bytes': '8MiB',
+  }, playerBufferSize: 48 * 1024 * 1024);
+
+  static const CloudPlaybackCachePolicy androidTvRangeRelayLowMemory =
+      CloudPlaybackCachePolicy._(<String, String>{
+    'stream-buffer-size': '4MiB',
+    'cache-pause-initial': 'yes',
+    'cache-pause-wait': '5',
+    'cache-secs': '20',
+    'demuxer-max-bytes': '32MiB',
+    'demuxer-max-back-bytes': '4MiB',
+  }, playerBufferSize: 32 * 1024 * 1024);
+
   final Map<String, String> mpvProperties;
   final int? playerBufferSize;
 
@@ -65,6 +85,10 @@ class CloudPlaybackCachePolicy {
         CloudPlaybackTransport.direct => direct,
         CloudPlaybackTransport.rangeRelay => cloudRangeRelay,
       };
+    }
+    if (capabilities.isAndroidTv &&
+        transport == CloudPlaybackTransport.rangeRelay) {
+      return lowMemoryMode ? androidTvRangeRelayLowMemory : androidTvRangeRelay;
     }
     return switch (transport) {
       CloudPlaybackTransport.direct =>

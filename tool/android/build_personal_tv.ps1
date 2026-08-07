@@ -19,35 +19,63 @@ $configurationAsset = Join-Path $assetDirectory 'configuration.kyyconfig'
 $metadataAsset = Join-Path $assetDirectory 'metadata.kyymeta'
 $validator = Join-Path $projectRoot 'tool\tv_preload\validate_and_write_manifest.dart'
 $releaseScript = Join-Path $PSScriptRoot 'build_signed_release.ps1'
+$cleanupHelper = Join-Path $PSScriptRoot 'clear_personal_tv_build_residue.ps1'
 $dart = 'D:\flutter\bin\dart.bat'
-$password = [Environment]::GetEnvironmentVariable('KYY_CONFIG_PASSWORD', 'Process')
-
-if ([string]::IsNullOrWhiteSpace($password)) {
-    throw 'Missing KYY_CONFIG_PASSWORD process environment variable'
-}
-if (-not (Test-Path -LiteralPath $ConfigurationPath -PathType Leaf) -or
-    -not $ConfigurationPath.EndsWith('.kyyconfig', [System.StringComparison]::OrdinalIgnoreCase)) {
-    throw 'Configuration input must be an existing .kyyconfig file'
-}
-if (-not (Test-Path -LiteralPath $MetadataPath -PathType Leaf) -or
-    -not $MetadataPath.EndsWith('.kyymeta', [System.StringComparison]::OrdinalIgnoreCase)) {
-    throw 'Metadata input must be an existing .kyymeta file'
-}
-if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
-    throw 'Tracked disabled TV preload manifest was not found'
-}
-if (-not (Test-Path -LiteralPath $validator -PathType Leaf)) {
-    throw 'TV preload validator was not found'
-}
-if (-not (Test-Path -LiteralPath $dart -PathType Leaf)) {
-    throw 'D:\flutter 3.41.9 was not found'
-}
-
-$manifestBackup = [System.IO.File]::ReadAllBytes($manifestPath)
+$password = $null
+$manifestBackup = $null
 $dartDefines = @()
+$configurationCopied = $false
+$metadataCopied = $false
+
+function Invoke-PersonalTvCleanupStep {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Name,
+        [Parameter(Mandatory)]
+        [scriptblock]$Action
+    )
+
+    try {
+        & $Action
+    }
+    catch {
+        Write-Warning "Personal TV cleanup failed ($Name): $($_.Exception.Message)"
+    }
+}
+
 try {
+    if (-not (Test-Path -LiteralPath $cleanupHelper -PathType Leaf)) {
+        throw 'Personal TV build residue cleanup helper was not found'
+    }
+    . $cleanupHelper
+
+    $password = [Environment]::GetEnvironmentVariable('KYY_CONFIG_PASSWORD', 'Process')
+    if ([string]::IsNullOrWhiteSpace($password)) {
+        throw 'Missing KYY_CONFIG_PASSWORD process environment variable'
+    }
+    if (-not (Test-Path -LiteralPath $ConfigurationPath -PathType Leaf) -or
+        -not $ConfigurationPath.EndsWith('.kyyconfig', [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Configuration input must be an existing .kyyconfig file'
+    }
+    if (-not (Test-Path -LiteralPath $MetadataPath -PathType Leaf) -or
+        -not $MetadataPath.EndsWith('.kyymeta', [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Metadata input must be an existing .kyymeta file'
+    }
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        throw 'Tracked disabled TV preload manifest was not found'
+    }
+    if (-not (Test-Path -LiteralPath $validator -PathType Leaf)) {
+        throw 'TV preload validator was not found'
+    }
+    if (-not (Test-Path -LiteralPath $dart -PathType Leaf)) {
+        throw 'D:\flutter 3.41.9 was not found'
+    }
+
+    $manifestBackup = [System.IO.File]::ReadAllBytes($manifestPath)
     Copy-Item -LiteralPath $ConfigurationPath -Destination $configurationAsset -Force
+    $configurationCopied = $true
     Copy-Item -LiteralPath $MetadataPath -Destination $metadataAsset -Force
+    $metadataCopied = $true
 
     Push-Location $projectRoot
     try {
@@ -119,15 +147,36 @@ try {
     }
 }
 finally {
-    if (Test-Path -LiteralPath $configurationAsset -PathType Leaf) {
-        Remove-Item -LiteralPath $configurationAsset -Force
+    Invoke-PersonalTvCleanupStep -Name 'configuration asset' -Action {
+        if ($configurationCopied -and
+            (Test-Path -LiteralPath $configurationAsset -PathType Leaf)) {
+            Remove-Item -LiteralPath $configurationAsset -Force
+        }
     }
-    if (Test-Path -LiteralPath $metadataAsset -PathType Leaf) {
-        Remove-Item -LiteralPath $metadataAsset -Force
+    Invoke-PersonalTvCleanupStep -Name 'metadata asset' -Action {
+        if ($metadataCopied -and
+            (Test-Path -LiteralPath $metadataAsset -PathType Leaf)) {
+            Remove-Item -LiteralPath $metadataAsset -Force
+        }
     }
-    [System.IO.File]::WriteAllBytes($manifestPath, $manifestBackup)
-    [Environment]::SetEnvironmentVariable('KYY_CONFIG_PASSWORD', $null, 'Process')
-    [Environment]::SetEnvironmentVariable('KYY_TV_PRELOAD_PASSWORD', $null, 'Process')
-    $password = $null
-    $dartDefines = @()
+    Invoke-PersonalTvCleanupStep -Name 'manifest restore' -Action {
+        if ($null -ne $manifestBackup) {
+            [System.IO.File]::WriteAllBytes($manifestPath, $manifestBackup)
+        }
+    }
+    Invoke-PersonalTvCleanupStep -Name 'intermediates residue' -Action {
+        if (Get-Command Clear-PersonalTvBuildResidue -CommandType Function -ErrorAction SilentlyContinue) {
+            Clear-PersonalTvBuildResidue -ProjectRoot $projectRoot
+        }
+    }
+    Invoke-PersonalTvCleanupStep -Name 'configuration password' -Action {
+        [Environment]::SetEnvironmentVariable('KYY_CONFIG_PASSWORD', $null, 'Process')
+    }
+    Invoke-PersonalTvCleanupStep -Name 'preload password' -Action {
+        [Environment]::SetEnvironmentVariable('KYY_TV_PRELOAD_PASSWORD', $null, 'Process')
+    }
+    Invoke-PersonalTvCleanupStep -Name 'local secrets' -Action {
+        $script:password = $null
+        $script:dartDefines = @()
+    }
 }

@@ -7,7 +7,7 @@
 ## 质量门禁
 
 - Dart 格式：`694` 个文件检查完成，`0` 个文件需要修改。
-- Flutter 测试：`1820/1820` 通过。
+- Flutter 测试：`1828/1828` 通过。
 - Flutter Analyze：`No issues found!`。
 - Windows Release：构建成功。
 - Android `tvTest` Release：构建成功，随后独立包验证全部通过。
@@ -18,11 +18,11 @@
 - Release 主程序：`D:\KanYingYin\build\windows\x64\runner\Release\kanyingyin.exe`。
 - Release 主程序大小：`293376` 字节。
 - Release 主程序产品版本：`2.1.146`。
-- Release 主程序 SHA-256：`F47E1AB3BA31E29300962CF31186FBA75008E4B6168923349281D9E8A8963E3A`。
+- Release 主程序 SHA-256：`8E6DB2E81505EB8060A0D784E38B4799B1757F4CC80A9B9B9CD0F42577D3D60D`。
 - 桌面 Inno 安装器：`C:\Users\asus\Desktop\看影音-2.1.146-测试版-安装程序.exe`。
-- 安装器大小：`69826931` 字节。
+- 安装器大小：`69828738` 字节。
 - 安装器产品版本：`2.1.146`。
-- 安装器 SHA-256：`57CFC05ED1D24EDCC20A0673E40DCE49EF63904E46EBEBC4F3AEEBCAD07BA600`。
+- 安装器 SHA-256：`FFE173B89A1EC5DD66B6F22935F51779E5EE7FB71FC487450A73BE4C82E3E3B0`。
 - Authenticode 状态：`NotSigned`，测试版安装器未签名。
 - 本轮构建脚本未执行安装、卸载或启动操作；最终检查发现 Inno 版 `2.1.145` 已安装在 `D:\看影音`，主程序产品版本为 `2.1.145`。
 
@@ -40,7 +40,7 @@
 - Manifest：包含 `LEANBACK_LAUNCHER` 和 Banner；触摸屏声明为非必需。
 - Full `libmpv`：`arm64-v8a`、`armeabi-v7a`、`x86_64` 三个 ABI 均通过固定资产哈希验证。
 - 包内预置清单已启用；配置资源为 `6033` 字节，SHA-256 为 `f004709d080e3a68b29a4858a8eb27e5244ddbffa4f3533e1a0190642708cbc5`；刮削资料资源为 `8969974` 字节，SHA-256 为 `c1cf122f6282a9dbdcdb2c5f3d74061ab63a29c43eab46fe4bd410c6c22099c8`。
-- 构建结束后工作区只保留禁用的 `assets/tv_preload/manifest.json`，两个个人资源和两个密码环境变量均未残留。
+- 构建结束后工作区只保留禁用的 `assets/tv_preload/manifest.json`，`build/app/intermediates` 中个人资源残留为 `0`，两个密码环境变量均为空。
 
 ## 本轮自动化覆盖
 
@@ -56,7 +56,7 @@
 - 手机页面可新增、编辑和删除 OpenList、夸克、百度和迅雷来源；新增非 OpenList 来源会提示在电视继续选择媒体目录。
 - 手机扫码页面可选择并流式上传 `.kyyconfig` 和 `.kyymeta`；配置导入使用密码解密，刮削资料在配置导入后重新匹配，手机端显示上传和导入结果。
 - `.kyyconfig` 使用密码加密，覆盖正确密码、错误密码、篡改和文件大小限制。
-- 个人 TV 构建前使用纯 Dart 校验器验证配置加密封套和刮削资料 ZIP 清单，不加载 Flutter `dart:ui`，错误密码、危险路径、缺失声明、大小和哈希错误都会在编译前中止。
+- 个人 TV 构建前使用纯 Dart 校验器验证配置加密封套、嵌套网盘 Schema、刮削资料记录与 ZIP 清单，不加载 Flutter `dart:ui`；ZIP 使用流式读取，先限制总解压量和单图 `25 MB`，错误密码、危险路径、重复来源 ID、无效记录、缺失声明、大小和哈希错误都会在编译前中止。
 - Windows PowerShell 5.1 下个人 APK 的中文桌面文件名由运行时 Unicode 字符码生成，避免 UTF-8 无 BOM 脚本被系统代码页误解码为非法路径。
 - TMDB Key 和个人网盘来源按来源 ID 原子合并，写入失败会恢复原配置；不会修改或删除视频、字幕、索引、缓存和播放历史。
 

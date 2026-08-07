@@ -445,7 +445,8 @@ class CloudResourcesController extends ChangeNotifier {
     _notify();
   }
 
-  Future<void> load() => _loadSources(startScan: true);
+  Future<void> load({bool startScan = true}) =>
+      _loadSources(startScan: startScan);
 
   Future<void> reloadSourcesAndSnapshot({String? preferredSourceId}) async {
     _scanToken?.cancel();

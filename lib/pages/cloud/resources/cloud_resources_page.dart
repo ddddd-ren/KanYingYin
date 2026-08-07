@@ -18,6 +18,8 @@ import 'package:kanyingyin/pages/cloud/resources/cloud_media_details_dialog.dart
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_tmdb_match_dialog.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/repositories/cloud_media_tag_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
@@ -45,6 +47,7 @@ class CloudResourcesPage extends StatefulWidget {
     this.onManageSources,
     this.onPlayRequest,
     this.onDeleteSource,
+    this.capabilities,
   });
 
   final CloudResourcesController? controller;
@@ -56,6 +59,7 @@ class CloudResourcesPage extends StatefulWidget {
   final FutureOr<void> Function(CloudResourcePlaybackRequest request)?
       onPlayRequest;
   final FutureOr<void> Function(String sourceId)? onDeleteSource;
+  final AppPlatformCapabilities? capabilities;
 
   @override
   State<CloudResourcesPage> createState() => _CloudResourcesPageState();
@@ -79,7 +83,8 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     super.initState();
     _controller = widget.controller ?? Modular.get<CloudResourcesController>();
     _controller.addListener(_refresh);
-    _controller.load();
+    final capabilities = widget.capabilities ?? detectAppPlatform();
+    _controller.load(startScan: !capabilities.isAndroidTv);
   }
 
   @override

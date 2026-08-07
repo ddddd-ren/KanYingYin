@@ -1,10 +1,13 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/features/tv/presentation/tv_image_decode_policy.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/services/local_episode_parser.dart';
 
 Future<CloudFileEntry?> showCloudResourceEpisodeSheet({
@@ -12,6 +15,7 @@ Future<CloudFileEntry?> showCloudResourceEpisodeSheet({
   required String sourceId,
   required CloudResourceMediaGroup group,
   Set<String> subtitleVideoKeys = const <String>{},
+  AppPlatformCapabilities? capabilities,
 }) {
   return showModalBottomSheet<CloudFileEntry>(
     context: context,
@@ -21,6 +25,7 @@ Future<CloudFileEntry?> showCloudResourceEpisodeSheet({
       sourceId: sourceId,
       group: group,
       subtitleVideoKeys: subtitleVideoKeys,
+      capabilities: capabilities,
     ),
   );
 }
@@ -30,15 +35,22 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
     required this.sourceId,
     required this.group,
     required this.subtitleVideoKeys,
+    required this.capabilities,
   });
 
   final String sourceId;
   final CloudResourceMediaGroup group;
   final Set<String> subtitleVideoKeys;
+  final AppPlatformCapabilities? capabilities;
 
   @override
   Widget build(BuildContext context) {
     final title = group.displayName;
+    final platform = capabilities ?? detectAppPlatform();
+    final decodeSize = TvImageDecodePolicy.seasonThumbnail(
+      platform,
+      devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+    );
     final visibleSeasons = group.seasons.isEmpty && group.videos.isNotEmpty
         ? <CloudResourceSeasonGroup>[
             CloudResourceSeasonGroup(
@@ -96,6 +108,7 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
                 itemBuilder: (context, index) => _seasonSection(
                   context,
                   visibleSeasons[index],
+                  decodeSize,
                 ),
               ),
             ),
@@ -108,6 +121,7 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
   Widget _seasonSection(
     BuildContext context,
     CloudResourceSeasonGroup season,
+    TvImageDecodeSize? decodeSize,
   ) {
     final seasonNumber = season.seasonNumber;
     final title = !group.isSeries
@@ -147,7 +161,7 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
                   height: 138,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(9),
-                    child: _seasonPoster(context, season),
+                    child: _seasonPoster(context, season, decodeSize),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -239,51 +253,67 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
   Widget _seasonPoster(
     BuildContext context,
     CloudResourceSeasonGroup season,
+    TvImageDecodeSize? decodeSize,
   ) {
     final cached = season.metadata?.posterCachePath;
     if (cached != null && File(cached).existsSync()) {
       return Image.file(
         File(cached),
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _seasonNetworkOrSeries(
-          context,
-          season,
-        ),
+        cacheWidth: decodeSize?.width,
+        cacheHeight: decodeSize?.height,
+        filterQuality: FilterQuality.medium,
+        errorBuilder: (_, __, ___) =>
+            _seasonNetworkOrSeries(context, season, decodeSize),
       );
     }
-    return _seasonNetworkOrSeries(context, season);
+    return _seasonNetworkOrSeries(context, season, decodeSize);
   }
 
   Widget _seasonNetworkOrSeries(
     BuildContext context,
     CloudResourceSeasonGroup season,
+    TvImageDecodeSize? decodeSize,
   ) {
     final url = TmdbMatchSheet.imageUrl(
       season.metadata?.posterUrl,
       size: 'w500',
     );
-    if (url == null) return _seriesPoster(context);
+    if (url == null) return _seriesPoster(context, decodeSize);
     return Image.network(
       url,
       fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => _seriesPoster(context),
+      cacheWidth: decodeSize?.width,
+      cacheHeight: decodeSize?.height,
+      filterQuality: FilterQuality.medium,
+      errorBuilder: (_, __, ___) => _seriesPoster(context, decodeSize),
     );
   }
 
-  Widget _seriesPoster(BuildContext context) {
+  Widget _seriesPoster(
+    BuildContext context,
+    TvImageDecodeSize? decodeSize,
+  ) {
     final cached =
         group.workRecord?.posterCachePath ?? group.record?.posterCachePath;
     if (cached != null && File(cached).existsSync()) {
       return Image.file(
         File(cached),
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _seriesNetworkOrPlaceholder(context),
+        cacheWidth: decodeSize?.width,
+        cacheHeight: decodeSize?.height,
+        filterQuality: FilterQuality.medium,
+        errorBuilder: (_, __, ___) =>
+            _seriesNetworkOrPlaceholder(context, decodeSize),
       );
     }
-    return _seriesNetworkOrPlaceholder(context);
+    return _seriesNetworkOrPlaceholder(context, decodeSize);
   }
 
-  Widget _seriesNetworkOrPlaceholder(BuildContext context) {
+  Widget _seriesNetworkOrPlaceholder(
+    BuildContext context,
+    TvImageDecodeSize? decodeSize,
+  ) {
     final url = TmdbMatchSheet.imageUrl(
       group.workRecord?.metadata?.posterUrl ?? group.record?.posterUrl,
       size: 'w500',
@@ -292,6 +322,9 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
     return Image.network(
       url,
       fit: BoxFit.cover,
+      cacheWidth: decodeSize?.width,
+      cacheHeight: decodeSize?.height,
+      filterQuality: FilterQuality.medium,
       errorBuilder: (_, __, ___) => _placeholder(context),
     );
   }

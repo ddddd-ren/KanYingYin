@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
+import 'package:kanyingyin/features/tv/presentation/tv_image_decode_policy.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_layout_policy.dart';
 import 'package:kanyingyin/bean/widget/skeleton_loader.dart';
 import 'package:kanyingyin/bean/widget/empty_state.dart';
@@ -83,32 +84,45 @@ class LibraryMediaCoverFallback {
   static Widget build(
     LibraryMediaItemViewData item, {
     required WidgetBuilder placeholderBuilder,
+    TvImageDecodeSize? decodeSize,
   }) {
     Widget local(BuildContext context) => buildLocal(
           item,
           placeholderBuilder: placeholderBuilder,
+          decodeSize: decodeSize,
         );
     Widget network(BuildContext context) => buildNetwork(
           item,
           localBuilder: placeholderBuilder,
+          decodeSize: decodeSize,
         );
     if (item.preferLocalCover) {
-      return buildLocal(item, placeholderBuilder: network);
+      return buildLocal(
+        item,
+        placeholderBuilder: network,
+        decodeSize: decodeSize,
+      );
     }
-    return buildNetwork(item, localBuilder: local);
+    return buildNetwork(item, localBuilder: local, decodeSize: decodeSize);
   }
 
   static Widget buildLocal(
     LibraryMediaItemViewData item, {
     required WidgetBuilder placeholderBuilder,
+    TvImageDecodeSize? decodeSize,
   }) {
     final provider = item.localCoverProvider;
     if (provider != null) {
       return Image(
-        image: provider,
+        image: ResizeImage.resizeIfNeeded(
+          decodeSize?.width,
+          decodeSize?.height,
+          provider,
+        ),
         fit: BoxFit.cover,
         width: double.infinity,
         height: double.infinity,
+        filterQuality: FilterQuality.medium,
         errorBuilder: (context, _, __) => placeholderBuilder(context),
       );
     }
@@ -121,6 +135,9 @@ class LibraryMediaCoverFallback {
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,
+      cacheWidth: decodeSize?.width,
+      cacheHeight: decodeSize?.height,
+      filterQuality: FilterQuality.medium,
       errorBuilder: (context, _, __) => placeholderBuilder(context),
     );
   }
@@ -128,14 +145,20 @@ class LibraryMediaCoverFallback {
   static Widget buildNetwork(
     LibraryMediaItemViewData item, {
     required WidgetBuilder localBuilder,
+    TvImageDecodeSize? decodeSize,
   }) {
     final provider = item.networkCoverProvider;
     if (provider != null) {
       return Image(
-        image: provider,
+        image: ResizeImage.resizeIfNeeded(
+          decodeSize?.width,
+          decodeSize?.height,
+          provider,
+        ),
         fit: BoxFit.cover,
         width: double.infinity,
         height: double.infinity,
+        filterQuality: FilterQuality.medium,
         errorBuilder: (context, _, __) => localBuilder(context),
       );
     }
@@ -148,6 +171,9 @@ class LibraryMediaCoverFallback {
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,
+      cacheWidth: decodeSize?.width,
+      cacheHeight: decodeSize?.height,
+      filterQuality: FilterQuality.medium,
       errorBuilder: (context, _, __) => localBuilder(context),
     );
   }
@@ -240,6 +266,10 @@ class LibraryMediaGrid extends StatelessWidget {
             : () async => await onPickDirectory!(),
       );
     }
+    final decodeSize = TvImageDecodePolicy.poster(
+      capabilities ?? detectAppPlatform(),
+      devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+    );
     return FocusTraversalGroup(
       key: const ValueKey<String>('library-media-grid-focus-group'),
       child: GridView.builder(
@@ -260,6 +290,7 @@ class LibraryMediaGrid extends StatelessWidget {
           return _LibraryMediaTile(
             key: ValueKey<String>(item.id),
             item: item,
+            decodeSize: decodeSize,
             onPlay: onPlay,
             onShowActions: onShowActions,
             trailingBuilder: trailingBuilder,
@@ -274,11 +305,13 @@ class _LibraryMediaTile extends StatefulWidget {
   const _LibraryMediaTile({
     super.key,
     required this.item,
+    this.decodeSize,
     this.onPlay,
     this.onShowActions,
     this.trailingBuilder,
   });
   final LibraryMediaItemViewData item;
+  final TvImageDecodeSize? decodeSize;
   final LibraryMediaAction? onPlay;
   final LibraryMediaAction? onShowActions;
   final LibraryMediaTrailingBuilder? trailingBuilder;
@@ -357,6 +390,7 @@ class _LibraryMediaTileState extends State<_LibraryMediaTile> {
     return LibraryMediaCoverFallback.build(
       widget.item,
       placeholderBuilder: (_) => placeholder(),
+      decodeSize: widget.decodeSize,
     );
   }
 }

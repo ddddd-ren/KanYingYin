@@ -528,6 +528,64 @@ void main() {
         find.byKey(const ValueKey<String>('cloud-season-3')), findsOneWidget);
   });
 
+  testWidgets('TV 网盘海报和季度缩略图限制解码尺寸', (tester) async {
+    tester.view.devicePixelRatio = 2;
+    tester.view.physicalSize = const Size(1280, 720);
+    addTearDown(tester.view.resetPhysicalSize);
+    final group = _seasonMediaGroup();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showCloudResourceEpisodeSheet(
+                context: context,
+                sourceId: 'source',
+                group: group,
+                capabilities: AppPlatformCapabilities.android.copyWith(
+                  television: true,
+                  androidSdkInt: 28,
+                ),
+              ),
+              child: CloudResourcePosterWall(
+                capabilities: AppPlatformCapabilities.android.copyWith(
+                  television: true,
+                  androidSdkInt: 28,
+                ),
+                sourceId: 'source',
+                collection: CloudResourceCollection(
+                  groups: <CloudResourceMediaGroup>[group],
+                ),
+                scrapingKeys: const <String>{},
+                onOpenGroup: (_) {},
+                onEditTitle: (_) {},
+                onScrape: (_) {},
+                onRematch: (_) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final poster = tester.widget<Image>(find.byType(Image).first);
+    expect(poster.image, isA<ResizeImage>());
+    final resizedPoster = poster.image as ResizeImage;
+    expect(resizedPoster.width, 720);
+    expect(resizedPoster.height, 1080);
+    expect(poster.filterQuality, FilterQuality.medium);
+
+    await tester.tap(find.byType(TextButton));
+    await tester.pumpAndSettle();
+    final seasonPoster = tester.widget<Image>(find.byType(Image).last);
+    expect(seasonPoster.image, isA<ResizeImage>());
+    final resizedSeasonPoster = seasonPoster.image as ResizeImage;
+    expect(resizedSeasonPoster.width, 368);
+    expect(resizedSeasonPoster.height, 552);
+    expect(seasonPoster.filterQuality, FilterQuality.medium);
+  });
+
   testWidgets('媒体详情显示真实原名路径和发布规格', (tester) async {
     final item = CloudMediaIndexItem(
       sourceId: 'source',

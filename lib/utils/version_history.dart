@@ -164,6 +164,21 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.142',
+    date: '2026-08-07',
+    isPrerelease: true,
+    changes: [
+      'Android TV 测试版可侧载到 Android TV/Google TV 设备；使用 tvTest flavor，构建与包验证通过，海信实机验收未完成',
+      'TV 设置操作现在显示高对比焦点边框、浅色背景、勾选图标和“当前选中 · 按确认执行”提示',
+      'Windows 与 Android 同步提供配置迁移入口，TV 遥控器焦点操作保持清晰可见',
+      '手机扫码配置要求电视与手机连接同一局域网，不需要部署服务器；电视会显示手机已连接、等待确认、正在写入和成功或失败状态',
+      '手机配置页面支持 OpenList、夸克、百度和迅雷网盘来源及个人凭据，新增非 OpenList 来源后仍需在电视选择媒体目录',
+      '新增密码加密的 .kyyconfig 配置导入导出，包含 TMDB Key、个人网盘来源和凭据，空 TMDB Key 会保留电视当前 Key',
+      '配置按来源 ID 合并，写入失败会自动回滚；不会修改或删除视频、字幕、索引、缓存和播放历史',
+      'TMDB 不可用或断网时，本地扫描和播放仍可继续；不支持海信 VIDAA 原生系统安装',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.141',
     date: '2026-08-07',
     isPrerelease: true,

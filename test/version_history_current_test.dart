@@ -5,6 +5,33 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一四二说明 TV 配置迁移和焦点反馈', () {
+    final entries = versionHistoryForCurrent('2.1.142');
+
+    expect(entries, hasLength(1));
+    final entry = entries.single;
+    expect(entry.isPrerelease, isTrue);
+    final changes = entry.changes.join('\n');
+    for (final text in <String>[
+      'Android TV',
+      'Android TV/Google TV',
+      'tvTest',
+      '焦点',
+      '同一局域网',
+      '手机扫码配置',
+      'OpenList',
+      '夸克',
+      '百度',
+      '迅雷',
+      '.kyyconfig',
+      '回滚',
+      '不会修改或删除',
+      '海信实机验收未完成',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('一点零六正式版展示分类、剧集匹配和自选目录更新', () {
     final entries = versionHistoryForCurrent('1.0.6');
 

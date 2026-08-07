@@ -5,33 +5,26 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一四六说明个人预置包自动导入配置和刮削资料', () {
-    final entries = versionHistoryForCurrent('2.1.146');
+  test('二点一四七说明 Android 9 TV 性能和选集焦点优化', () {
+    final entries = versionHistoryForCurrent('2.1.147');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     expect(entry.isPrerelease, isTrue);
     final changes = entry.changes.join('\n');
     for (final text in <String>[
-      'Windows',
-      'Android TV',
+      'Android 9',
+      'Android TV/Google TV',
+      '缓存快照',
+      '夸克',
+      '百度',
+      '播放稳定性',
+      '选集',
+      '遥控器焦点',
+      '正在播放',
       '个人预置',
-      '首次启动',
-      '自动导入',
-      '不可公开分发',
-      '海报墙',
-      '五列',
-      '两行',
-      '配置迁移',
-      '电视端确认',
-      '.kyymeta',
-      '.kyyconfig',
       '不会修改或删除',
-      '海信实机验收',
-      '流式上传',
-      '配置文件',
-      '刮削资料',
-      '明确判断结果',
+      '海信实机验收未完成',
     ]) {
       expect(changes, contains(text));
     }

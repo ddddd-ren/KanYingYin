@@ -164,6 +164,21 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.147',
+    date: '2026-08-07',
+    isPrerelease: true,
+    changes: [
+      'Windows 与 Android TV/Google TV 测试版升级到 2.1.147，电视端针对 Android 9 使用更保守的资源加载和播放档位',
+      '进入网盘媒体库时优先显示缓存快照，不再自动递归读取全部远程目录；需要更新时可手动刷新',
+      '限制电视海报解码尺寸，夸克与百度网盘改用低峰值 Range 读取、单路后台预取和更小播放器缓存，提升播放稳定性',
+      '网盘选集和播放器选集统一增加高对比遥控器焦点，当前集持续显示“正在播放”，两种状态可同时辨认',
+      '播放替换失败时会关闭候选会话和失去播放器引用的旧会话，避免后台连接残留',
+      '手机扫码配置、.kyyconfig 与 .kyymeta 迁移继续可用，个人预置测试包仍可在首次启动时自动导入自己的配置和刮削资料',
+      'Android TV 测试包继续使用 tvTest flavor；包级验证完成后交付，海信实机验收未完成',
+      '本次更新不会修改或删除视频、字幕、个人网盘文件、媒体索引、缓存和播放历史',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.146',
     date: '2026-08-07',
     isPrerelease: true,

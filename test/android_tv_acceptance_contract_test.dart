@@ -4,33 +4,29 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('当前版本文案说明 Android TV 个人预置自动导入', () {
+  test('当前版本文案说明 Android 9 TV 性能和选集优化', () {
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final currentSection = _markdownVersionSection(
       releaseNotes,
-      '2.1.146+20146',
+      '2.1.147+20147',
     );
-    final currentHistory = versionHistoryForCurrent('2.1.146');
+    final currentHistory = versionHistoryForCurrent('2.1.147');
 
     expect(currentHistory, hasLength(1));
     final historyText = currentHistory.single.changes.join('\n');
     for (final text in <String>[
       'Android TV/Google TV',
       'tvTest',
-      '手机扫码配置',
-      '.kyyconfig',
-      '.kyymeta',
-      '海报墙',
-      '五列',
-      '两行',
-      '流式上传',
-      '配置文件',
-      '刮削资料',
-      '电视导入成功',
+      'Android 9',
+      '缓存快照',
+      '夸克',
+      '百度',
+      '播放稳定性',
+      '选集',
+      '遥控器焦点',
+      '正在播放',
       '个人预置',
-      '首次启动',
-      '自动导入',
-      '不可公开分发',
+      '不会修改或删除',
       '实机验收未完成',
     ]) {
       expect(currentSection, contains(text), reason: 'RELEASE_NOTES 缺少 $text');

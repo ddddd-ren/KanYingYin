@@ -164,6 +164,22 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.144',
+    date: '2026-08-07',
+    isPrerelease: true,
+    changes: [
+      'Android TV/Google TV 测试版继续使用 tvTest flavor；自动化与包级验证完成，海信实机验收未完成',
+      'Windows 与 Android 同步交付 2.1.144，个人网盘配置和加密迁移格式保持兼容',
+      'Android TV 海报墙使用更紧凑的卡片和间距，电影、动漫、电视剧和本地媒体库保持一致，可以同时看到更多作品',
+      '子页面即使使用闭环焦点组，遥控器在最左侧继续按左键也会进入侧边导航栏，不再困在媒体库内容区',
+      '弹窗、底部面板和输入框统一接入 TV 返回键，编辑时先退出输入状态，再次返回可关闭当前弹窗或子页面',
+      '播放器返回键先关闭播放控制层，再次返回才离开播放页，Android TV 退出时不再先切换屏幕模式',
+      '通过系统文件选择器导入 .kyyconfig 和 .kyymeta 时会从文件显示名、文档 URI 或唯一允许格式恢复扩展名，兼容电视文件管理器',
+      '手机扫码配置仍要求电视与手机连接同一局域网；OpenList、夸克、百度、迅雷和 TMDB 配置迁移保持可用',
+      '本次更新不会修改或删除视频、字幕、索引、缓存和播放历史',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.143',
     date: '2026-08-07',
     isPrerelease: true,

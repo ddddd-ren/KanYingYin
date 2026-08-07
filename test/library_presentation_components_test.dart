@@ -742,7 +742,7 @@ void main() {
       expect(played, item.id);
     });
 
-    testWidgets('TV 网格使用宽卡片、焦点组和遥控器主动作', (tester) async {
+    testWidgets('TV 网格使用四列友好的紧凑卡片和遥控器主动作', (tester) async {
       String? played;
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(1280, 720);
@@ -767,10 +767,10 @@ void main() {
       final grid = tester.widget<GridView>(find.byType(GridView));
       final delegate =
           grid.gridDelegate as SliverGridDelegateWithMaxCrossAxisExtent;
-      expect(delegate.maxCrossAxisExtent, 400);
-      expect(delegate.crossAxisSpacing, 20);
-      expect(delegate.mainAxisSpacing, 20);
-      expect(grid.padding, const EdgeInsets.fromLTRB(28, 20, 28, 28));
+      expect(delegate.maxCrossAxisExtent, 260);
+      expect(delegate.crossAxisSpacing, 16);
+      expect(delegate.mainAxisSpacing, 16);
+      expect(grid.padding, const EdgeInsets.fromLTRB(20, 16, 20, 24));
       expect(
         find.byKey(
           const ValueKey<String>('library-media-grid-focus-group'),

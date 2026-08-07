@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
+import 'package:kanyingyin/features/tv/presentation/tv_back_shortcut_scope.dart';
 import 'package:kanyingyin/platform/android/android_system_ui_surface.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_shell_host.dart';
@@ -122,10 +123,16 @@ class _AppWidgetState extends State<AppWidget> {
       darkTheme: effectiveDarkTheme,
       themeMode: themeProvider.themeMode,
       routerConfig: Modular.routerConfig,
-      builder: (context, child) => AndroidSystemUiSurface(
-        capabilities: widget.capabilities,
-        child: child ?? const SizedBox.shrink(),
-      ),
+      builder: (context, child) {
+        final content = child ?? const SizedBox.shrink();
+        return TvBackShortcutScope(
+          enabled: widget.capabilities.isAndroidTv,
+          child: AndroidSystemUiSurface(
+            capabilities: widget.capabilities,
+            child: content,
+          ),
+        );
+      },
     );
     return AppShellHost(
       capabilities: widget.capabilities,

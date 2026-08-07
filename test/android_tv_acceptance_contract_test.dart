@@ -4,18 +4,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('当前版本文案说明 Android TV 配置迁移范围和局域网限制', () {
+  test('当前版本文案说明 Android TV 布局、焦点、返回和文件识别', () {
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final currentSection = _markdownVersionSection(
       releaseNotes,
-      '2.1.143+20143',
+      '2.1.144+20144',
     );
-    final currentHistory = versionHistoryForCurrent('2.1.143');
+    final currentHistory = versionHistoryForCurrent('2.1.144');
 
     expect(currentHistory, hasLength(1));
     final historyText = currentHistory.single.changes.join('\n');
     for (final text in <String>[
-      'Android TV 测试版',
       'Android TV/Google TV',
       'tvTest',
       '遥控器',
@@ -27,10 +26,15 @@ void main() {
       '百度',
       '迅雷',
       '.kyyconfig',
+      '.kyymeta',
       '系统文件选择器',
-      '选择当前目录',
-      '确定',
-      '应用缓存',
+      '海报墙',
+      '侧边导航栏',
+      '闭环焦点组',
+      '弹窗',
+      '播放控制层',
+      '文件显示名',
+      '文档 URI',
       '实机验收未完成',
     ]) {
       expect(currentSection, contains(text), reason: 'RELEASE_NOTES 缺少 $text');

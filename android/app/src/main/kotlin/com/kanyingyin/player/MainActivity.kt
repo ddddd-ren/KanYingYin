@@ -14,6 +14,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
 import android.provider.DocumentsContract
+import android.provider.OpenableColumns
 import android.util.Rational
 import android.webkit.WebView
 import com.ryanheise.audioservice.AudioServiceActivity
@@ -214,7 +215,7 @@ class MainActivity : AudioServiceActivity() {
                 treeUri,
                 DocumentsContract.getTreeDocumentId(treeUri),
             )
-            val name = queryDocumentName(documentUri)
+            val name = queryDocumentName(documentUri) ?: "已选目录"
             result.success(
                 mapOf(
                     "treeUri" to treeUri.toString(),
@@ -240,12 +241,17 @@ class MainActivity : AudioServiceActivity() {
 
         var cacheFile: File? = null
         try {
-            val name = queryDocumentName(documentUri)
-            val extension = name.substringAfterLast('.', "").lowercase()
-            if (extension !in pending.allowedExtensions) {
+            val queriedName = queryDocumentName(documentUri)
+            val extension = resolvePickedFileExtension(
+                queriedName,
+                documentUri,
+                pending.allowedExtensions,
+            )
+            if (extension == null) {
                 pending.result.error("InvalidExtension", "请选择指定格式的文件", null)
                 return
             }
+            val name = queriedName?.takeIf { it.isNotBlank() } ?: "导入文件.$extension"
             val directory = File(cacheDir, "tv-file-picker")
             if (!directory.exists() && !directory.mkdirs()) {
                 pending.result.error("CacheUnavailable", "无法创建文件缓存目录", null)
@@ -475,19 +481,40 @@ class MainActivity : AudioServiceActivity() {
         return uri
     }
 
-    private fun queryDocumentName(documentUri: Uri): String {
-        contentResolver.query(
-            documentUri,
-            arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME),
-            null,
-            null,
-            null,
-        )?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                return cursor.getString(0)?.takeIf { it.isNotBlank() } ?: "已选目录"
+    private fun queryDocumentName(documentUri: Uri): String? {
+        try {
+            contentResolver.query(
+                documentUri,
+                arrayOf(OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    return cursor.getString(0)?.takeIf { it.isNotBlank() }
+                }
             }
+        } catch (_: Exception) {
+            // 部分电视文件管理器不提供显示名，稍后从 URI 或唯一扩展名恢复。
         }
-        return "已选目录"
+        return documentUri.lastPathSegment
+            ?.let(Uri::decode)
+            ?.substringAfterLast('/')
+            ?.substringAfterLast(':')
+            ?.takeIf { it.isNotBlank() }
+    }
+
+    private fun resolvePickedFileExtension(
+        displayName: String?,
+        documentUri: Uri,
+        allowedExtensions: Set<String>,
+    ): String? {
+        return AndroidPickedFileResolver.resolveExtension(
+            displayName = displayName,
+            uriPath = documentUri.lastPathSegment?.let(Uri::decode),
+            uriText = Uri.decode(documentUri.toString()),
+            allowedExtensions = allowedExtensions,
+        )
     }
 
     private fun handleEnterPictureInPicture(

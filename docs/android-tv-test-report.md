@@ -2,44 +2,44 @@
 
 ## 当前结论
 
-2.1.146 已完成自动化、Windows Release、Inno 安装器和 Android TV 个人预置包验证。当前 ADB 设备列表为空，本轮未安装到用户的海信电视，因此海信实机验收仍未完成。
+2.1.147 已完成自动化、Windows Release、Inno 安装器、Android TV 公共测试包和个人预置包验证。当前 ADB 设备列表为空，本轮未安装到用户的海信电视，因此海信实机验收仍未完成。
 
 ## 质量门禁
 
-- Dart 格式：`694` 个文件检查完成，`0` 个文件需要修改。
-- Flutter 测试：`1828/1828` 通过。
+- Dart 格式：`699` 个文件检查完成，`0` 个文件需要修改。
+- Flutter 测试：`1844/1844` 通过。
 - Flutter Analyze：`No issues found!`。
 - Windows Release：构建成功。
-- Android `tvTest` Release：构建成功，随后独立包验证全部通过。
+- Android `tvTest` 公共包和个人预置包：构建成功，随后独立包验证全部通过。
 
 ## Windows 交付证据
 
-- 版本：`2.1.146`。
-- Release 主程序：`D:\KanYingYin\build\windows\x64\runner\Release\kanyingyin.exe`。
+- 版本：`2.1.147`。
+- Release 主程序：`D:\KanYingYin\.worktrees\release-2.1.147\build\windows\x64\runner\Release\kanyingyin.exe`。
 - Release 主程序大小：`293376` 字节。
-- Release 主程序产品版本：`2.1.146`。
-- Release 主程序 SHA-256：`8E6DB2E81505EB8060A0D784E38B4799B1757F4CC80A9B9B9CD0F42577D3D60D`。
-- 桌面 Inno 安装器：`C:\Users\asus\Desktop\看影音-2.1.146-测试版-安装程序.exe`。
-- 安装器大小：`69828738` 字节。
-- 安装器产品版本：`2.1.146`。
-- 安装器 SHA-256：`FFE173B89A1EC5DD66B6F22935F51779E5EE7FB71FC487450A73BE4C82E3E3B0`。
+- Release 主程序产品版本：`2.1.147`。
+- Release 主程序 SHA-256：`D5434CE24B9B502F99213F417AE3CF8CEE07806A74C89843309BD6A300AA1DDC`。
+- 桌面 Inno 安装器：`C:\Users\asus\Desktop\看影音-2.1.147-测试版-安装程序.exe`。
+- 安装器大小：`69898411` 字节。
+- 安装器产品版本：`2.1.147`。
+- 安装器 SHA-256：`D674FE839B6181C3D02ED9490F5DCA3CBCBAA815D8D0BCC037A37F506E8BDA99`。
 - Authenticode 状态：`NotSigned`，测试版安装器未签名。
-- 本轮构建脚本未执行安装、卸载或启动操作；最终检查发现 Inno 版 `2.1.145` 已安装在 `D:\看影音`，主程序产品版本为 `2.1.145`。
+- 本轮构建脚本未执行安装、卸载或启动操作；最终检查发现 Inno 版 `2.1.147` 已安装在 `D:\看影音`，`unins000.exe` 存在。
 
 ## Android TV 交付证据
 
-- 版本：`2.1.146 (20146)`。
+- 版本：`2.1.147 (20147)`。
 - Flavor：`tvTest`。
 - 包名：`com.kanyingyin.player.tvtest`。
 - 最低版本：Android 7.0，API 24；目标 API 36。
-- 构建 APK：`D:\KanYingYin\build\app\outputs\flutter-apk\app-tvTest-release.apk`。
-- 桌面 APK：`C:\Users\asus\Desktop\看影音-2.1.146-TV个人预置测试版.apk`。
-- APK 大小：`143686968` 字节。
-- 源 APK 与桌面副本 SHA-256：`474ECC2CB8E89A0F07EEB1C4D79380649D369855FB5F55C7F087599D7FA2A1AC`，两者一致。
+- 公共构建 APK：`D:\KanYingYin\.worktrees\release-2.1.147\build\app\outputs\flutter-apk\app-tvTest-release.apk`。
+- 公共桌面 APK：`C:\Users\asus\Desktop\看影音-2.1.147-TV测试版.apk`，大小 `134712933` 字节，SHA-256 为 `5CFA500017F1D0A5099AF64DEE1F1B994C38C8B06AABD65D1C13012CAD661320`。
+- 个人预置桌面 APK：`C:\Users\asus\Desktop\看影音-2.1.147-TV个人预置测试版.apk`，大小 `143686972` 字节，SHA-256 为 `EB36466E06E246DFB746927CA709772ACFF5C41C584DB1A59A20FF61998CD338`。
+- 公共构建 APK 与公共桌面副本 SHA-256 一致；个人预置包单独通过包内资源校验。
 - APK v2 签名：通过；签名者数量为 `1`，证书 SHA-256 为 `aec3af6f3ef68cd65d4e1906508ecae9dc8720c808602dff3d219777c0663a46`。
 - Manifest：包含 `LEANBACK_LAUNCHER` 和 Banner；触摸屏声明为非必需。
 - Full `libmpv`：`arm64-v8a`、`armeabi-v7a`、`x86_64` 三个 ABI 均通过固定资产哈希验证。
-- 包内预置清单已启用；配置资源为 `6033` 字节，SHA-256 为 `f004709d080e3a68b29a4858a8eb27e5244ddbffa4f3533e1a0190642708cbc5`；刮削资料资源为 `8969974` 字节，SHA-256 为 `c1cf122f6282a9dbdcdb2c5f3d74061ab63a29c43eab46fe4bd410c6c22099c8`。
+- 公共包内仅保留禁用的 `assets/tv_preload/manifest.json`（`30` 字节）；个人包内预置清单为启用状态，配置资源为 `6033` 字节、SHA-256 为 `f004709d080e3a68b29a4858a8eb27e5244ddbffa4f3533e1a0190642708cbc5`，刮削资料资源为 `8969974` 字节、SHA-256 为 `c1cf122f6282a9dbdcdb2c5f3d74061ab63a29c43eab46fe4bd410c6c22099c8`。
 - 构建结束后工作区只保留禁用的 `assets/tv_preload/manifest.json`，`build/app/intermediates` 中个人资源残留为 `0`，两个密码环境变量均为空。
 
 ## 本轮自动化覆盖
@@ -68,7 +68,7 @@ ADB 输出只有 `List of devices attached`，没有已连接或已授权设备�
 | --- | --- | --- |
 | 用户海信电视 | `pending` | 未连接 ADB，Android API、ABI 和遥控器实机行为尚未取得证据 |
 | 标准 Android TV/Google TV | `pending` | 包级兼容检查通过，尚未完成真实设备安装与播放 |
-| Windows Inno 安装 | 已安装 `2.1.145` | 注册表安装目录为 `D:\看影音`，主程序产品版本为 `2.1.145`；本轮构建脚本未执行安装 |
+| Windows Inno 安装 | 已安装 `2.1.147` | 安装目录为 `D:\看影音`，主程序产品版本为 `2.1.147`；本轮构建脚本未执行安装 |
 | 旧 Windows MSIX | 未安装；历史文件存在 | `Get-AppxPackage` 未发现看影音 MSIX；工作区和桌面共保留 `165` 个历史 MSIX 文件，本轮未生成或交付 MSIX |
 
 本轮构建脚本没有执行安装，最终安装状态检查如上。若海信设备为 VIDAA 原生系统而没有 Android 底层，则不能安装本 APK。
@@ -78,6 +78,6 @@ ADB 输出只有 `List of devices attached`，没有已连接或已授权设备�
 ## 待完成项目
 
 - 连接海信电视并记录 Android API、ABI、Leanback、WebView 和 SAF 证据。
-- 安装 2.1.146 TV 个人预置 APK，重测首次自动导入、五列两行海报墙、所有子页面左键进入侧栏、弹窗与输入框返回、播放控制层返回和目录顶部焦点提示。
+- 安装 2.1.147 TV 个人预置 APK，重测首次自动导入、五列两行海报墙、所有子页面左键进入侧栏、弹窗与输入框返回、播放控制层返回和目录顶部焦点提示。
 - 实测同一局域网手机扫码、两个文件上传、电视确认或拒绝、四类网盘配置、手机成功页和 `.kyyconfig` 正确或错误密码导入。
 - 完成 1080p、4K HEVC、字幕、音轨、硬件解码、Anime4K 和个人网盘播放矩阵后，才能把海信设备结果改为 `passed`。

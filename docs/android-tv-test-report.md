@@ -2,7 +2,7 @@
 
 ## 当前结论
 
-2.1.145 的自动化、Windows Release、Inno 安装器构建和 Android TV 包验证已经通过。当前 ADB 设备列表为空，未安装到用户的海信电视，因此交付结论保持“构建与包验证通过，海信实机验收未完成”。
+2.1.146 正在进行自动化、Windows Release、Inno 安装器和 Android TV 个人预置包验证。当前 ADB 设备列表为空，未安装到用户的海信电视，因此海信实机验收未完成。
 
 ## 质量门禁
 
@@ -14,25 +14,25 @@
 
 ## Windows 交付证据
 
-- 版本：`2.1.145`。
+- 版本：`2.1.146`。
 - Release 主程序：`D:\KanYingYin\build\windows\x64\runner\Release\kanyingyin.exe`。
 - Release 主程序大小：`293376` 字节。
-- Release 主程序产品版本：`2.1.145`。
-- 桌面 Inno 安装器：`C:\Users\asus\Desktop\看影音-2.1.145-测试版-安装程序.exe`。
+- Release 主程序产品版本：构建后回填。
+- 桌面 Inno 安装器：`C:\Users\asus\Desktop\看影音-2.1.146-测试版-安装程序.exe`。
 - 安装器大小：`69828603` 字节。
-- 安装器产品版本：`2.1.145`。
+- 安装器产品版本：构建后回填。
 - 安装器 SHA-256：`CFE6A13A6A87381DDC18511A449AD4733226E4F878D8054977A66A0AA2E26B9E`。
 - Authenticode 状态：`NotSigned`，测试版安装器未签名。
 - 本轮构建脚本未执行安装、卸载或启动操作；最终检查发现 Inno 版 `2.1.145` 已安装在 `D:\看影音`，主程序产品版本为 `2.1.145`。
 
 ## Android TV 交付证据
 
-- 版本：`2.1.145 (20145)`。
+- 版本：`2.1.146 (20146)`。
 - Flavor：`tvTest`。
 - 包名：`com.kanyingyin.player.tvtest`。
 - 最低版本：Android 7.0，API 24；目标 API 36。
 - 构建 APK：`D:\KanYingYin\build\app\outputs\flutter-apk\app-tvTest-release.apk`。
-- 桌面 APK：`C:\Users\asus\Desktop\看影音-2.1.145-TV测试版.apk`。
+- 桌面 APK：`C:\Users\asus\Desktop\看影音-2.1.146-TV个人预置测试版.apk`。
 - APK 大小：`134679922` 字节。
 - 源 APK 与桌面副本 SHA-256：`1C4BA675A896A0BAB85B7BBD792D91BF652AC7638B527308740B8A21A2DBFA46`，两者一致。
 - APK v2 签名：通过；签名者数量为 `1`，证书 SHA-256 为 `aec3af6f3ef68cd65d4e1906508ecae9dc8720c808602dff3d219777c0663a46`。
@@ -74,6 +74,6 @@ ADB 输出只有 `List of devices attached`，没有已连接或已授权设备�
 ## 待完成项目
 
 - 连接海信电视并记录 Android API、ABI、Leanback、WebView 和 SAF 证据。
-- 安装 2.1.145 TV APK，重测五列两行海报墙、所有子页面左键进入侧栏、弹窗与输入框返回、播放控制层返回、导入文件选择和目录顶部焦点提示。
+- 安装 2.1.146 TV 个人预置 APK，重测首次自动导入、五列两行海报墙、所有子页面左键进入侧栏、弹窗与输入框返回、播放控制层返回和目录顶部焦点提示。
 - 实测同一局域网手机扫码、两个文件上传、电视确认或拒绝、四类网盘配置、手机成功页和 `.kyyconfig` 正确或错误密码导入。
 - 完成 1080p、4K HEVC、字幕、音轨、硬件解码、Anime4K 和个人网盘播放矩阵后，才能把海信设备结果改为 `passed`。

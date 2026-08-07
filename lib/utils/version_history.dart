@@ -164,6 +164,23 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.146',
+    date: '2026-08-07',
+    isPrerelease: true,
+    changes: [
+      'Windows 与 Android TV/Google TV 测试版升级到 2.1.146，个人 TV 预置包继续使用 tvTest flavor',
+      '个人预置测试包可在首次启动时自动导入 Windows 的 .kyyconfig 加密配置文件和 .kyymeta 刮削资料',
+      '配置迁移完成后刷新个人网盘来源，再恢复标题、简介、评分、海报和季集资料',
+      '相同预置资源只自动导入一次，网盘目录或媒体索引缺失时显示部分成功并允许后续重试',
+      '个人预置包包含 TMDB Key、网盘凭据和自动解密能力，只用于自己的电视，不可公开分发',
+      '普通 Android TV 测试包保持禁用预置导入，手机扫码配置和流式上传继续可用',
+      '手机扫码配置发送配置文件和刮削资料后仍由电视端确认，手机可明确判断结果',
+      'TV 海报墙继续保持五列、首屏两行和清晰焦点，电视导入成功或失败继续显示明确结果',
+      'Windows 继续交付 Inno Setup EXE，Android TV 包级验证完成后交付，海信实机验收未完成',
+      '本次更新不会修改或删除视频、字幕、个人网盘文件、媒体索引、缓存和播放历史',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.145',
     date: '2026-08-07',
     isPrerelease: true,

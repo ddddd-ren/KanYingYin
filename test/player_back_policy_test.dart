@@ -34,6 +34,22 @@ void main() {
     expect(action, PlayerBackAction.closeOverlay);
   });
 
+  test('Android TV 选集列表显示时返回键先关闭列表', () {
+    final action = Function.apply(
+      PlayerBackPolicy.decide,
+      const <Object?>[] ,
+      <Symbol, Object?>{
+        #overlayVisible: false,
+        #episodePanelVisible: true,
+        #fullscreen: false,
+        #controlsVisible: false,
+        #isAndroidTv: true,
+      },
+    );
+
+    expect(action, PlayerBackAction.closeEpisodePanel);
+  });
+
   test('Android 全屏播放按一次返回键直接离开播放器', () {
     final source = File('lib/pages/video/video_page.dart').readAsStringSync();
 

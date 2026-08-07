@@ -45,6 +45,47 @@ void main() {
     expect(android.prefetchAheadChunks, 6);
   });
 
+  test('Android TV 使用低峰值分段与单路预取', () {
+    const tuning = CloudRangeRelayTuning.androidTv;
+
+    expect(tuning.chunkSize, 2 * 1024 * 1024);
+    expect(tuning.maxChunks, 16);
+    expect(tuning.maxConcurrentReads, 3);
+    expect(tuning.maxConcurrentPrefetch, 1);
+    expect(tuning.prefetchAheadChunks, 2);
+    expect(tuning.adaptivePolicy, isNull);
+    expect(tuning.prefetchTailOnStart, isFalse);
+  });
+
+  test('Android TV 启动预取不会读取文件尾分段', () async {
+    final tvDirectory =
+        await Directory.systemTemp.createTemp('cloud-relay-tv-tail-');
+    final tvReader = _DelayedRangeReader(
+      totalLength: 12,
+      delay: const Duration(milliseconds: 20),
+    );
+    final tvSession = await CloudRangeRelaySession.start(
+      reader: tvReader,
+      directory: tvDirectory,
+      providerName: '电视测试网盘',
+      tuning: CloudRangeRelayTuning.androidTv,
+      chunkSize: 4,
+      maxChunks: 4,
+    );
+    try {
+      await _waitUntil(() => tvReader.readRanges.isNotEmpty);
+      expect(
+        tvReader.readRanges.map((range) => range.start),
+        isNot(contains(8)),
+      );
+    } finally {
+      await tvSession.close();
+      if (await tvDirectory.exists()) {
+        await tvDirectory.delete(recursive: true);
+      }
+    }
+  });
+
   test('并发分段速度按墙钟时间聚合而不是相加每路耗时', () async {
     const chunkSize = 256 * 1024;
     final speedDirectory =
@@ -476,6 +517,7 @@ class _DelayedRangeReader implements CloudRangeRemoteReader {
   final Duration delay;
   var activeReads = 0;
   var maxActiveReads = 0;
+  final List<ByteRange> readRanges = <ByteRange>[];
 
   @override
   String get contentType => 'video/mp4';
@@ -493,6 +535,7 @@ class _DelayedRangeReader implements CloudRangeRemoteReader {
 
   @override
   Future<void> readTo(ByteRange range, File destination) async {
+    readRanges.add(range);
     activeReads++;
     if (activeReads > maxActiveReads) maxActiveReads = activeReads;
     try {

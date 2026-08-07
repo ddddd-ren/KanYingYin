@@ -4,7 +4,8 @@ param(
     [string]$VersionFixturePath,
     [ValidateSet('mobile', 'tvTest')]
     [string]$Flavor = 'mobile',
-    [switch]$ApkOnly
+    [switch]$ApkOnly,
+    [string[]]$DartDefines = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -95,13 +96,24 @@ try {
     } else {
         'com.kanyingyin.player'
     }
+    $dartDefineArguments = @()
+    foreach ($define in $DartDefines) {
+        if ([string]::IsNullOrWhiteSpace($define)) {
+            throw 'Dart defines cannot contain empty values'
+        }
+        $dartDefineArguments += '--dart-define'
+        $dartDefineArguments += $define
+    }
 
     Push-Location $projectRoot
     try {
         $previousErrorAction = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
         try {
-            $apkBuildOutput = & $flutter build apk --release --flavor $Flavor --no-pub 2>&1
+            $apkBuildArguments = @(
+                'build', 'apk', '--release', '--flavor', $Flavor, '--no-pub'
+            ) + $dartDefineArguments
+            $apkBuildOutput = & $flutter @apkBuildArguments 2>&1
             $apkBuildExitCode = $LASTEXITCODE
         } finally {
             $ErrorActionPreference = $previousErrorAction
@@ -112,7 +124,10 @@ try {
             $previousErrorAction = $ErrorActionPreference
             $ErrorActionPreference = 'Continue'
             try {
-                $aabBuildOutput = & $flutter build appbundle --release --flavor $Flavor --no-pub 2>&1
+                $aabBuildArguments = @(
+                    'build', 'appbundle', '--release', '--flavor', $Flavor, '--no-pub'
+                ) + $dartDefineArguments
+                $aabBuildOutput = & $flutter @aabBuildArguments 2>&1
                 $aabBuildExitCode = $LASTEXITCODE
             } finally {
                 $ErrorActionPreference = $previousErrorAction

@@ -38,6 +38,8 @@ migrate_working_dir/
 *.private-build.json
 /tool/windows/private-output/
 /tool/android/private-output/
+/assets/tv_preload/configuration.kyyconfig
+/assets/tv_preload/metadata.kyymeta
 /android/key.properties
 *.jks
 *.keystore

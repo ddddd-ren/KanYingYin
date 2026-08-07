@@ -34,6 +34,7 @@ import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_motion.dart';
 import 'package:kanyingyin/features/history/presentation/history_page.dart';
 import 'package:kanyingyin/features/tv_pairing/application/tv_pairing_controller.dart';
+import 'package:kanyingyin/features/tv_pairing/application/tv_pairing_file_import_coordinator.dart';
 import 'package:kanyingyin/features/tv_pairing/presentation/tv_pairing_page.dart';
 import 'package:kanyingyin/features/configuration_transfer/application/configuration_importer.dart';
 
@@ -183,6 +184,10 @@ class SettingsModule extends Module {
       child: (_) => TvPairingPage(
         controller: TvPairingController(
           importer: Modular.get<ConfigurationImporter>(),
+          fileImporter: TvPairingFileImportCoordinator(
+            configurationTransfer: Modular.get<ConfigurationTransferService>(),
+            metadataTransfer: Modular.get<ScrapedMetadataTransferService>(),
+          ),
         ),
         onCompleted: Modular.get<CloudLibraryController>().load,
       ),

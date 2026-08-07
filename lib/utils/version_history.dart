@@ -164,6 +164,23 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.145',
+    date: '2026-08-07',
+    isPrerelease: true,
+    changes: [
+      'Windows 与 Android TV/Google TV 测试版继续使用 tvTest flavor；海信电视需要 Android 底层并允许侧载，VIDAA 原生系统不支持',
+      '当前自动化和包级验证已完成，海信实机验收未完成',
+      'Android TV 海报墙固定为五列、一行五张、首屏两行，卡片缩小并保持遥控器焦点顺序稳定',
+      '配置迁移现在可以通过手机扫码直接发送文件，电视端确认后导入',
+      '手机扫码配置页面新增 .kyyconfig 配置文件和 .kyymeta 刮削资料文件选择，可与 TMDB、网盘来源配置一起发送',
+      '文件通过一次性配对令牌在同一局域网内流式上传到电视临时目录，二维码和 JSON 不承载大文件，配对结束后自动清理临时文件',
+      '.kyyconfig 继续使用原有密码解密、预览、确认和失败保护，电视端确认后才写入配置',
+      '.kyymeta 会在配置导入后重新匹配本地和个人网盘媒体，并显示可匹配资料、缺失媒体和可恢复图片数量',
+      '手机端显示文件选择、上传中、等待电视确认、电视导入成功或失败状态，扫码后可以明确判断结果',
+      '本次更新不会修改或删除视频、字幕、索引、缓存和播放历史',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.144',
     date: '2026-08-07',
     isPrerelease: true,

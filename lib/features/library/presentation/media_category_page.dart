@@ -240,11 +240,9 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
       key: const ValueKey<String>('media-category-focus-group'),
       child: GridView.builder(
         padding: policy.gridPadding(const EdgeInsets.all(12)),
-        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: policy.posterMaxCrossAxisExtent(280),
-          crossAxisSpacing: policy.gridSpacing(12),
-          mainAxisSpacing: policy.gridSpacing(12),
-          childAspectRatio: 0.68,
+        gridDelegate: policy.posterGridDelegate(
+          fallbackMaxCrossAxisExtent: 280,
+          fallbackChildAspectRatio: 0.68,
         ),
         itemCount: series.length,
         itemBuilder: (context, index) => _seriesCard(context, series[index]),

@@ -187,13 +187,11 @@ class LibraryMediaGrid extends StatelessWidget {
         key: const ValueKey<String>('library-media-grid-focus-group'),
         child: GridView.builder(
           padding: policy.gridPadding(const EdgeInsets.all(12)),
-          gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-            maxCrossAxisExtent: policy.posterMaxCrossAxisExtent(300),
-            crossAxisSpacing: policy.gridSpacing(12),
-            mainAxisSpacing: policy.gridSpacing(12),
-            childAspectRatio: 0.68,
+          gridDelegate: policy.posterGridDelegate(
+            fallbackMaxCrossAxisExtent: 300,
+            fallbackChildAspectRatio: 0.68,
           ),
-          itemCount: 8, // 显示8个骨架屏占位
+          itemCount: policy.isAndroidTv ? 10 : 8, // 电视首屏保持两行五列占位
           itemBuilder: (context, index) => const MediaCardSkeleton(),
         ),
       );
@@ -247,11 +245,9 @@ class LibraryMediaGrid extends StatelessWidget {
       child: GridView.builder(
         controller: scrollController,
         padding: policy.gridPadding(const EdgeInsets.all(12)),
-        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: policy.posterMaxCrossAxisExtent(300),
-          crossAxisSpacing: policy.gridSpacing(12),
-          mainAxisSpacing: policy.gridSpacing(12),
-          childAspectRatio: 0.68,
+        gridDelegate: policy.posterGridDelegate(
+          fallbackMaxCrossAxisExtent: 300,
+          fallbackChildAspectRatio: 0.68,
         ),
         itemCount: data.items.length,
         findChildIndexCallback: (key) {

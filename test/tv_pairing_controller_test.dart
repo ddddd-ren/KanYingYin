@@ -2,7 +2,9 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/configuration_transfer/application/configuration_importer.dart';
 import 'package:kanyingyin/features/configuration_transfer/domain/portable_app_configuration.dart';
+import 'package:kanyingyin/features/scraped_metadata_transfer/domain/scraped_metadata_transfer_models.dart';
 import 'package:kanyingyin/features/tv_pairing/application/tv_pairing_controller.dart';
+import 'package:kanyingyin/features/tv_pairing/application/tv_pairing_file_import_coordinator.dart';
 import 'package:kanyingyin/features/tv_pairing/data/tv_pairing_http_server.dart';
 import 'package:kanyingyin/features/tv_pairing/domain/tv_pairing_models.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
@@ -139,6 +141,33 @@ void main() {
     expect(controller.state, TvPairingState.idle);
     expect(controller.pendingSummary, isNull);
   });
+
+  test('配对确认会导入手机上传的配置和刮削资料文件', () async {
+    controller.dispose();
+    final fileImporter = _FakeTvPairingFileImporter();
+    controller = TvPairingController(
+      importer: ConfigurationImporter(
+        sourceRepository: repository,
+        tmdbCredentialManager: tmdbManager,
+      ),
+      fileImporter: fileImporter,
+      server: server,
+      now: () => DateTime.utc(2026, 8, 6, 12),
+    );
+    await controller.start();
+    final submission = server.submit(_payloadWithFiles());
+    await Future<void>.delayed(Duration.zero);
+
+    expect(controller.state, TvPairingState.awaitingConfirmation);
+    expect(controller.pendingSummary?.hasConfigurationFile, isTrue);
+    expect(controller.pendingSummary?.hasScrapedMetadataFile, isTrue);
+    await controller.confirmPending();
+
+    expect(await submission, TvPairingSubmissionResult.accepted);
+    expect(fileImporter.previewCount, 1);
+    expect(fileImporter.applyCount, 1);
+    expect(controller.state, TvPairingState.success);
+  });
 }
 
 TvPairingPayload _payload() => TvPairingPayload(
@@ -161,6 +190,38 @@ TvPairingPayload _payload() => TvPairingPayload(
           ),
         ],
       ),
+    );
+
+TvPairingPayload _payloadWithFiles() => TvPairingPayload(
+      protocolVersion: TvPairingPayload.currentProtocolVersion,
+      deviceName: '客厅电视',
+      configuration: PortableAppConfiguration.create(
+        exportedAt: DateTime.utc(2026, 8, 7),
+        appVersion: 'phone-web',
+        tmdbApiKey: '',
+        cloudSources: const <PortableCloudSourceConfiguration>[],
+      ),
+      fileIds: const <TvPairingFileKind, String>{
+        TvPairingFileKind.configuration: 'config-id',
+        TvPairingFileKind.scrapedMetadata: 'metadata-id',
+      },
+      uploadedFiles: const <TvPairingFileKind, TvPairingUploadedFile>{
+        TvPairingFileKind.configuration: TvPairingUploadedFile(
+          id: 'config-id',
+          kind: TvPairingFileKind.configuration,
+          name: 'config.kyyconfig',
+          size: 3,
+          path: 'config-path',
+        ),
+        TvPairingFileKind.scrapedMetadata: TvPairingUploadedFile(
+          id: 'metadata-id',
+          kind: TvPairingFileKind.scrapedMetadata,
+          name: 'metadata.kyymeta',
+          size: 3,
+          path: 'metadata-path',
+        ),
+      },
+      configurationFilePassword: 'password-secret',
     );
 
 class _FakePairingServer implements TvPairingServer {
@@ -227,4 +288,48 @@ class _FailingConfigurationImporter implements ConfigurationImportPort {
         tmdbWillUpdate: true,
         requiresRootSelection: 0,
       );
+}
+
+class _FakeTvPairingFileImporter implements TvPairingFileImportPort {
+  int previewCount = 0;
+  int applyCount = 0;
+
+  @override
+  Future<TvPairingFileImportPreview> preview(TvPairingPayload payload) async {
+    previewCount++;
+    return const TvPairingFileImportPreview(
+      configurationSummary: ConfigurationMergeSummary(
+        added: 0,
+        updated: 0,
+        preserved: 0,
+        tmdbWillUpdate: false,
+        requiresRootSelection: 0,
+      ),
+      hasConfigurationFile: true,
+      hasScrapedMetadataFile: true,
+      metadataMatchedCount: 10,
+      metadataMissingMediaCount: 1,
+      metadataRecoverableImageCount: 2,
+    );
+  }
+
+  @override
+  Future<TvPairingFileImportResult> apply(TvPairingPayload payload) async {
+    applyCount++;
+    return const TvPairingFileImportResult(
+      configurationSummary: ConfigurationMergeSummary(
+        added: 0,
+        updated: 0,
+        preserved: 0,
+        tmdbWillUpdate: false,
+        requiresRootSelection: 0,
+      ),
+      metadataResult: ScrapedMetadataTransferResult(
+        localCount: 1,
+        cloudCount: 2,
+        imageCount: 2,
+        skippedCount: 1,
+      ),
+    );
+  }
 }

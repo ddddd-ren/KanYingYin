@@ -75,11 +75,9 @@ class CloudResourcePosterWall extends StatelessWidget {
       key: const ValueKey<String>('cloud-resource-poster-focus-group'),
       child: GridView.builder(
         padding: policy.gridPadding(const EdgeInsets.all(12)),
-        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: policy.posterMaxCrossAxisExtent(300),
-          mainAxisSpacing: policy.gridSpacing(12),
-          crossAxisSpacing: policy.gridSpacing(12),
-          childAspectRatio: 0.68,
+        gridDelegate: policy.posterGridDelegate(
+          fallbackMaxCrossAxisExtent: 300,
+          fallbackChildAspectRatio: 0.68,
         ),
         itemCount: collection.groups.length,
         findChildIndexCallback: (key) {

@@ -132,4 +132,44 @@ void main() {
       throwsA(isA<TvPairingInvalidPayloadException>()),
     );
   });
+
+  test('配对载荷支持两类导入文件引用且不泄漏配置密码', () {
+    final payload = TvPairingPayload(
+      protocolVersion: TvPairingPayload.currentProtocolVersion,
+      deviceName: '电视',
+      configuration: PortableAppConfiguration.create(
+        exportedAt: DateTime.utc(2026, 8, 7),
+        appVersion: 'phone-web',
+        tmdbApiKey: '',
+        cloudSources: const <PortableCloudSourceConfiguration>[],
+      ),
+      fileIds: const <TvPairingFileKind, String>{
+        TvPairingFileKind.configuration: 'config-file',
+        TvPairingFileKind.scrapedMetadata: 'meta-file',
+      },
+      configurationFilePassword: 'password-secret',
+    );
+
+    final restored = TvPairingPayload.decode(payload.encode());
+
+    expect(restored.fileIds, payload.fileIds);
+    expect(restored.configurationFilePassword, 'password-secret');
+    expect(restored.toString(), isNot(contains('password-secret')));
+  });
+
+  test('配置文件引用必须携带密码且只允许两种扩展名', () {
+    expect(
+      () => TvPairingPayload.fromJson(<String, Object?>{
+        'protocolVersion': TvPairingPayload.currentProtocolVersion,
+        'deviceName': '电视',
+        'configuration': <String, Object?>{},
+        'fileIds': <String, Object?>{'configuration': 'file-id'},
+      }),
+      throwsA(isA<TvPairingInvalidPayloadException>()),
+    );
+    expect(
+      () => TvPairingFileKind.fromWireValue('unknown'),
+      throwsA(isA<TvPairingInvalidPayloadException>()),
+    );
+  });
 }

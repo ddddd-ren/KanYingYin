@@ -242,9 +242,110 @@ void main() {
     expect(expiredResponse.statusCode, HttpStatus.gone);
     expect(session.isConsumed, isFalse);
   });
+
+  test('手机可以上传配置和刮削资料文件，提交时电视端收到临时文件', () async {
+    TvPairingPayload? received;
+    final endpoint = await server.start(
+      session: session,
+      onPhoneConnected: () {},
+      onPayload: (payload) async {
+        received = payload;
+        expect(payload.uploadedFiles, hasLength(2));
+        for (final file in payload.uploadedFiles.values) {
+          expect(
+              await File(file.path).readAsBytes(),
+              file.kind == TvPairingFileKind.configuration
+                  ? <int>[1, 2, 3]
+                  : <int>[4, 5, 6]);
+        }
+        return TvPairingSubmissionResult.accepted;
+      },
+    );
+
+    final configUpload = await _request(
+      endpoint.fileUploadApiUri,
+      method: 'POST',
+      token: session.token,
+      contentType: ContentType.binary,
+      headers: <String, String>{
+        'X-Pairing-File-Kind': 'configuration',
+        'X-Pairing-File-Name': Uri.encodeComponent('看影音配置.kyyconfig'),
+      },
+      body: <int>[1, 2, 3],
+    );
+    final metaUpload = await _request(
+      endpoint.fileUploadApiUri,
+      method: 'POST',
+      token: session.token,
+      contentType: ContentType.binary,
+      headers: <String, String>{
+        'X-Pairing-File-Kind': 'scrapedMetadata',
+        'X-Pairing-File-Name': Uri.encodeComponent('看影音刮削资料.kyymeta'),
+      },
+      body: <int>[4, 5, 6],
+    );
+
+    final configId = (jsonDecode(configUpload.body) as Map)['fileId'] as String;
+    final metaId = (jsonDecode(metaUpload.body) as Map)['fileId'] as String;
+    final response = await _request(
+      endpoint.pairApiUri,
+      method: 'POST',
+      token: session.token,
+      contentType: ContentType.json,
+      body: _payloadBytes(
+        fileIds: <String, String>{
+          'configuration': configId,
+          'scrapedMetadata': metaId,
+        },
+        configurationFilePassword: 'password-secret',
+      ),
+    );
+
+    expect(configUpload.statusCode, HttpStatus.created);
+    expect(metaUpload.statusCode, HttpStatus.created);
+    expect(response.statusCode, HttpStatus.ok);
+    expect(received?.fileIds[TvPairingFileKind.configuration], configId);
+  });
+
+  test('上传文件扩展名、令牌和大小限制生效', () async {
+    final endpoint = await server.start(
+      session: session,
+      onPhoneConnected: () {},
+      onPayload: (_) async => TvPairingSubmissionResult.accepted,
+    );
+    final invalidExtension = await _request(
+      endpoint.fileUploadApiUri,
+      method: 'POST',
+      token: session.token,
+      contentType: ContentType.binary,
+      headers: <String, String>{
+        'X-Pairing-File-Kind': 'configuration',
+        'X-Pairing-File-Name': 'secret.txt',
+      },
+      body: <int>[1],
+    );
+    final invalidToken = await _request(
+      endpoint.fileUploadApiUri,
+      method: 'POST',
+      token: 'wrong-token',
+      contentType: ContentType.binary,
+      headers: <String, String>{
+        'X-Pairing-File-Kind': 'configuration',
+        'X-Pairing-File-Name': 'config.kyyconfig',
+      },
+      body: <int>[1],
+    );
+
+    expect(invalidExtension.statusCode, HttpStatus.badRequest);
+    expect(invalidToken.statusCode, HttpStatus.unauthorized);
+  });
 }
 
-List<int> _payloadBytes({List<Object?> cloudSources = const <Object?>[]}) =>
+List<int> _payloadBytes({
+  List<Object?> cloudSources = const <Object?>[],
+  Map<String, String>? fileIds,
+  String? configurationFilePassword,
+}) =>
     utf8.encode(jsonEncode(<String, Object?>{
       'protocolVersion': TvPairingPayload.currentProtocolVersion,
       'deviceName': '手机配置',
@@ -255,6 +356,9 @@ List<int> _payloadBytes({List<Object?> cloudSources = const <Object?>[]}) =>
         'tmdbApiKey': '',
         'cloudSources': cloudSources,
       },
+      if (fileIds != null) 'fileIds': fileIds,
+      if (configurationFilePassword != null)
+        'configurationFilePassword': configurationFilePassword,
     }));
 
 List<Object?> _allProviderRecords() => <Object?>[
@@ -319,12 +423,14 @@ Future<_HttpResult> _request(
   String method = 'GET',
   String? token,
   ContentType? contentType,
+  Map<String, String> headers = const <String, String>{},
   List<int>? body,
 }) async {
   final client = HttpClient();
   try {
     final request = await client.openUrl(method, uri);
     if (token != null) request.headers.set('X-Pairing-Token', token);
+    headers.forEach(request.headers.set);
     if (contentType != null) request.headers.contentType = contentType;
     if (body != null) request.add(body);
     final response = await request.close();

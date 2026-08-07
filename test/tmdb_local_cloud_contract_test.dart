@@ -85,6 +85,58 @@ void main() {
     }
     expect(plans.first.mediaTypes, const <TmdbMediaType>[TmdbMediaType.tv]);
   });
+
+  test('本地和网盘电影发布名生成相同查询词、年份和媒体类型', () {
+    const name = 'Annihilation.2018.BluRay.2160p.x265.10bit.HDR.mkv';
+    final localItem = LocalMediaIndexItem(
+      path: 'D:\\Media\\$name',
+      name: name,
+      parentPath: r'D:\Media',
+      sourcePath: r'D:\Media',
+      size: 10,
+      modified: DateTime(2026),
+      seriesName: name,
+      indexedAt: DateTime(2026),
+    );
+    const remote = CloudFileEntry(
+      id: 'movie',
+      remotePath: '/Movies/$name',
+      name: name,
+      size: 10,
+      modifiedAt: null,
+      isDirectory: false,
+    );
+    const work = CloudWorkIdentity(
+      sourceId: 'source',
+      workKey: 'movie',
+      root: remote,
+      remoteName: name,
+      displayTitle: name,
+      titleCandidates: <String>[name],
+      seasons: <CloudSeasonIdentity>[],
+      standaloneVideos: <CloudFileEntry>[remote],
+    );
+    final policy = const TmdbScrapePolicy();
+    const options = TmdbScrapeOptions.defaults();
+    final localPlan = policy.build(
+      const LocalTmdbSubjectBuilder().build(
+        seriesName: name,
+        items: <LocalMediaIndexItem>[localItem],
+      ),
+      options,
+    );
+    final cloudPlan = policy.build(
+      const CloudTmdbSubjectBuilder().forWork(work),
+      options,
+    );
+
+    expect(localPlan.queries, cloudPlan.queries);
+    expect(localPlan.queries.first, 'Annihilation');
+    expect(localPlan.year, 2018);
+    expect(cloudPlan.year, 2018);
+    expect(localPlan.mediaTypes, <TmdbMediaType>[TmdbMediaType.movie]);
+    expect(cloudPlan.mediaTypes, localPlan.mediaTypes);
+  });
 }
 
 abstract interface class TmdbScrapeSubjectLike {

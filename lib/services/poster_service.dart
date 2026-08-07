@@ -1,39 +1,69 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:kanyingyin/core/network/dio_factory.dart';
+import 'package:kanyingyin/core/network/network_config.dart';
 import 'package:kanyingyin/services/local_cover_finder.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_endpoint_policy.dart';
 import 'package:kanyingyin/utils/logger.dart';
+import 'package:kanyingyin/utils/network_settings_config_factory.dart';
+import 'package:kanyingyin/utils/proxy_manager.dart';
 import 'package:kanyingyin/modules/local/local_episode_info.dart';
 import 'package:path/path.dart' as p;
 
+typedef PosterDioFactory = Dio Function();
+typedef PosterProxyRecovery = Future<bool> Function();
+
 class PosterService {
-  final Dio _dio;
-  final Dio _downloadDio;
+  Dio _dio;
+  Dio _downloadDio;
   final TmdbApiKeyProvider _apiKeyProvider;
+  final PosterDioFactory? _apiDioFactory;
+  final PosterDioFactory? _downloadDioFactory;
+  final PosterProxyRecovery? _recoverProxy;
+  Future<bool>? _recoveringNetwork;
   String? _workingBaseUrl;
 
   PosterService({
     TmdbApiKeyProvider? apiKeyProvider,
     Dio? apiDio,
     Dio? downloadDio,
+    PosterDioFactory? apiDioFactory,
+    PosterDioFactory? downloadDioFactory,
+    PosterProxyRecovery? recoverProxy,
   })  : _apiKeyProvider =
             apiKeyProvider ?? TmdbApiKeyProvider(userKeyReader: () => ''),
-        _downloadDio = downloadDio ??
-            Dio(
-              BaseOptions(
-                connectTimeout: const Duration(seconds: 10),
-                receiveTimeout: const Duration(seconds: 30),
-              ),
-            ),
+        _apiDioFactory = apiDioFactory ??
+            (apiDio == null
+                ? () => _createDefaultDio(
+                      connectTimeout: const Duration(seconds: 8),
+                      receiveTimeout: const Duration(seconds: 10),
+                    )
+                : null),
+        _downloadDioFactory = downloadDioFactory ??
+            (downloadDio == null
+                ? () => _createDefaultDio(
+                      connectTimeout: const Duration(seconds: 10),
+                      receiveTimeout: const Duration(seconds: 30),
+                    )
+                : null),
+        _recoverProxy = recoverProxy ??
+            ((apiDio == null && downloadDio == null)
+                ? ProxyManager.recoverOnlineResourceProxy
+                : null),
         _dio = apiDio ??
-            Dio(
-              BaseOptions(
-                connectTimeout: const Duration(seconds: 8),
-                receiveTimeout: const Duration(seconds: 10),
-              ),
-            );
+            (apiDioFactory ??
+                (() => _createDefaultDio(
+                      connectTimeout: const Duration(seconds: 8),
+                      receiveTimeout: const Duration(seconds: 10),
+                    )))(),
+        _downloadDio = downloadDio ??
+            (downloadDioFactory ??
+                (() => _createDefaultDio(
+                      connectTimeout: const Duration(seconds: 10),
+                      receiveTimeout: const Duration(seconds: 30),
+                    )))();
 
   final Map<String, String?> _searchCache = {};
 
@@ -233,11 +263,7 @@ class PosterService {
         return savePath;
       }
 
-      final response = await _downloadDio.get<List<int>>(
-        posterUrl,
-        options: Options(responseType: ResponseType.bytes),
-      );
-      final bytes = response.data;
+      final bytes = await _downloadBytes(posterUrl);
       if (bytes == null || bytes.isEmpty) {
         throw const FormatException('海报响应为空');
       }
@@ -267,11 +293,7 @@ class PosterService {
 
       await File(savePath).parent.create(recursive: true);
 
-      final response = await _downloadDio.get<List<int>>(
-        posterUrl,
-        options: Options(responseType: ResponseType.bytes),
-      );
-      final bytes = response.data;
+      final bytes = await _downloadBytes(posterUrl);
       if (bytes == null || bytes.isEmpty) {
         throw const FormatException('海报响应为空');
       }
@@ -316,6 +338,96 @@ class PosterService {
       }
     }
 
+    if (await _recoverAndRebuildNetwork()) {
+      for (final baseUrl in TmdbEndpointPolicy.apiBaseUrls) {
+        try {
+          await _dio.get<Object?>(
+            '$baseUrl/configuration',
+            queryParameters: <String, String>{'api_key': apiKey},
+          );
+          _workingBaseUrl = baseUrl;
+          AppLogger()
+              .i('PosterService: TMDB 代理恢复后已连接 ${Uri.parse(baseUrl).host}');
+          return baseUrl;
+        } on DioException catch (error) {
+          if (!TmdbEndpointPolicy.canTryAnotherEndpoint(error)) return null;
+        }
+      }
+    }
+
     return null;
+  }
+
+  Future<List<int>?> _downloadBytes(String posterUrl) async {
+    try {
+      final response = await _downloadDio.get<List<int>>(
+        posterUrl,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      return response.data;
+    } on DioException catch (error, stackTrace) {
+      if (!TmdbEndpointPolicy.canTryAnotherEndpoint(error) ||
+          !await _recoverAndRebuildNetwork()) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+      final response = await _downloadDio.get<List<int>>(
+        posterUrl,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      return response.data;
+    }
+  }
+
+  Future<bool> _recoverAndRebuildNetwork() {
+    final existing = _recoveringNetwork;
+    if (existing != null) return existing;
+    final task = _recoverAndRebuildNetworkOnce();
+    _recoveringNetwork = task;
+    return task.whenComplete(() {
+      if (identical(_recoveringNetwork, task)) _recoveringNetwork = null;
+    });
+  }
+
+  Future<bool> _recoverAndRebuildNetworkOnce() async {
+    final recoverProxy = _recoverProxy;
+    if (recoverProxy == null || !await recoverProxy()) return false;
+
+    final downloadFactory = _downloadDioFactory;
+    if (downloadFactory != null) {
+      final previous = _downloadDio;
+      final replacement = downloadFactory();
+      _downloadDio = replacement;
+      if (!identical(previous, replacement)) previous.close(force: true);
+    }
+    final apiFactory = _apiDioFactory;
+    if (apiFactory != null) {
+      final previous = _dio;
+      final replacement = apiFactory();
+      _dio = replacement;
+      if (!identical(previous, replacement)) previous.close(force: true);
+    }
+    _workingBaseUrl = null;
+    return true;
+  }
+
+  static Dio _createDefaultDio({
+    required Duration connectTimeout,
+    required Duration receiveTimeout,
+  }) {
+    try {
+      final config = NetworkSettingsConfigFactory.create(
+        connectTimeout: connectTimeout,
+        receiveTimeout: receiveTimeout,
+      );
+      return DioFactory.createForConfig(config);
+    } on Object {
+      // 单元测试或早期初始化阶段没有设置盒时仍使用默认网络配置。
+      return DioFactory.createForConfig(
+        NetworkConfig(
+          connectTimeout: connectTimeout,
+          receiveTimeout: receiveTimeout,
+        ),
+      );
+    }
   }
 }

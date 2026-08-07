@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/features/player/application/player_runtime_preferences.dart';
+import 'package:kanyingyin/features/player/application/player_color_profile.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 
@@ -34,6 +35,20 @@ void main() {
     expect(value.hardwareDecoder, isNotEmpty);
     expect(value.buttonSkipTime, 80);
     expect(value.arrowKeySkipTime, 10);
+    expect(value.colorProfile, PlayerColorProfile.automatic);
+  });
+
+  test('播放器色彩方案使用强类型存储并安全回退', () async {
+    final preferences = PlayerRuntimePreferences(TypedSettings(box));
+    await box.put(
+      SettingBoxKey.playerColorProfile,
+      PlayerColorProfile.hdrToSdr.storageValue,
+    );
+
+    expect(preferences.load().colorProfile, PlayerColorProfile.hdrToSdr);
+
+    await box.put(SettingBoxKey.playerColorProfile, 'invalid');
+    expect(preferences.load().colorProfile, PlayerColorProfile.automatic);
   });
 
   test('保存跳转时间后下一次加载可见', () async {

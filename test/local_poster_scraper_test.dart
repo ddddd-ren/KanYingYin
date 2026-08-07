@@ -292,7 +292,8 @@ void main() {
     expect(service.downloadedUrls, ['https://example.test/show.jpg']);
   });
 
-  test('LocalPosterScraper uses fallback cover when search throws', () async {
+  test('LocalPosterScraper uses shared fallback without legacy search',
+      () async {
     final service = _FakePosterService(
       searchResults: {'Show': Exception('search failed')},
       downloadResults: {
@@ -319,8 +320,40 @@ void main() {
 
     expect(result.success, 1);
     expect(result.failed, 0);
-    expect(service.searchQueries, ['Show']);
+    expect(service.searchQueries, isEmpty);
     expect(service.downloadedUrls, ['https://example.test/bangumi.jpg']);
+  });
+
+  test(
+      'LocalPosterScraper prefers the shared TMDB fallback before legacy search',
+      () async {
+    final service = _FakePosterService(
+      searchResults: {'Show': 'https://example.test/wrong.jpg'},
+      downloadResults: {
+        'https://example.test/shared.jpg': r'D:\Media\show.jpg',
+      },
+    );
+
+    final result = await LocalPosterScraper(
+      posterService: service,
+    ).scrapeMissingPosters(
+      [
+        _video(
+          path: r'D:\Media\Show S01E01.mkv',
+          name: 'Show S01E01.mkv',
+          episodeInfo: const LocalEpisodeInfo(
+            seriesName: 'Show',
+            seasonNumber: 1,
+            episodeNumber: 1,
+          ),
+        ),
+      ],
+      fallbackCover: (_) => 'https://example.test/shared.jpg',
+    );
+
+    expect(result.success, 1);
+    expect(service.searchQueries, isEmpty);
+    expect(service.downloadedUrls, ['https://example.test/shared.jpg']);
   });
 
   test('LocalPosterScraper 将 Android 文档海报下载到应用缓存', () async {

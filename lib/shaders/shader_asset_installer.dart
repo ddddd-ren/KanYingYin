@@ -58,17 +58,12 @@ final class ShaderAssetInstaller {
       final assetPaths = await _assetPathsProvider();
       Object? firstError;
       StackTrace? firstStackTrace;
-      for (final assetPath in assetPaths.where(
-        (assetPath) =>
-            assetPath.startsWith('assets/shaders/') &&
-            assetPath.endsWith('.glsl'),
-      )) {
+      for (final assetPath in assetPaths.where(_isAllowedShaderAsset)) {
         try {
           final target = File(
             p.join(directory.path, p.posix.basename(assetPath)),
           );
-          if (await target.exists()) continue;
-          await target.writeAsBytes(await _assetReader(assetPath));
+          await _installAsset(target, await _assetReader(assetPath));
         } on Object catch (error, stackTrace) {
           firstError ??= error;
           firstStackTrace ??= stackTrace;
@@ -86,5 +81,54 @@ final class ShaderAssetInstaller {
         stackTrace: stackTrace,
       );
     }
+  }
+
+  bool _isAllowedShaderAsset(String assetPath) {
+    const prefix = 'assets/shaders/';
+    if (!assetPath.startsWith(prefix) || !assetPath.endsWith('.glsl')) {
+      return false;
+    }
+    final relative = assetPath.substring(prefix.length);
+    return relative.isNotEmpty &&
+        !relative.contains('/') &&
+        !relative.contains('\\') &&
+        relative != '.' &&
+        relative != '..';
+  }
+
+  Future<void> _installAsset(File target, List<int> bytes) async {
+    final temporary = File('${target.path}.installing');
+    final previous = File('${target.path}.previous');
+    if (!await target.exists() && await previous.exists()) {
+      await previous.rename(target.path);
+    }
+    if (await target.exists()) {
+      final current = await target.readAsBytes();
+      if (_sameBytes(current, bytes)) return;
+    }
+    if (await temporary.exists()) await temporary.delete();
+    if (await previous.exists()) await previous.delete();
+    await temporary.writeAsBytes(bytes, flush: true);
+
+    final hadPrevious = await target.exists();
+    if (hadPrevious) await target.rename(previous.path);
+    try {
+      await temporary.rename(target.path);
+      if (await previous.exists()) await previous.delete();
+    } on Object {
+      if (!await target.exists() && await previous.exists()) {
+        await previous.rename(target.path);
+      }
+      if (await temporary.exists()) await temporary.delete();
+      rethrow;
+    }
+  }
+
+  bool _sameBytes(List<int> first, List<int> second) {
+    if (first.length != second.length) return false;
+    for (var index = 0; index < first.length; index++) {
+      if (first[index] != second[index]) return false;
+    }
+    return true;
   }
 }

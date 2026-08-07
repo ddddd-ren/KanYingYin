@@ -37,7 +37,7 @@ void main() {
   test('Android TV 选集列表显示时返回键先关闭列表', () {
     final action = Function.apply(
       PlayerBackPolicy.decide,
-      const <Object?>[] ,
+      const <Object?>[],
       <Symbol, Object?>{
         #overlayVisible: false,
         #episodePanelVisible: true,

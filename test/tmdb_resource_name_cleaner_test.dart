@@ -12,6 +12,7 @@ void main() {
       '电影.DVDRip.XviD.AC3.avi': '电影',
       '电影 4K REMUX H.265 EAC3 DD+ DDP5.1.mkv': '电影',
       '电影 8K UHD AV1 HLG SDR LPCM PCM Vorbis ALAC.mkv': '电影',
+      '电影.2160p.x265.10bit.HDR.mkv': '电影',
     };
 
     for (final entry in cases.entries) {

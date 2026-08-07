@@ -9,6 +9,7 @@ import 'package:kanyingyin/features/scraped_metadata_transfer/presentation/scrap
 import 'package:kanyingyin/pages/settings/interface_settings.dart';
 import 'package:kanyingyin/pages/settings/theme_settings_page.dart';
 import 'package:kanyingyin/pages/settings/player_settings.dart';
+import 'package:kanyingyin/pages/settings/player_color_settings.dart';
 import 'package:kanyingyin/pages/settings/decoder_settings.dart';
 import 'package:kanyingyin/pages/settings/renderer_settings.dart';
 import 'package:kanyingyin/pages/settings/super_resolution_settings.dart';
@@ -97,6 +98,11 @@ class SettingsModule extends Module {
     _child(r, "/theme", child: (_) => const ThemeSettingsPage());
     _child(r, "/keyboard", child: (_) => const KeyboardSettingsPage());
     _child(r, "/player", child: (_) => const PlayerSettingsPage());
+    _child(
+      r,
+      "/player/color",
+      child: (_) => const PlayerColorSettingsPage(),
+    );
     _child(r, "/player/decoder", child: (_) => const DecoderSettings());
     _child(
       r,

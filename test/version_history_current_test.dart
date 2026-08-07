@@ -5,28 +5,29 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一四四说明 TV 紧凑布局、全局返回和文件识别', () {
-    final entries = versionHistoryForCurrent('2.1.144');
+  test('二点一四五说明手机扫码导入配置和刮削资料', () {
+    final entries = versionHistoryForCurrent('2.1.145');
 
     expect(entries, hasLength(1));
     final entry = entries.single;
     expect(entry.isPrerelease, isTrue);
     final changes = entry.changes.join('\n');
     for (final text in <String>[
+      'Windows',
       'Android TV',
       '海报墙',
-      '闭环焦点组',
-      '侧边导航栏',
-      '弹窗',
-      '底部面板',
-      '输入框',
-      '播放控制层',
+      '五列',
+      '两行',
+      '配置迁移',
+      '电视端确认',
       '.kyymeta',
       '.kyyconfig',
-      '文件显示名',
-      '文档 URI',
       '不会修改或删除',
       '海信实机验收',
+      '流式上传',
+      '配置文件',
+      '刮削资料',
+      '明确判断结果',
     ]) {
       expect(changes, contains(text));
     }

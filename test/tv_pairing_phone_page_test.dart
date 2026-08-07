@@ -21,8 +21,14 @@ void main() {
     expect(html, contains('refreshToken'));
     expect(html, contains('allowSelfSignedCertificate'));
     expect(html, contains('等待电视确认'));
-    expect(html, contains('电视配置成功'));
+    expect(html, contains('电视导入成功'));
     expect(html, contains('id="pairing-remaining"'));
+    expect(html, contains('id="configuration-file"'));
+    expect(html, contains('id="metadata-file"'));
+    expect(html, contains('accept=".kyyconfig"'));
+    expect(html, contains('accept=".kyymeta"'));
+    expect(html, contains('/api/pair/file'));
+    expect(html, contains('configurationFilePassword'));
     expect(html, contains('session_expired'));
     expect(html, contains('不要在公共 Wi-Fi 使用'));
     expect(html, isNot(contains('https://cdn.')));

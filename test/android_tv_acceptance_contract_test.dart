@@ -4,37 +4,29 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('当前版本文案说明 Android TV 布局、焦点、返回和文件识别', () {
+  test('当前版本文案说明 Android TV 五列海报和手机文件导入', () {
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final currentSection = _markdownVersionSection(
       releaseNotes,
-      '2.1.144+20144',
+      '2.1.145+20145',
     );
-    final currentHistory = versionHistoryForCurrent('2.1.144');
+    final currentHistory = versionHistoryForCurrent('2.1.145');
 
     expect(currentHistory, hasLength(1));
     final historyText = currentHistory.single.changes.join('\n');
     for (final text in <String>[
       'Android TV/Google TV',
       'tvTest',
-      '遥控器',
-      '焦点',
-      '同一局域网',
       '手机扫码配置',
-      'OpenList',
-      '夸克',
-      '百度',
-      '迅雷',
       '.kyyconfig',
       '.kyymeta',
-      '系统文件选择器',
       '海报墙',
-      '侧边导航栏',
-      '闭环焦点组',
-      '弹窗',
-      '播放控制层',
-      '文件显示名',
-      '文档 URI',
+      '五列',
+      '两行',
+      '流式上传',
+      '配置文件',
+      '刮削资料',
+      '电视导入成功',
       '实机验收未完成',
     ]) {
       expect(currentSection, contains(text), reason: 'RELEASE_NOTES 缺少 $text');

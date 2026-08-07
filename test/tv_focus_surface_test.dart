@@ -74,6 +74,14 @@ void main() {
       television.gridPadding(const EdgeInsets.all(12)),
       const EdgeInsets.fromLTRB(20, 16, 20, 24),
     );
+    final delegate = television.posterGridDelegate(
+      fallbackMaxCrossAxisExtent: 300,
+      fallbackChildAspectRatio: 0.68,
+    );
+    expect(delegate, isA<SliverGridDelegateWithFixedCrossAxisCount>());
+    final tvDelegate = delegate as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(tvDelegate.crossAxisCount, 5);
+    expect(tvDelegate.childAspectRatio, 0.78);
     expect(television.dialogMaxWidth(560), greaterThan(560));
   });
 }

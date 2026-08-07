@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:kanyingyin/features/tv_pairing/data/tv_pairing_phone_page.dart';
 import 'package:kanyingyin/features/tv_pairing/domain/tv_pairing_models.dart';
@@ -44,6 +45,13 @@ class TvPairingServerEndpoint {
         path: '/api/pair',
       );
 
+  Uri get fileUploadApiUri => Uri(
+        scheme: 'http',
+        host: host,
+        port: port,
+        path: '/api/pair/file',
+      );
+
   Uri get cancelApiUri => Uri(
         scheme: 'http',
         host: host,
@@ -82,6 +90,7 @@ class TvPairingHttpServer implements TvPairingServer {
   final TvPairingHostResolver _advertisedHostResolver;
   final DateTime Function() _now;
   final Lock _requestLock = Lock();
+  final Random _random = Random.secure();
 
   HttpServer? _server;
   TvPairingSession? _session;
@@ -89,6 +98,9 @@ class TvPairingHttpServer implements TvPairingServer {
   TvPairingPayloadHandler? _onPayload;
   TvPairingCancelledHandler? _onCancelled;
   bool _phoneConnectedNotified = false;
+  Directory? _uploadDirectory;
+  final Map<String, TvPairingUploadedFile> _uploadedFiles =
+      <String, TvPairingUploadedFile>{};
 
   @override
   bool get isRunning => _server != null;
@@ -108,13 +120,24 @@ class TvPairingHttpServer implements TvPairingServer {
     }
 
     final advertisedHost = await _advertisedHostResolver();
-    final server = await HttpServer.bind(_bindAddress, 0, shared: false);
+    final uploadDirectory = await Directory.systemTemp.createTemp(
+      'kanyingyin-tv-pairing-',
+    );
+    late final HttpServer server;
+    try {
+      server = await HttpServer.bind(_bindAddress, 0, shared: false);
+    } on Object {
+      await _deleteUploadDirectory(uploadDirectory);
+      rethrow;
+    }
     _server = server;
     _session = session;
     _onPhoneConnected = onPhoneConnected;
     _onPayload = onPayload;
     _onCancelled = onCancelled;
     _phoneConnectedNotified = false;
+    _uploadDirectory = uploadDirectory;
+    _uploadedFiles.clear();
     server.listen(
       (request) => unawaited(_handleRequest(request)),
       onError: (_) {},
@@ -130,8 +153,9 @@ class TvPairingHttpServer implements TvPairingServer {
   @override
   Future<void> stop() async {
     final server = _server;
-    _clearState();
+    final uploadDirectory = _clearState();
     if (server != null) await server.close(force: true);
+    await _deleteUploadDirectory(uploadDirectory);
   }
 
   Future<void> _handleRequest(HttpRequest request) async {
@@ -155,6 +179,12 @@ class TvPairingHttpServer implements TvPairingServer {
       if (request.method == 'POST' && request.uri.path == '/api/pair') {
         await _requestLock.synchronized(
           () => _handlePairSubmission(request, session, onPayload),
+        );
+        return;
+      }
+      if (request.method == 'POST' && request.uri.path == '/api/pair/file') {
+        await _requestLock.synchronized(
+          () => _handleFileUpload(request, session),
         );
         return;
       }
@@ -253,7 +283,9 @@ class TvPairingHttpServer implements TvPairingServer {
     try {
       final bytes = await _readLimitedBody(request);
       final payload = TvPairingPayload.decode(bytes);
-      final decision = await onPayload(payload);
+      final resolvedFiles = _resolveUploadedFiles(payload);
+      final decision =
+          await onPayload(payload.withUploadedFiles(resolvedFiles));
       if (decision == TvPairingSubmissionResult.rejected) {
         await _respondJson(
           request.response,
@@ -296,6 +328,157 @@ class TvPairingHttpServer implements TvPairingServer {
         HttpStatus.badRequest,
         <String, Object>{'status': 'invalid_payload'},
       );
+    }
+  }
+
+  Future<void> _handleFileUpload(
+    HttpRequest request,
+    TvPairingSession session,
+  ) async {
+    final tokenStatus = _tokenStatus(
+      session,
+      request.headers.value('X-Pairing-Token'),
+    );
+    if (tokenStatus != _TokenStatus.valid) {
+      await request.drain<void>();
+      await _respondTokenError(request.response, tokenStatus);
+      return;
+    }
+    final kindValue = request.headers.value('X-Pairing-File-Kind');
+    final nameValue = request.headers.value('X-Pairing-File-Name');
+    TvPairingFileKind kind;
+    String name;
+    try {
+      kind = TvPairingFileKind.fromWireValue(kindValue ?? '');
+      name = _decodeFileName(nameValue);
+      _validateFileName(name, kind);
+    } on TvPairingInvalidPayloadException catch (error) {
+      await request.drain<void>();
+      await _respondJson(
+        request.response,
+        HttpStatus.badRequest,
+        <String, Object>{'status': 'invalid_file', 'message': error.message},
+      );
+      return;
+    }
+    if (request.contentLength > TvPairingPayload.maxUploadedFileBytes) {
+      await request.drain<void>();
+      await _respondJson(
+        request.response,
+        HttpStatus.requestEntityTooLarge,
+        <String, Object>{'status': 'file_too_large'},
+      );
+      return;
+    }
+
+    final directory = _uploadDirectory;
+    if (directory == null) {
+      await request.drain<void>();
+      await _respondJson(
+        request.response,
+        HttpStatus.serviceUnavailable,
+        <String, Object>{'status': 'stopped'},
+      );
+      return;
+    }
+    final id = _newFileId();
+    final output =
+        File('${directory.path}${Platform.pathSeparator}$id${kind.extension}');
+    var total = 0;
+    var tooLarge = false;
+    try {
+      final sink = output.openWrite();
+      try {
+        await for (final chunk in request) {
+          total += chunk.length;
+          if (total <= TvPairingPayload.maxUploadedFileBytes) {
+            sink.add(chunk);
+          } else {
+            tooLarge = true;
+          }
+        }
+      } finally {
+        await sink.close();
+      }
+      if (tooLarge) {
+        await output.delete();
+        await _respondJson(
+          request.response,
+          HttpStatus.requestEntityTooLarge,
+          <String, Object>{'status': 'file_too_large'},
+        );
+        return;
+      }
+      final previous = _uploadedFiles.values
+          .where((value) => value.kind == kind)
+          .firstOrNull;
+      if (previous != null) {
+        final previousFile = File(previous.path);
+        if (await previousFile.exists()) await previousFile.delete();
+        _uploadedFiles.removeWhere((_, value) => value.id == previous.id);
+      }
+      final uploaded = TvPairingUploadedFile(
+        id: id,
+        kind: kind,
+        name: name,
+        size: total,
+        path: output.path,
+      );
+      _uploadedFiles[id] = uploaded;
+      await _respondJson(
+        request.response,
+        HttpStatus.created,
+        <String, Object>{
+          'status': 'uploaded',
+          'fileId': id,
+          'kind': kind.wireValue,
+          'name': name,
+          'size': total,
+        },
+      );
+    } on Object {
+      if (await output.exists()) await output.delete();
+      rethrow;
+    }
+  }
+
+  Map<TvPairingFileKind, TvPairingUploadedFile> _resolveUploadedFiles(
+    TvPairingPayload payload,
+  ) {
+    final resolved = <TvPairingFileKind, TvPairingUploadedFile>{};
+    for (final entry in payload.fileIds.entries) {
+      final file = _uploadedFiles[entry.value];
+      if (file == null || file.kind != entry.key) {
+        throw const TvPairingInvalidPayloadException('配对文件不存在或已失效');
+      }
+      resolved[entry.key] = file;
+    }
+    return resolved;
+  }
+
+  String _newFileId() => base64Url
+      .encode(List<int>.generate(18, (_) => _random.nextInt(256)))
+      .replaceAll('=', '');
+
+  static String _decodeFileName(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      throw const TvPairingInvalidPayloadException('文件名不能为空');
+    }
+    try {
+      return Uri.decodeComponent(value).trim();
+    } on Object {
+      throw const TvPairingInvalidPayloadException('文件名无效');
+    }
+  }
+
+  static void _validateFileName(String name, TvPairingFileKind kind) {
+    final normalized = name.replaceAll('\\', '/');
+    final basename = normalized.split('/').last;
+    if (basename != name ||
+        name.length > 160 ||
+        name.contains(RegExp(r'[\u0000-\u001f]')) ||
+        !name.toLowerCase().endsWith(kind.extension)) {
+      throw const TvPairingInvalidPayloadException('文件名或扩展名无效');
     }
   }
 
@@ -379,17 +562,31 @@ class TvPairingHttpServer implements TvPairingServer {
   ) async {
     if (!identical(_session, completedSession)) return;
     final server = _server;
-    _clearState();
+    final uploadDirectory = _clearState();
     if (server != null) await server.close(force: false);
+    await _deleteUploadDirectory(uploadDirectory);
   }
 
-  void _clearState() {
+  Directory? _clearState() {
+    final uploadDirectory = _uploadDirectory;
     _server = null;
     _session = null;
     _onPhoneConnected = null;
     _onPayload = null;
     _onCancelled = null;
     _phoneConnectedNotified = false;
+    _uploadDirectory = null;
+    _uploadedFiles.clear();
+    return uploadDirectory;
+  }
+
+  static Future<void> _deleteUploadDirectory(Directory? directory) async {
+    if (directory == null) return;
+    try {
+      if (await directory.exists()) await directory.delete(recursive: true);
+    } on Object {
+      // 临时文件清理失败不覆盖配对结果。
+    }
   }
 
   static Future<void> _respondTokenError(

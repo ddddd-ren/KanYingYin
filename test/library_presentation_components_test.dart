@@ -742,7 +742,7 @@ void main() {
       expect(played, item.id);
     });
 
-    testWidgets('TV 网格使用四列友好的紧凑卡片和遥控器主动作', (tester) async {
+    testWidgets('TV 网格固定五列并保持紧凑卡片和遥控器主动作', (tester) async {
       String? played;
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(1280, 720);
@@ -766,8 +766,9 @@ void main() {
 
       final grid = tester.widget<GridView>(find.byType(GridView));
       final delegate =
-          grid.gridDelegate as SliverGridDelegateWithMaxCrossAxisExtent;
-      expect(delegate.maxCrossAxisExtent, 260);
+          grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+      expect(delegate.crossAxisCount, 5);
+      expect(delegate.childAspectRatio, 0.78);
       expect(delegate.crossAxisSpacing, 16);
       expect(delegate.mainAxisSpacing, 16);
       expect(grid.padding, const EdgeInsets.fromLTRB(20, 16, 20, 24));
@@ -783,6 +784,51 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
       expect(played, item.id);
+    });
+
+    testWidgets('TV 首屏以两行五列显示十张海报', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1309, 919);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final items = [
+        for (var index = 0; index < 10; index++)
+          LibraryMediaItemViewData(
+            id: 'tv-show-$index',
+            title: '电视海报 $index',
+            subtitle: '第 1 季',
+            infoText: '1080P',
+            modifiedText: '2026-08-07',
+            hasMultipleEpisodes: false,
+            hasSubtitle: true,
+            scrapeLabel: '已刮削',
+          ),
+      ];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: LibraryMediaGrid(
+              capabilities: AppPlatformCapabilities.android.copyWith(
+                television: true,
+              ),
+              data: LibraryMediaGridViewData(items: items),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      final cards = find.byType(ImmersiveMediaCard);
+      expect(cards, findsNWidgets(10));
+      final firstTop = tester.getTopLeft(cards.first).dy;
+      final firstRow = [
+        for (var index = 0; index < cards.evaluate().length; index++)
+          tester.getRect(cards.at(index)),
+      ].where((rect) => (rect.top - firstTop).abs() < 0.5).toList();
+      expect(firstRow, hasLength(5));
+      expect(
+        tester.getTopLeft(cards.at(5)).dy,
+        greaterThan(tester.getTopLeft(cards.first).dy),
+      );
     });
 
     testWidgets('长按卡片触发更多动作', (tester) async {

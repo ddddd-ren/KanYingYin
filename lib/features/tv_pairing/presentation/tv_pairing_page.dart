@@ -69,6 +69,13 @@ class _TvPairingPageState extends State<TvPairingPage> {
             Text('保留来源：${summary.preserved} 个'),
             Text('TMDB：${summary.hasTmdbKey ? '将更新' : '保持不变'}'),
             Text('需要选择媒体目录：${summary.requiresRootSelection} 个'),
+            if (summary.hasConfigurationFile) const Text('配置文件：已从手机上传，将覆盖当前配置'),
+            if (summary.hasScrapedMetadataFile) ...[
+              const Text('刮削资料文件：已从手机上传'),
+              Text('可匹配资料：${summary.metadataMatchedCount} 项'),
+              Text('缺失媒体：${summary.metadataMissingMediaCount} 项'),
+              Text('可恢复图片：${summary.metadataRecoverableImageCount} 张'),
+            ],
           ],
         ),
         actions: <Widget>[
@@ -173,7 +180,7 @@ class _TvPairingPageState extends State<TvPairingPage> {
             children: <Widget>[
               CircularProgressIndicator(),
               SizedBox(height: 20),
-              Text('正在写入配置'),
+              Text('正在写入配置和导入刮削资料'),
             ],
           ),
         ),

@@ -46,6 +46,16 @@ String buildTvPairingPhonePage({
       <input id="tmdb-key" type="password" autocomplete="off">
     </section>
     <section>
+      <h2>文件导入</h2>
+      <p class="provider-note">可以直接把电视导出的配置和刮削资料发送到电视。文件只保存在本次配对的电视临时目录，配对结束后自动清理。</p>
+      <label for="configuration-file">看影音配置文件（可选）</label>
+      <input id="configuration-file" type="file" accept=".kyyconfig">
+      <label for="configuration-password">配置文件密码</label>
+      <input id="configuration-password" type="password" autocomplete="off" placeholder="选择配置文件后填写，至少 8 个字符">
+      <label for="metadata-file">看影音刮削资料文件（可选）</label>
+      <input id="metadata-file" type="file" accept=".kyymeta">
+    </section>
+    <section>
       <div class="section-title"><h2>网盘来源</h2><button class="secondary" type="button" id="add-source">添加网盘来源</button></div>
       <p class="provider-note">夸克、百度和迅雷保存凭据后，需要回到电视选择媒体目录。</p>
       <div id="sources"></div>
@@ -56,8 +66,8 @@ String buildTvPairingPhonePage({
   </form>
   <section id="success" hidden>
     <div class="mark">&#10003;</div>
-    <h2>电视配置成功</h2>
-    <p>电视已经写入配置。需要选择媒体目录的来源，请继续在电视端完成。</p>
+    <h2>电视导入成功</h2>
+    <p>电视已经完成本次配置和所选文件导入。需要选择媒体目录的来源，请继续在电视端完成。</p>
   </section>
 </main>
 <script>
@@ -67,6 +77,9 @@ const form=document.getElementById('config-form');
 const sources=document.getElementById('sources');
 const statusNode=document.getElementById('status');
 const submitButton=document.getElementById('submit');
+const configurationFileInput=document.getElementById('configuration-file');
+const configurationPasswordInput=document.getElementById('configuration-password');
+const metadataFileInput=document.getElementById('metadata-file');
 const providers={
   openList:{label:'OpenList',baseUrl:''},
   quark:{label:'夸克网盘',baseUrl:'https://pan.quark.cn'},
@@ -147,7 +160,28 @@ function buildRecord(card){
   }
   return {source:source,credential:Object.keys(credential).length?credential:null};
 }
-function buildPayload(){
+async function uploadFile(fileInput,kind){
+  const file=fileInput.files&&fileInput.files[0];if(!file)return null;
+  if(file.size>64*1024*1024)throw new Error('文件超过 64 MB 限制：'+file.name);
+  statusNode.className='';statusNode.textContent='正在上传 '+file.name+'（'+Math.ceil(file.size/1024/1024)+' MB）';
+  const response=await fetch('/api/pair/file',{method:'POST',headers:{'Content-Type':'application/octet-stream','X-Pairing-Token':token,'X-Pairing-File-Kind':kind,'X-Pairing-File-Name':encodeURIComponent(file.name)},body:file});
+  let result={};try{result=await response.json()}catch(_){ }
+  if(!response.ok||result.status!=='uploaded')throw new Error(result.status==='file_too_large'?'文件超过电视限制':('上传失败：'+(result.message||result.status||response.status)));
+  statusNode.textContent='已上传 '+file.name;
+  return result.fileId;
+}
+async function uploadSelectedFiles(){
+  const fileIds={};
+  const configFile=configurationFileInput.files&&configurationFileInput.files[0];
+  const configPassword=configurationPasswordInput.value.trim();
+  if(configFile){
+    if(configPassword.length<8)throw new Error('配置文件密码至少 8 个字符');
+    fileIds.configuration=await uploadFile(configurationFileInput,'configuration');
+  }
+  if(metadataFileInput.files&&metadataFileInput.files[0])fileIds.scrapedMetadata=await uploadFile(metadataFileInput,'scrapedMetadata');
+  return fileIds;
+}
+function buildPayload(fileIds){
   const records=[];
   for(const card of sources.querySelectorAll('.source')){
     const error=card.querySelector('.card-error');error.hidden=true;error.textContent='';
@@ -156,7 +190,9 @@ function buildPayload(){
       throw problem;
     }
   }
-  return {protocolVersion:2,deviceName:document.getElementById('device-name').value.trim(),configuration:{formatVersion:1,exportedAt:new Date().toISOString(),appVersion:'phone-web',tmdbApiKey:document.getElementById('tmdb-key').value.trim(),cloudSources:records}};
+  const payload={protocolVersion:2,deviceName:document.getElementById('device-name').value.trim(),configuration:{formatVersion:1,exportedAt:new Date().toISOString(),appVersion:'phone-web',tmdbApiKey:document.getElementById('tmdb-key').value.trim(),cloudSources:records}};
+  if(Object.keys(fileIds).length){payload.fileIds=fileIds;if(fileIds.configuration)payload.configurationFilePassword=document.getElementById('configuration-password').value.trim()}
+  return payload;
 }
 function setFormDisabled(disabled){form.querySelectorAll('input,select,textarea,button').forEach(function(node){node.disabled=disabled})}
 function showSuccess(){form.hidden=true;document.getElementById('success').hidden=false;document.getElementById('connection-state').textContent='配置完成'}
@@ -167,16 +203,16 @@ function updateRemaining(){
 }
 document.getElementById('add-source').addEventListener('click',addSource);
 form.addEventListener('submit',async function(event){
-  event.preventDefault();let payload;
-  try{payload=buildPayload()}catch(problem){statusNode.className='error';statusNode.textContent=problem.message;return}
+  event.preventDefault();let payload,fileIds;
+  try{fileIds=await uploadSelectedFiles();payload=buildPayload(fileIds)}catch(problem){statusNode.className='error';statusNode.textContent=problem.message;return}
   if(!payload.deviceName){statusNode.className='error';statusNode.textContent='请填写配置名称';document.getElementById('device-name').focus();return}
   const counts={openList:0,quark:0,baidu:0,xunlei:0};payload.configuration.cloudSources.forEach(function(record){counts[record.source.type]++});
-  document.getElementById('summary').textContent='TMDB：'+(payload.configuration.tmdbApiKey?'将更新':'保留电视当前配置')+'\\n网盘来源：'+payload.configuration.cloudSources.length+' 个\\nOpenList '+counts.openList+' · 夸克 '+counts.quark+' · 百度 '+counts.baidu+' · 迅雷 '+counts.xunlei;
+  document.getElementById('summary').textContent='TMDB：'+(payload.fileIds&&payload.fileIds.configuration?'由配置文件导入':(payload.configuration.tmdbApiKey?'将更新':'保留电视当前配置'))+'\\n网盘来源：'+payload.configuration.cloudSources.length+' 个\\nOpenList '+counts.openList+' · 夸克 '+counts.quark+' · 百度 '+counts.baidu+' · 迅雷 '+counts.xunlei+(payload.fileIds&&payload.fileIds.configuration?'\\n配置文件：将导入':'')+(payload.fileIds&&payload.fileIds.scrapedMetadata?'\\n刮削资料：将导入':'');
   document.getElementById('review').hidden=false;statusNode.className='';statusNode.textContent='等待电视确认';submitButton.disabled=true;
   try{
     const response=await fetch('/api/pair',{method:'POST',headers:{'Content-Type':'application/json','X-Pairing-Token':token},body:JSON.stringify(payload)});
     const result=await response.json();
-    if(response.ok&&result.status==='paired'){statusNode.textContent='电视配置成功';showSuccess();return}
+    if(response.ok&&result.status==='paired'){statusNode.textContent='电视配置和文件导入成功';showSuccess();return}
     if(result.status==='rejected_on_tv'){statusNode.textContent='电视已拒绝，可修改后重新发送';return}
     if(result.status==='apply_failed'){statusNode.className='error';statusNode.textContent='电视写入失败，原配置已保留';return}
     if(result.status==='session_expired'){expireSession();return}

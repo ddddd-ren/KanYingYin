@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:kanyingyin/features/configuration_transfer/application/configuration_importer.dart';
+import 'package:kanyingyin/features/tv_pairing/application/tv_pairing_file_import_coordinator.dart';
 import 'package:kanyingyin/features/tv_pairing/data/tv_pairing_http_server.dart';
 import 'package:kanyingyin/features/tv_pairing/domain/tv_pairing_models.dart';
 
@@ -26,6 +27,11 @@ class TvPairingPendingSummary {
     required this.updated,
     required this.preserved,
     required this.requiresRootSelection,
+    required this.hasConfigurationFile,
+    required this.hasScrapedMetadataFile,
+    required this.metadataMatchedCount,
+    required this.metadataMissingMediaCount,
+    required this.metadataRecoverableImageCount,
   });
 
   final String deviceName;
@@ -35,26 +41,36 @@ class TvPairingPendingSummary {
   final int updated;
   final int preserved;
   final int requiresRootSelection;
+  final bool hasConfigurationFile;
+  final bool hasScrapedMetadataFile;
+  final int metadataMatchedCount;
+  final int metadataMissingMediaCount;
+  final int metadataRecoverableImageCount;
 
   @override
   String toString() => 'TvPairingPendingSummary(deviceName: $deviceName, '
       'cloudSourceCount: $cloudSourceCount, hasTmdbKey: $hasTmdbKey, '
       'added: $added, updated: $updated, preserved: $preserved, '
-      'requiresRootSelection: $requiresRootSelection)';
+      'requiresRootSelection: $requiresRootSelection, '
+      'hasConfigurationFile: $hasConfigurationFile, '
+      'hasScrapedMetadataFile: $hasScrapedMetadataFile)';
 }
 
 class TvPairingController extends ChangeNotifier with WidgetsBindingObserver {
   TvPairingController({
     required ConfigurationImportPort importer,
+    TvPairingFileImportPort? fileImporter,
     TvPairingServer? server,
     DateTime Function()? now,
   })  : _importer = importer,
+        _fileImporter = fileImporter,
         _server = server ?? TvPairingHttpServer(),
         _now = now ?? DateTime.now {
     WidgetsBinding.instance.addObserver(this);
   }
 
   final ConfigurationImportPort _importer;
+  final TvPairingFileImportPort? _fileImporter;
   final TvPairingServer _server;
   final DateTime Function() _now;
 
@@ -64,6 +80,7 @@ class TvPairingController extends ChangeNotifier with WidgetsBindingObserver {
   TvPairingPayload? _pendingPayload;
   TvPairingPendingSummary? _pendingSummary;
   ConfigurationMergeSummary? _completedSummary;
+  TvPairingFileImportResult? _completedFileResult;
   Completer<TvPairingSubmissionResult>? _pendingDecision;
   Timer? _countdownTimer;
   String? _errorMessage;
@@ -74,6 +91,7 @@ class TvPairingController extends ChangeNotifier with WidgetsBindingObserver {
   TvPairingServerEndpoint? get endpoint => _endpoint;
   TvPairingPendingSummary? get pendingSummary => _pendingSummary;
   ConfigurationMergeSummary? get completedSummary => _completedSummary;
+  TvPairingFileImportResult? get completedFileResult => _completedFileResult;
   String? get errorMessage => _errorMessage;
 
   Duration get remaining {
@@ -91,6 +109,7 @@ class TvPairingController extends ChangeNotifier with WidgetsBindingObserver {
     _state = TvPairingState.starting;
     _errorMessage = null;
     _completedSummary = null;
+    _completedFileResult = null;
     _phoneConnected = false;
     _notify();
 
@@ -136,8 +155,25 @@ class TvPairingController extends ChangeNotifier with WidgetsBindingObserver {
     _errorMessage = null;
     _notify();
     try {
-      final result = await _importer.apply(payload.configuration);
+      final hasFiles = payload.fileIds.isNotEmpty;
+      final hasConfigurationFile =
+          payload.fileIds.containsKey(TvPairingFileKind.configuration);
+      if (hasFiles && _fileImporter == null) {
+        throw const TvPairingFileImportException('电视不支持文件导入，请升级应用');
+      }
+      TvPairingFileImportResult? fileResult;
+      ConfigurationImportResult? result;
+      if (hasFiles && hasConfigurationFile) {
+        fileResult = await _fileImporter!.apply(payload);
+        result = fileResult.configurationSummary;
+      } else {
+        result = await _importer.apply(payload.configuration);
+        if (hasFiles) {
+          fileResult = await _fileImporter!.apply(payload);
+        }
+      }
       _completedSummary = result;
+      _completedFileResult = fileResult;
       _clearPending();
       _state = TvPairingState.success;
       _countdownTimer?.cancel();
@@ -183,6 +219,7 @@ class TvPairingController extends ChangeNotifier with WidgetsBindingObserver {
     _endpoint = null;
     _phoneConnected = false;
     _completedSummary = null;
+    _completedFileResult = null;
     if (_server.isRunning) await _server.stop();
     _state = TvPairingState.idle;
     _errorMessage = null;
@@ -205,7 +242,26 @@ class TvPairingController extends ChangeNotifier with WidgetsBindingObserver {
             _state != TvPairingState.phoneConnected)) {
       return TvPairingSubmissionResult.rejected;
     }
-    final summary = await _importer.preview(payload.configuration);
+    TvPairingFileImportPreview? filePreview;
+    if (payload.fileIds.isNotEmpty) {
+      final fileImporter = _fileImporter;
+      if (fileImporter == null) {
+        _state = TvPairingState.error;
+        _errorMessage = '电视不支持文件导入，请升级应用';
+        _notify();
+        return TvPairingSubmissionResult.applyFailed;
+      }
+      try {
+        filePreview = await fileImporter.preview(payload);
+      } on Object catch (error) {
+        _state = TvPairingState.error;
+        _errorMessage = '文件预览失败：$error';
+        _notify();
+        return TvPairingSubmissionResult.applyFailed;
+      }
+    }
+    final summary = filePreview?.configurationSummary ??
+        await _importer.preview(payload.configuration);
     final decision = Completer<TvPairingSubmissionResult>();
     _pendingPayload = payload;
     _pendingSummary = TvPairingPendingSummary(
@@ -216,6 +272,12 @@ class TvPairingController extends ChangeNotifier with WidgetsBindingObserver {
       updated: summary.updated,
       preserved: summary.preserved,
       requiresRootSelection: summary.requiresRootSelection,
+      hasConfigurationFile: filePreview?.hasConfigurationFile ?? false,
+      hasScrapedMetadataFile: filePreview?.hasScrapedMetadataFile ?? false,
+      metadataMatchedCount: filePreview?.metadataMatchedCount ?? 0,
+      metadataMissingMediaCount: filePreview?.metadataMissingMediaCount ?? 0,
+      metadataRecoverableImageCount:
+          filePreview?.metadataRecoverableImageCount ?? 0,
     );
     _pendingDecision = decision;
     _state = TvPairingState.awaitingConfirmation;
@@ -235,6 +297,7 @@ class TvPairingController extends ChangeNotifier with WidgetsBindingObserver {
     _endpoint = null;
     _phoneConnected = false;
     _completedSummary = null;
+    _completedFileResult = null;
     _state = TvPairingState.idle;
     _errorMessage = null;
     _notify();
@@ -266,6 +329,7 @@ class TvPairingController extends ChangeNotifier with WidgetsBindingObserver {
     _endpoint = null;
     _phoneConnected = false;
     _completedSummary = null;
+    _completedFileResult = null;
     if (_server.isRunning) await _server.stop();
     _state = TvPairingState.error;
     _errorMessage = '配对已超时，请重试';

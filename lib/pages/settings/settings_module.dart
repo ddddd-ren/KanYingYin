@@ -184,6 +184,7 @@ class SettingsModule extends Module {
         controller: TvPairingController(
           importer: Modular.get<ConfigurationImporter>(),
         ),
+        onCompleted: Modular.get<CloudLibraryController>().load,
       ),
     );
     _child(

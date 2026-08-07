@@ -11,11 +11,13 @@ class TvPairingPage extends StatefulWidget {
     super.key,
     required this.controller,
     this.onManualConfiguration,
+    this.onCompleted,
     this.ownsController = true,
   });
 
   final TvPairingController controller;
   final VoidCallback? onManualConfiguration;
+  final Future<void> Function()? onCompleted;
   final bool ownsController;
 
   @override
@@ -58,15 +60,18 @@ class _TvPairingPageState extends State<TvPairingPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          children: <Widget>[
             Text('配置名称：${summary.deviceName}'),
             const SizedBox(height: 8),
             Text('网盘来源：${summary.cloudSourceCount} 个'),
-            const SizedBox(height: 8),
-            Text(summary.hasTmdbKey ? 'TMDB：将更新' : 'TMDB：保持不变'),
+            Text('新增来源：${summary.added} 个'),
+            Text('更新来源：${summary.updated} 个'),
+            Text('保留来源：${summary.preserved} 个'),
+            Text('TMDB：${summary.hasTmdbKey ? '将更新' : '保持不变'}'),
+            Text('需要选择媒体目录：${summary.requiresRootSelection} 个'),
           ],
         ),
-        actions: [
+        actions: <Widget>[
           TextButton(
             autofocus: true,
             onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -96,6 +101,20 @@ class _TvPairingPageState extends State<TvPairingPage> {
     } else {
       Modular.to.pop();
     }
+  }
+
+  Future<void> _returnToSources() async {
+    try {
+      await widget.onCompleted?.call();
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('配置已写入，但网盘来源列表刷新失败')),
+        );
+      }
+      return;
+    }
+    if (mounted) await Navigator.of(context).maybePop();
   }
 
   @override
@@ -128,19 +147,24 @@ class _TvPairingPageState extends State<TvPairingPage> {
           key: ValueKey<String>('tv-pairing-starting'),
           child: CircularProgressIndicator(),
         ),
-      TvPairingState.active ||
-      TvPairingState.awaitingConfirmation =>
-        _ActivePairingView(
+      TvPairingState.active => _ActivePairingView(
           key: const ValueKey<String>('tv-pairing-active'),
           controller: widget.controller,
-          onCancel: widget.controller.cancel,
+          onCancel: () => unawaited(widget.controller.cancel()),
           onManualConfiguration: _openManualConfiguration,
+        ),
+      TvPairingState.phoneConnected ||
+      TvPairingState.awaitingConfirmation =>
+        _PhoneConnectedView(
+          key: const ValueKey<String>('tv-pairing-phone-connected'),
+          controller: widget.controller,
+          onCancel: () => unawaited(widget.controller.cancel()),
         ),
       TvPairingState.applying => const Center(
           key: ValueKey<String>('tv-pairing-applying'),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: [
+            children: <Widget>[
               CircularProgressIndicator(),
               SizedBox(height: 20),
               Text('正在写入配置'),
@@ -151,9 +175,15 @@ class _TvPairingPageState extends State<TvPairingPage> {
           key: const ValueKey<String>('tv-pairing-success'),
           icon: Icons.check_circle_outline,
           title: '配置已写入',
-          message: '现在可以返回媒体库继续使用。',
-          primaryLabel: '返回',
-          onPrimary: () => Modular.to.pop(),
+          message:
+              widget.controller.completedSummary?.requiresRootSelection == 0
+                  ? '现在可以返回媒体库继续使用。'
+                  : '部分网盘还没有选择媒体目录，请返回网盘数据源完成设置。',
+          primaryLabel:
+              widget.controller.completedSummary?.requiresRootSelection == 0
+                  ? '返回'
+                  : '返回网盘数据源选择目录',
+          onPrimary: () => unawaited(_returnToSources()),
         ),
       TvPairingState.error => _PairingResultView(
           key: const ValueKey<String>('tv-pairing-error'),
@@ -161,7 +191,7 @@ class _TvPairingPageState extends State<TvPairingPage> {
           title: widget.controller.errorMessage ?? '配对失败',
           message: '请检查局域网连接后重试。',
           primaryLabel: '重试',
-          onPrimary: widget.controller.start,
+          onPrimary: () => unawaited(widget.controller.start()),
           secondaryLabel: '手动配置',
           onSecondary: _openManualConfiguration,
         ),
@@ -178,7 +208,7 @@ class _ActivePairingView extends StatelessWidget {
   });
 
   final TvPairingController controller;
-  final Future<void> Function() onCancel;
+  final VoidCallback onCancel;
   final VoidCallback onManualConfiguration;
 
   @override
@@ -187,9 +217,6 @@ class _ActivePairingView extends StatelessWidget {
     if (endpoint == null) {
       return const Center(child: CircularProgressIndicator());
     }
-    final seconds = controller.remaining.inSeconds.clamp(0, 5 * 60);
-    final minutesText = (seconds ~/ 60).toString().padLeft(2, '0');
-    final secondsText = (seconds % 60).toString().padLeft(2, '0');
     final pairingUrl = endpoint.pairUri.toString();
     final scheme = Theme.of(context).colorScheme;
 
@@ -201,7 +228,7 @@ class _ActivePairingView extends StatelessWidget {
           runSpacing: 28,
           alignment: WrapAlignment.center,
           crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
+          children: <Widget>[
             DecoratedBox(
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -221,7 +248,7 @@ class _ActivePairingView extends StatelessWidget {
               width: 420,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                children: <Widget>[
                   Text('等待手机连接',
                       style: Theme.of(context).textTheme.headlineSmall),
                   const SizedBox(height: 16),
@@ -230,18 +257,12 @@ class _ActivePairingView extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
                   const SizedBox(height: 20),
-                  Text(
-                    '$minutesText:$secondsText',
-                    key: const ValueKey<String>('tv-pairing-countdown'),
-                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                          color: scheme.primary,
-                        ),
-                  ),
+                  _RemainingTime(controller: controller),
                   const SizedBox(height: 28),
                   Wrap(
                     spacing: 12,
                     runSpacing: 12,
-                    children: [
+                    children: <Widget>[
                       FilledButton.icon(
                         autofocus: true,
                         onPressed: onCancel,
@@ -261,6 +282,73 @@ class _ActivePairingView extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _PhoneConnectedView extends StatelessWidget {
+  const _PhoneConnectedView({
+    super.key,
+    required this.controller,
+    required this.onCancel,
+  });
+
+  final TvPairingController controller;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(
+                Icons.phonelink_ring_rounded,
+                size: 84,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(height: 20),
+              Text(
+                '手机已连接',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                controller.state == TvPairingState.awaitingConfirmation
+                    ? '等待电视端确认配置'
+                    : '等待手机填写并发送配置',
+              ),
+              const SizedBox(height: 16),
+              _RemainingTime(controller: controller),
+              const SizedBox(height: 28),
+              OutlinedButton.icon(
+                onPressed: onCancel,
+                icon: const Icon(Icons.close),
+                label: const Text('取消配对'),
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+class _RemainingTime extends StatelessWidget {
+  const _RemainingTime({required this.controller});
+
+  final TvPairingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final seconds = controller.remaining.inSeconds.clamp(0, 5 * 60);
+    final minutesText = (seconds ~/ 60).toString().padLeft(2, '0');
+    final secondsText = (seconds % 60).toString().padLeft(2, '0');
+    return Text(
+      '$minutesText:$secondsText',
+      key: const ValueKey<String>('tv-pairing-countdown'),
+      style: Theme.of(context).textTheme.displaySmall?.copyWith(
+            color: Theme.of(context).colorScheme.primary,
+          ),
     );
   }
 }
@@ -291,18 +379,21 @@ class _PairingResultView extends StatelessWidget {
           padding: const EdgeInsets.all(32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: [
+            children: <Widget>[
               Icon(icon,
                   size: 72, color: Theme.of(context).colorScheme.primary),
               const SizedBox(height: 20),
               Text(title, style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 8),
-              Text(message),
+              Text(message, textAlign: TextAlign.center),
               const SizedBox(height: 28),
               Wrap(
                 spacing: 12,
-                children: [
-                  FilledButton(onPressed: onPrimary, child: Text(primaryLabel)),
+                children: <Widget>[
+                  FilledButton(
+                    onPressed: onPrimary,
+                    child: Text(primaryLabel),
+                  ),
                   if (secondaryLabel != null && onSecondary != null)
                     OutlinedButton(
                       onPressed: onSecondary,

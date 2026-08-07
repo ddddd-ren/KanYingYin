@@ -74,6 +74,56 @@ void main() {
     );
   });
 
+  test('Android TV 中转使用更低的双层缓存峰值', () {
+    final tv = AppPlatformCapabilities.android.copyWith(
+      television: true,
+      androidSdkInt: 28,
+    );
+    final normal = CloudPlaybackCachePolicy.forTransport(
+      CloudPlaybackTransport.rangeRelay,
+      capabilities: tv,
+      lowMemoryMode: false,
+    );
+    final lowMemory = CloudPlaybackCachePolicy.forTransport(
+      CloudPlaybackTransport.rangeRelay,
+      capabilities: tv,
+      lowMemoryMode: true,
+    );
+
+    expect(normal.playerBufferSize, 48 * 1024 * 1024);
+    expect(
+      normal.mpvProperties,
+      const <String, String>{
+        'stream-buffer-size': '4MiB',
+        'cache-pause-initial': 'yes',
+        'cache-pause-wait': '5',
+        'cache-secs': '30',
+        'demuxer-max-bytes': '48MiB',
+        'demuxer-max-back-bytes': '8MiB',
+      },
+    );
+    expect(lowMemory.playerBufferSize, 32 * 1024 * 1024);
+    expect(
+      lowMemory.mpvProperties,
+      const <String, String>{
+        'stream-buffer-size': '4MiB',
+        'cache-pause-initial': 'yes',
+        'cache-pause-wait': '5',
+        'cache-secs': '20',
+        'demuxer-max-bytes': '32MiB',
+        'demuxer-max-back-bytes': '4MiB',
+      },
+    );
+    expect(
+      CloudPlaybackCachePolicy.forTransport(
+        CloudPlaybackTransport.direct,
+        capabilities: tv,
+        lowMemoryMode: false,
+      ),
+      same(CloudPlaybackCachePolicy.androidDirect),
+    );
+  });
+
   test('Android 直连资源不沿用桌面端 1500 MiB 播放缓存', () {
     final normal = CloudPlaybackCachePolicy.forTransport(
       CloudPlaybackTransport.direct,

@@ -53,14 +53,16 @@ void main() {
     expect(script, contains(r"$flutter = 'D:\flutter\bin\flutter.bat'"));
     expect(
       script,
-      contains(r'& $flutter build apk --release --flavor $Flavor --no-pub'),
+      contains("'build', 'apk', '--release', '--flavor', \$Flavor, '--no-pub'"),
     );
+    expect(script, contains(r'& $flutter @apkBuildArguments'));
     expect(
       script,
       contains(
-        r'& $flutter build appbundle --release --flavor $Flavor --no-pub',
+        "'build', 'appbundle', '--release', '--flavor', \$Flavor, '--no-pub'",
       ),
     );
+    expect(script, contains(r'& $flutter @aabBuildArguments'));
     expect(script, contains('apksigner.bat'));
     expect(script, contains('jarsigner.exe'));
     expect(script, contains('-verify -strict -keystore \$keystore'));

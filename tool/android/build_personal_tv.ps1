@@ -99,7 +99,16 @@ try {
     }
 
     $appName = -join ([char]0x770B, [char]0x5F71, [char]0x97F3)
-    $target = Join-Path $DesktopDirectory "$appName-$version-TV个人预置测试版.apk"
+    $personalEditionLabel = 'TV' + (-join @(
+        [char]0x4E2A,
+        [char]0x4EBA,
+        [char]0x9884,
+        [char]0x7F6E,
+        [char]0x6D4B,
+        [char]0x8BD5,
+        [char]0x7248
+    ))
+    $target = Join-Path $DesktopDirectory "$appName-$version-$personalEditionLabel.apk"
     Copy-Item -LiteralPath $apk -Destination $target -Force
     $targetItem = Get-Item -LiteralPath $target
     [PSCustomObject]@{

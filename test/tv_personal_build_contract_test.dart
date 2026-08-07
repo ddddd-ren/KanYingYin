@@ -18,7 +18,10 @@ void main() {
     expect(script, contains('finally'));
     expect(script, contains('configuration.kyyconfig'));
     expect(script, contains('metadata.kyymeta'));
-    expect(script, contains('TV个人预置测试版'));
+    expect(script, contains(r'$personalEditionLabel ='));
+    expect(script, contains('0x4E2A'));
+    expect(script, contains('0x7248'));
+    expect(script, isNot(contains('TV个人预置测试版')));
     expect(script, isNot(contains('personal-secret-must-not-be-embedded')));
   });
 
@@ -38,15 +41,25 @@ void main() {
   });
 
   test('构建校验工具只生成清单且不包含个人密码', () {
-    final source = File(
+    final entrySource = File(
       'tool/tv_preload/validate_and_write_manifest.dart',
     ).readAsStringSync();
+    final validatorSource = File(
+      'tool/tv_preload/preload_validator.dart',
+    ).readAsStringSync();
+    final source = '$entrySource\n$validatorSource';
 
-    expect(source, contains('ConfigurationArchiveCodec'));
+    expect(source, contains('Pbkdf2.hmacSha256'));
+    expect(source, contains('AesGcm.with256bits'));
+    expect(source, contains('ZipDecoder'));
     expect(source, contains('KYY_CONFIG_PASSWORD'));
     expect(source, contains('sha256.bind'));
     expect(source, contains('configurationSha256'));
     expect(source, contains('metadataSha256'));
+    expect(source, isNot(contains("import 'dart:ui'")));
+    expect(source, isNot(contains("import 'package:flutter/")));
+    expect(source, isNot(contains('ConfigurationArchiveCodec')));
+    expect(source, isNot(contains('ScrapedMetadataArchiveCodec')));
     expect(source, isNot(contains('personal-secret-must-not-be-embedded')));
   });
 }

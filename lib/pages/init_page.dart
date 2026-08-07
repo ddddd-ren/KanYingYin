@@ -13,6 +13,8 @@ import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/services/windows_shortcut_startup_policy.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/utils/windows_shortcut.dart';
+import 'package:kanyingyin/features/tv_preload/application/tv_preload_import_service.dart';
+import 'package:kanyingyin/features/tv_preload/application/tv_preload_import_ports.dart';
 
 typedef InitShaderErrorHandler = void Function(
   Object error,
@@ -21,6 +23,7 @@ typedef InitShaderErrorHandler = void Function(
 
 Future<void> runInitStartupSequence({
   required Future<void> Function() prepareShaders,
+  Future<void> Function()? runPreloadedImport,
   required Future<void> Function() checkShortcut,
   required void Function() navigateToDefaultPage,
   InitShaderErrorHandler? onShaderError,
@@ -30,6 +33,7 @@ Future<void> runInitStartupSequence({
   } on Object catch (error, stackTrace) {
     onShaderError?.call(error, stackTrace);
   }
+  if (runPreloadedImport != null) await runPreloadedImport();
   await checkShortcut();
   navigateToDefaultPage();
 }
@@ -56,6 +60,7 @@ class _InitPageState extends State<InitPage> {
   Future<void> _initializeApp() async {
     await runInitStartupSequence(
       prepareShaders: _loadShaders,
+      runPreloadedImport: _runPreloadedImport,
       checkShortcut: _showShortcutDialog,
       navigateToDefaultPage: _startDefaultPage,
       onShaderError: (error, stackTrace) => AppLogger().e(
@@ -68,6 +73,13 @@ class _InitPageState extends State<InitPage> {
     // delay to ensure that the default page is fully loaded
     await Future<void>.delayed(const Duration(milliseconds: 500));
     _showVersionChangelog();
+  }
+
+  Future<void> _runPreloadedImport() async {
+    final result = await Modular.get<TvPreloadImportService>().run();
+    if (result.status != TvPreloadImportStatus.skipped) {
+      AppLogger().i('TV 个人预置导入状态: ${result.status.name}');
+    }
   }
 
   void _startDefaultPage() {

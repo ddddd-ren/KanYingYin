@@ -35,7 +35,7 @@ import 'package:kanyingyin/features/settings/presentation/settings_motion.dart';
 import 'package:kanyingyin/features/history/presentation/history_page.dart';
 import 'package:kanyingyin/features/tv_pairing/application/tv_pairing_controller.dart';
 import 'package:kanyingyin/features/tv_pairing/presentation/tv_pairing_page.dart';
-import 'package:kanyingyin/repositories/cloud_source_repository.dart';
+import 'package:kanyingyin/features/configuration_transfer/application/configuration_importer.dart';
 
 void _child(
   RouteManager r,
@@ -182,8 +182,7 @@ class SettingsModule extends Module {
       "/cloud-sources/tv-pairing",
       child: (_) => TvPairingPage(
         controller: TvPairingController(
-          sourceRepository: Modular.get<CloudSourceRepository>(),
-          tmdbCredentialManager: Modular.get<TmdbCredentialManager>(),
+          importer: Modular.get<ConfigurationImporter>(),
         ),
       ),
     );

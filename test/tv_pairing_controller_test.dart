@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/features/configuration_transfer/application/configuration_importer.dart';
+import 'package:kanyingyin/features/configuration_transfer/domain/portable_app_configuration.dart';
 import 'package:kanyingyin/features/tv_pairing/application/tv_pairing_controller.dart';
 import 'package:kanyingyin/features/tv_pairing/data/tv_pairing_http_server.dart';
 import 'package:kanyingyin/features/tv_pairing/domain/tv_pairing_models.dart';
@@ -11,24 +13,20 @@ import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  late MemoryCloudSourceStorage sourceStorage;
   late MemoryCloudCredentialStore credentialStore;
   late CloudSourceRepository repository;
-  late MemoryTmdbCredentialStore tmdbStore;
   late TmdbCredentialManager tmdbManager;
   late _FakePairingServer server;
   late TvPairingController controller;
 
   setUp(() async {
-    sourceStorage = MemoryCloudSourceStorage();
     credentialStore = MemoryCloudCredentialStore();
     repository = CloudSourceRepository(
-      storage: sourceStorage,
+      storage: MemoryCloudSourceStorage(),
       credentialStore: credentialStore,
     );
-    tmdbStore = MemoryTmdbCredentialStore('old-tmdb-key');
     tmdbManager = TmdbCredentialManager(
-      store: tmdbStore,
+      store: MemoryTmdbCredentialStore('old-tmdb-key'),
       legacyReader: () => '',
       legacyDelete: () async {},
       warningLogger: (_) {},
@@ -36,8 +34,10 @@ void main() {
     await tmdbManager.initialize();
     server = _FakePairingServer();
     controller = TvPairingController(
-      sourceRepository: repository,
-      tmdbCredentialManager: tmdbManager,
+      importer: ConfigurationImporter(
+        sourceRepository: repository,
+        tmdbCredentialManager: tmdbManager,
+      ),
       server: server,
       now: () => DateTime.utc(2026, 8, 6, 12),
     );
@@ -56,13 +56,24 @@ void main() {
     expect(controller.toString(), isNot(contains(server.session?.token ?? '')));
   });
 
-  test('TV 确认后写入 TMDB 与强类型网盘配置', () async {
+  test('手机打开页面后进入 phoneConnected 且重复通知幂等', () async {
     await controller.start();
+
+    server.notifyPhoneConnected();
+    server.notifyPhoneConnected();
+
+    expect(controller.state, TvPairingState.phoneConnected);
+  });
+
+  test('手机提交后预览并在 TV 确认后调用公共导入器', () async {
+    await controller.start();
+    server.notifyPhoneConnected();
     final submission = server.submit(_payload());
     await Future<void>.delayed(Duration.zero);
 
     expect(controller.state, TvPairingState.awaitingConfirmation);
     expect(controller.pendingSummary?.cloudSourceCount, 1);
+    expect(controller.pendingSummary?.requiresRootSelection, 0);
     expect(controller.pendingSummary.toString(),
         isNot(contains('secret-password')));
     expect(controller.pendingSummary.toString(),
@@ -72,6 +83,7 @@ void main() {
 
     expect(await submission, TvPairingSubmissionResult.accepted);
     expect(controller.state, TvPairingState.success);
+    expect(controller.completedSummary?.added, 1);
     expect(tmdbManager.exportForPairing(), 'secret-tmdb-key');
     expect((await repository.getById('cloud-1'))?.name, '家庭网盘');
     expect(
@@ -80,25 +92,25 @@ void main() {
     );
   });
 
-  test('TV 拒绝后不写入配置且会话继续有效', () async {
+  test('TV 拒绝后不写入配置且保持手机已连接状态', () async {
     await controller.start();
+    server.notifyPhoneConnected();
     final submission = server.submit(_payload());
     await Future<void>.delayed(Duration.zero);
 
     controller.rejectPending();
 
     expect(await submission, TvPairingSubmissionResult.rejected);
-    expect(controller.state, TvPairingState.active);
+    expect(controller.state, TvPairingState.phoneConnected);
     expect(tmdbManager.exportForPairing(), 'old-tmdb-key');
     expect(await repository.getAll(), isEmpty);
     expect(server.session?.isConsumed, isFalse);
   });
 
-  test('来源写入失败时恢复 TMDB 且不接受配对', () async {
+  test('公共导入器失败时返回 applyFailed 而不是用户拒绝', () async {
     controller.dispose();
     controller = TvPairingController(
-      sourceRepository: _FailingPairingRepository(),
-      tmdbCredentialManager: tmdbManager,
+      importer: const _FailingConfigurationImporter(),
       server: server,
       now: () => DateTime.utc(2026, 8, 6, 12),
     );
@@ -108,10 +120,9 @@ void main() {
 
     await controller.confirmPending();
 
-    expect(await submission, TvPairingSubmissionResult.rejected);
+    expect(await submission, TvPairingSubmissionResult.applyFailed);
     expect(controller.state, TvPairingState.error);
-    expect(controller.errorMessage, '配置写入失败，请重试');
-    expect(tmdbManager.exportForPairing(), 'old-tmdb-key');
+    expect(controller.errorMessage, '配置写入失败，原配置已保留');
     expect(server.session?.isConsumed, isFalse);
   });
 
@@ -130,26 +141,31 @@ void main() {
   });
 }
 
-TvPairingPayload _payload() => const TvPairingPayload(
+TvPairingPayload _payload() => TvPairingPayload(
       protocolVersion: TvPairingPayload.currentProtocolVersion,
       deviceName: '客厅电视',
-      tmdbApiKey: 'secret-tmdb-key',
-      cloudSources: <TvPairingCloudSourceRecord>[
-        TvPairingCloudSourceRecord(
-          source: CloudSource(
-            id: 'cloud-1',
-            type: CloudSourceType.openList,
-            name: '家庭网盘',
-            baseUrl: 'https://cloud.example.com',
-            rootPaths: <String>['/电影'],
+      configuration: PortableAppConfiguration.create(
+        exportedAt: DateTime.utc(2026, 8, 7),
+        appVersion: 'phone-web',
+        tmdbApiKey: 'secret-tmdb-key',
+        cloudSources: <PortableCloudSourceConfiguration>[
+          PortableCloudSourceConfiguration.fromSource(
+            source: const CloudSource(
+              id: 'cloud-1',
+              type: CloudSourceType.openList,
+              name: '家庭网盘',
+              baseUrl: 'https://cloud.example.com',
+              rootPaths: <String>['/电影'],
+            ),
+            credential: const CloudCredential(password: 'secret-password'),
           ),
-          credential: CloudCredential(password: 'secret-password'),
-        ),
-      ],
+        ],
+      ),
     );
 
 class _FakePairingServer implements TvPairingServer {
   TvPairingSession? session;
+  TvPairingPhoneConnectedHandler? phoneConnectedHandler;
   TvPairingPayloadHandler? payloadHandler;
   TvPairingCancelledHandler? cancelledHandler;
   int stopCount = 0;
@@ -160,10 +176,12 @@ class _FakePairingServer implements TvPairingServer {
   @override
   Future<TvPairingServerEndpoint> start({
     required TvPairingSession session,
+    required TvPairingPhoneConnectedHandler onPhoneConnected,
     required TvPairingPayloadHandler onPayload,
     TvPairingCancelledHandler? onCancelled,
   }) async {
     this.session = session;
+    phoneConnectedHandler = onPhoneConnected;
     payloadHandler = onPayload;
     cancelledHandler = onCancelled;
     return TvPairingServerEndpoint(
@@ -173,6 +191,8 @@ class _FakePairingServer implements TvPairingServer {
     );
   }
 
+  void notifyPhoneConnected() => phoneConnectedHandler?.call();
+
   Future<TvPairingSubmissionResult> submit(TvPairingPayload payload) =>
       payloadHandler!(payload);
 
@@ -180,20 +200,31 @@ class _FakePairingServer implements TvPairingServer {
   Future<void> stop() async {
     stopCount++;
     session = null;
+    phoneConnectedHandler = null;
     payloadHandler = null;
     cancelledHandler = null;
   }
 }
 
-class _FailingPairingRepository extends CloudSourceRepository {
-  _FailingPairingRepository()
-      : super(
-          storage: MemoryCloudSourceStorage(),
-          credentialStore: MemoryCloudCredentialStore(),
-        );
+class _FailingConfigurationImporter implements ConfigurationImportPort {
+  const _FailingConfigurationImporter();
 
   @override
-  Future<void> importForPairing(List<CloudSourcePairingEntry> entries) async {
-    throw StateError('模拟来源写入失败');
+  Future<ConfigurationImportResult> apply(
+    PortableAppConfiguration configuration,
+  ) async {
+    throw const ConfigurationImportException();
   }
+
+  @override
+  Future<ConfigurationMergeSummary> preview(
+    PortableAppConfiguration configuration,
+  ) async =>
+      const ConfigurationMergeSummary(
+        added: 1,
+        updated: 0,
+        preserved: 0,
+        tmdbWillUpdate: true,
+        requiresRootSelection: 0,
+      );
 }

@@ -21,7 +21,7 @@ final class ConfigurationTransferService {
   ConfigurationTransferService({
     required CloudSourceRepository sourceRepository,
     required TmdbCredentialManager tmdbCredentialManager,
-    required ConfigurationImporter importer,
+    required ConfigurationImportPort importer,
     required ConfigurationArchiveCodec codec,
     DateTime Function()? now,
     String? appVersion,
@@ -34,7 +34,7 @@ final class ConfigurationTransferService {
 
   final CloudSourceRepository _sourceRepository;
   final TmdbCredentialManager _tmdbCredentialManager;
-  final ConfigurationImporter _importer;
+  final ConfigurationImportPort _importer;
   final ConfigurationArchiveCodec _codec;
   final DateTime Function() now;
   final String appVersion;

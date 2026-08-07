@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/features/configuration_transfer/domain/portable_app_configuration.dart';
 import 'package:kanyingyin/features/tv_pairing/domain/tv_pairing_models.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
@@ -27,7 +28,7 @@ void main() {
       host: '192.168.1.10',
       port: 38765,
       pairingToken: 'temporary-token',
-      protocolVersion: 1,
+      protocolVersion: TvPairingPayload.currentProtocolVersion,
     );
 
     expect(payload.toJson().keys.toSet(), {
@@ -42,63 +43,88 @@ void main() {
     expect(uri.path, '/pair');
     expect(uri.queryParameters, {
       'token': 'temporary-token',
-      'v': '1',
+      'v': '2',
     });
     expect(payload.toQrData(), isNot(contains('password')));
     expect(payload.toQrData(), isNot(contains('tmdb')));
   });
 
-  test('强类型配置载荷往返保留来源与凭据且字符串表示脱敏', () {
-    const source = CloudSource(
-      id: 'cloud-1',
-      type: CloudSourceType.openList,
-      name: '家庭网盘',
-      baseUrl: 'https://cloud.example.com',
-      rootPaths: <String>['/电影'],
-    );
-    const credential = CloudCredential(
-      username: 'viewer',
-      password: 'secret-password',
-      refreshToken: 'secret-refresh-token',
-    );
-    const payload = TvPairingPayload(
-      protocolVersion: 1,
-      deviceName: '客厅电视',
-      tmdbApiKey: 'secret-tmdb-key',
-      cloudSources: <TvPairingCloudSourceRecord>[
-        TvPairingCloudSourceRecord(
-          source: source,
-          credential: credential,
-        ),
-      ],
+  test('配对载荷复用便携配置且字符串不泄漏秘密', () {
+    final payload = TvPairingPayload(
+      protocolVersion: TvPairingPayload.currentProtocolVersion,
+      deviceName: '手机配置',
+      configuration: PortableAppConfiguration.create(
+        exportedAt: DateTime.utc(2026, 8, 7),
+        appVersion: 'phone-web',
+        tmdbApiKey: 'tmdb-secret',
+        cloudSources: <PortableCloudSourceConfiguration>[
+          PortableCloudSourceConfiguration.fromSource(
+            source: const CloudSource(
+              id: 'quark-1',
+              type: CloudSourceType.quark,
+              name: '夸克',
+              baseUrl: 'https://pan.quark.cn',
+              rootPaths: <String>[],
+            ),
+            credential: const CloudCredential(cookie: 'cookie-secret'),
+          ),
+        ],
+      ),
     );
 
-    final decoded = TvPairingPayload.decode(payload.encode());
+    final restored = TvPairingPayload.decode(payload.encode());
 
-    expect(decoded.deviceName, '客厅电视');
-    expect(decoded.tmdbApiKey, 'secret-tmdb-key');
-    expect(decoded.cloudSources.single.source, source);
-    expect(decoded.cloudSources.single.credential?.password, 'secret-password');
-    expect(payload.toString(), isNot(contains('secret-password')));
-    expect(payload.toString(), isNot(contains('secret-refresh-token')));
-    expect(payload.toString(), isNot(contains('secret-tmdb-key')));
+    expect(restored.deviceName, '手机配置');
+    expect(restored.configuration.tmdbApiKey, 'tmdb-secret');
+    expect(restored.configuration.cloudSources.single.source.id, 'quark-1');
+    expect(
+      restored.configuration.cloudSources.single.credential?.cookie,
+      'cookie-secret',
+    );
+    expect(restored.toString(), isNot(contains('tmdb-secret')));
+    expect(restored.toString(), isNot(contains('cookie-secret')));
   });
 
   test('超过 256KB 的配置载荷被拒绝', () {
     final payload = TvPairingPayload(
-      protocolVersion: 1,
+      protocolVersion: TvPairingPayload.currentProtocolVersion,
       deviceName: '电视',
-      tmdbApiKey: 'a' * (TvPairingPayload.maxPayloadBytes + 1),
-      cloudSources: const <TvPairingCloudSourceRecord>[],
+      configuration: PortableAppConfiguration.create(
+        exportedAt: DateTime.utc(2026, 8, 7),
+        appVersion: 'phone-web',
+        tmdbApiKey: '',
+        cloudSources: <PortableCloudSourceConfiguration>[
+          PortableCloudSourceConfiguration.fromSource(
+            source: const CloudSource(
+              id: 'quark-large',
+              type: CloudSourceType.quark,
+              name: '夸克',
+              baseUrl: 'https://pan.quark.cn',
+              rootPaths: <String>[],
+            ),
+            credential: CloudCredential(
+              cookie: 'a' * (TvPairingPayload.maxPayloadBytes + 1),
+            ),
+          ),
+        ],
+      ),
     );
 
     expect(payload.encode, throwsA(isA<TvPairingPayloadTooLargeException>()));
   });
 
-  test('协议版本必须是整数', () {
+  test('协议版本必须是整数且旧版扁平载荷不再接受', () {
     expect(
-      () => TvPairingPayload.fromJson(<String, dynamic>{
+      () => TvPairingPayload.fromJson(<String, Object?>{
         'protocolVersion': 1.0,
+        'deviceName': '电视',
+        'configuration': <String, Object?>{},
+      }),
+      throwsA(isA<TvPairingInvalidPayloadException>()),
+    );
+    expect(
+      () => TvPairingPayload.fromJson(<String, Object?>{
+        'protocolVersion': 1,
         'deviceName': '电视',
         'tmdbApiKey': '',
         'cloudSources': <Object?>[],

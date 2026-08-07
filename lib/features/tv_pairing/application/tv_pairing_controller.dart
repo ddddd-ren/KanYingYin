@@ -1,15 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:kanyingyin/features/configuration_transfer/application/configuration_importer.dart';
 import 'package:kanyingyin/features/tv_pairing/data/tv_pairing_http_server.dart';
 import 'package:kanyingyin/features/tv_pairing/domain/tv_pairing_models.dart';
-import 'package:kanyingyin/repositories/cloud_source_repository.dart';
-import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
 
 enum TvPairingState {
   idle,
   starting,
   active,
+  phoneConnected,
   awaitingConfirmation,
   applying,
   success,
@@ -22,32 +22,39 @@ class TvPairingPendingSummary {
     required this.deviceName,
     required this.cloudSourceCount,
     required this.hasTmdbKey,
+    required this.added,
+    required this.updated,
+    required this.preserved,
+    required this.requiresRootSelection,
   });
 
   final String deviceName;
   final int cloudSourceCount;
   final bool hasTmdbKey;
+  final int added;
+  final int updated;
+  final int preserved;
+  final int requiresRootSelection;
 
   @override
-  String toString() =>
-      'TvPairingPendingSummary(deviceName: $deviceName, cloudSourceCount: $cloudSourceCount, hasTmdbKey: $hasTmdbKey)';
+  String toString() => 'TvPairingPendingSummary(deviceName: $deviceName, '
+      'cloudSourceCount: $cloudSourceCount, hasTmdbKey: $hasTmdbKey, '
+      'added: $added, updated: $updated, preserved: $preserved, '
+      'requiresRootSelection: $requiresRootSelection)';
 }
 
 class TvPairingController extends ChangeNotifier with WidgetsBindingObserver {
   TvPairingController({
-    required CloudSourceRepository sourceRepository,
-    required TmdbCredentialManager tmdbCredentialManager,
+    required ConfigurationImportPort importer,
     TvPairingServer? server,
     DateTime Function()? now,
-  })  : _sourceRepository = sourceRepository,
-        _tmdbCredentialManager = tmdbCredentialManager,
+  })  : _importer = importer,
         _server = server ?? TvPairingHttpServer(),
         _now = now ?? DateTime.now {
     WidgetsBinding.instance.addObserver(this);
   }
 
-  final CloudSourceRepository _sourceRepository;
-  final TmdbCredentialManager _tmdbCredentialManager;
+  final ConfigurationImportPort _importer;
   final TvPairingServer _server;
   final DateTime Function() _now;
 
@@ -56,14 +63,17 @@ class TvPairingController extends ChangeNotifier with WidgetsBindingObserver {
   TvPairingServerEndpoint? _endpoint;
   TvPairingPayload? _pendingPayload;
   TvPairingPendingSummary? _pendingSummary;
+  ConfigurationMergeSummary? _completedSummary;
   Completer<TvPairingSubmissionResult>? _pendingDecision;
   Timer? _countdownTimer;
   String? _errorMessage;
+  bool _phoneConnected = false;
   bool _disposed = false;
 
   TvPairingState get state => _state;
   TvPairingServerEndpoint? get endpoint => _endpoint;
   TvPairingPendingSummary? get pendingSummary => _pendingSummary;
+  ConfigurationMergeSummary? get completedSummary => _completedSummary;
   String? get errorMessage => _errorMessage;
 
   Duration get remaining {
@@ -80,6 +90,8 @@ class TvPairingController extends ChangeNotifier with WidgetsBindingObserver {
     }
     _state = TvPairingState.starting;
     _errorMessage = null;
+    _completedSummary = null;
+    _phoneConnected = false;
     _notify();
 
     final session = TvPairingSession.issue(now: _now().toUtc());
@@ -87,6 +99,7 @@ class TvPairingController extends ChangeNotifier with WidgetsBindingObserver {
     try {
       _endpoint = await _server.start(
         session: session,
+        onPhoneConnected: _handlePhoneConnected,
         onPayload: _handlePayload,
         onCancelled: _handleRemoteCancellation,
       );
@@ -122,39 +135,25 @@ class TvPairingController extends ChangeNotifier with WidgetsBindingObserver {
     _state = TvPairingState.applying;
     _errorMessage = null;
     _notify();
-    final previousTmdbKey = _tmdbCredentialManager.exportForPairing();
-    final shouldUpdateTmdb = payload.tmdbApiKey.isNotEmpty;
     try {
-      if (shouldUpdateTmdb) {
-        await _tmdbCredentialManager.importForPairing(payload.tmdbApiKey);
-      }
-      await _sourceRepository.importForPairing(
-        payload.cloudSources
-            .map(
-              (record) => CloudSourcePairingEntry(
-                source: record.source,
-                credential: record.credential,
-              ),
-            )
-            .toList(growable: false),
-      );
+      final result = await _importer.apply(payload.configuration);
+      _completedSummary = result;
       _clearPending();
       _state = TvPairingState.success;
       _countdownTimer?.cancel();
       decision.complete(TvPairingSubmissionResult.accepted);
       _notify();
-    } on Object {
-      if (shouldUpdateTmdb) {
-        try {
-          await _tmdbCredentialManager.importForPairing(previousTmdbKey);
-        } on Object {
-          // 保持错误信息脱敏，恢复失败由用户在手动配置页重新确认。
-        }
-      }
+    } on ConfigurationRollbackException {
       _clearPending();
       _state = TvPairingState.error;
-      _errorMessage = '配置写入失败，请重试';
-      decision.complete(TvPairingSubmissionResult.rejected);
+      _errorMessage = '配置写入失败，自动恢复未完整完成';
+      decision.complete(TvPairingSubmissionResult.applyFailed);
+      _notify();
+    } on Object {
+      _clearPending();
+      _state = TvPairingState.error;
+      _errorMessage = '配置写入失败，原配置已保留';
+      decision.complete(TvPairingSubmissionResult.applyFailed);
       _notify();
     }
   }
@@ -163,7 +162,8 @@ class TvPairingController extends ChangeNotifier with WidgetsBindingObserver {
     final decision = _pendingDecision;
     if (decision == null || decision.isCompleted) return;
     _clearPending();
-    _state = TvPairingState.active;
+    _state =
+        _phoneConnected ? TvPairingState.phoneConnected : TvPairingState.active;
     decision.complete(TvPairingSubmissionResult.rejected);
     _notify();
   }
@@ -181,24 +181,41 @@ class TvPairingController extends ChangeNotifier with WidgetsBindingObserver {
     _session?.cancel();
     _session = null;
     _endpoint = null;
+    _phoneConnected = false;
+    _completedSummary = null;
     if (_server.isRunning) await _server.stop();
     _state = TvPairingState.idle;
     _errorMessage = null;
     if (notify) _notify();
   }
 
+  void _handlePhoneConnected() {
+    if (_disposed || _state != TvPairingState.active) return;
+    _phoneConnected = true;
+    _state = TvPairingState.phoneConnected;
+    _errorMessage = null;
+    _notify();
+  }
+
   Future<TvPairingSubmissionResult> _handlePayload(
     TvPairingPayload payload,
   ) async {
-    if (_disposed || _state != TvPairingState.active) {
+    if (_disposed ||
+        (_state != TvPairingState.active &&
+            _state != TvPairingState.phoneConnected)) {
       return TvPairingSubmissionResult.rejected;
     }
+    final summary = await _importer.preview(payload.configuration);
     final decision = Completer<TvPairingSubmissionResult>();
     _pendingPayload = payload;
     _pendingSummary = TvPairingPendingSummary(
       deviceName: payload.deviceName,
-      cloudSourceCount: payload.cloudSources.length,
-      hasTmdbKey: payload.tmdbApiKey.isNotEmpty,
+      cloudSourceCount: payload.configuration.cloudSources.length,
+      hasTmdbKey: payload.configuration.tmdbApiKey.isNotEmpty,
+      added: summary.added,
+      updated: summary.updated,
+      preserved: summary.preserved,
+      requiresRootSelection: summary.requiresRootSelection,
     );
     _pendingDecision = decision;
     _state = TvPairingState.awaitingConfirmation;
@@ -216,6 +233,8 @@ class TvPairingController extends ChangeNotifier with WidgetsBindingObserver {
     _countdownTimer = null;
     _session = null;
     _endpoint = null;
+    _phoneConnected = false;
+    _completedSummary = null;
     _state = TvPairingState.idle;
     _errorMessage = null;
     _notify();
@@ -245,6 +264,8 @@ class TvPairingController extends ChangeNotifier with WidgetsBindingObserver {
     _session?.cancel();
     _session = null;
     _endpoint = null;
+    _phoneConnected = false;
+    _completedSummary = null;
     if (_server.isRunning) await _server.stop();
     _state = TvPairingState.error;
     _errorMessage = '配对已超时，请重试';

@@ -23,7 +23,17 @@ final class ConfigurationMergeSummary {
 
 typedef ConfigurationImportResult = ConfigurationMergeSummary;
 
-final class ConfigurationImporter {
+abstract interface class ConfigurationImportPort {
+  Future<ConfigurationMergeSummary> preview(
+    PortableAppConfiguration configuration,
+  );
+
+  Future<ConfigurationImportResult> apply(
+    PortableAppConfiguration configuration,
+  );
+}
+
+final class ConfigurationImporter implements ConfigurationImportPort {
   ConfigurationImporter({
     required CloudSourceRepository sourceRepository,
     required TmdbCredentialManager tmdbCredentialManager,
@@ -34,6 +44,7 @@ final class ConfigurationImporter {
   final TmdbCredentialManager _tmdbCredentialManager;
   final Lock _mutationLock = Lock();
 
+  @override
   Future<ConfigurationMergeSummary> preview(
     PortableAppConfiguration configuration,
   ) async {
@@ -52,6 +63,7 @@ final class ConfigurationImporter {
     );
   }
 
+  @override
   Future<ConfigurationImportResult> apply(
     PortableAppConfiguration configuration,
   ) =>

@@ -1,8 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
-import 'package:kanyingyin/modules/cloud/cloud_source.dart';
-import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
+import 'package:kanyingyin/features/configuration_transfer/domain/portable_app_configuration.dart';
 
 class TvPairingSession {
   TvPairingSession._({
@@ -108,61 +107,19 @@ class TvPairingQrPayload {
 }
 
 @immutable
-class TvPairingCloudSourceRecord {
-  const TvPairingCloudSourceRecord({
-    required this.source,
-    this.credential,
-  });
-
-  final CloudSource source;
-  final CloudCredential? credential;
-
-  factory TvPairingCloudSourceRecord.fromJson(Map<String, dynamic> json) {
-    final sourceJson = json['source'];
-    if (sourceJson is! Map<Object?, Object?>) {
-      throw const TvPairingInvalidPayloadException('网盘来源格式无效');
-    }
-    final source = CloudSource.fromJson(Map<String, dynamic>.from(sourceJson));
-    if (source.id.trim().isEmpty) {
-      throw const TvPairingInvalidPayloadException('网盘来源 ID 为空');
-    }
-    final credentialJson = json['credential'];
-    return TvPairingCloudSourceRecord(
-      source: source,
-      credential: credentialJson is Map<Object?, Object?>
-          ? CloudCredential.fromJson(
-              Map<String, dynamic>.from(credentialJson),
-            )
-          : null,
-    );
-  }
-
-  Map<String, Object> toJson() => <String, Object>{
-        'source': source.toJson(),
-        if (credential != null) 'credential': credential!.toJson(),
-      };
-
-  @override
-  String toString() =>
-      'TvPairingCloudSourceRecord(sourceId: ${source.id}, hasCredential: ${credential != null})';
-}
-
-@immutable
 class TvPairingPayload {
   const TvPairingPayload({
     required this.protocolVersion,
     required this.deviceName,
-    required this.tmdbApiKey,
-    required this.cloudSources,
+    required this.configuration,
   });
 
-  static const int currentProtocolVersion = 1;
+  static const int currentProtocolVersion = 2;
   static const int maxPayloadBytes = 256 * 1024;
 
   final int protocolVersion;
   final String deviceName;
-  final String tmdbApiKey;
-  final List<TvPairingCloudSourceRecord> cloudSources;
+  final PortableAppConfiguration configuration;
 
   factory TvPairingPayload.fromJson(Map<String, dynamic> json) {
     final version = json['protocolVersion'];
@@ -170,26 +127,26 @@ class TvPairingPayload {
       throw const TvPairingInvalidPayloadException('配对协议版本不受支持');
     }
     final deviceName = json['deviceName'];
-    final tmdbApiKey = json['tmdbApiKey'];
-    final sources = json['cloudSources'];
+    final configurationJson = json['configuration'];
     if (deviceName is! String ||
-        tmdbApiKey is! String ||
-        sources is! List<Object?>) {
+        deviceName.trim().isEmpty ||
+        deviceName.length > 80 ||
+        configurationJson is! Map<Object?, Object?>) {
       throw const TvPairingInvalidPayloadException('配对配置格式无效');
     }
-    return TvPairingPayload(
-      protocolVersion: version,
-      deviceName: deviceName.trim(),
-      tmdbApiKey: tmdbApiKey.trim(),
-      cloudSources: sources.map((value) {
-        if (value is! Map<Object?, Object?>) {
-          throw const TvPairingInvalidPayloadException('网盘配置格式无效');
-        }
-        return TvPairingCloudSourceRecord.fromJson(
-          Map<String, dynamic>.from(value),
-        );
-      }).toList(growable: false),
-    );
+    try {
+      return TvPairingPayload(
+        protocolVersion: version,
+        deviceName: deviceName.trim(),
+        configuration: PortableAppConfiguration.fromJson(
+          Map<String, Object?>.from(configurationJson),
+        ),
+      );
+    } on PortableConfigurationValidationException catch (error) {
+      throw TvPairingInvalidPayloadException(error.code);
+    } on Object {
+      throw const TvPairingInvalidPayloadException('配对配置格式无效');
+    }
   }
 
   factory TvPairingPayload.decode(List<int> bytes) {
@@ -209,13 +166,10 @@ class TvPairingPayload {
     }
   }
 
-  Map<String, Object> toJson() => <String, Object>{
+  Map<String, Object?> toJson() => <String, Object?>{
         'protocolVersion': protocolVersion,
         'deviceName': deviceName,
-        'tmdbApiKey': tmdbApiKey,
-        'cloudSources': cloudSources
-            .map((record) => record.toJson())
-            .toList(growable: false),
+        'configuration': configuration.toJson(),
       };
 
   Uint8List encode() {
@@ -228,7 +182,7 @@ class TvPairingPayload {
 
   @override
   String toString() =>
-      'TvPairingPayload(protocolVersion: $protocolVersion, deviceName: $deviceName, cloudSourceCount: ${cloudSources.length}, hasTmdbKey: ${tmdbApiKey.isNotEmpty})';
+      'TvPairingPayload(protocolVersion: $protocolVersion, deviceName: $deviceName, cloudSourceCount: ${configuration.cloudSources.length}, hasTmdbKey: ${configuration.tmdbApiKey.isNotEmpty})';
 }
 
 class TvPairingPayloadTooLargeException implements Exception {

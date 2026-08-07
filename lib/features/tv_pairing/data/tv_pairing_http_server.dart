@@ -5,8 +5,9 @@ import 'dart:io';
 import 'package:kanyingyin/features/tv_pairing/domain/tv_pairing_models.dart';
 import 'package:synchronized/synchronized.dart';
 
-enum TvPairingSubmissionResult { accepted, rejected }
+enum TvPairingSubmissionResult { accepted, rejected, applyFailed }
 
+typedef TvPairingPhoneConnectedHandler = void Function();
 typedef TvPairingPayloadHandler = Future<TvPairingSubmissionResult> Function(
   TvPairingPayload payload,
 );
@@ -58,6 +59,7 @@ abstract interface class TvPairingServer {
 
   Future<TvPairingServerEndpoint> start({
     required TvPairingSession session,
+    required TvPairingPhoneConnectedHandler onPhoneConnected,
     required TvPairingPayloadHandler onPayload,
     TvPairingCancelledHandler? onCancelled,
   });
@@ -82,8 +84,10 @@ class TvPairingHttpServer implements TvPairingServer {
 
   HttpServer? _server;
   TvPairingSession? _session;
+  TvPairingPhoneConnectedHandler? _onPhoneConnected;
   TvPairingPayloadHandler? _onPayload;
   TvPairingCancelledHandler? _onCancelled;
+  bool _phoneConnectedNotified = false;
 
   @override
   bool get isRunning => _server != null;
@@ -91,6 +95,7 @@ class TvPairingHttpServer implements TvPairingServer {
   @override
   Future<TvPairingServerEndpoint> start({
     required TvPairingSession session,
+    required TvPairingPhoneConnectedHandler onPhoneConnected,
     required TvPairingPayloadHandler onPayload,
     TvPairingCancelledHandler? onCancelled,
   }) async {
@@ -105,8 +110,10 @@ class TvPairingHttpServer implements TvPairingServer {
     final server = await HttpServer.bind(_bindAddress, 0, shared: false);
     _server = server;
     _session = session;
+    _onPhoneConnected = onPhoneConnected;
     _onPayload = onPayload;
     _onCancelled = onCancelled;
+    _phoneConnectedNotified = false;
     server.listen(
       (request) => unawaited(_handleRequest(request)),
       onError: (_) {},
@@ -124,8 +131,10 @@ class TvPairingHttpServer implements TvPairingServer {
     final server = _server;
     _server = null;
     _session = null;
+    _onPhoneConnected = null;
     _onPayload = null;
     _onCancelled = null;
+    _phoneConnectedNotified = false;
     if (server != null) {
       await server.close(force: true);
     }
@@ -187,6 +196,10 @@ class TvPairingHttpServer implements TvPairingServer {
       await _respondJson(request.response, HttpStatus.badRequest,
           <String, Object>{'status': 'unsupported_version'});
       return;
+    }
+    if (!_phoneConnectedNotified) {
+      _phoneConnectedNotified = true;
+      _onPhoneConnected?.call();
     }
 
     final response = request.response;
@@ -334,8 +347,10 @@ class TvPairingHttpServer implements TvPairingServer {
     final server = _server;
     _server = null;
     _session = null;
+    _onPhoneConnected = null;
     _onPayload = null;
     _onCancelled = null;
+    _phoneConnectedNotified = false;
     if (server != null) {
       await server.close(force: false);
     }

@@ -26,7 +26,7 @@
 - 安装器产品版本：`2.1.148`。
 - 安装器 SHA-256：`2DA72D1C4AAC3F0C4DE6DFFFEEA892099C6F3C3B4EED522FE819A21DAF715EFF`。
 - Authenticode 状态：`NotSigned`，测试版安装器未签名。
-- 本轮构建脚本未执行安装、卸载或启动操作；最终检查发现 Inno 版 `2.1.147` 已安装在 `D:\看影音`，`unins000.exe` 存在，未用本轮测试包覆盖现有安装。
+- 本轮构建脚本未执行安装、卸载或启动操作；最终复核发现 Inno 版 `2.1.148` 已安装在 `D:\看影音`，`unins000.exe` 存在。已安装主程序 SHA-256 为 `14FF79C75254E233681CA3AD1D7E68BB54511D7032231A9EF5C7362C1EB908CD`，与本轮重新构建 Release 主程序的哈希不同；本轮不据此宣称已安装本轮新构建。
 
 ## Android TV 交付证据
 
@@ -81,7 +81,7 @@ ADB 输出只有 `List of devices attached`，没有已连接或已授权设备�
 | --- | --- | --- |
 | 用户海信电视 | `pending` | 未连接 ADB，Android API、ABI 和遥控器实机行为尚未取得证据 |
 | 标准 Android TV/Google TV | `pending` | 包级兼容检查通过，尚未完成真实设备安装与播放 |
-| Windows Inno 安装 | 已安装 `2.1.147` | 安装目录为 `D:\看影音`，主程序产品版本为 `2.1.147`；本轮构建脚本未执行安装 |
+| Windows Inno 安装 | 已安装 `2.1.148` | 安装目录为 `D:\看影音`，主程序产品版本为 `2.1.148`；本轮构建脚本未执行安装，已安装文件哈希与本轮 Release 不同 |
 | 旧 Windows MSIX | 未安装 | `Get-AppxPackage` 未发现 `com.kanyingyin.player`；本轮未生成或交付 MSIX |
 
 本轮构建脚本没有执行安装，最终安装状态检查如上。若海信设备为 VIDAA 原生系统而没有 Android 底层，则不能安装本 APK。

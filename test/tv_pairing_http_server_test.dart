@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/tv_pairing/data/tv_pairing_http_server.dart';
 import 'package:kanyingyin/features/tv_pairing/domain/tv_pairing_models.dart';
+import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 
 void main() {
   late DateTime now;
@@ -25,23 +26,31 @@ void main() {
     await server.stop();
   });
 
-  test('手机页面只在有效令牌下返回且不缓存', () async {
+  test('手机页面只在有效令牌下返回、不缓存且连接通知幂等', () async {
+    var connected = 0;
     final endpoint = await server.start(
       session: session,
+      onPhoneConnected: () => connected++,
       onPayload: (_) async => TvPairingSubmissionResult.rejected,
     );
 
     final valid = await _request(endpoint.pairUri);
+    final repeated = await _request(endpoint.pairUri);
     final invalid = await _request(
       endpoint.pairUri.replace(queryParameters: <String, String>{
         'token': 'wrong-token',
-        'v': '1',
+        'v': TvPairingPayload.currentProtocolVersion.toString(),
       }),
     );
 
     expect(valid.statusCode, HttpStatus.ok);
+    expect(repeated.statusCode, HttpStatus.ok);
+    expect(connected, 1);
     expect(valid.headers.value(HttpHeaders.cacheControlHeader), 'no-store');
     expect(valid.body, contains('TMDB API Key'));
+    expect(valid.body, contains('夸克网盘'));
+    expect(valid.body, contains('百度网盘'));
+    expect(valid.body, contains('迅雷网盘'));
     expect(valid.body, isNot(contains('secret-tmdb-key')));
     expect(invalid.statusCode, HttpStatus.unauthorized);
   });
@@ -49,6 +58,7 @@ void main() {
   test('POST 拒绝错误令牌、非 JSON 和超大载荷', () async {
     final endpoint = await server.start(
       session: session,
+      onPhoneConnected: () {},
       onPayload: (_) async => TvPairingSubmissionResult.accepted,
     );
     final payload = _payloadBytes();
@@ -87,10 +97,11 @@ void main() {
     var receivedCount = 0;
     final endpoint = await server.start(
       session: session,
+      onPhoneConnected: () {},
       onPayload: (payload) {
         receivedCount++;
         if (!payloadReceived.isCompleted) payloadReceived.complete();
-        expect(payload.deviceName, '客厅电视');
+        expect(payload.deviceName, '手机配置');
         return confirmation.future;
       },
     );
@@ -124,10 +135,79 @@ void main() {
     expect(session.isConsumed, isTrue);
   });
 
+  test('电视写入失败和用户拒绝返回不同稳定状态且不消费令牌', () async {
+    var result = TvPairingSubmissionResult.applyFailed;
+    final endpoint = await server.start(
+      session: session,
+      onPhoneConnected: () {},
+      onPayload: (_) async => result,
+    );
+
+    final failed = await _request(
+      endpoint.pairApiUri,
+      method: 'POST',
+      token: session.token,
+      contentType: ContentType.json,
+      body: _payloadBytes(),
+    );
+    result = TvPairingSubmissionResult.rejected;
+    final rejected = await _request(
+      endpoint.pairApiUri,
+      method: 'POST',
+      token: session.token,
+      contentType: ContentType.json,
+      body: _payloadBytes(),
+    );
+
+    expect(failed.statusCode, HttpStatus.internalServerError);
+    expect(failed.body, contains('apply_failed'));
+    expect(rejected.statusCode, HttpStatus.conflict);
+    expect(rejected.body, contains('rejected_on_tv'));
+    expect(session.isConsumed, isFalse);
+  });
+
+  test('四类手机网盘字段映射为强类型来源和凭据', () async {
+    late TvPairingPayload received;
+    final endpoint = await server.start(
+      session: session,
+      onPhoneConnected: () {},
+      onPayload: (payload) async {
+        received = payload;
+        return TvPairingSubmissionResult.rejected;
+      },
+    );
+
+    final response = await _request(
+      endpoint.pairApiUri,
+      method: 'POST',
+      token: session.token,
+      contentType: ContentType.json,
+      body: _payloadBytes(cloudSources: _allProviderRecords()),
+    );
+
+    expect(response.statusCode, HttpStatus.conflict);
+    expect(
+      received.configuration.cloudSources.map((record) => record.source.type),
+      CloudSourceType.values,
+    );
+    final records = received.configuration.cloudSources;
+    expect(records[0].source.rootPaths, <String>['/影视']);
+    expect(records[0].credential?.username, 'viewer');
+    expect(records[1].source.baseUrl, 'https://pan.quark.cn');
+    expect(records[1].credential?.cookie, 'quark-cookie');
+    expect(records[2].credential?.clientSecret, 'baidu-secret');
+    expect(
+        records[2].credential?.accessTokenExpiresAt, DateTime.utc(2026, 8, 9));
+    expect(records[3].credential?.refreshToken, 'xunlei-refresh');
+    expect(
+        records.where((record) => record.requiresRootSelection), hasLength(3));
+  });
+
   test('过期令牌和取消请求都会阻止配置提交', () async {
     var cancelled = false;
     final endpoint = await server.start(
       session: session,
+      onPhoneConnected: () {},
       onPayload: (_) async => TvPairingSubmissionResult.accepted,
       onCancelled: () async => cancelled = true,
     );
@@ -148,6 +228,7 @@ void main() {
     session = TvPairingSession.issue(now: now);
     final expiredEndpoint = await server.start(
       session: session,
+      onPhoneConnected: () {},
       onPayload: (_) async => TvPairingSubmissionResult.accepted,
     );
     now = now.add(const Duration(minutes: 5));
@@ -163,12 +244,75 @@ void main() {
   });
 }
 
-List<int> _payloadBytes() => utf8.encode(jsonEncode(<String, Object>{
+List<int> _payloadBytes({List<Object?> cloudSources = const <Object?>[]}) =>
+    utf8.encode(jsonEncode(<String, Object?>{
       'protocolVersion': TvPairingPayload.currentProtocolVersion,
-      'deviceName': '客厅电视',
-      'tmdbApiKey': '',
-      'cloudSources': <Object>[],
+      'deviceName': '手机配置',
+      'configuration': <String, Object?>{
+        'formatVersion': 1,
+        'exportedAt': '2026-08-07T12:00:00.000Z',
+        'appVersion': 'phone-web',
+        'tmdbApiKey': '',
+        'cloudSources': cloudSources,
+      },
     }));
+
+List<Object?> _allProviderRecords() => <Object?>[
+      <String, Object?>{
+        'source': <String, Object?>{
+          'id': 'openlist-1',
+          'type': 'openList',
+          'name': 'OpenList',
+          'baseUrl': 'https://drive.example.com',
+          'rootPaths': <String>['/影视'],
+          'enabled': true,
+          'allowSelfSignedCertificate': true,
+        },
+        'credential': <String, Object?>{
+          'username': 'viewer',
+          'password': 'openlist-password',
+        },
+      },
+      <String, Object?>{
+        'source': <String, Object?>{
+          'id': 'quark-1',
+          'type': 'quark',
+          'name': '夸克',
+          'baseUrl': 'https://pan.quark.cn',
+          'rootPaths': <String>[],
+          'rootRefs': <Object?>[],
+        },
+        'credential': <String, Object?>{'cookie': 'quark-cookie'},
+      },
+      <String, Object?>{
+        'source': <String, Object?>{
+          'id': 'baidu-1',
+          'type': 'baidu',
+          'name': '百度',
+          'baseUrl': 'https://pan.baidu.com',
+          'rootPaths': <String>[],
+          'rootRefs': <Object?>[],
+        },
+        'credential': <String, Object?>{
+          'clientId': 'baidu-client',
+          'clientSecret': 'baidu-secret',
+          'accessToken': 'baidu-access',
+          'refreshToken': 'baidu-refresh',
+          'accessTokenExpiresAt': '2026-08-09T00:00:00.000Z',
+        },
+      },
+      <String, Object?>{
+        'source': <String, Object?>{
+          'id': 'xunlei-1',
+          'type': 'xunlei',
+          'name': '迅雷',
+          'baseUrl': 'https://pan.xunlei.com',
+          'rootPaths': <String>[],
+          'rootRefs': <Object?>[],
+        },
+        'credential': <String, Object?>{'refreshToken': 'xunlei-refresh'},
+      },
+    ];
 
 Future<_HttpResult> _request(
   Uri uri, {

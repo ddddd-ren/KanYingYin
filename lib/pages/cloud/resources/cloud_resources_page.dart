@@ -186,6 +186,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       sourceId: source.id,
       group: group,
       subtitleVideoKeys: _subtitleVideoKeys(source.id),
+      capabilities: widget.capabilities ?? detectAppPlatform(),
     );
     if (selected != null && mounted) await _play(group, selected);
   }
@@ -1227,6 +1228,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
           ),
           Expanded(
             child: CloudResourcePosterWall(
+              capabilities: widget.capabilities ?? detectAppPlatform(),
               sourceId: _controller.selectedSource!.id,
               sourceName: _controller.selectedSource!.name,
               collection: _controller.collection,

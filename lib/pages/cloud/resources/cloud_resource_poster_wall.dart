@@ -9,6 +9,7 @@ import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_card_view_data.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
+import 'package:kanyingyin/features/tv/presentation/tv_image_decode_policy.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_layout_policy.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
@@ -68,8 +69,11 @@ class CloudResourcePosterWall extends StatelessWidget {
   }
 
   Widget _mediaGrid(BuildContext context) {
-    final policy = TvLayoutPolicy.forCapabilities(
-      capabilities ?? detectAppPlatform(),
+    final platform = capabilities ?? detectAppPlatform();
+    final policy = TvLayoutPolicy.forCapabilities(platform);
+    final decodeSize = TvImageDecodePolicy.poster(
+      platform,
+      devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
     );
     return FocusTraversalGroup(
       key: const ValueKey<String>('cloud-resource-poster-focus-group'),
@@ -134,7 +138,7 @@ class CloudResourcePosterWall extends StatelessWidget {
               : data.details;
           return ImmersiveMediaCard(
             key: ValueKey<String>(group.stableKey),
-            cover: _mediaPoster(context, group, data),
+            cover: _mediaPoster(context, group, data, decodeSize),
             title: group.isWorkScoped
                 ? group.displayName
                 : group.record?.effectiveTitle ?? group.seriesName,
@@ -282,25 +286,28 @@ class CloudResourcePosterWall extends StatelessWidget {
     BuildContext context,
     CloudResourceMediaGroup group,
     CloudResourceCardViewData data,
+    TvImageDecodeSize? decodeSize,
   ) {
     final record = group.record;
     if (group.isWorkScoped && group.seasonNumber != null) {
       return KeyedSubtree(
         key: ValueKey<String>('season-poster-${group.seasonNumber}'),
-        child: _cachedPoster(context, data) ?? _networkPoster(context, data),
+        child: _cachedPoster(context, data, decodeSize) ??
+            _networkPoster(context, data, decodeSize),
       );
     }
     final key = record?.status == CloudResourceTmdbStatus.matched
         ? ValueKey<String>('tmdb-poster-${record!.stableKey}')
         : null;
-    final poster =
-        _cachedPoster(context, data) ?? _networkPoster(context, data);
+    final poster = _cachedPoster(context, data, decodeSize) ??
+        _networkPoster(context, data, decodeSize);
     return key == null ? poster : KeyedSubtree(key: key, child: poster);
   }
 
   Widget? _cachedPoster(
     BuildContext context,
     CloudResourceCardViewData data,
+    TvImageDecodeSize? decodeSize,
   ) {
     final path = data.posterCachePath;
     if (path == null || !File(path).existsSync()) return null;
@@ -309,13 +316,17 @@ class CloudResourcePosterWall extends StatelessWidget {
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,
-      errorBuilder: (_, __, ___) => _networkPoster(context, data),
+      cacheWidth: decodeSize?.width,
+      cacheHeight: decodeSize?.height,
+      filterQuality: FilterQuality.medium,
+      errorBuilder: (_, __, ___) => _networkPoster(context, data, decodeSize),
     );
   }
 
   Widget _networkPoster(
     BuildContext context,
     CloudResourceCardViewData data,
+    TvImageDecodeSize? decodeSize,
   ) {
     final url = TmdbMatchSheet.imageUrl(data.posterUrl, size: 'w500');
     if (url == null) return _mediaPlaceholder(context);
@@ -324,6 +335,9 @@ class CloudResourcePosterWall extends StatelessWidget {
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,
+      cacheWidth: decodeSize?.width,
+      cacheHeight: decodeSize?.height,
+      filterQuality: FilterQuality.medium,
       errorBuilder: (_, __, ___) => _mediaPlaceholder(context),
     );
   }

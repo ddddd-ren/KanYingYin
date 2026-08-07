@@ -786,6 +786,46 @@ void main() {
       expect(played, item.id);
     });
 
+    testWidgets('TV 网格海报限制解码尺寸', (tester) async {
+      tester.view.devicePixelRatio = 2;
+      tester.view.physicalSize = const Size(1280, 720);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      const imageItem = LibraryMediaItemViewData(
+        id: 'tv-image-budget',
+        title: '电视海报',
+        subtitle: '',
+        infoText: '',
+        modifiedText: '',
+        hasMultipleEpisodes: false,
+        hasSubtitle: false,
+        scrapeLabel: '已刮削',
+        networkCoverUrl: 'https://image.example.invalid/poster.jpg',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: LibraryMediaGrid(
+              capabilities: AppPlatformCapabilities.android.copyWith(
+                television: true,
+                androidSdkInt: 28,
+              ),
+              data: LibraryMediaGridViewData(items: const [imageItem]),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final image = tester.widget<Image>(find.byType(Image).first);
+      expect(image.image, isA<ResizeImage>());
+      final resized = image.image as ResizeImage;
+      expect(resized.width, 720);
+      expect(resized.height, 1080);
+      expect(image.filterQuality, FilterQuality.medium);
+    });
+
     testWidgets('TV 首屏以两行五列显示十张海报', (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(1309, 919);

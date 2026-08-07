@@ -53,6 +53,53 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('TV 网盘来源把编辑扫描删除拆成独立焦点项', (tester) async {
+    final credentials = MemoryCloudCredentialStore();
+    final repository = CloudSourceRepository(
+      storage: MemoryCloudSourceStorage(),
+      credentialStore: credentials,
+    );
+    await repository.save(const CloudSource(
+      id: 'tv-source',
+      type: CloudSourceType.openList,
+      name: '客厅网盘',
+      baseUrl: 'https://drive.example.com',
+      rootPaths: <String>['/影视'],
+    ));
+    final controller = CloudLibraryController(
+      repository: repository,
+      credentialStore: credentials,
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: CloudSourcesSettingsPage(
+        controller: controller,
+        capabilities:
+            AppPlatformCapabilities.android.copyWith(television: true),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey<String>('tv-cloud-source-edit-tv-source')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey<String>('tv-cloud-source-scan-tv-source')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey<String>('tv-cloud-source-delete-tv-source')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey<String>('tv-add-cloud-source')),
+      findsOneWidget,
+    );
+    expect(find.byType(PopupMenuButton<CloudSourceType>), findsNothing);
+    controller.dispose();
+  });
+
   testWidgets('网盘来源设置页显示入口和空状态', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(home: CloudSourcesSettingsPage()),

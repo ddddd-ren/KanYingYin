@@ -72,15 +72,21 @@ class _TvPairingPageState extends State<TvPairingPage> {
           ],
         ),
         actions: <Widget>[
-          TextButton(
+          TvSettingsFocusSurface(
             autofocus: true,
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('拒绝'),
+            child: TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('拒绝'),
+            ),
           ),
-          FilledButton.icon(
+          TvSettingsFocusSurface(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            icon: const Icon(Icons.check),
-            label: const Text('确认写入'),
+            child: FilledButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Icons.check),
+              label: const Text('确认写入'),
+            ),
           ),
         ],
       ),
@@ -263,16 +269,24 @@ class _ActivePairingView extends StatelessWidget {
                     spacing: 12,
                     runSpacing: 12,
                     children: <Widget>[
-                      FilledButton.icon(
+                      TvSettingsFocusSurface(
+                        key: const ValueKey<String>('tv-pairing-cancel-focus'),
                         autofocus: true,
                         onPressed: onCancel,
-                        icon: const Icon(Icons.close),
-                        label: const Text('取消配对'),
+                        child: FilledButton.icon(
+                          onPressed: onCancel,
+                          icon: const Icon(Icons.close),
+                          label: const Text('取消配对'),
+                        ),
                       ),
-                      OutlinedButton.icon(
+                      TvSettingsFocusSurface(
+                        key: const ValueKey<String>('tv-pairing-manual-focus'),
                         onPressed: onManualConfiguration,
-                        icon: const Icon(Icons.tune),
-                        label: const Text('手动配置'),
+                        child: OutlinedButton.icon(
+                          onPressed: onManualConfiguration,
+                          icon: const Icon(Icons.tune),
+                          label: const Text('手动配置'),
+                        ),
                       ),
                     ],
                   ),
@@ -322,10 +336,15 @@ class _PhoneConnectedView extends StatelessWidget {
               const SizedBox(height: 16),
               _RemainingTime(controller: controller),
               const SizedBox(height: 28),
-              OutlinedButton.icon(
+              TvSettingsFocusSurface(
+                key: const ValueKey<String>('tv-pairing-cancel-focus'),
+                autofocus: true,
                 onPressed: onCancel,
-                icon: const Icon(Icons.close),
-                label: const Text('取消配对'),
+                child: OutlinedButton.icon(
+                  onPressed: onCancel,
+                  icon: const Icon(Icons.close),
+                  label: const Text('取消配对'),
+                ),
               ),
             ],
           ),
@@ -390,14 +409,25 @@ class _PairingResultView extends StatelessWidget {
               Wrap(
                 spacing: 12,
                 children: <Widget>[
-                  FilledButton(
+                  TvSettingsFocusSurface(
+                    key: const ValueKey<String>(
+                        'tv-pairing-result-primary-focus'),
+                    autofocus: true,
                     onPressed: onPrimary,
-                    child: Text(primaryLabel),
+                    child: FilledButton(
+                      onPressed: onPrimary,
+                      child: Text(primaryLabel),
+                    ),
                   ),
                   if (secondaryLabel != null && onSecondary != null)
-                    OutlinedButton(
-                      onPressed: onSecondary,
-                      child: Text(secondaryLabel!),
+                    TvSettingsFocusSurface(
+                      key: const ValueKey<String>(
+                          'tv-pairing-result-secondary-focus'),
+                      onPressed: onSecondary!,
+                      child: OutlinedButton(
+                        onPressed: onSecondary,
+                        child: Text(secondaryLabel!),
+                      ),
                     ),
                 ],
               ),

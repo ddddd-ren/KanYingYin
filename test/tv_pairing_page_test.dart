@@ -7,11 +7,40 @@ import 'package:kanyingyin/features/tv_pairing/data/tv_pairing_http_server.dart'
 import 'package:kanyingyin/features/tv_pairing/domain/tv_pairing_models.dart';
 import 'package:kanyingyin/features/tv_pairing/presentation/tv_pairing_page.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
 
 void main() {
+  testWidgets('配对页操作按钮使用 TV 高对比焦点表面', (tester) async {
+    installAppPlatformCapabilities(
+      AppPlatformCapabilities.android.copyWith(television: true),
+    );
+    addTearDown(
+      () => installAppPlatformCapabilities(AppPlatformCapabilities.windows),
+    );
+    await _setTvViewport(tester);
+    final fixture = await _PairingPageFixture.create();
+    await tester.pumpWidget(MaterialApp(
+      home: TvPairingPage(controller: fixture.controller),
+    ));
+    await _waitFor(tester, find.byKey(const ValueKey<String>('tv-pairing-qr')));
+
+    expect(
+      find.byKey(const ValueKey<String>('tv-pairing-cancel-focus')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey<String>('tv-pairing-manual-focus')),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+  });
+
   testWidgets('配对页显示二维码、局域网地址和手动配置入口', (tester) async {
     await _setTvViewport(tester);
     final fixture = await _PairingPageFixture.create();

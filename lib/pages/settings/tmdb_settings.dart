@@ -263,44 +263,54 @@ class _TmdbSettingsPageState extends State<TmdbSettingsPage> {
                 () => _options = _options.copyWith(fetchBackdrop: value)),
           ),
           const Divider(height: 32),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
+          KSettingsTile<void>.navigation(
+            key: const ValueKey<String>('tmdb-test-connection'),
             leading: const Icon(Icons.network_check_outlined),
             title: const Text('测试 TMDB 连接'),
-            subtitle: const Text('验证当前密钥和网络是否可用'),
-            trailing: _testing
+            description: const Text('验证当前密钥和网络是否可用'),
+            enabled: !_testing,
+            value: _testing
                 ? const SizedBox(
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.chevron_right),
-            onTap: _testing ? null : _testConnection,
+                : null,
+            onPressed: (_) => _testConnection(),
           ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
+          KSettingsTile<void>.navigation(
+            key: const ValueKey<String>('tmdb-clear-cache'),
             leading: const Icon(Icons.cleaning_services_outlined),
             title: const Text('清理元数据缓存'),
-            subtitle: const Text('不会删除媒体文件或已经写入媒体库的信息'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _clearMetadataCache,
+            description: const Text('不会删除媒体文件或已经写入媒体库的信息'),
+            onPressed: (_) => _clearMetadataCache(),
           ),
-          ListTile(
+          KSettingsTile<void>.navigation(
+            key: const ValueKey<String>('tmdb-configuration-transfer'),
+            leading: const Icon(Icons.import_export_rounded),
+            title: const Text('配置迁移'),
+            description: const Text('用密码加密迁移 TMDB Key 和个人网盘账号配置'),
+            onPressed: (_) => Modular.to.pushNamed(
+              '/settings/cloud-sources/configuration-transfer',
+            ),
+          ),
+          KSettingsTile<void>.navigation(
             key: const ValueKey<String>('scraped-metadata-transfer-entry'),
-            contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.move_to_inbox_outlined),
             title: const Text('迁移刮削资料'),
-            subtitle: const Text('把已识别的资料和封面带到另一台设备'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Modular.to.pushNamed('/settings/tmdb/transfer'),
+            description: const Text('把已识别的资料和封面带到另一台设备'),
+            onPressed: (_) => Modular.to.pushNamed('/settings/tmdb/transfer'),
           ),
           const SizedBox(height: 24),
           Align(
             alignment: Alignment.centerRight,
-            child: FilledButton.icon(
+            child: TvSettingsFocusSurface(
               onPressed: _save,
-              icon: const Icon(Icons.save_outlined),
-              label: const Text('保存'),
+              child: FilledButton.icon(
+                onPressed: _save,
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('保存'),
+              ),
             ),
           ),
         ],

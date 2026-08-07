@@ -160,6 +160,19 @@ void main() {
     await coordinator.close();
     expect(second.closeCalls, 1);
   });
+
+  test('播放替换失败时同时释放候选租约和旧租约', () async {
+    final coordinator = CloudPlaybackLeaseCoordinator();
+    final active = _FakeLease();
+    final candidate = _FakeLease();
+
+    await coordinator.adopt(active);
+    await coordinator.abortReplacement(candidate);
+
+    expect(active.closeCalls, 1);
+    expect(candidate.closeCalls, 1);
+    expect(coordinator.active, isNull);
+  });
 }
 
 class _FakeLease implements CloudPlaybackLease {

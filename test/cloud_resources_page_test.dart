@@ -458,6 +458,33 @@ void main() {
     expect(message, isNot(contains('secret')));
   });
 
+  test('Android 9 TV 播放失败诊断包含安全档位且保持脱敏', () {
+    const source = CloudSource(
+      id: 'quark-source',
+      type: CloudSourceType.quark,
+      name: '夸克网盘',
+      baseUrl: 'https://pan.quark.cn',
+      rootPaths: <String>['/'],
+    );
+    final capabilities = AppPlatformCapabilities.android.copyWith(
+      television: true,
+      androidSdkInt: 28,
+    );
+
+    final message = cloudPlaybackFailureDiagnostic(
+      source,
+      StateError('https://dl.quark.cn/file?token=secret'),
+      capabilities: capabilities,
+    );
+
+    expect(message, contains('provider=quark'));
+    expect(message, contains('sdk=28'));
+    expect(message, contains('profile=android_tv_safe'));
+    expect(message, contains('errorType=StateError'));
+    expect(message, isNot(contains('dl.quark.cn')));
+    expect(message, isNot(contains('secret')));
+  });
+
   testWidgets('季度海报墙和选集只显示当前季度虚拟名称', (tester) async {
     final group = _seasonMediaGroup();
     await tester.pumpWidget(

@@ -29,10 +29,22 @@ import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/utils/logger.dart';
 
-String cloudPlaybackFailureDiagnostic(CloudSource source, Object error) =>
-    'CloudResourcesPage: playback failed '
-    'provider=${source.type.name} sourceId=${source.id} '
-    'stage=resolve-or-load errorType=${error.runtimeType}';
+String cloudPlaybackFailureDiagnostic(
+  CloudSource source,
+  Object error, {
+  AppPlatformCapabilities? capabilities,
+}) {
+  final platform = capabilities ?? detectAppPlatform();
+  final profile = platform.isAndroidTv
+      ? 'android_tv_safe'
+      : platform.isAndroid
+          ? 'android'
+          : 'windows';
+  return 'CloudResourcesPage: playback failed '
+      'provider=${source.type.name} sourceId=${source.id} '
+      'stage=resolve-or-load sdk=${platform.androidSdkInt} '
+      'profile=$profile errorType=${error.runtimeType}';
+}
 
 typedef CloudSourceAddCallback = FutureOr<String?> Function();
 
@@ -67,6 +79,7 @@ class CloudResourcesPage extends StatefulWidget {
 
 class _CloudResourcesPageState extends State<CloudResourcesPage> {
   late final CloudResourcesController _controller;
+  late final AppPlatformCapabilities _capabilities;
   final CloudPlaybackResolver _playbackResolver = CloudPlaybackResolver();
   final CloudPlaybackNavigationCoordinator _playbackNavigation =
       CloudPlaybackNavigationCoordinator();
@@ -82,9 +95,9 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
   void initState() {
     super.initState();
     _controller = widget.controller ?? Modular.get<CloudResourcesController>();
+    _capabilities = widget.capabilities ?? detectAppPlatform();
     _controller.addListener(_refresh);
-    final capabilities = widget.capabilities ?? detectAppPlatform();
-    _controller.load(startScan: !capabilities.isAndroidTv);
+    _controller.load(startScan: !_capabilities.isAndroidTv);
   }
 
   @override
@@ -162,7 +175,11 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       await Modular.to.pushNamed('/video/');
     } on Object catch (error, stackTrace) {
       AppLogger().w(
-        cloudPlaybackFailureDiagnostic(source, error),
+        cloudPlaybackFailureDiagnostic(
+          source,
+          error,
+          capabilities: _capabilities,
+        ),
         stackTrace: stackTrace,
       );
       if (!mounted) return;
@@ -186,7 +203,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       sourceId: source.id,
       group: group,
       subtitleVideoKeys: _subtitleVideoKeys(source.id),
-      capabilities: widget.capabilities ?? detectAppPlatform(),
+      capabilities: _capabilities,
     );
     if (selected != null && mounted) await _play(group, selected);
   }

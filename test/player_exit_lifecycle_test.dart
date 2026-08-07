@@ -86,6 +86,20 @@ void main() {
     expect(cleanupCount, 1);
   });
 
+  test('播放器初始化异常终止替换会话且不重复释放候选租约', () {
+    final source =
+        File('lib/pages/player/player_controller.dart').readAsStringSync();
+
+    expect(source, contains('var replacementAborted = false;'));
+    expect(
+      source,
+      contains(
+        'await _playbackLeaseCoordinator.abortReplacement(params.lease);',
+      ),
+    );
+    expect(source, contains('if (!adopted && !replacementAborted)'));
+  });
+
   test('播放页在弹出路由前同步发出退出信号', () {
     final source = File('lib/pages/video/video_page.dart').readAsStringSync();
     final beginExit = source.indexOf('_exitCoordinator.beginExit()');

@@ -519,6 +519,7 @@ abstract class _PlayerController with Store {
   ) async {
     final previousParams = _lastInitParams;
     var adopted = false;
+    var replacementAborted = false;
     try {
       final initialized = await _initializeMedia(
         params,
@@ -534,9 +535,13 @@ abstract class _PlayerController with Store {
       adopted = true;
     } on Object {
       _lastInitParams = previousParams;
+      replacementAborted = true;
+      await _playbackLeaseCoordinator.abortReplacement(params.lease);
       rethrow;
     } finally {
-      if (!adopted) await _playbackLeaseCoordinator.reject(params.lease);
+      if (!adopted && !replacementAborted) {
+        await _playbackLeaseCoordinator.reject(params.lease);
+      }
     }
   }
 

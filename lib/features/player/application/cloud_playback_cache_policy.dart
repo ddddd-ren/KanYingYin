@@ -116,6 +116,16 @@ class CloudPlaybackLeaseCoordinator {
     await lease.close();
   }
 
+  Future<void> abortReplacement(CloudPlaybackLease? candidate) async {
+    final active = _active;
+    _active = null;
+    final leases = <CloudPlaybackLease>[
+      if (candidate != null && !identical(candidate, active)) candidate,
+      if (active != null) active,
+    ];
+    await Future.wait(leases.map((lease) => lease.close()));
+  }
+
   Future<void> close() async {
     final active = _active;
     _active = null;

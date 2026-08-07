@@ -62,6 +62,55 @@ void main() {
     );
   });
 
+  test('纯 Dart 预置校验器拒绝嵌套无效的网盘来源', () async {
+    final fixture = await _createFixture();
+    addTearDown(() => fixture.directory.delete(recursive: true));
+    await _writeConfigurationArchive(
+      fixture.configuration,
+      password: 'test-password',
+      configuration: _validConfiguration(<Object?>[
+        _portableCloudSource(
+          id: 'source-1',
+          type: 'quark',
+          baseUrl: 'https://example.com',
+        ),
+      ]),
+    );
+    await _writeMetadataArchive(fixture.metadata);
+
+    await expectLater(
+      validatePreloadFiles(
+        configuration: fixture.configuration,
+        metadata: fixture.metadata,
+        password: 'test-password',
+      ),
+      throwsA(isA<PreloadValidationException>()),
+    );
+  });
+
+  test('纯 Dart 预置校验器拒绝重复网盘来源 ID', () async {
+    final fixture = await _createFixture();
+    addTearDown(() => fixture.directory.delete(recursive: true));
+    await _writeConfigurationArchive(
+      fixture.configuration,
+      password: 'test-password',
+      configuration: _validConfiguration(<Object?>[
+        _portableCloudSource(id: 'duplicate-source'),
+        _portableCloudSource(id: 'duplicate-source'),
+      ]),
+    );
+    await _writeMetadataArchive(fixture.metadata);
+
+    await expectLater(
+      validatePreloadFiles(
+        configuration: fixture.configuration,
+        metadata: fixture.metadata,
+        password: 'test-password',
+      ),
+      throwsA(isA<PreloadValidationException>()),
+    );
+  });
+
   test('纯 Dart 预置校验器拒绝未在清单声明的必需文件', () async {
     final fixture = await _createFixture();
     addTearDown(() => fixture.directory.delete(recursive: true));
@@ -181,12 +230,98 @@ void main() {
       throwsA(isA<PreloadValidationException>()),
     );
   });
+
+  test('纯 Dart 预置校验器拒绝嵌套无效的本地刮削记录', () async {
+    final fixture = await _createFixture();
+    addTearDown(() => fixture.directory.delete(recursive: true));
+    await _writeConfigurationArchive(
+      fixture.configuration,
+      password: 'test-password',
+    );
+    await _writeMetadataArchive(
+      fixture.metadata,
+      localDocument: <String, Object?>{
+        'localSources': <Object?>[
+          <String, Object?>{
+            'exportId': 'local-1',
+            'name': '测试目录',
+            'originalRoot': 'D:/Media',
+            'records': <Object?>[
+              <String, Object?>{'relativePath': 'invalid.mkv'},
+            ],
+          },
+        ],
+      },
+    );
+
+    await expectLater(
+      validatePreloadFiles(
+        configuration: fixture.configuration,
+        metadata: fixture.metadata,
+        password: 'test-password',
+      ),
+      throwsA(isA<PreloadValidationException>()),
+    );
+  });
+
+  test('纯 Dart 预置校验器拒绝超过 25MB 的单张图片', () async {
+    final fixture = await _createFixture();
+    addTearDown(() => fixture.directory.delete(recursive: true));
+    await _writeConfigurationArchive(
+      fixture.configuration,
+      password: 'test-password',
+    );
+    await _writeMetadataArchive(
+      fixture.metadata,
+      images: <String, List<int>>{
+        'images/oversized.jpg': List<int>.filled(
+          25 * 1024 * 1024 + 1,
+          0,
+          growable: false,
+        ),
+      },
+    );
+
+    await expectLater(
+      validatePreloadFiles(
+        configuration: fixture.configuration,
+        metadata: fixture.metadata,
+        password: 'test-password',
+      ),
+      throwsA(isA<PreloadValidationException>()),
+    );
+  });
+
+  test('纯 Dart 预置校验器拒绝清单中的非图片额外载荷', () async {
+    final fixture = await _createFixture();
+    addTearDown(() => fixture.directory.delete(recursive: true));
+    await _writeConfigurationArchive(
+      fixture.configuration,
+      password: 'test-password',
+    );
+    await _writeMetadataArchive(
+      fixture.metadata,
+      extraFiles: <String, List<int>>{
+        'payload.bin': <int>[1, 2, 3],
+      },
+    );
+
+    await expectLater(
+      validatePreloadFiles(
+        configuration: fixture.configuration,
+        metadata: fixture.metadata,
+        password: 'test-password',
+      ),
+      throwsA(isA<PreloadValidationException>()),
+    );
+  });
 }
 
 Future<void> _writeConfigurationArchive(
   File output, {
   required String password,
   String tmdbApiKey = '',
+  Map<String, Object?>? configuration,
 }) async {
   final salt = List<int>.generate(16, (index) => index + 1);
   final nonce = List<int>.generate(12, (index) => index + 17);
@@ -194,13 +329,16 @@ Future<void> _writeConfigurationArchive(
     iterations: 600000,
     bits: 256,
   ).deriveKeyFromPassword(password: password, nonce: salt);
-  final cleartext = utf8.encode(jsonEncode(<String, Object?>{
-    'formatVersion': 1,
-    'exportedAt': '2026-08-07T00:00:00.000Z',
-    'appVersion': '2.1.146',
-    'tmdbApiKey': tmdbApiKey,
-    'cloudSources': <Object?>[],
-  }));
+  final cleartext = utf8.encode(jsonEncode(
+    configuration ??
+        <String, Object?>{
+          'formatVersion': 1,
+          'exportedAt': '2026-08-07T00:00:00.000Z',
+          'appVersion': '2.1.146',
+          'tmdbApiKey': tmdbApiKey,
+          'cloudSources': <Object?>[],
+        },
+  ));
   final encrypted = await AesGcm.with256bits().encrypt(
     cleartext,
     secretKey: key,
@@ -231,9 +369,17 @@ Future<void> _writeMetadataArchive(
   String localArchivePath = 'local.json',
   int localLengthDelta = 0,
   bool corruptLocalHash = false,
+  Map<String, Object?>? localDocument,
+  Map<String, Object?>? cloudDocument,
+  Map<String, List<int>> images = const <String, List<int>>{},
+  Map<String, List<int>> extraFiles = const <String, List<int>>{},
 }) async {
-  final local = utf8.encode('{"localSources":[]}');
-  final cloud = utf8.encode('{"cloudSources":[]}');
+  final local = utf8.encode(jsonEncode(
+    localDocument ?? <String, Object?>{'localSources': <Object?>[]},
+  ));
+  final cloud = utf8.encode(jsonEncode(
+    cloudDocument ?? <String, Object?>{'cloudSources': <Object?>[]},
+  ));
   final manifest = utf8.encode(jsonEncode(<String, Object?>{
     'format': 'kanyingyin-scraped-metadata',
     'formatVersion': 1,
@@ -256,12 +402,30 @@ Future<void> _writeMetadataArchive(
         'length': cloud.length,
         'sha256': sha256.convert(cloud).toString(),
       },
+      for (final image in images.entries)
+        <String, Object?>{
+          'path': image.key,
+          'length': image.value.length,
+          'sha256': sha256.convert(image.value).toString(),
+        },
+      for (final file in extraFiles.entries)
+        <String, Object?>{
+          'path': file.key,
+          'length': file.value.length,
+          'sha256': sha256.convert(file.value).toString(),
+        },
     ],
   }));
   final archive = Archive()
     ..addFile(ArchiveFile.bytes('manifest.json', manifest))
     ..addFile(ArchiveFile.bytes(localArchivePath, local))
     ..addFile(ArchiveFile.bytes('cloud.json', cloud));
+  for (final image in images.entries) {
+    archive.addFile(ArchiveFile.bytes(image.key, image.value));
+  }
+  for (final file in extraFiles.entries) {
+    archive.addFile(ArchiveFile.bytes(file.key, file.value));
+  }
   if (includeUnsafePath) {
     archive.addFile(ArchiveFile.string('../outside.txt', 'unsafe'));
   }
@@ -284,3 +448,34 @@ final class _Fixture {
   final File configuration;
   final File metadata;
 }
+
+Map<String, Object?> _validConfiguration(List<Object?> cloudSources) =>
+    <String, Object?>{
+      'formatVersion': 1,
+      'exportedAt': '2026-08-07T00:00:00.000Z',
+      'appVersion': '2.1.146',
+      'tmdbApiKey': '',
+      'cloudSources': cloudSources,
+    };
+
+Map<String, Object?> _portableCloudSource({
+  required String id,
+  String type = 'openList',
+  String baseUrl = 'https://media.example.com',
+}) =>
+    <String, Object?>{
+      'source': <String, Object?>{
+        'id': id,
+        'type': type,
+        'name': '测试来源',
+        'baseUrl': baseUrl,
+        'rootPaths': <String>[],
+        'enabled': true,
+        'allowSelfSignedCertificate': false,
+        'lastScannedAt': null,
+        'scanStatus': 'never',
+        'indexedVideoCount': 0,
+        'matchedSubtitleCount': 0,
+        'lastScanFailureCount': 0,
+      },
+    };

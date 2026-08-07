@@ -105,6 +105,15 @@ class _CloudSourcesSettingsPageState extends State<CloudSourcesSettingsPage> {
           : ListView(
               padding: const EdgeInsets.all(24),
               children: [
+                KSettingsTile<void>.navigation(
+                  key: const ValueKey<String>('configuration-transfer-entry'),
+                  leading: const Icon(Icons.import_export_rounded),
+                  title: const Text('配置迁移'),
+                  description: const Text('用密码加密导出或导入 TMDB 与网盘账号配置'),
+                  onPressed: (_) => Modular.to.pushNamed(
+                    '/settings/cloud-sources/configuration-transfer',
+                  ),
+                ),
                 if (capabilities.isAndroidTv) ...[
                   ListTile(
                     leading: const Icon(Icons.qr_code_2),

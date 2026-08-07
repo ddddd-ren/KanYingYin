@@ -2,6 +2,8 @@ import 'package:kanyingyin/pages/about/about_module.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
+import 'package:kanyingyin/features/configuration_transfer/application/configuration_transfer_service.dart';
+import 'package:kanyingyin/features/configuration_transfer/presentation/configuration_transfer_page.dart';
 import 'package:kanyingyin/features/scraped_metadata_transfer/application/scraped_metadata_transfer_service.dart';
 import 'package:kanyingyin/features/scraped_metadata_transfer/presentation/scraped_metadata_transfer_page.dart';
 import 'package:kanyingyin/pages/settings/interface_settings.dart';
@@ -160,6 +162,14 @@ class SettingsModule extends Module {
         onSourceDeleted: Modular.get<LocalController>().reloadCloudLibraryIndex,
         onSourceScanned:
             Modular.get<LocalController>().revealCloudLibrarySource,
+      ),
+    );
+    _child(
+      r,
+      "/cloud-sources/configuration-transfer",
+      child: (_) => ConfigurationTransferPage(
+        service: Modular.get<ConfigurationTransferService>(),
+        onImported: Modular.get<CloudLibraryController>().load,
       ),
     );
     _child(

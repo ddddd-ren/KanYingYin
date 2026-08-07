@@ -1,6 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:kanyingyin/features/configuration_transfer/application/configuration_archive_codec.dart';
+import 'package:kanyingyin/features/configuration_transfer/application/configuration_importer.dart';
+import 'package:kanyingyin/features/configuration_transfer/application/configuration_transfer_service.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/features/episode_matching/application/cloud_episode_match_service.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
@@ -24,6 +27,7 @@ import 'package:kanyingyin/services/cloud/cloud_work_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_tmdb_service.dart';
 import 'package:kanyingyin/services/media_recognition_settings.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
@@ -63,6 +67,21 @@ void registerCloudBindings(Injector i) {
   i.addSingleton<CloudSourceRepository>(
     () => CloudSourceRepository(
       credentialStore: Modular.get<CloudCredentialStore>(),
+    ),
+  );
+  i.addSingleton<ConfigurationArchiveCodec>(ConfigurationArchiveCodec.new);
+  i.addSingleton<ConfigurationImporter>(
+    () => ConfigurationImporter(
+      sourceRepository: Modular.get<CloudSourceRepository>(),
+      tmdbCredentialManager: Modular.get<TmdbCredentialManager>(),
+    ),
+  );
+  i.addSingleton<ConfigurationTransferService>(
+    () => ConfigurationTransferService(
+      sourceRepository: Modular.get<CloudSourceRepository>(),
+      tmdbCredentialManager: Modular.get<TmdbCredentialManager>(),
+      importer: Modular.get<ConfigurationImporter>(),
+      codec: Modular.get<ConfigurationArchiveCodec>(),
     ),
   );
   i.addSingleton<CloudMediaIndexer>(

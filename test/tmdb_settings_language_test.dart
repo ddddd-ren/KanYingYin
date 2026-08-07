@@ -10,6 +10,17 @@ import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
 import 'package:kanyingyin/utils/storage.dart';
 
 void main() {
+  test('TMDB 关键操作使用统一设置项焦点表面', () {
+    final source =
+        File('lib/pages/settings/tmdb_settings.dart').readAsStringSync();
+    expect(source,
+        contains("key: const ValueKey<String>('tmdb-test-connection')"));
+    expect(source, contains("key: const ValueKey<String>('tmdb-clear-cache')"));
+    expect(source,
+        contains("key: const ValueKey<String>('tmdb-configuration-transfer')"));
+    expect(source, contains('TvSettingsFocusSurface('));
+  });
+
   late Directory hiveDirectory;
 
   setUpAll(() async {

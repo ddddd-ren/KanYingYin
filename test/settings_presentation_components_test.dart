@@ -1,8 +1,40 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 
 void main() {
+  testWidgets('统一设置导航项在 TV 下使用单一高对比焦点表面', (tester) async {
+    installAppPlatformCapabilities(
+      AppPlatformCapabilities.android.copyWith(television: true),
+    );
+    addTearDown(
+      () => installAppPlatformCapabilities(AppPlatformCapabilities.windows),
+    );
+    var activated = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: KSettingsNavigationTile(
+          title: const Text('测试 TMDB 连接'),
+          onPressed: () => activated++,
+        ),
+      ),
+    ));
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey<String>('tv-settings-focused-surface')),
+      findsOneWidget,
+    );
+    expect(find.text('当前选中 · 按确认执行'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.select);
+    expect(activated, 1);
+  });
+
   testWidgets('设置导航项转发点击并尊重禁用状态', (tester) async {
     var enabledPressed = 0;
     var disabledPressed = 0;

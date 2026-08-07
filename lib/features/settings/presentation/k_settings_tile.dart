@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_motion.dart';
+import 'package:kanyingyin/features/settings/presentation/tv_settings_focus_surface.dart';
 
 enum _KSettingsTileKind { plain, navigation, toggle, radio }
 
@@ -353,38 +354,43 @@ class _InteractiveSettingsTileState extends State<_InteractiveSettingsTile> {
     final scheme = Theme.of(context).colorScheme;
     final reduced = SettingsMotion.isReduced(context);
     final scale = reduced ? 1.0 : (_pressed ? 0.99 : 1.0);
-    return MouseRegion(
-      cursor:
-          widget.enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      onEnter: widget.enabled ? (_) => _setHovered(true) : null,
-      onExit: widget.enabled ? (_) => _setHovered(false) : null,
-      child: AnimatedScale(
-        scale: scale,
-        duration: SettingsMotion.duration(
-          context,
-          _pressed
-              ? SettingsMotion.pressDuration
-              : SettingsMotion.hoverDuration,
-        ),
-        curve: SettingsMotion.hoverCurve,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: widget.enabled ? widget.onPressed : null,
-            onHighlightChanged: widget.enabled ? _setPressed : null,
-            focusColor: scheme.primary.withValues(alpha: 0.12),
-            hoverColor: Colors.transparent,
-            splashColor: scheme.primary.withValues(alpha: 0.12),
-            child: AnimatedContainer(
-              duration: SettingsMotion.duration(
-                context,
-                SettingsMotion.hoverDuration,
+    return TvSettingsFocusSurface(
+      enabled: widget.enabled,
+      onPressed: widget.onPressed,
+      child: MouseRegion(
+        cursor: widget.enabled
+            ? SystemMouseCursors.click
+            : SystemMouseCursors.basic,
+        onEnter: widget.enabled ? (_) => _setHovered(true) : null,
+        onExit: widget.enabled ? (_) => _setHovered(false) : null,
+        child: AnimatedScale(
+          scale: scale,
+          duration: SettingsMotion.duration(
+            context,
+            _pressed
+                ? SettingsMotion.pressDuration
+                : SettingsMotion.hoverDuration,
+          ),
+          curve: SettingsMotion.hoverCurve,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: widget.enabled ? widget.onPressed : null,
+              onHighlightChanged: widget.enabled ? _setPressed : null,
+              focusColor: scheme.primary.withValues(alpha: 0.12),
+              hoverColor: Colors.transparent,
+              splashColor: scheme.primary.withValues(alpha: 0.12),
+              child: AnimatedContainer(
+                duration: SettingsMotion.duration(
+                  context,
+                  SettingsMotion.hoverDuration,
+                ),
+                curve: SettingsMotion.hoverCurve,
+                color: _hovered
+                    ? scheme.primary.withValues(alpha: 0.075)
+                    : Colors.transparent,
+                child: widget.child,
               ),
-              curve: SettingsMotion.hoverCurve,
-              color: _hovered
-                  ? scheme.primary.withValues(alpha: 0.075)
-                  : Colors.transparent,
-              child: widget.child,
             ),
           ),
         ),

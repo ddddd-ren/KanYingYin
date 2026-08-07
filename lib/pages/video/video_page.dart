@@ -25,6 +25,7 @@ import 'package:kanyingyin/pages/video/cloud_relay_status_presenter.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:kanyingyin/features/player/presentation/player_exit_coordinator.dart';
 import 'package:kanyingyin/features/player/application/player_back_policy.dart';
+import 'package:kanyingyin/features/tv/presentation/tv_episode_tile_surface.dart';
 
 class VideoPage extends StatefulWidget {
   const VideoPage({super.key});
@@ -837,17 +838,28 @@ class _VideoPageState extends State<VideoPage>
         return Expanded(
           child: Padding(
             padding: const EdgeInsets.only(top: 0, right: 8, left: 8),
-            child: ListView.builder(
-              scrollDirection: Axis.vertical,
-              controller: scrollController,
-              padding: const EdgeInsets.only(bottom: 12),
-              itemCount: episodes.length,
-              itemBuilder: (context, index) {
-                final item = episodes[index];
-                final isCurrent =
-                    item.index == localVideoController.currentEpisode &&
-                        currentRoad == localVideoController.currentRoad;
-                return _buildEpisodeMenuTile(item, isCurrent);
+            child: Builder(
+              builder: (context) {
+                final isTv = detectAppPlatform().isAndroidTv;
+                final list = ListView.builder(
+                  scrollDirection: Axis.vertical,
+                  controller: scrollController,
+                  padding: const EdgeInsets.only(bottom: 12),
+                  itemCount: episodes.length,
+                  itemBuilder: (context, index) {
+                    final item = episodes[index];
+                    final isCurrent =
+                        item.index == localVideoController.currentEpisode &&
+                            currentRoad == localVideoController.currentRoad;
+                    return _buildEpisodeMenuTile(item, isCurrent);
+                  },
+                );
+                return isTv
+                    ? FocusTraversalGroup(
+                        policy: WidgetOrderTraversalPolicy(),
+                        child: list,
+                      )
+                    : list;
               },
             ),
           ),
@@ -856,10 +868,62 @@ class _VideoPageState extends State<VideoPage>
     );
   }
 
+  Future<void> _selectEpisode(
+    _EpisodeMenuItem item,
+    bool isCurrent,
+  ) async {
+    if (isCurrent) return;
+    AppLogger().i('LocalVideoController: video path is ${item.url}');
+    closeTabBodyAnimated();
+    await changeEpisode(item.index, currentRoad: currentRoad);
+  }
+
   Widget _buildEpisodeMenuTile(_EpisodeMenuItem item, bool isCurrent) {
     final colorScheme = Theme.of(context).colorScheme;
     final titleColor = isCurrent ? colorScheme.primary : colorScheme.onSurface;
-    return Container(
+    final isTv = detectAppPlatform().isAndroidTv;
+    final content = Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 28,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: isCurrent
+                  ? Image.asset(
+                      'assets/images/playing.gif',
+                      color: colorScheme.primary,
+                      height: 12,
+                    )
+                  : Text(
+                      item.index.toString(),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.outline,
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              item.title,
+              softWrap: true,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.35,
+                color: titleColor,
+                fontWeight: isCurrent ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    final tile = Container(
       margin: const EdgeInsets.only(bottom: 6),
       child: Material(
         color: isCurrent
@@ -867,59 +931,20 @@ class _VideoPageState extends State<VideoPage>
             : colorScheme.onInverseSurface,
         borderRadius: BorderRadius.circular(6),
         clipBehavior: Clip.hardEdge,
-        child: InkWell(
-          onTap: () async {
-            if (isCurrent) {
-              return;
-            }
-            AppLogger().i('LocalVideoController: video path is ${item.url}');
-            closeTabBodyAnimated();
-            changeEpisode(item.index, currentRoad: currentRoad);
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: 28,
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 1),
-                    child: isCurrent
-                        ? Image.asset(
-                            'assets/images/playing.gif',
-                            color: colorScheme.primary,
-                            height: 12,
-                          )
-                        : Text(
-                            item.index.toString(),
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: colorScheme.outline,
-                            ),
-                          ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    item.title,
-                    softWrap: true,
-                    style: TextStyle(
-                      fontSize: 13,
-                      height: 1.35,
-                      color: titleColor,
-                      fontWeight:
-                          isCurrent ? FontWeight.w600 : FontWeight.normal,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+        child: isTv
+            ? content
+            : InkWell(
+                onTap: () => unawaited(_selectEpisode(item, isCurrent)),
+                child: content,
+              ),
       ),
+    );
+    if (!isTv) return tile;
+    return TvEpisodeTileSurface(
+      autofocus: isCurrent,
+      current: isCurrent,
+      onPressed: () => unawaited(_selectEpisode(item, isCurrent)),
+      child: tile,
     );
   }
 

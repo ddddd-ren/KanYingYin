@@ -10,6 +10,9 @@ class TvFocusSurface extends StatefulWidget {
     this.onPressed,
     this.onFocusChange,
     this.reserveFocusSpace = true,
+    this.focusedScale = 1.04,
+    this.focusBorderWidth = 2,
+    this.focusNode,
   });
 
   final Widget child;
@@ -18,6 +21,9 @@ class TvFocusSurface extends StatefulWidget {
   final VoidCallback? onPressed;
   final ValueChanged<bool>? onFocusChange;
   final bool reserveFocusSpace;
+  final double focusedScale;
+  final double focusBorderWidth;
+  final FocusNode? focusNode;
 
   @override
   State<TvFocusSurface> createState() => _TvFocusSurfaceState();
@@ -53,6 +59,7 @@ class _TvFocusSurfaceState extends State<TvFocusSurface> {
       child: FocusableActionDetector(
         autofocus: widget.autofocus,
         enabled: _enabled,
+        focusNode: widget.focusNode,
         onFocusChange: _handleFocusChange,
         shortcuts: const <ShortcutActivator, Intent>{
           SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
@@ -72,7 +79,7 @@ class _TvFocusSurfaceState extends State<TvFocusSurface> {
           button: true,
           enabled: _enabled,
           child: AnimatedScale(
-            scale: _focused ? 1.04 : 1,
+            scale: _focused ? widget.focusedScale : 1,
             duration: const Duration(milliseconds: 160),
             curve: Curves.easeOut,
             child: AnimatedContainer(
@@ -97,7 +104,7 @@ class _TvFocusSurfaceState extends State<TvFocusSurface> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: _focused ? colors.primary : Colors.transparent,
-                  width: 2,
+                  width: widget.focusBorderWidth,
                 ),
               ),
               child: widget.child,

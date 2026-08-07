@@ -57,6 +57,31 @@ void main() {
     expect(activated, 0);
   });
 
+  testWidgets('TV 焦点表面支持独立缩放和边框参数', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TvFocusSurface(
+            autofocus: true,
+            focusedScale: 1.02,
+            focusBorderWidth: 3,
+            reserveFocusSpace: false,
+            onPressed: () {},
+            child: const SizedBox(width: 320, height: 180),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final scale = tester.widget<AnimatedScale>(find.byType(AnimatedScale));
+    expect(scale.scale, 1.02);
+    final surface =
+        tester.widget<AnimatedContainer>(find.byType(AnimatedContainer));
+    final decoration = surface.foregroundDecoration as BoxDecoration;
+    expect(decoration.border?.top.width, 3);
+  });
+
   test('TV 布局策略缩小海报并保持遥控器安全间距', () {
     final normal = TvLayoutPolicy.forCapabilities(
       AppPlatformCapabilities.android,

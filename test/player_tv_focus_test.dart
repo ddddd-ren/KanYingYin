@@ -106,4 +106,15 @@ void main() {
     expect(compactPanel, contains('FocusTraversalGroup('));
     expect(compactPanel, contains('final bool tvMode;'));
   });
+
+  test('播放器选集使用共享 TV 三态表面并集中处理切集动作', () {
+    final videoPage =
+        File('lib/pages/video/video_page.dart').readAsStringSync();
+
+    expect(videoPage, contains('TvEpisodeTileSurface('));
+    expect(videoPage, contains('Future<void> _selectEpisode('));
+    expect(videoPage, contains('current: isCurrent'));
+    expect(videoPage, contains('autofocus: isCurrent'));
+    expect(videoPage, contains('FocusTraversalGroup('));
+  });
 }

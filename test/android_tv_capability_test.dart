@@ -5,7 +5,8 @@ import 'package:kanyingyin/platform/android/android_platform_channel.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  const channel = MethodChannel('com.kanyingyin.player/android.capability.test');
+  const channel =
+      MethodChannel('com.kanyingyin.player/android.capability.test');
 
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger

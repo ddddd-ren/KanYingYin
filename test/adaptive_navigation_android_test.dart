@@ -217,8 +217,7 @@ void main() {
               child: DirectoryAddressDropdown(
                 currentPath: r'D:\TV',
                 enabled: true,
-                loadChildren: (_) async =>
-                    const <DirectoryNavigationItem>[],
+                loadChildren: (_) async => const <DirectoryNavigationItem>[],
                 onChildSelected: (_) {},
                 onSubmitted: (_) async => null,
               ),

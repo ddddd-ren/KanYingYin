@@ -507,8 +507,8 @@ class _PlayerItemState extends State<PlayerItem>
   Widget _wrapTvControlFocus(Widget child) {
     if (!_isAndroidTv) return child;
     return ExcludeFocus(
-      excluding: !playerController.showVideoController ||
-          playerController.lockPanel,
+      excluding:
+          !playerController.showVideoController || playerController.lockPanel,
       child: FocusScope(
         node: _tvControlsFocusNode,
         child: child,
@@ -1411,57 +1411,61 @@ class _PlayerItemState extends State<PlayerItem>
                     _wrapTvControlFocus(
                       (needFullPanel(context))
                           ? PlayerItemPanel(
-                            onBackPressed: widget.onBackPressed,
-                            setPlaybackSpeed: setPlaybackSpeed,
-                            changeEpisode: widget.changeEpisode,
-                            openMenu: widget.openMenu,
-                            handleFullscreen: handleFullscreen,
-                            handleProgressBarDragStart:
-                                handleProgressBarDragStart,
-                            handleProgressBarDragEnd: handleProgressBarDragEnd,
-                            handleSuperResolutionChange:
-                                handleSuperResolutionChange,
-                            handlePreNextEpisode: handlePreNextEpisode,
-                            animationController: animationController!,
-                            keyboardFocus: widget.keyboardFocus,
-                            startHideTimer: startHideTimer,
-                            cancelHideTimer: cancelHideTimer,
-                            showVideoInfo: showVideoInfo,
-                            showSubtitleSettings: showSubtitleSettings,
-                            onConfirmTrackLanguage:
-                                _showTrackLanguageConfirmationForTrack,
-                            pauseForTimedShutdown: widget.pauseForTimedShutdown,
-                            disableAnimations: widget.disableAnimations,
-                            handleScreenShot: handleScreenshot,
-                            skipOP: skipOP,
-                            tvMode: _isAndroidTv,
-                            onTvBack: _handleTvBack,
-                          )
+                              onBackPressed: widget.onBackPressed,
+                              setPlaybackSpeed: setPlaybackSpeed,
+                              changeEpisode: widget.changeEpisode,
+                              openMenu: widget.openMenu,
+                              handleFullscreen: handleFullscreen,
+                              handleProgressBarDragStart:
+                                  handleProgressBarDragStart,
+                              handleProgressBarDragEnd:
+                                  handleProgressBarDragEnd,
+                              handleSuperResolutionChange:
+                                  handleSuperResolutionChange,
+                              handlePreNextEpisode: handlePreNextEpisode,
+                              animationController: animationController!,
+                              keyboardFocus: widget.keyboardFocus,
+                              startHideTimer: startHideTimer,
+                              cancelHideTimer: cancelHideTimer,
+                              showVideoInfo: showVideoInfo,
+                              showSubtitleSettings: showSubtitleSettings,
+                              onConfirmTrackLanguage:
+                                  _showTrackLanguageConfirmationForTrack,
+                              pauseForTimedShutdown:
+                                  widget.pauseForTimedShutdown,
+                              disableAnimations: widget.disableAnimations,
+                              handleScreenShot: handleScreenshot,
+                              skipOP: skipOP,
+                              tvMode: _isAndroidTv,
+                              onTvBack: _handleTvBack,
+                            )
                           : SmallestPlayerItemPanel(
-                            onBackPressed: widget.onBackPressed,
-                            setPlaybackSpeed: setPlaybackSpeed,
-                            handleFullscreen: handleFullscreen,
-                            handleProgressBarDragStart:
-                                handleProgressBarDragStart,
-                            handleProgressBarDragEnd: handleProgressBarDragEnd,
-                            handleSuperResolutionChange:
-                                handleSuperResolutionChange,
-                            animationController: animationController!,
-                            keyboardFocus: widget.keyboardFocus,
-                            handleHove: _handleHove,
-                            startHideTimer: startHideTimer,
-                            cancelHideTimer: cancelHideTimer,
-                            showVideoInfo: showVideoInfo,
-                            showSubtitleSettings: showSubtitleSettings,
-                            onConfirmTrackLanguage:
-                                _showTrackLanguageConfirmationForTrack,
-                            pauseForTimedShutdown: widget.pauseForTimedShutdown,
-                            disableAnimations: widget.disableAnimations,
-                            skipOP: skipOP,
-                            openMenu: widget.openMenu,
-                            tvMode: _isAndroidTv,
-                            onTvBack: _handleTvBack,
-                          ),
+                              onBackPressed: widget.onBackPressed,
+                              setPlaybackSpeed: setPlaybackSpeed,
+                              handleFullscreen: handleFullscreen,
+                              handleProgressBarDragStart:
+                                  handleProgressBarDragStart,
+                              handleProgressBarDragEnd:
+                                  handleProgressBarDragEnd,
+                              handleSuperResolutionChange:
+                                  handleSuperResolutionChange,
+                              animationController: animationController!,
+                              keyboardFocus: widget.keyboardFocus,
+                              handleHove: _handleHove,
+                              startHideTimer: startHideTimer,
+                              cancelHideTimer: cancelHideTimer,
+                              showVideoInfo: showVideoInfo,
+                              showSubtitleSettings: showSubtitleSettings,
+                              onConfirmTrackLanguage:
+                                  _showTrackLanguageConfirmationForTrack,
+                              pauseForTimedShutdown:
+                                  widget.pauseForTimedShutdown,
+                              disableAnimations: widget.disableAnimations,
+                              skipOP: skipOP,
+                              openMenu: widget.openMenu,
+                              tvMode: _isAndroidTv,
+                              onTvBack: _handleTvBack,
+                            ),
                     ),
                     // 播放器手势控制
                     PlayerGestures(

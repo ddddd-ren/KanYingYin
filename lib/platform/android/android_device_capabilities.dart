@@ -30,8 +30,7 @@ class AndroidDeviceCapabilities {
     return AndroidDeviceCapabilities(
       sdkInt: values['sdkInt'] is int ? values['sdkInt'] as int : 0,
       leanback: values['leanback'] is bool && values['leanback'] as bool,
-      television:
-          values['television'] is bool && values['television'] as bool,
+      television: values['television'] is bool && values['television'] as bool,
       touchscreen:
           values['touchscreen'] is bool && values['touchscreen'] as bool,
       webView: values['webView'] is bool && values['webView'] as bool,

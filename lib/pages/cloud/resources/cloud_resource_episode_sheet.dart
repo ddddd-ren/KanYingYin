@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/features/tv/presentation/tv_episode_tile_surface.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_image_decode_policy.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
@@ -51,6 +52,7 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
       platform,
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
     );
+    final isTv = platform.isAndroidTv;
     final visibleSeasons = group.seasons.isEmpty && group.videos.isNotEmpty
         ? <CloudResourceSeasonGroup>[
             CloudResourceSeasonGroup(
@@ -102,15 +104,20 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
             ),
             const Divider(height: 1),
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                itemCount: visibleSeasons.length,
-                itemBuilder: (context, index) => _seasonSection(
-                  context,
-                  visibleSeasons[index],
-                  decodeSize,
-                ),
-              ),
+              child: isTv
+                  ? FocusTraversalGroup(
+                      policy: WidgetOrderTraversalPolicy(),
+                      child: _episodeList(
+                        visibleSeasons,
+                        decodeSize: decodeSize,
+                        isTv: true,
+                      ),
+                    )
+                  : _episodeList(
+                      visibleSeasons,
+                      decodeSize: decodeSize,
+                      isTv: false,
+                    ),
             ),
           ],
         ),
@@ -118,11 +125,31 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
     );
   }
 
+  Widget _episodeList(
+    List<CloudResourceSeasonGroup> visibleSeasons, {
+    required TvImageDecodeSize? decodeSize,
+    required bool isTv,
+  }) {
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      itemCount: visibleSeasons.length,
+      itemBuilder: (context, index) => _seasonSection(
+        context,
+        visibleSeasons[index],
+        decodeSize,
+        isTv: isTv,
+        autofocusFirstEpisode: index == 0,
+      ),
+    );
+  }
+
   Widget _seasonSection(
     BuildContext context,
     CloudResourceSeasonGroup season,
-    TvImageDecodeSize? decodeSize,
-  ) {
+    TvImageDecodeSize? decodeSize, {
+    required bool isTv,
+    required bool autofocusFirstEpisode,
+  }) {
     final seasonNumber = season.seasonNumber;
     final title = !group.isSeries
         ? '可选版本'
@@ -191,7 +218,13 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
           ),
           const Divider(height: 1),
           for (var index = 0; index < season.videos.length; index++) ...[
-            _episodeTile(context, season.videos[index], index),
+            _episodeTile(
+              context,
+              season.videos[index],
+              index,
+              isTv: isTv,
+              autofocus: autofocusFirstEpisode && index == 0,
+            ),
             if (index < season.videos.length - 1) const Divider(height: 1),
           ],
         ],
@@ -202,8 +235,10 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
   Widget _episodeTile(
     BuildContext context,
     CloudFileEntry video,
-    int index,
-  ) {
+    int index, {
+    required bool isTv,
+    required bool autofocus,
+  }) {
     final hasIndexedEpisode = video.episodeNumber != null;
     final parsed =
         hasIndexedEpisode ? null : LocalEpisodeParser().parse(video.remotePath);
@@ -224,7 +259,7 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
         remotePath: video.remotePath,
       ),
     );
-    return ListTile(
+    final tile = ListTile(
       leading: SizedBox(
         width: 68,
         child: Text(
@@ -246,7 +281,13 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
               child: Icon(Icons.closed_caption_outlined),
             )
           : null,
-      onTap: () => Navigator.of(context).pop(video),
+      onTap: isTv ? null : () => Navigator.of(context).pop(video),
+    );
+    if (!isTv) return tile;
+    return TvEpisodeTileSurface(
+      autofocus: autofocus,
+      onPressed: () => Navigator.of(context).pop(video),
+      child: tile,
     );
   }
 

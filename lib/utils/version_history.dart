@@ -164,6 +164,18 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.150',
+    date: '2026-08-08',
+    isPrerelease: true,
+    changes: [
+      '动画电影和动画剧集统一只显示在动漫入口，不再同时出现在电影或电视剧入口',
+      '普通电影和普通电视剧继续分别显示在对应入口，三个主分类互不重复',
+      'Windows 与 Android TV 使用相同的互斥分类规则；电视端继续保留遥控器焦点、手机扫码配置、.kyyconfig、.kyymeta 和个人网盘迁移能力',
+      '分类继续使用已有 TMDB 类型与题材信息，不会修改或删除，也不会移动本地及个人网盘原始文件',
+      '没有 TMDB Key、TMDB 不可用或网络中断时，本地扫描、浏览和播放继续可用',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.149',
     date: '2026-08-08',
     isPrerelease: true,

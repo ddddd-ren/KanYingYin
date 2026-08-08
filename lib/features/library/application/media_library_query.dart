@@ -126,11 +126,10 @@ class MediaLibraryQuery {
         isAnimation = true;
       }
     }
-    final categories = <String>{};
-    if (hasMovie) categories.add('电影');
-    if (isAnimation) categories.add('动漫');
-    if (hasTvSeries && !isAnimation) categories.add('电视剧');
-    return categories.toList(growable: false);
+    if (isAnimation) return const <String>['动漫'];
+    if (hasMovie) return const <String>['电影'];
+    if (hasTvSeries) return const <String>['电视剧'];
+    return const <String>[];
   }
 
   bool _isAnimationGenre(String value) {

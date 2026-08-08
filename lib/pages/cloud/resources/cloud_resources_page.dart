@@ -1250,6 +1250,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
               sourceName: _controller.selectedSource!.name,
               collection: _controller.collection,
               scrapingKeys: _controller.tmdbScrapingKeys,
+              searchQuery: _controller.query,
               hiddenVideoCount: _controller.hiddenVideos.length,
               subtitleVideoKeys: _subtitleVideoKeys(
                 _controller.selectedSource!.id,

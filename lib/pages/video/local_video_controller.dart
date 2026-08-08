@@ -462,6 +462,7 @@ class LocalVideoController implements IVideoPageController {
       currentRoad: 0,
       mediaTitle: _cloudSeriesTitle,
       subtitlePath: resolved.subtitlePath,
+      subtitleDisplayName: target.subtitleDisplayName,
       subtitleStorageKey: target.subtitleOffsetKey,
       stableMediaKey: '${target.sourceId}|${target.stableId}',
       networkRoute: resolved.networkRoute,

@@ -164,6 +164,18 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.154',
+    date: '2026-08-09',
+    isPrerelease: true,
+    changes: [
+      '修复云盘外挂字幕在播放器字幕菜单中显示为一长串哈希缓存名的问题，现在会显示网盘中的原始字幕文件名',
+      '字幕缓存继续使用隔离的哈希键，避免不同来源或不同版本的字幕互相覆盖；界面不再暴露内部缓存名称',
+      '内嵌 PGS、ASS 等字幕的语言、编码和切换方式保持不变，字幕样式、时间调整和自动选择继续可用',
+      'Windows 与 Android TV 使用相同修复；电视端继续保留遥控器焦点、手机扫码配置、.kyyconfig、.kyymeta 和个人网盘迁移能力',
+      '本次更新不会修改或删除，也不会改名、移动本地及个人网盘原始视频和字幕；没有 TMDB Key、TMDB 不可用或断网时仍可扫描、浏览和播放',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.153',
     date: '2026-08-08',
     isPrerelease: true,

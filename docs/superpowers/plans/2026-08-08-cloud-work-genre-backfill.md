@@ -183,15 +183,15 @@ git commit -m "修复网盘作品动漫标签补齐"
 - 修改：`RELEASE_NOTES.md`
 - 修改：`lib/utils/version_history.dart`
 
-- [ ] **步骤 1：升级版本到 2.1.153**
+- [x] **步骤 1：升级版本到 2.1.153**
 
 将 `version` 改为 `2.1.153+20153`，历史兼容 `msix_version` 同步为 `2.1.153.0`，但不生成 MSIX。
 
-- [ ] **步骤 2：添加普通用户可理解的发布说明**
+- [x] **步骤 2：添加普通用户可理解的发布说明**
 
 说明“修复部分已正确识别的网盘动画电影只显示在电影分类、未同时显示在动漫分类的问题”。
 
-- [ ] **步骤 3：运行版本测试并提交**
+- [x] **步骤 3：运行版本测试并提交**
 
 ```powershell
 D:\flutter\bin\flutter.bat test test\version_history_current_test.dart test\windows_installer_contract_test.dart

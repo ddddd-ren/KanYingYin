@@ -5,6 +5,23 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一五五修复作品目录裸集号识别', () {
+    final entries = versionHistoryForCurrent('2.1.155');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(entries.single.isPrerelease, isTrue);
+    for (final text in <String>[
+      '作品子目录',
+      'BD 4K 1',
+      '同一部剧集',
+      '自动刷新',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一五四修复云盘字幕文件名显示', () {
     final entries = versionHistoryForCurrent('2.1.154');
 

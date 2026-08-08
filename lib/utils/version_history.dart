@@ -164,6 +164,19 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.156',
+    date: '2026-08-09',
+    isPrerelease: true,
+    changes: [
+      '修复部分网盘 ASS 字幕因文件头含重复 UTF-8 BOM 而被播放器误判为普通文本、提示无法打开的问题',
+      '新下载字幕写入缓存前会自动将连续 BOM 归一为一个，保持字幕正文、样式和时间轴不变',
+      '已有错误字幕缓存会在下次播放前自动修复，无需清空缓存、重新扫描或重新下载网盘文件',
+      '字幕加载错误不影响视频本身；HEVC 硬件解码、音轨选择、内嵌字幕和其他正常字幕保持原有行为',
+      'Windows 与 Android TV 使用相同修复；电视端继续保留遥控器焦点、手机扫码配置和 .kyyconfig 迁移能力',
+      '本次更新不会修改或删除，也不会改名、移动本地及个人网盘原始视频和字幕',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.155',
     date: '2026-08-09',
     isPrerelease: true,

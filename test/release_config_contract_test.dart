@@ -3,29 +3,29 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('当前发布配置为 Windows 和 Android 二点一五五测试版', () {
+  test('当前发布配置为 Windows 和 Android 二点一五六测试版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
     final currentReleaseNotes = releaseNotes.substring(
-      releaseNotes.indexOf('## 2.1.155+20155'),
-      releaseNotes.indexOf('\n## 2.1.154+20154'),
+      releaseNotes.indexOf('## 2.1.156+20156'),
+      releaseNotes.indexOf('\n## 2.1.155+20155'),
     );
 
-    expect(pubspec, contains('version: 2.1.155+20155'));
-    expect(pubspec, contains('msix_version: 2.1.155.0'));
+    expect(pubspec, contains('version: 2.1.156+20156'));
+    expect(pubspec, contains('msix_version: 2.1.156.0'));
     expect(currentReleaseNotes, contains('Windows 和 Android TV 测试版'));
-    expect(currentReleaseNotes, contains('2.1.155'));
+    expect(currentReleaseNotes, contains('2.1.156'));
     expect(currentReleaseNotes, contains('Windows'));
-    expect(currentReleaseNotes, contains('作品子目录'));
-    expect(currentReleaseNotes, contains('裸集号'));
-    expect(currentReleaseNotes, contains('自动刷新'));
+    expect(currentReleaseNotes, contains('ASS 字幕'));
+    expect(currentReleaseNotes, contains('重复 UTF-8 BOM'));
+    expect(currentReleaseNotes, contains('自动修复'));
     expect(currentReleaseNotes, contains('不会修改或删除'));
     expect(currentReleaseNotes, contains('EXE'));
     expect(updateDialogCopy, contains('Windows 测试版 EXE'));
     expect(updateDialogCopy, contains('Android 测试版'));
-    expect(updateDialogCopy, contains('2.1.155'));
-    expect(updateDialogCopy, contains('20155'));
+    expect(updateDialogCopy, contains('2.1.156'));
+    expect(updateDialogCopy, contains('20156'));
   });
 
   test('直接依赖使用与锁文件兼容的明确约束', () {

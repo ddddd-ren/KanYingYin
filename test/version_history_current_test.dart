@@ -5,6 +5,23 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一五六修复重复 BOM 字幕加载错误', () {
+    final entries = versionHistoryForCurrent('2.1.156');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(entries.single.isPrerelease, isTrue);
+    for (final text in <String>[
+      'ASS 字幕',
+      '重复 UTF-8 BOM',
+      '已有错误字幕缓存',
+      '自动修复',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一五五修复作品目录裸集号识别', () {
     final entries = versionHistoryForCurrent('2.1.155');
 

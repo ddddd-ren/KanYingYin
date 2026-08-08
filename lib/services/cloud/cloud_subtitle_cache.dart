@@ -86,6 +86,11 @@ class CloudSubtitleCache {
       await directory.create(recursive: true);
       if (!isCurrent()) return null;
       if (await file.exists()) {
+        final existingBytes = await file.readAsBytes();
+        final normalizedBytes = _normalizeRepeatedUtf8Bom(existingBytes);
+        if (!identical(existingBytes, normalizedBytes)) {
+          await file.writeAsBytes(normalizedBytes, flush: true);
+        }
         await file.setLastModified(DateTime.now());
         return file.path;
       }
@@ -95,8 +100,9 @@ class CloudSubtitleCache {
       ));
       final bytes = await _downloader(resource);
       if (bytes.length > maxSubtitleSizeBytes || !isCurrent()) return null;
+      final normalizedBytes = _normalizeRepeatedUtf8Bom(bytes);
       if (await temporary.exists()) await temporary.delete();
-      await temporary.writeAsBytes(bytes, flush: true);
+      await temporary.writeAsBytes(normalizedBytes, flush: true);
       if (!isCurrent()) return null;
       await temporary.rename(file.path);
       return file.path;
@@ -159,4 +165,17 @@ class CloudSubtitleCache {
 
   static String _stableSegment(String value) =>
       sha256.convert(utf8.encode(value)).toString();
+
+  static List<int> _normalizeRepeatedUtf8Bom(List<int> bytes) {
+    const bom = <int>[0xEF, 0xBB, 0xBF];
+    var offset = 0;
+    while (offset + bom.length <= bytes.length &&
+        bytes[offset] == bom[0] &&
+        bytes[offset + 1] == bom[1] &&
+        bytes[offset + 2] == bom[2]) {
+      offset += bom.length;
+    }
+    if (offset <= bom.length) return bytes;
+    return <int>[...bom, ...bytes.sublist(offset)];
+  }
 }

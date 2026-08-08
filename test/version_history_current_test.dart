@@ -5,6 +5,26 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一五一修复剧场版 TMDB 匹配与动漫分类', () {
+    final entries = versionHistoryForCurrent('2.1.151');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(entries.single.isPrerelease, isTrue);
+    for (final text in <String>[
+      '剧场版序号',
+      'TMDB',
+      '高度相似',
+      '候选领先差',
+      '火影忍者',
+      '动画题材',
+      '动漫',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一五零修复动漫作品重复分类', () {
     final entries = versionHistoryForCurrent('2.1.150');
 

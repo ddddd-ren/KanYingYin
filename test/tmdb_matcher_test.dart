@@ -163,6 +163,24 @@ void main() {
     expect(result.best?.matchReason, contains('季集证据匹配'));
     expect(result.shouldAutoMatch, isTrue);
   });
+
+  test('剧场版资源序号不同但中文主体一致时可以自动匹配', () {
+    final result = matcher.choose(
+      queryTitle: '火影忍者剧场版03 大兴奋 三日月岛的动物骚动',
+      expectedType: TmdbMediaType.movie,
+      candidates: [
+        _metadata(
+          id: 18861,
+          title: '火影忍者剧场版：大兴奋！三日月岛的动物骚动',
+          date: '2006-08-05',
+        ),
+      ],
+    );
+
+    expect(result.best?.id, 18861);
+    expect(result.confidence, greaterThanOrEqualTo(0.8));
+    expect(result.shouldAutoMatch, isTrue);
+  });
 }
 
 TmdbMetadata _metadata({

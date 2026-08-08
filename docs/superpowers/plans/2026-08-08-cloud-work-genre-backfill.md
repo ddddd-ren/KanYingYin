@@ -17,7 +17,7 @@
 - 修改 `lib/features/library/application/library_genre_backfill_service.dart`：读取、合并并写回云作品题材。
 - 修改 `lib/pages/local/local_controller.dart`：把共享 `CloudWorkTmdbRepository` 传入补齐服务。
 - 修改 `lib/app/bindings/library_bindings.dart`：注入应用级作品仓库单例。
-- 修改 `pubspec.yaml`、`RELEASE_NOTES.md`、`lib/utils/version_history.dart`：发布 2.1.153。
+- 修改 `pubspec.yaml`、`lib/core/app_version.dart`、`RELEASE_NOTES.md`、`UPDATE_DIALOG_COPY.md`、`README.md`、`lib/utils/version_history.dart` 及版本契约测试：发布 2.1.153。
 
 ### 任务 1：记录交付前安装状态
 
@@ -203,7 +203,7 @@ git commit -m "发布看影音2.1.153"
 
 ### 任务 6：完整验证与交付安装程序
 
-- [ ] **步骤 1：格式化改动并检查差异**
+- [x] **步骤 1：格式化改动并检查差异**
 
 ```powershell
 D:\flutter\bin\dart.bat format lib test
@@ -213,7 +213,7 @@ git status --short
 
 预期：无格式错误、无空白错误，仅包含本轮相关文件。
 
-- [ ] **步骤 2：运行完整测试和静态分析**
+- [x] **步骤 2：运行完整测试和静态分析**
 
 ```powershell
 D:\flutter\bin\flutter.bat test
@@ -222,7 +222,7 @@ D:\flutter\bin\flutter.bat analyze
 
 预期：所有测试通过；静态分析无 error。
 
-- [ ] **步骤 3：构建 Windows Release**
+- [x] **步骤 3：构建 Windows Release**
 
 ```powershell
 D:\flutter\bin\flutter.bat build windows --release
@@ -230,7 +230,7 @@ D:\flutter\bin\flutter.bat build windows --release
 
 预期：退出码 0，`build\windows\x64\runner\Release\kanyingyin.exe` 产品版本为 2.1.153。
 
-- [ ] **步骤 4：生成并复制 Inno Setup 安装器**
+- [x] **步骤 4：生成并复制 Inno Setup 安装器**
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tool\windows\installer\build_inno_setup.ps1
@@ -244,7 +244,7 @@ C:\Users\asus\Desktop\看影音-2.1.153-测试版-安装程序.exe
 
 不得生成 MSIX。
 
-- [ ] **步骤 5：计算哈希并检查最终状态**
+- [x] **步骤 5：计算哈希并检查最终状态**
 
 ```powershell
 Get-FileHash -Algorithm SHA256 'C:\Users\asus\Desktop\看影音-2.1.153-测试版-安装程序.exe'

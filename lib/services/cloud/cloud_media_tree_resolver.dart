@@ -751,24 +751,33 @@ class _ResolutionContext {
     for (final video in standaloneVideos) {
       final analysis = nameAnalyzer.analyze(video.name, isDirectory: false);
       final parsedEpisode = episodeParser.parse(video.name);
-      final episodeNumber =
-          analysis.episodeNumber ?? parsedEpisode?.episodeNumber;
+      final fallback =
+          analysis.episodeNumber == null && parsedEpisode?.episodeNumber == null
+              ? _trailingEpisodeCandidate(video)
+              : null;
+      final episodeNumber = analysis.episodeNumber ??
+          parsedEpisode?.episodeNumber ??
+          fallback?.episodeNumber;
       if (episodeNumber == null || episodeNumber <= 0) continue;
       final parsedTitle = parsedEpisode?.seriesName.trim();
       if (parsedTitle != null && parsedTitle.isNotEmpty) {
         _addUnique(aliases, parsedTitle);
       }
-      for (final candidate in analysis.titleCandidates) {
-        _addUnique(aliases, candidate);
+      for (final title
+          in fallback?.titleCandidates ?? analysis.titleCandidates) {
+        _addUnique(aliases, title);
       }
       parsed.add((
         entry: video,
         seasonNumber: analysis.seasonNumber ??
             parsedEpisode?.seasonNumber ??
             defaultSeasonNumber ??
+            fallback?.seasonNumber ??
             1,
         episodeNumber: episodeNumber,
-        releaseTags: releaseTagsByEntry[_pathOf(video)] ?? analysis.releaseTags,
+        releaseTags: releaseTagsByEntry[_pathOf(video)] ??
+            fallback?.releaseTags ??
+            analysis.releaseTags,
       ));
     }
     if (parsed.length < 2) return;

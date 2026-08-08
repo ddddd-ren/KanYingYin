@@ -892,6 +892,40 @@ void main() {
       );
     });
 
+    test('作品子目录中的 4K 裸集号归为同一剧集', () {
+      const rootPath = '/视频';
+      const workPath = '$rootPath/最强阴阳师异世界转生记';
+      final tree = resolver.resolve(
+        sourceId: 'quark-a',
+        configuredRoots: const <String>[rootPath],
+        directoryEntries: <String, List<CloudFileEntry>>{
+          rootPath: <CloudFileEntry>[
+            _dir('work', workPath, '最强阴阳师异世界转生记'),
+          ],
+          workPath: <CloudFileEntry>[
+            for (final episode in <int>[1, 3, 10])
+              _video(
+                'episode-$episode',
+                '$workPath/【熊猫】最强阴阳师的异世界转生记 BD 4K '
+                    '$episode.mkv',
+                '【熊猫】最强阴阳师的异世界转生记 BD 4K '
+                    '$episode.mkv',
+              ),
+          ],
+        },
+        minSizeBytes: 100,
+      );
+
+      expect(tree.works, hasLength(1));
+      final series = tree.works.single;
+      expect(series.displayTitle, '最强阴阳师的异世界转生记');
+      expect(series.standaloneVideos, isEmpty);
+      expect(
+        series.seasons.single.episodes.map((episode) => episode.episodeNumber),
+        <int>[1, 3, 10],
+      );
+    });
+
     test('作品目录 S02 季号传递给短横线分集', () {
       const rootPath = '/视频';
       const workPath = '$rootPath/异世界悠闲农家S02';

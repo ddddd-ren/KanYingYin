@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -1215,6 +1216,79 @@ void main() {
   });
 
   group('CloudSubtitleCache', () {
+    test('缓存 ASS 字幕时把重复 UTF-8 BOM 归一为一个', () async {
+      final directory = await Directory.systemTemp.createTemp('cloud_sub_bom_');
+      addTearDown(() => directory.delete(recursive: true));
+      final bytes = <int>[
+        0xEF,
+        0xBB,
+        0xBF,
+        0xEF,
+        0xBB,
+        0xBF,
+        ...utf8.encode('[Script Info]\r\n[Events]\r\n'),
+      ];
+      final cache = CloudSubtitleCache(
+        cacheRoot: directory,
+        downloader: (_) async => bytes,
+      );
+
+      final path = await cache.cacheBeforePlayback(
+        sourceId: 'source',
+        subtitle: _file('double-bom', '/Subs/Episode.ass', size: bytes.length),
+        client: _FakeCloudClient(const <String, List<CloudFileEntry>>{}),
+      );
+
+      expect(path, isNotNull);
+      expect(
+        File(path!).readAsBytesSync(),
+        <int>[
+          0xEF,
+          0xBB,
+          0xBF,
+          ...utf8.encode('[Script Info]\r\n[Events]\r\n'),
+        ],
+      );
+    });
+
+    test('复用已有 ASS 缓存时修复重复 UTF-8 BOM', () async {
+      final directory =
+          await Directory.systemTemp.createTemp('cloud_sub_existing_bom_');
+      addTearDown(() => directory.delete(recursive: true));
+      final body = utf8.encode('[Script Info]\r\n[Events]\r\n');
+      final cache = CloudSubtitleCache(
+        cacheRoot: directory,
+        downloader: (_) async => <int>[0xEF, 0xBB, 0xBF, ...body],
+      );
+      final subtitle = _file(
+        'existing-double-bom',
+        '/Subs/Episode.ass',
+        size: body.length + 3,
+      );
+      final client = _FakeCloudClient(const <String, List<CloudFileEntry>>{});
+      final path = await cache.cacheBeforePlayback(
+        sourceId: 'source',
+        subtitle: subtitle,
+        client: client,
+      );
+      await File(path!).writeAsBytes(
+        <int>[0xEF, 0xBB, 0xBF, 0xEF, 0xBB, 0xBF, ...body],
+        flush: true,
+      );
+
+      final reusedPath = await cache.cacheBeforePlayback(
+        sourceId: 'source',
+        subtitle: subtitle,
+        client: client,
+      );
+
+      expect(reusedPath, path);
+      expect(
+        File(path).readAsBytesSync(),
+        <int>[0xEF, 0xBB, 0xBF, ...body],
+      );
+    });
+
     test('只缓存支持的小字幕并使用稳定安全文件名', () async {
       final directory = await Directory.systemTemp.createTemp('cloud_sub_');
       addTearDown(() => directory.delete(recursive: true));

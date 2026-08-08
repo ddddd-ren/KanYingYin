@@ -648,6 +648,48 @@ void main() {
     expect(initialized.single.totalBytes, 4096);
   });
 
+  test('云盘字幕使用原始文件名作为播放器轨道标题', () async {
+    const cachedSubtitlePath =
+        r'C:\cache\fcfbab7f75d5bce9db75428927450312e36554be0123456789abcdef01234567.ass';
+    final initialized = <PlaybackInitParams>[];
+    final controller = LocalVideoController(
+      resolveCloudPlayback: (target) async => CloudResolvedPlayback(
+        target: target,
+        videoUrl: 'https://cdn/episode',
+        httpHeaders: const <String, String>{},
+        subtitlePath: cachedSubtitlePath,
+      ),
+      initializePlayer: (params) async => initialized.add(params),
+    );
+
+    await controller.openCloudPlayback(
+      seriesTitle: '测试动画',
+      targets: const <CloudPlaybackTarget>[
+        CloudPlaybackTarget(
+          sourceId: 'openlist-home',
+          remotePath: '/Show/E01.mkv',
+          stableId: 'e1',
+          title: '第 1 集',
+          subtitleRemotePath: '/Show/外挂字幕/测试动画 S01E01 简体中文.ass',
+        ),
+      ],
+      selectedStableId: 'e1',
+    );
+    await controller.changeEpisode(1);
+
+    expect(initialized.single.subtitlePath, cachedSubtitlePath);
+    expect(
+      initialized.single.subtitleDisplayName,
+      '测试动画 S01E01 简体中文.ass',
+    );
+    final playerSource =
+        File('lib/pages/player/player_controller.dart').readAsStringSync();
+    expect(
+      playerSource,
+      contains('displayName: initParams.subtitleDisplayName'),
+    );
+  });
+
   test('首次解析失败时不初始化播放器', () async {
     var initialized = false;
     final controller = LocalVideoController(

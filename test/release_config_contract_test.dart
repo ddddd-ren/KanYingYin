@@ -3,30 +3,29 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('当前发布配置为 Windows 和 Android 二点一五三测试版', () {
+  test('当前发布配置为 Windows 和 Android 二点一五四测试版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
     final currentReleaseNotes = releaseNotes.substring(
-      releaseNotes.indexOf('## 2.1.153+20153'),
-      releaseNotes.indexOf('\n## 2.1.152+20152'),
+      releaseNotes.indexOf('## 2.1.154+20154'),
+      releaseNotes.indexOf('\n## 2.1.153+20153'),
     );
 
-    expect(pubspec, contains('version: 2.1.153+20153'));
-    expect(pubspec, contains('msix_version: 2.1.153.0'));
+    expect(pubspec, contains('version: 2.1.154+20154'));
+    expect(pubspec, contains('msix_version: 2.1.154.0'));
     expect(currentReleaseNotes, contains('Windows 和 Android TV 测试版'));
-    expect(currentReleaseNotes, contains('2.1.153'));
+    expect(currentReleaseNotes, contains('2.1.154'));
     expect(currentReleaseNotes, contains('Windows'));
-    expect(currentReleaseNotes, contains('TMDB'));
-    expect(currentReleaseNotes, contains('动漫'));
-    expect(currentReleaseNotes, contains('动漫'));
+    expect(currentReleaseNotes, contains('字幕'));
+    expect(currentReleaseNotes, contains('原始字幕文件名'));
     expect(currentReleaseNotes, contains('不会修改或删除'));
-    expect(currentReleaseNotes, contains('分类'));
+    expect(currentReleaseNotes, contains('哈希'));
     expect(currentReleaseNotes, contains('EXE'));
     expect(updateDialogCopy, contains('Windows 测试版 EXE'));
     expect(updateDialogCopy, contains('Android 测试版'));
-    expect(updateDialogCopy, contains('2.1.153'));
-    expect(updateDialogCopy, contains('20153'));
+    expect(updateDialogCopy, contains('2.1.154'));
+    expect(updateDialogCopy, contains('20154'));
   });
 
   test('直接依赖使用与锁文件兼容的明确约束', () {

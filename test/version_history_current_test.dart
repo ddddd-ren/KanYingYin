@@ -5,6 +5,24 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一五四修复云盘字幕文件名显示', () {
+    final entries = versionHistoryForCurrent('2.1.154');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(entries.single.isPrerelease, isTrue);
+    for (final text in <String>[
+      '云盘外挂字幕',
+      '原始字幕文件名',
+      '哈希键',
+      'PGS',
+      'Android TV',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一五二支持动漫电影双入口分类', () {
     final entries = versionHistoryForCurrent('2.1.152');
 

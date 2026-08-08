@@ -105,6 +105,7 @@ class PlaybackInitParams {
   final String? coverUrl;
   final String? mediaTitle;
   final String? subtitlePath;
+  final String? subtitleDisplayName;
   final String? subtitleStorageKey;
   final String? stableMediaKey;
   final PlaybackNetworkRoute networkRoute;
@@ -128,6 +129,7 @@ class PlaybackInitParams {
     this.coverUrl,
     this.mediaTitle,
     this.subtitlePath,
+    this.subtitleDisplayName,
     this.subtitleStorageKey,
     this.stableMediaKey,
     this.networkRoute = PlaybackNetworkRoute.inheritProxy,
@@ -152,6 +154,7 @@ class PlaybackInitParams {
         coverUrl: coverUrl,
         mediaTitle: mediaTitle,
         subtitlePath: subtitlePath,
+        subtitleDisplayName: subtitleDisplayName,
         subtitleStorageKey: subtitleStorageKey,
         stableMediaKey: stableMediaKey,
         networkRoute: networkRoute,
@@ -182,6 +185,8 @@ PlaybackInitParams mergeRefreshedCloudPlayback({
       coverUrl: refreshed.coverUrl,
       mediaTitle: refreshed.mediaTitle,
       subtitlePath: refreshed.subtitlePath ?? previous.subtitlePath,
+      subtitleDisplayName:
+          refreshed.subtitleDisplayName ?? previous.subtitleDisplayName,
       subtitleStorageKey:
           refreshed.subtitleStorageKey ?? previous.subtitleStorageKey,
       stableMediaKey: refreshed.stableMediaKey ?? previous.stableMediaKey,
@@ -946,7 +951,10 @@ abstract class _PlayerController with Store {
       throw const _PlayerInitializationCancelled();
     }
     if (subtitlePath != null && subtitlePath.isNotEmpty) {
-      await loadExternalSubtitle(subtitlePath);
+      await loadExternalSubtitle(
+        subtitlePath,
+        displayName: initParams.subtitleDisplayName,
+      );
     }
     await applySubtitleStyle(save: false);
     await _syncSubtitleDelayToPlayer();
@@ -1084,7 +1092,10 @@ abstract class _PlayerController with Store {
     }
   }
 
-  Future<bool> loadExternalSubtitle(String? subtitlePath) async {
+  Future<bool> loadExternalSubtitle(
+    String? subtitlePath, {
+    String? displayName,
+  }) async {
     if (subtitlePath == null || subtitlePath.isEmpty) return false;
     if (!LocalSubtitleMatcher.isSupportedSubtitlePath(subtitlePath)) {
       return false;
@@ -1100,7 +1111,9 @@ abstract class _PlayerController with Store {
             subtitlePath,
             isLocalPlayback: true,
           ),
-          title: p.basename(subtitlePath),
+          title: displayName?.trim().isNotEmpty == true
+              ? displayName!.trim()
+              : p.basename(subtitlePath),
           language: 'auto',
         ),
       );

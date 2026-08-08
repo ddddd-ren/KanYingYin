@@ -43,6 +43,13 @@ class CloudPlaybackTarget {
   final String? posterCachePath;
 
   String get subtitleOffsetKey => cloudSubtitleOffsetKey(sourceId, remotePath);
+
+  String? get subtitleDisplayName {
+    final path = subtitleRemotePath?.trim();
+    if (path == null || path.isEmpty) return null;
+    final name = p.posix.basename(path.replaceAll('\\', '/')).trim();
+    return name.isEmpty ? null : name;
+  }
 }
 
 class CloudResolvedPlayback {

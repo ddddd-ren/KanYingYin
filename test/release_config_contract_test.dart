@@ -3,29 +3,40 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('当前发布配置为 Windows 和 Android 二点一五七测试版', () {
+  test('当前发布配置为 Windows 一点零七和 Android 一点零四正式版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
     final currentReleaseNotes = releaseNotes.substring(
-      releaseNotes.indexOf('## 2.1.157+20157'),
-      releaseNotes.indexOf('\n## 2.1.156+20156'),
+      releaseNotes.indexOf('## 1.0.7+10007'),
+      releaseNotes.indexOf('\n## 2.1.157+20157'),
     );
 
-    expect(pubspec, contains('version: 2.1.157+20157'));
-    expect(pubspec, contains('msix_version: 2.1.157.0'));
-    expect(currentReleaseNotes, contains('Windows 和 Android TV 测试版'));
-    expect(currentReleaseNotes, contains('2.1.157'));
+    expect(pubspec, contains('version: 1.0.7+10007'));
+    expect(pubspec, contains('msix_version: 1.0.7.0'));
+    expect(currentReleaseNotes, contains('Windows 和 Android 正式版'));
+    expect(currentReleaseNotes, contains('1.0.7'));
+    expect(currentReleaseNotes, contains('1.0.4'));
     expect(currentReleaseNotes, contains('Windows'));
     expect(currentReleaseNotes, contains('搜索无匹配结果'));
     expect(currentReleaseNotes, contains('视频已隐藏'));
     expect(currentReleaseNotes, contains('没有找到匹配的视频'));
     expect(currentReleaseNotes, contains('不会修改或删除'));
     expect(currentReleaseNotes, contains('EXE'));
-    expect(updateDialogCopy, contains('Windows 测试版 EXE'));
-    expect(updateDialogCopy, contains('Android 测试版'));
-    expect(updateDialogCopy, contains('2.1.157'));
-    expect(updateDialogCopy, contains('20157'));
+    expect(updateDialogCopy, contains('Windows 正式版 EXE'));
+    expect(updateDialogCopy, contains('Android 正式版 APK/AAB'));
+    expect(updateDialogCopy, contains('1.0.7'));
+    expect(updateDialogCopy, contains('1.0.4'));
+    expect(updateDialogCopy, contains('10004'));
+    for (final tvOnlyText in <String>[
+      'Android TV',
+      'tvTest',
+      '遥控器',
+      '手机扫码配置',
+      '海信',
+    ]) {
+      expect(currentReleaseNotes, isNot(contains(tvOnlyText)));
+    }
   });
 
   test('直接依赖使用与锁文件兼容的明确约束', () {

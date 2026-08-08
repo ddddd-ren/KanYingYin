@@ -5,11 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('Windows 和 Android 二点一五七测试版版本文案保持一致', () {
-    const expectedVersion = '2.1.157';
-    const expectedBuildNumber = '20157';
-    const expectedAndroidVersion = expectedVersion;
-    const expectedAndroidVersionCode = expectedBuildNumber;
+  test('一点零七正式版双平台版本和发布文案保持一致', () {
+    const expectedVersion = '1.0.7';
+    const expectedBuildNumber = '10007';
+    const expectedAndroidVersion = '1.0.4';
+    const expectedAndroidVersionCode = '10004';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final androidGradle =
@@ -47,24 +47,24 @@ void main() {
     expect(
       androidGradle,
       contains(
-        'val androidVersionName = pubspecVersionMatch.groupValues[1]',
+        'val androidVersionName = "1.0.4"',
       ),
     );
     expect(
       androidGradle,
       contains(
-        'val androidVersionCode = pubspecVersionMatch.groupValues[2].toInt()',
+        'val androidVersionCode = 10004',
       ),
     );
     expect(androidGradle, contains('versionCode = androidVersionCode'));
     expect(androidGradle, contains('versionName = androidVersionName'));
     expect(
       androidReleaseScript,
-      contains(r'$androidVersion = $pubspecVersion.Name'),
+      contains(r"$androidVersion = '1.0.4'"),
     );
     expect(
       androidReleaseScript,
-      contains(r'$androidVersionCode = $pubspecVersion.Code'),
+      contains(r'$androidVersionCode = 10004'),
     );
     expect(msixIdentity, AppIdentity.windowsIdentity);
     expect(readmeIdentity, AppIdentity.windowsIdentity);
@@ -89,11 +89,11 @@ void main() {
     expect(updateDialogCopy, contains('Android 应用版本：$expectedAndroidVersion'));
     expect(updateDialogCopy,
         contains('Android versionCode：$expectedAndroidVersionCode'));
-    expect(updateDialogCopy, contains('看影音 $version 测试版'));
+    expect(updateDialogCopy, contains('看影音 $version 正式版'));
     expect(updateDialogCopy, contains('Android 弹窗正文'));
     expect(
       updateDialogCopy,
-      contains('看影音 Android $expectedAndroidVersion 测试版'),
+      contains('看影音 Android $expectedAndroidVersion 正式版'),
     );
     final versionHistoryListStart = versionHistory.indexOf(
       'const List<VersionHistory> versionHistoryList',
@@ -102,7 +102,7 @@ void main() {
     expect(
       versionHistory.indexOf("version: '$version'", versionHistoryListStart),
       lessThan(
-        versionHistory.indexOf("version: '2.1.137'", versionHistoryListStart),
+        versionHistory.indexOf("version: '2.1.157'", versionHistoryListStart),
       ),
     );
     expect(versionHistory, contains("version: '1.0.2'"));
@@ -132,25 +132,26 @@ void main() {
     expect(currentVersionHistory, contains('Windows'));
     for (final currentCopy in <String>[
       currentReleaseNotes,
-      currentVersionHistory,
+      currentVersionHistory
     ]) {
-      for (final text in <String>[
+      expect(currentCopy, contains('网盘'));
+      expect(currentCopy, contains('不会修改或删除'));
+      for (final tvOnlyText in <String>[
         'Android TV',
-        '焦点',
+        'tvTest',
+        '遥控器',
         '手机扫码配置',
-        '.kyyconfig',
-        '网盘',
-        '不会修改或删除',
+        '海信',
       ]) {
-        expect(currentCopy, contains(text));
+        expect(currentCopy, isNot(contains(tvOnlyText)));
       }
     }
-    expect(currentReleaseNotes, contains('测试版'));
-    expect(updateDialogCopy, contains('Windows 测试版 EXE'));
-    expect(updateDialogCopy, contains('Android 测试版 APK/AAB'));
+    expect(currentReleaseNotes, contains('正式版'));
+    expect(updateDialogCopy, contains('Windows 正式版 EXE'));
+    expect(updateDialogCopy, contains('Android 正式版 APK/AAB'));
     expect(releaseNotes, contains('APK/AAB'));
     expect(currentReleaseNotes, isNot(contains('本轮未打包')));
-    expect(currentVersionHistory, contains('isPrerelease: true'));
+    expect(currentVersionHistory, isNot(contains('isPrerelease: true')));
   });
 }
 

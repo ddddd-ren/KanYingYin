@@ -5,6 +5,37 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('一点零七正式版为 Android mobile 显示一点零四更新', () {
+    final entries = versionHistoryForCurrent(
+      '1.0.7',
+      platform: AppPlatformKind.android,
+    );
+
+    expect(entries, hasLength(1));
+    expect(entries.single.version, '1.0.4');
+    expect(entries.single.isPrerelease, isFalse);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      '动画电影',
+      '云盘外挂字幕',
+      '重复 UTF-8 BOM',
+      '裸集号',
+      '视频已隐藏',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+    for (final tvOnlyText in <String>[
+      'Android TV',
+      'tvTest',
+      '遥控器',
+      '手机扫码配置',
+      '海信',
+    ]) {
+      expect(changes, isNot(contains(tvOnlyText)));
+    }
+  });
+
   test('二点一五七修复网盘搜索空状态提示错误', () {
     final entries = versionHistoryForCurrent('2.1.157');
 

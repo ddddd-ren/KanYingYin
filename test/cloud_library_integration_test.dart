@@ -1272,7 +1272,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('分类'), findsOneWidget);
     expect(find.text('动漫'), findsOneWidget);
-    expect(find.text('电影'), findsNothing);
+    expect(find.text('电影'), findsOneWidget);
     await tester.tapAt(const Offset(2, 2));
     await tester.pumpAndSettle();
 

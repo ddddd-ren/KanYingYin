@@ -3,14 +3,19 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Android 版本与根工程一致且包含 tvTest flavor', () {
+  test('Android mobile 正式版使用独立版本并仅保留 tvTest 源码 flavor', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final gradle = File('android/app/build.gradle.kts').readAsStringSync();
+    final agents = File('AGENTS.md').readAsStringSync();
 
-    expect(pubspec, contains('version: 2.1.157+20157'));
+    expect(pubspec, contains('version: 1.0.7+10007'));
+    expect(gradle, contains('val androidVersionName = "1.0.4"'));
+    expect(gradle, contains('val androidVersionCode = 10004'));
     expect(gradle, contains('versionName = androidVersionName'));
     expect(gradle, contains('versionCode = androidVersionCode'));
     expect(gradle, contains('create("tvTest")'));
+    expect(agents, contains('Android TV 版发布无限期暂停'));
+    expect(agents, contains('不得运行 `tvTest` 发布流程'));
   });
 
   test('TV 构建脚本保存并验证独立包记录', () {

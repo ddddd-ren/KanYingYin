@@ -33,6 +33,7 @@
 
 ## 版本与交付
 
+- Android TV 版发布无限期暂停：不得构建或交付 Android TV 正式版、测试版或个人预置包，不得运行 `tvTest` 发布流程，也不得向 GitHub 推送 TV 安装包、TV 标签或 TV Release。Android TV 代码可以保留；除非用户以后明确恢复，否则 Windows 和手机版 Android 的常规发布不得生成 TV 产物。
 - 每次版本更新开始前，必须查询并记录当前 Windows EXE 安装状态和 `kanyingyin.exe` 的产品版本；兼容检查时同时确认旧 MSIX 是否仍存在，不能只根据 `pubspec.yaml` 推断。生成安装包后再次核对安装器与 Release 主程序版本，若执行安装则再次检查已安装版本。
 - 每次完成可交付的版本迭代并通过测试、静态分析和 Windows Release 构建后，必须继续生成 Inno Setup EXE 安装程序、验证版本，并将安装程序复制到当前用户桌面；不能只完成 Release 构建，也不要生成 MSIX。
 - 进入安装包的修改必须同步更新 `pubspec.yaml` 的 `version`；保留 `msix_config` 时只作为历史兼容配置同步版本，不进入交付流程。

@@ -59,6 +59,33 @@ void main() {
     expect(item.codec, 'HEVC');
   });
 
+  test('LocalMediaIndexer 从媒体根目录平铺电影文件名建立作品名', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'kanyingyin_index_flat_movie_',
+    );
+    addTearDown(() async {
+      if (await tempDir.exists()) await tempDir.delete(recursive: true);
+    });
+
+    final video = File(p.join(
+      tempDir.path,
+      'Annihilation.2018.BluRay.2160p.x265.10bit.HDR.3Audio.-SSDSSE.mkv',
+    ));
+    await video.writeAsString('video');
+
+    final repository = _MemoryMediaIndexRepository();
+    final indexer = _testIndexer(
+      repository: repository,
+      mediaProbe: const _FakeMediaProbe({}),
+    );
+
+    await indexer.indexSource(tempDir.path);
+
+    final item = repository.getAll().single;
+    expect(item.seriesName, 'Annihilation');
+    expect(item.episodeNumber, isNull);
+  });
+
   test('LocalMediaIndexer reuses unchanged index items', () async {
     final tempDir =
         await Directory.systemTemp.createTemp('kanyingyin_index_reuse_');

@@ -83,6 +83,10 @@ class MediaNameAnalyzer {
     r'(?<![A-Za-z0-9])(AC-?3|AAC|FLAC|DTS)(?![A-Za-z0-9])',
     caseSensitive: false,
   );
+  static final RegExp _audioTrackCountPattern = RegExp(
+    r'(?<![A-Za-z0-9])\d{1,2}[\s._-]*Audio(?![A-Za-z0-9])',
+    caseSensitive: false,
+  );
   static final RegExp _bitDepthPattern = RegExp(
     r'(?<![A-Za-z0-9])(?:Main10|8bit|10bit|12bit)(?![A-Za-z0-9])',
     caseSensitive: false,
@@ -133,6 +137,10 @@ class MediaNameAnalyzer {
   static final RegExp _leadingReleaseGroupPattern = RegExp(
     r'^(?:\[([^\]]{2,32})\]|【([^】]{2,32})】)',
     unicode: true,
+  );
+  static final RegExp _trailingReleaseGroupPattern = RegExp(
+    r'(?:[-._ ](?:SGF|FGT|LeloveTV|BlackTV|DreamHD|HotWEB|ColorTV|ZeroTV|Huawei|Xiaomi|SSDSSE))\s*$',
+    caseSensitive: false,
   );
   static final RegExp _transparentDirectoryPattern = RegExp(
     r'^(?:(?:内嵌|内封)[\s._-]*)?'
@@ -263,6 +271,7 @@ class MediaNameAnalyzer {
         .replaceAll(_sourcePattern, ' ')
         .replaceAll(_codecPattern, ' ')
         .replaceAll(_audioCodecPattern, ' ')
+        .replaceAll(_audioTrackCountPattern, ' ')
         .replaceAll(_bitDepthPattern, ' ')
         .replaceAll(_trailingChecksumPattern, ' ')
         .replaceAll(_dvPattern, ' ')
@@ -273,6 +282,7 @@ class MediaNameAnalyzer {
         .replaceAll(_subtitlePattern, ' ')
         .replaceAll(_subtitleTrackCountPattern, ' ')
         .replaceAll(_languagePattern, ' ')
+        .replaceAll(_trailingReleaseGroupPattern, ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
   }
@@ -400,6 +410,8 @@ class MediaNameAnalyzer {
         tags.codec != null ||
         tags.dynamicRange.isNotEmpty ||
         tags.audio.isNotEmpty ||
+        _audioTrackCountPattern.hasMatch(value) ||
+        _trailingReleaseGroupPattern.hasMatch(value) ||
         RegExp(r'^\d{4,}[\s._-]+').hasMatch(value) ||
         RegExp(r'全\s*\d+\s*集|全集|内附', unicode: true).hasMatch(value) ||
         (_year(value) != null && !RegExp(r'^\d{4}$').hasMatch(value));

@@ -12,7 +12,7 @@ class TmdbResourceNameCleaner {
     r'dsnp|hbo[ ._-]*max|hami|tving|netflix|nf|kktv|hq|'
     r'hybrid|proper|2audio|black[ ._-]*tv|'
     r'2160p|1440p|1080[pi]|720p|480p|4k|8k|uhd|'
-    r'(?:8|10|12)[ ._-]*bit|hi10p|'
+    r'(?:main)?(?:8|10|12)[ ._-]*bit|hi10p|'
     r'dolby[ ._-]*vision|dovi|hdr(?:10\+?)?|dv|hlg|sdr|'
     r'字幕组|字幕|中字|内嵌|内封|国配|台剧|美剧|日剧|韩剧|'
     r'dts(?:[ ._-]*hd(?:[ ._-]*ma)?)?(?:[ ._-]*(?:2[ .]0|5[ .]1|7[ .]1))?|'
@@ -48,7 +48,7 @@ class TmdbResourceNameCleaner {
     caseSensitive: false,
   );
   static final RegExp _releaseGroupPattern = RegExp(
-    r'(?:[-._ ](?:SGF|FGT|LeloveTV|BlackTV|DreamHD|HotWEB|ColorTV|ZeroTV|Huawei|Xiaomi))\s*$',
+    r'(?:[-._ ](?:SGF|FGT|LeloveTV|BlackTV|DreamHD|HotWEB|ColorTV|ZeroTV|Huawei|Xiaomi|SSDSSE))\s*$',
     caseSensitive: false,
   );
   static final RegExp _releaseGroupNamePattern = RegExp(

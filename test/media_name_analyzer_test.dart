@@ -179,6 +179,17 @@ void main() {
       }
     });
 
+    test('电影音轨数量和发布组尾缀不会污染作品名或触发集号', () {
+      final result = analyzer.analyze(
+        'Annihilation.2018.BluRay.2160p.x265.10bit.HDR.3Audio.-SSDSSE.mkv',
+        isDirectory: false,
+      );
+
+      expect(result.role, MediaNodeRole.work);
+      expect(result.episodeNumber, isNull);
+      expect(result.titleCandidates, <String>['Annihilation']);
+    });
+
     test('有效剪辑版本不会被当成广告或普通重复项', () {
       final result = analyzer.analyze(
         '假面骑士OOO 第47-48集（导演剪辑版）.mkv',

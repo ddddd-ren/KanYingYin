@@ -164,6 +164,20 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.149',
+    date: '2026-08-08',
+    isPrerelease: true,
+    changes: [
+      'Windows 修复电影文件名中的 3Audio 等音轨数量被误识别成集号，避免电影被按电视剧类型搜索 TMDB',
+      '媒体根目录直接放置电影文件时会从文件名提取作品名，不再使用媒体根目录名称作为默认搜索词',
+      '作品名会清理 Main10、3Audio 和 -SSDSSE 等发布规格及发布组尾缀，提高 TMDB 匹配准确度',
+      '已有本地索引会按新规则重新计算作品名和电影类型，已确认资料与用户手动覆盖继续保留',
+      '没有 TMDB Key、TMDB 不可用或网络中断时，本地扫描、浏览和播放继续可用',
+      'Android TV 继续使用 tvTest flavor，保留遥控器焦点、手机扫码配置、.kyyconfig、.kyymeta 和个人网盘迁移能力',
+      '本次更新不会修改或删除本地视频、字幕、个人网盘文件，也不会改名、移动原始媒体或删除播放历史',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.148',
     date: '2026-08-08',
     isPrerelease: true,

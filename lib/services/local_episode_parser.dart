@@ -61,7 +61,8 @@ class LocalEpisodeParser {
   );
 
   static final _bareEpisodePattern = RegExp(
-    r'^(?<series>.+?)[\s._\-\[](?<episode>\d{1,3})(?!\d|[kK]\b|bit\b)(?<title>.*)$',
+    r'^(?<series>.+?)[\s._\-\[](?<episode>\d{1,3})'
+    r'(?!\d|[kK]\b|bit\b|audio\b)(?<title>.*)$',
     caseSensitive: false,
   );
 

@@ -24,6 +24,7 @@ import 'package:kanyingyin/repositories/local_series_title_override_repository.d
 import 'package:kanyingyin/repositories/tmdb_metadata_repository.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
+import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 import 'package:kanyingyin/services/cloud/cloud_cache_directories.dart';
 import 'package:kanyingyin/services/cloud/cloud_poster_cache.dart';
@@ -79,6 +80,7 @@ abstract class _LocalController with Store {
     ILocalSeriesTitleOverrideRepository? seriesTitleOverrideRepository,
     CloudSourceRepository? cloudSourceRepository,
     CloudMediaIndexRepository? cloudMediaIndexRepository,
+    CloudWorkTmdbRepository? cloudWorkTmdbRepository,
     CloudCacheRootProvider? cloudCacheRootProvider,
     Future<void> Function(String sourceId)? scanCloudSource,
     CloudTmdbMetadataService? cloudTmdbMetadataService,
@@ -100,6 +102,7 @@ abstract class _LocalController with Store {
           seriesTitleOverrideRepository: seriesTitleOverrideRepository,
           cloudSourceRepository: cloudSourceRepository,
           cloudMediaIndexRepository: cloudMediaIndexRepository,
+          cloudWorkTmdbRepository: cloudWorkTmdbRepository,
           cloudCacheRootProvider: cloudCacheRootProvider,
           scanCloudSource: scanCloudSource,
           cloudTmdbMetadataService: cloudTmdbMetadataService,
@@ -124,6 +127,7 @@ abstract class _LocalController with Store {
     ILocalSeriesTitleOverrideRepository? seriesTitleOverrideRepository,
     CloudSourceRepository? cloudSourceRepository,
     CloudMediaIndexRepository? cloudMediaIndexRepository,
+    CloudWorkTmdbRepository? cloudWorkTmdbRepository,
     CloudCacheRootProvider? cloudCacheRootProvider,
     Future<void> Function(String sourceId)? scanCloudSource,
     CloudTmdbMetadataService? cloudTmdbMetadataService,
@@ -166,6 +170,8 @@ abstract class _LocalController with Store {
             cloudSourceRepository ?? CloudSourceRepository(),
         _cloudMediaIndexRepository =
             cloudMediaIndexRepository ?? CloudMediaIndexRepository(),
+        _cloudWorkTmdbRepository =
+            cloudWorkTmdbRepository ?? CloudWorkTmdbRepository(),
         _cloudCacheRootProvider =
             cloudCacheRootProvider ?? defaultCloudCacheRoot,
         _scanCloudSource = scanCloudSource,
@@ -189,6 +195,7 @@ abstract class _LocalController with Store {
   final ILocalSeriesTitleOverrideRepository _seriesTitleOverrideRepository;
   final CloudSourceRepository _cloudSourceRepository;
   final CloudMediaIndexRepository _cloudMediaIndexRepository;
+  final CloudWorkTmdbRepository _cloudWorkTmdbRepository;
   final CloudCacheRootProvider _cloudCacheRootProvider;
   final Future<void> Function(String sourceId)? _scanCloudSource;
   CloudTmdbMetadataService? _cloudTmdbMetadataService;
@@ -198,6 +205,7 @@ abstract class _LocalController with Store {
           LibraryGenreBackfillService(
             localRepository: _mediaIndexRepository,
             cloudRepository: _cloudMediaIndexRepository,
+            workRepository: _cloudWorkTmdbRepository,
             clientFactory: (apiKey) =>
                 _tmdbClientContextRegistry.clientFor(apiKey),
           );

@@ -1,7 +1,9 @@
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
+import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
+import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/local_media_index_repository.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 
@@ -21,13 +23,16 @@ class LibraryGenreBackfillService {
   const LibraryGenreBackfillService({
     required ILocalMediaIndexRepository localRepository,
     required CloudMediaIndexRepository cloudRepository,
+    required CloudWorkTmdbRepository workRepository,
     required TmdbClientFactory clientFactory,
   })  : _localRepository = localRepository,
         _cloudRepository = cloudRepository,
+        _workRepository = workRepository,
         _clientFactory = clientFactory;
 
   final ILocalMediaIndexRepository _localRepository;
   final CloudMediaIndexRepository _cloudRepository;
+  final CloudWorkTmdbRepository _workRepository;
   final TmdbClientFactory _clientFactory;
 
   Future<LibraryGenreBackfillResult> backfill({
@@ -69,6 +74,22 @@ class LibraryGenreBackfillService {
           .cloudSourceIds
           .add(item.sourceId);
     }
+    for (final record in await _workRepository.getAll()) {
+      final metadata = record.metadata;
+      if (record.status != CloudWorkTmdbStatus.matched ||
+          metadata == null ||
+          metadata.id <= 0 ||
+          metadata.genres.isNotEmpty) {
+        continue;
+      }
+      targets
+          .putIfAbsent(
+            (metadata.mediaType, metadata.id),
+            _GenreTargets.new,
+          )
+          .workRecords
+          .add(record);
+    }
     if (targets.isEmpty) {
       return const LibraryGenreBackfillResult(
         updatedWorks: 0,
@@ -78,6 +99,7 @@ class LibraryGenreBackfillService {
 
     final client = _clientFactory(normalizedKey);
     final localUpdates = <String, LocalMediaIndexItem>{};
+    final workUpdates = <String, CloudWorkTmdbRecord>{};
     var updatedWorks = 0;
     var failedWorks = 0;
     var current = 0;
@@ -101,6 +123,11 @@ class LibraryGenreBackfillService {
             (item) => item.copyWith(tmdbGenres: details.genres),
           );
         }
+        for (final record in entry.value.workRecords) {
+          workUpdates[record.workKey] = record.withMetadata(
+            record.metadata!.copyWith(genres: details.genres),
+          );
+        }
         updatedWorks++;
       } on Object {
         failedWorks++;
@@ -110,6 +137,7 @@ class LibraryGenreBackfillService {
       }
     }
     await _localRepository.updateItems(localUpdates);
+    await _workRepository.upsertAll(workUpdates.values);
     return LibraryGenreBackfillResult(
       updatedWorks: updatedWorks,
       failedWorks: failedWorks,
@@ -134,4 +162,5 @@ class LibraryGenreBackfillService {
 class _GenreTargets {
   final List<LocalMediaIndexItem> localItems = <LocalMediaIndexItem>[];
   final Set<String> cloudSourceIds = <String>{};
+  final List<CloudWorkTmdbRecord> workRecords = <CloudWorkTmdbRecord>[];
 }

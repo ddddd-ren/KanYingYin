@@ -115,6 +115,7 @@ void registerLibraryBindings(Injector i) {
       mediaSourceRepository: Modular.get<ILocalMediaSourceRepository>(),
       cloudSourceRepository: Modular.get<CloudSourceRepository>(),
       cloudMediaIndexRepository: Modular.get<CloudMediaIndexRepository>(),
+      cloudWorkTmdbRepository: Modular.get<CloudWorkTmdbRepository>(),
       scanCloudSource: (sourceId) async {
         await Modular.get<CloudLibraryController>().scanSource(sourceId);
       },

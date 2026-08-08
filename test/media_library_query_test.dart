@@ -40,7 +40,7 @@ void main() {
     );
   });
 
-  test('分类包含动漫和电影且自定义标签可参与多选筛选', () {
+  test('动画电影只归入动漫且自定义标签可参与多选筛选', () {
     final local = _localSeries(
       'local|动漫电影',
       '动漫电影',
@@ -56,7 +56,7 @@ void main() {
     expect(
       query.availableCategories(<MediaLibrarySeries>[local, other],
           sourceId: 'local'),
-      const <String>['动漫', '电影'],
+      const <String>['动漫'],
     );
     expect(
       query.availableCustomTags(<MediaLibrarySeries>[local, other],
@@ -74,6 +74,39 @@ void main() {
           .map((item) => item.title),
       const <String>['动漫电影'],
     );
+  });
+
+  test('电影电视剧和动漫三个主入口互斥', () {
+    final movie = _series(
+      'local',
+      '普通电影',
+      const <String>['剧情'],
+      mediaType: TmdbMediaType.movie,
+    );
+    final animatedMovie = _series(
+      'local',
+      '动画电影',
+      const <String>['动画'],
+      mediaType: TmdbMediaType.movie,
+    );
+    final animatedTv = _series(
+      'local',
+      '动画剧集',
+      const <String>['Animation'],
+      mediaType: TmdbMediaType.tv,
+    );
+    final tv = _series(
+      'local',
+      '普通电视剧',
+      const <String>['剧情'],
+      mediaType: TmdbMediaType.tv,
+    );
+    const query = MediaLibraryQuery();
+
+    expect(query.categoriesForSeries(movie), const <String>['电影']);
+    expect(query.categoriesForSeries(animatedMovie), const <String>['动漫']);
+    expect(query.categoriesForSeries(animatedTv), const <String>['动漫']);
+    expect(query.categoriesForSeries(tv), const <String>['电视剧']);
   });
 
   test('网盘电影剧集和动画类型可直接用于三个主入口筛选', () {

@@ -5,6 +5,26 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一五零修复动漫作品重复分类', () {
+    final entries = versionHistoryForCurrent('2.1.150');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(entries.single.isPrerelease, isTrue);
+    for (final text in <String>[
+      '动画电影',
+      '动画剧集',
+      '动漫入口',
+      '电影',
+      '电视剧',
+      '互不重复',
+      'TMDB',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一四九修复电影音轨数量误判与 TMDB 类型异常', () {
     final entries = versionHistoryForCurrent('2.1.149');
 

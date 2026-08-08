@@ -172,7 +172,7 @@ const List<VersionHistory> versionHistoryList = [
       '应用会为已匹配但缺少题材的网盘作品补充 TMDB 类型标签，不会重新选择或改变已有匹配结果',
       '动画电影继续同时显示在动漫和电影，动画电视剧继续同时显示在动漫和电视剧',
       'Windows 与 Android TV 使用相同规则；电视端继续保留遥控器焦点、手机扫码配置、.kyyconfig、.kyymeta 和个人网盘迁移能力',
-      '本次更新不会修改、删除或移动本地及个人网盘原始文件；没有 TMDB Key、TMDB 不可用或断网时仍可扫描、浏览和播放',
+      '本次更新不会修改或删除，也不会移动本地及个人网盘原始文件；没有 TMDB Key、TMDB 不可用或断网时仍可扫描、浏览和播放',
     ],
   ),
   VersionHistory(

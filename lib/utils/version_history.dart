@@ -164,6 +164,19 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.157',
+    date: '2026-08-09',
+    isPrerelease: true,
+    changes: [
+      '修复网盘媒体库搜索无匹配结果时，可能错误提示“视频已隐藏”的问题',
+      '输入搜索词但没有匹配视频时，现在会明确显示“没有找到匹配的视频”',
+      '只有未搜索且当前来源确实存在隐藏视频时，才会显示从更多网盘操作中恢复的提示',
+      '搜索、隐藏视频管理、媒体识别、刮削和播放行为保持不变',
+      'Windows 与 Android TV 使用相同修复；电视端遥控器焦点、手机扫码配置和 .kyyconfig 迁移保持原有行为',
+      '本次更新不会修改或删除，也不会改名、移动本地及个人网盘原始视频和字幕',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.156',
     date: '2026-08-09',
     isPrerelease: true,

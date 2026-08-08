@@ -5,6 +5,22 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一五七修复网盘搜索空状态提示错误', () {
+    final entries = versionHistoryForCurrent('2.1.157');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(entries.single.isPrerelease, isTrue);
+    for (final text in <String>[
+      '搜索无匹配结果',
+      '视频已隐藏',
+      '没有找到匹配的视频',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一五六修复重复 BOM 字幕加载错误', () {
     final entries = versionHistoryForCurrent('2.1.156');
 

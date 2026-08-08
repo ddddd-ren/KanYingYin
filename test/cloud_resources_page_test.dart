@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/episode_matching/application/cloud_episode_match_service.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
+import 'package:kanyingyin/modules/cloud/cloud_hidden_video.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
@@ -916,6 +917,26 @@ void main() {
       find.text('视频已隐藏，可从更多网盘操作中恢复'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('搜索无匹配结果时不误报视频已隐藏', (tester) async {
+    final controller = _HideVideoPageController(
+      hasHistoricalHiddenVideo: true,
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: CloudResourcesPage(controller: controller)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.widgetWithText(TextField, '搜索全部网盘资源'),
+      'zho',
+    );
+    await tester.pump();
+
+    expect(find.text('没有找到匹配的视频'), findsOneWidget);
+    expect(find.text('视频已隐藏，可从更多网盘操作中恢复'), findsNothing);
+    controller.dispose();
   });
 
   testWidgets('无来源时显示四种网盘添加入口', (tester) async {
@@ -2323,18 +2344,23 @@ const _quarkSource = CloudSource(
 );
 
 class _HideVideoPageController extends CloudResourcesController {
-  factory _HideVideoPageController() {
+  factory _HideVideoPageController({bool hasHistoricalHiddenVideo = false}) {
     final credentials = MemoryCloudCredentialStore();
     final repository = CloudSourceRepository(
       storage: MemoryCloudSourceStorage(),
       credentialStore: credentials,
     );
-    return _HideVideoPageController._(repository, credentials);
+    return _HideVideoPageController._(
+      repository,
+      credentials,
+      hasHistoricalHiddenVideo,
+    );
   }
 
   _HideVideoPageController._(
     CloudSourceRepository repository,
     MemoryCloudCredentialStore credentials,
+    this.hasHistoricalHiddenVideo,
   ) : super(repository: repository, credentialStore: credentials) {
     sources = const <CloudSource>[_quarkSource];
     selectedSource = _quarkSource;
@@ -2361,6 +2387,19 @@ class _HideVideoPageController extends CloudResourcesController {
   );
 
   final Set<String> hiddenIds = <String>{};
+  final bool hasHistoricalHiddenVideo;
+
+  @override
+  List<CloudHiddenVideo> get hiddenVideos => hasHistoricalHiddenVideo
+      ? const <CloudHiddenVideo>[
+          CloudHiddenVideo(
+            sourceId: 'quark-source',
+            remoteId: 'historical-hidden',
+            remotePath: '/影视/已删除.mkv',
+            fileName: '已删除.mkv',
+          ),
+        ]
+      : const <CloudHiddenVideo>[];
 
   @override
   Future<void> load({bool startScan = true}) async {}
@@ -2368,7 +2407,12 @@ class _HideVideoPageController extends CloudResourcesController {
   @override
   CloudResourceCollection get collection {
     final videos = const <CloudFileEntry>[_versionA, _versionB]
-        .where((video) => !hiddenIds.contains(video.id))
+        .where(
+          (video) =>
+              !hiddenIds.contains(video.id) &&
+              (query.trim().isEmpty ||
+                  video.name.toLowerCase().contains(query.toLowerCase())),
+        )
         .toList(growable: false);
     if (videos.isEmpty) {
       return CloudResourceCollection(groups: const <CloudResourceMediaGroup>[]);

@@ -7,7 +7,7 @@ void main() {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final gradle = File('android/app/build.gradle.kts').readAsStringSync();
 
-    expect(pubspec, contains('version: 2.1.150+20150'));
+    expect(pubspec, contains('version: 2.1.151+20151'));
     expect(gradle, contains('versionName = androidVersionName'));
     expect(gradle, contains('versionCode = androidVersionCode'));
     expect(gradle, contains('create("tvTest")'));

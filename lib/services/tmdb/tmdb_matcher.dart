@@ -180,7 +180,8 @@ class TmdbMatcher {
     } else if (aliasMatched) {
       score += 0.58;
     }
-    score += math.min(0.28, titleSimilarity * 0.28);
+    final similarityWeight = titleMatched ? 0.28 : 0.70;
+    score += math.min(similarityWeight, titleSimilarity * similarityWeight);
 
     final candidateYear = _year(candidate.releaseDate);
     var yearMatched = false;

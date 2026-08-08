@@ -3,30 +3,30 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('当前发布配置为 Windows 和 Android 二点一五零测试版', () {
+  test('当前发布配置为 Windows 和 Android 二点一五一测试版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
     final currentReleaseNotes = releaseNotes.substring(
-      releaseNotes.indexOf('## 2.1.150+20150'),
-      releaseNotes.indexOf('\n## 2.1.149+20149'),
+      releaseNotes.indexOf('## 2.1.151+20151'),
+      releaseNotes.indexOf('\n## 2.1.150+20150'),
     );
 
-    expect(pubspec, contains('version: 2.1.150+20150'));
-    expect(pubspec, contains('msix_version: 2.1.150.0'));
+    expect(pubspec, contains('version: 2.1.151+20151'));
+    expect(pubspec, contains('msix_version: 2.1.151.0'));
     expect(currentReleaseNotes, contains('Windows 和 Android TV 测试版'));
-    expect(currentReleaseNotes, contains('2.1.150'));
+    expect(currentReleaseNotes, contains('2.1.151'));
     expect(currentReleaseNotes, contains('Windows'));
     expect(currentReleaseNotes, contains('TMDB'));
     expect(currentReleaseNotes, contains('动漫'));
-    expect(currentReleaseNotes, contains('电视剧'));
+    expect(currentReleaseNotes, contains('剧场版'));
     expect(currentReleaseNotes, contains('不会修改或删除'));
-    expect(currentReleaseNotes, contains('互不重复'));
+    expect(currentReleaseNotes, contains('自动匹配'));
     expect(currentReleaseNotes, contains('EXE'));
     expect(updateDialogCopy, contains('Windows 测试版 EXE'));
     expect(updateDialogCopy, contains('Android 测试版'));
-    expect(updateDialogCopy, contains('2.1.150'));
-    expect(updateDialogCopy, contains('20150'));
+    expect(updateDialogCopy, contains('2.1.151'));
+    expect(updateDialogCopy, contains('20151'));
   });
 
   test('直接依赖使用与锁文件兼容的明确约束', () {

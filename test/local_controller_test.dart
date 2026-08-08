@@ -16,6 +16,7 @@ import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
+import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/local_media_index_repository.dart';
 import 'package:kanyingyin/repositories/local_media_source_repository.dart';
 import 'package:kanyingyin/repositories/tmdb_metadata_repository.dart';
@@ -1298,6 +1299,9 @@ class _ControlledGenreBackfillService extends LibraryGenreBackfillService {
           localRepository: _MemoryMediaIndexRepository(),
           cloudRepository: CloudMediaIndexRepository(
             storage: MemoryCloudMediaIndexStorage(),
+          ),
+          workRepository: CloudWorkTmdbRepository(
+            storage: MemoryCloudWorkTmdbStorage(),
           ),
           clientFactory: (_) => _NeverTmdbClient(),
         );

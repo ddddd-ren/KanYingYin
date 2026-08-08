@@ -221,6 +221,23 @@ class CloudWorkTmdbRecord {
     );
   }
 
+  CloudWorkTmdbRecord withMetadata(TmdbMetadata value) {
+    return CloudWorkTmdbRecord(
+      sourceId: sourceId,
+      workKey: workKey,
+      workRootId: workRootId,
+      workRootPath: workRootPath,
+      remoteName: remoteName,
+      status: status,
+      checkedAt: checkedAt,
+      scrapeTitleOverride: scrapeTitleOverride,
+      metadata: value,
+      posterCachePath: posterCachePath,
+      tmdbMatchOrigin: tmdbMatchOrigin,
+      tmdbRuleVersion: tmdbRuleVersion,
+    );
+  }
+
   CloudWorkTmdbRecord asFailed(DateTime value) {
     return CloudWorkTmdbRecord.failed(
       sourceId: sourceId,
@@ -391,6 +408,7 @@ bool _metadataEquals(TmdbMetadata? first, TmdbMetadata? second) {
       first.matchedAt.millisecondsSinceEpoch ==
           second.matchedAt.millisecondsSinceEpoch &&
       first.matchConfidence == second.matchConfidence &&
+      listEquals(first.genres, second.genres) &&
       listEquals(first.seasons, second.seasons);
 }
 
@@ -409,6 +427,7 @@ int _metadataHash(TmdbMetadata? metadata) {
     metadata.language,
     metadata.matchedAt.millisecondsSinceEpoch,
     metadata.matchConfidence,
+    Object.hashAll(metadata.genres),
     Object.hashAll(metadata.seasons),
   );
 }

@@ -100,16 +100,18 @@ OpenList、夸克、百度和迅雷网盘在本项目中仅作为用户自有媒
 | --- | --- |
 | 支持平台 | Windows 10/11 x64；Android 7.0+（API 24+） |
 | 安装格式 | EXE / APK |
-| 当前版本 | 2.1.157 |
-| 本轮交付 | Windows 测试版 EXE；Android 测试版 APK/AAB |
-| Android 版本 | 2.1.157 (20157) |
+| 当前版本 | 1.0.7 |
+| 本轮交付 | Windows 正式版 EXE；Android 正式版 APK/AAB |
+| Android 版本 | 1.0.4 (10004) |
 | Dart 包名 | `kanyingyin` |
 | Windows 包标识 | `com.kanyingyin.player` |
 | Android 应用标识 | `com.kanyingyin.player` |
 | Flutter | 3.41.9 |
 
-项目同时支持 Windows 与 Android。本轮交付 Windows 2.1.157 测试版 EXE 安装程序和 Android 2.1.157 测试版 APK/AAB；
+项目同时支持 Windows 与 Android。本轮交付 Windows 1.0.7 正式版 EXE 安装程序和 Android 1.0.4 正式版 mobile APK/AAB；
 安装目录和应用数据、缓存目录均可由用户自行选择。
+
+Android TV 正式版、测试版和 GitHub 发布已无限期暂停，不提供 TV 下载资产。
 
 ## 安装
 
@@ -128,7 +130,7 @@ OpenList、夸克、百度和迅雷网盘在本项目中仅作为用户自有媒
 3. 如需 TMDB 信息，可在“设置 > TMDB 刮削”中填写自己的 API Key；公共安装包不内置 TMDB Key。
 4. 如需访问个人网盘，在“设置 > 网盘数据源”中添加 OpenList、夸克、百度或迅雷网盘来源；百度使用自己的开放平台凭据和官方授权。
 5. 播放器的解码、Anime4K、字幕和快捷键选项位于“设置 > 播放设置”与“操作设置”。
-6. Windows、Android 和 Android TV 可在“设置 > 配置迁移”中使用密码导出或导入 `.kyyconfig`；Android TV 还可通过手机扫码在同一局域网传送配置。支持 OpenList、夸克、百度和迅雷来源，写入失败会回滚，不会修改或删除视频、字幕、索引、缓存和播放历史。
+6. Windows 和 Android 可在“设置 > 配置迁移”中使用密码导出或导入 `.kyyconfig`。支持 OpenList、夸克、百度和迅雷来源，写入失败会回滚，不会修改或删除视频、字幕、索引、缓存和播放历史。
 
 ## 数据与隐私
 

@@ -72,6 +72,21 @@ const VersionHistory _androidFourthRelease = VersionHistory(
   ],
 );
 
+const VersionHistory _androidFifthRelease = VersionHistory(
+  version: '1.0.4',
+  date: '2026-08-09',
+  changes: [
+    '改善剧场版 TMDB 匹配和电影、动漫、电视剧分类，减少作品被归入错误入口的问题',
+    '动画电影可以同时显示在动漫和电影入口，动画电视剧可以同时显示在动漫和电视剧入口',
+    '云盘外挂字幕现在显示原始文件名，不再显示内部缓存名称',
+    '修复部分 ASS 字幕因文件头包含重复 UTF-8 BOM 而无法加载的问题，已有错误字幕缓存会在播放前自动修复',
+    '修复作品子目录中的裸集号被拆成不同版本，分集可以按真实集数归入同一作品',
+    '修复网盘搜索无匹配结果时误报“视频已隐藏”，现在会明确提示“没有找到匹配的视频”',
+    '没有 TMDB Key、断网或请求失败时，本地扫描、媒体库浏览和播放仍可继续',
+    '本次更新不会修改或删除本地及网盘原始视频、字幕或其他文件，也不会改变远程路径和播放 ID',
+  ],
+);
+
 const VersionHistory _androidAdaptiveQuarkSystemBarsPrerelease = VersionHistory(
   version: '2.1.103',
   date: '2026-08-03',
@@ -163,6 +178,22 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 );
 
 const List<VersionHistory> versionHistoryList = [
+  VersionHistory(
+    version: '1.0.7',
+    date: '2026-08-09',
+    changes: [
+      'Windows 1.0.7 正式版综合近期媒体识别、刮削、播放、字幕和网盘浏览更新',
+      '本地剧集现在可以单独重新识别、手动匹配 TMDB、修正季度与集数，冲突剧集不会再影响同组其他视频',
+      'Windows 安装向导始终显示目录选择页，安装目录完全由用户选择，不要求电脑存在 D 盘',
+      '本地与个人网盘使用统一的 TMDB 查询和候选排序，并会清理位深、音轨数量等发布标签，提高电影、剧集和剧场版识别准确度',
+      '播放设置新增自动、HDR 直通和 HDR 转 SDR 色彩方案；设备不支持时会安全回退，不会中断普通播放',
+      '动画电影可以同时显示在动漫和电影入口，动画电视剧可以同时显示在动漫和电视剧入口',
+      '云盘外挂字幕现在显示原始文件名；部分包含重复 UTF-8 BOM 的 ASS 字幕会在加载前自动修复',
+      '修复作品子目录中的裸集号被拆成不同版本，以及搜索无匹配结果时误报“视频已隐藏”的问题',
+      '没有 TMDB Key、TMDB 不可用或断网时，本地扫描、媒体库浏览和播放仍可继续',
+      '本次更新不会修改或删除，也不会改名、移动本地及个人网盘原始视频和字幕',
+    ],
+  ),
   VersionHistory(
     version: '2.1.157',
     date: '2026-08-09',
@@ -2728,6 +2759,9 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '1.0.7' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[_androidFifthRelease];
+  }
   if (currentVersion == '1.0.6' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[_androidFourthRelease];
   }

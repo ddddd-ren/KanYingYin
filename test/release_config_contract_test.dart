@@ -3,32 +3,30 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('当前发布配置为 Windows 和 Android 二点一四八测试版', () {
+  test('当前发布配置为 Windows 和 Android 二点一四九测试版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
     final currentReleaseNotes = releaseNotes.substring(
-      releaseNotes.indexOf('## 2.1.148+20148'),
-      releaseNotes.indexOf('\n## 2.1.147+20147'),
+      releaseNotes.indexOf('## 2.1.149+20149'),
+      releaseNotes.indexOf('\n## 2.1.148+20148'),
     );
 
-    expect(pubspec, contains('version: 2.1.148+20148'));
-    expect(pubspec, contains('msix_version: 2.1.148.0'));
+    expect(pubspec, contains('version: 2.1.149+20149'));
+    expect(pubspec, contains('msix_version: 2.1.149.0'));
     expect(currentReleaseNotes, contains('Windows 和 Android TV 测试版'));
-    expect(currentReleaseNotes, contains('2.1.148'));
+    expect(currentReleaseNotes, contains('2.1.149'));
     expect(currentReleaseNotes, contains('Windows'));
     expect(currentReleaseNotes, contains('TMDB'));
-    expect(currentReleaseNotes, contains('HDR'));
-    expect(currentReleaseNotes, contains('选集'));
-    expect(currentReleaseNotes, contains('横屏'));
+    expect(currentReleaseNotes, contains('3Audio'));
+    expect(currentReleaseNotes, contains('电视剧'));
     expect(currentReleaseNotes, contains('不会修改或删除'));
+    expect(currentReleaseNotes, contains('不会改名、移动'));
     expect(currentReleaseNotes, contains('EXE'));
     expect(updateDialogCopy, contains('Windows 测试版 EXE'));
     expect(updateDialogCopy, contains('Android 测试版'));
-    expect(currentReleaseNotes, contains('手机扫码配置'));
-    expect(currentReleaseNotes, contains('.kyyconfig'));
-    expect(updateDialogCopy, contains('2.1.148'));
-    expect(updateDialogCopy, contains('20148'));
+    expect(updateDialogCopy, contains('2.1.149'));
+    expect(updateDialogCopy, contains('20149'));
   });
 
   test('直接依赖使用与锁文件兼容的明确约束', () {

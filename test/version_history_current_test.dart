@@ -5,6 +5,27 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一四九修复电影音轨数量误判与 TMDB 类型异常', () {
+    final entries = versionHistoryForCurrent('2.1.149');
+
+    expect(entries, hasLength(1));
+    final changes = entries.single.changes.join('\n');
+    expect(entries.single.isPrerelease, isTrue);
+    for (final text in <String>[
+      '3Audio',
+      '集号',
+      '电视剧',
+      'TMDB',
+      '媒体根目录',
+      'Main10',
+      'SSDSSE',
+      '不会修改或删除',
+      '不会改名、移动',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一四八区分 TV 返回与 Windows 播放刮削更新', () {
     final entries = versionHistoryForCurrent('2.1.148');
 

@@ -16,6 +16,7 @@ import 'package:kanyingyin/services/local_subtitle_matcher.dart';
 import 'package:kanyingyin/services/local_cover_finder.dart';
 import 'package:kanyingyin/services/local_thumbnail_cache.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
+import 'package:kanyingyin/services/media_name_analyzer.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:path/path.dart' as p;
 
@@ -164,6 +165,7 @@ class LocalMediaIndexer
   final List<LocalMediaEntryProvider> _entryProviders;
   final AndroidDocumentCache? _documentCache;
   final LocalMediaIndexMetadataRefresher _metadataRefresher;
+  final MediaNameAnalyzer _nameAnalyzer = const MediaNameAnalyzer();
   final ILocalSeriesTitleOverrideRepository _seriesTitleOverrideRepository;
   final int Function() _minRecognizedVideoSizeBytesProvider;
 
@@ -521,6 +523,11 @@ class LocalMediaIndexer
                 sourceLocation: sourceLocation,
                 oldItem: oldItem,
                 episodeInfo: effectiveEpisodeInfo,
+                seriesNameOverride: _standaloneRootTitle(
+                  entry,
+                  sourceLocation: sourceLocation,
+                  episodeInfo: effectiveEpisodeInfo,
+                ),
                 enrichMediaInfo: enrichMediaInfo,
                 generateThumbnails: generateThumbnails,
               )
@@ -665,6 +672,7 @@ class LocalMediaIndexer
     required MediaLocation sourceLocation,
     required LocalMediaIndexItem? oldItem,
     required LocalEpisodeInfo? episodeInfo,
+    String? seriesNameOverride,
     required bool enrichMediaInfo,
     required bool generateThumbnails,
   }) async {
@@ -679,7 +687,7 @@ class LocalMediaIndexer
                 LocalThumbnailCache.pathForVideo(file.path),
               )
             : null);
-    return LocalMediaIndexItem.fromFile(
+    final indexed = LocalMediaIndexItem.fromFile(
       file: file,
       stat: stat,
       sourcePath: sourceLocation.value,
@@ -691,6 +699,25 @@ class LocalMediaIndexer
       videoWidth: mediaInfo?.width ?? oldItem?.videoWidth,
       videoHeight: mediaInfo?.height ?? oldItem?.videoHeight,
     );
+    if (seriesNameOverride == null || seriesNameOverride.isEmpty) {
+      return indexed;
+    }
+    return indexed.copyWith(seriesName: seriesNameOverride);
+  }
+
+  String? _standaloneRootTitle(
+    LocalMediaEntry entry, {
+    required MediaLocation sourceLocation,
+    required LocalEpisodeInfo? episodeInfo,
+  }) {
+    if (episodeInfo != null || !entry.location.isFile) return null;
+    final parent = p.normalize(p.dirname(entry.location.value));
+    final source = p.normalize(sourceLocation.value);
+    if (parent.toLowerCase() != source.toLowerCase()) return null;
+    return _nameAnalyzer
+        .analyze(entry.name, isDirectory: false)
+        .titleCandidates
+        .firstOrNull;
   }
 
   LocalMediaIndexResult _inaccessibleDocumentResult(

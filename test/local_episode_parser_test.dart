@@ -114,6 +114,14 @@ void main() {
     expect(info, isNull);
   });
 
+  test('LocalEpisodeParser 不把 3Audio 音轨标记识别为电影集号', () {
+    final info = parser.parse(
+      'Annihilation.2018.BluRay.2160p.x265.10bit.HDR.3Audio.-SSDSSE.mkv',
+    );
+
+    expect(info, isNull);
+  });
+
   test('LocalEpisodeParser 不把电影标题中的周年数字识别为集号', () {
     final info = parser.parse(
       r'D:\电影\假面骑士OOO 10周年 复活的核心硬币\假面骑士OOO 10周年 复活的核心硬币.mkv',

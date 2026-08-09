@@ -131,6 +131,21 @@ class MainActivity : AudioServiceActivity() {
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                     WebView.getCurrentWebViewPackage() != null
                 ),
+            "manufacturer" to Build.MANUFACTURER,
+            "model" to Build.MODEL,
+            "hardware" to Build.HARDWARE,
+            "socModel" to if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                Build.SOC_MODEL
+            } else {
+                ""
+            },
+            "currentRefreshRate" to
+                highRefreshRateController.snapshot.currentRefreshRate.toDouble(),
+            "supportedRefreshRates" to highRefreshRateController.snapshot
+                .supportedRefreshRates
+                .map { it.toDouble() },
+            "preferredDisplayModeId" to
+                highRefreshRateController.snapshot.preferredModeId,
         )
     }
 

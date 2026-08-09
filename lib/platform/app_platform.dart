@@ -1,3 +1,5 @@
+import 'package:kanyingyin/platform/android/android_performance_profile.dart';
+
 enum AppPlatformKind { windows, android }
 
 class AppPlatformCapabilities {
@@ -13,6 +15,14 @@ class AppPlatformCapabilities {
     this.touchscreen = false,
     this.androidSdkInt = 0,
     this.webViewAvailable = false,
+    this.androidPerformanceProfile = AndroidPerformanceProfile.standard,
+    this.androidManufacturer = '',
+    this.androidModel = '',
+    this.androidHardware = '',
+    this.androidSocModel = '',
+    this.androidCurrentRefreshRate = 0,
+    this.androidSupportedRefreshRates = const <double>[],
+    this.androidPreferredDisplayModeId = 0,
   });
 
   static const windows = AppPlatformCapabilities(
@@ -55,6 +65,14 @@ class AppPlatformCapabilities {
   final bool touchscreen;
   final int androidSdkInt;
   final bool webViewAvailable;
+  final AndroidPerformanceProfile androidPerformanceProfile;
+  final String androidManufacturer;
+  final String androidModel;
+  final String androidHardware;
+  final String androidSocModel;
+  final double androidCurrentRefreshRate;
+  final List<double> androidSupportedRefreshRates;
+  final int androidPreferredDisplayModeId;
 
   bool get isWindows => kind == AppPlatformKind.windows;
   bool get isAndroid => kind == AppPlatformKind.android;
@@ -65,6 +83,14 @@ class AppPlatformCapabilities {
     bool? touchscreen,
     int? androidSdkInt,
     bool? webViewAvailable,
+    AndroidPerformanceProfile? androidPerformanceProfile,
+    String? androidManufacturer,
+    String? androidModel,
+    String? androidHardware,
+    String? androidSocModel,
+    double? androidCurrentRefreshRate,
+    List<double>? androidSupportedRefreshRates,
+    int? androidPreferredDisplayModeId,
   }) {
     return AppPlatformCapabilities(
       kind: kind,
@@ -78,6 +104,18 @@ class AppPlatformCapabilities {
       touchscreen: touchscreen ?? this.touchscreen,
       androidSdkInt: androidSdkInt ?? this.androidSdkInt,
       webViewAvailable: webViewAvailable ?? this.webViewAvailable,
+      androidPerformanceProfile:
+          androidPerformanceProfile ?? this.androidPerformanceProfile,
+      androidManufacturer: androidManufacturer ?? this.androidManufacturer,
+      androidModel: androidModel ?? this.androidModel,
+      androidHardware: androidHardware ?? this.androidHardware,
+      androidSocModel: androidSocModel ?? this.androidSocModel,
+      androidCurrentRefreshRate:
+          androidCurrentRefreshRate ?? this.androidCurrentRefreshRate,
+      androidSupportedRefreshRates:
+          androidSupportedRefreshRates ?? this.androidSupportedRefreshRates,
+      androidPreferredDisplayModeId:
+          androidPreferredDisplayModeId ?? this.androidPreferredDisplayModeId,
     );
   }
 

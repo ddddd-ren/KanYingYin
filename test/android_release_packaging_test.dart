@@ -4,6 +4,31 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('Android Gradle 构建门禁与当前 pubspec 版本一致', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    final gradle = File('android/app/build.gradle.kts').readAsStringSync();
+    final packageVersion = RegExp(
+      r'^version:\s*(\d+\.\d+\.\d+)\+(\d+)$',
+      multiLine: true,
+    ).firstMatch(pubspec);
+
+    expect(packageVersion, isNotNull);
+    expect(
+      gradle,
+      contains(
+        'pubspecVersionMatch.groupValues[1] != '
+        '"${packageVersion!.group(1)}"',
+      ),
+    );
+    expect(
+      gradle,
+      contains(
+        'pubspecVersionMatch.groupValues[2] != '
+        '"${packageVersion.group(2)}"',
+      ),
+    );
+  });
+
   test('Android mobile Release 使用独立正式版版本并使用本机环境签名', () {
     final gradle = File('android/app/build.gradle.kts').readAsStringSync();
 

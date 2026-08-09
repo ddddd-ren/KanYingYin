@@ -74,7 +74,7 @@ void main() {
     expect(script, contains(r'$aabTarget = Join-Path $desktop'));
     expect(script, contains(r"$androidVersion = '1.0.4'"));
     expect(script, contains(r'$androidVersionCode = 10004'));
-    expect(script, contains('Windows pubspec 版本必须为 2.1.158+20158'));
+    expect(script, contains('Windows pubspec 版本必须为 1.0.8+10008'));
     expect(script, contains("[ValidateSet('mobile', 'tvTest')]"));
     expect(script, contains(r"[string]$Flavor = 'mobile'"));
     expect(script, contains(r'[switch]$ApkOnly'));

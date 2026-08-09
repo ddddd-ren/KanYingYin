@@ -5,9 +5,9 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一五八测试版为 Android mobile 继续显示一点零四更新', () {
+  test('一点零八正式版为 Android mobile 继续显示一点零四更新', () {
     final entries = versionHistoryForCurrent(
-      '2.1.158',
+      '1.0.8',
       platform: AppPlatformKind.android,
     );
 
@@ -36,18 +36,21 @@ void main() {
     }
   });
 
-  test('二点一五八测试版说明 TMDB 海报网络恢复', () {
-    final entries = versionHistoryForCurrent('2.1.158');
+  test('一点零八正式版说明 TMDB 海报网络恢复和本机代理边界', () {
+    const posterProxyCopy =
+        '改善 TMDB 海报的网络连接。部分网络可以正常获取影片资料，但无法直接下载海报；遇到这种情况时，可保持 Clash Verge 等本机代理在后台运行，并选择能够访问 TMDB 图片的节点。关闭系统代理不影响已经运行的本机代理，但完全退出代理软件后，海报可能再次无法加载。';
+    final entries = versionHistoryForCurrent('1.0.8');
 
     expect(entries, hasLength(1));
-    expect(entries.single.isPrerelease, isTrue);
+    expect(entries.single.isPrerelease, isFalse);
     final changes = entries.single.changes.join('\n');
+    expect(changes, contains(posterProxyCopy));
     for (final text in <String>[
       'TMDB 海报',
       '手动匹配',
-      '代理',
+      'Clash Verge',
       '网盘',
-      '不会修改或删除',
+      '不会修改、删除、改名或移动',
     ]) {
       expect(changes, contains(text));
     }

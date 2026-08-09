@@ -10,13 +10,11 @@
 
 ## 下载正式版
 
-当前正式版包含 Windows 1.0.7 和 Android 1.0.4。你可以在 [看影音 v1.0.7 Release](https://github.com/ddddd-ren/KanYingYin/releases/tag/v1.0.7) 查看完整更新说明和文件校验信息。
-
-当前开发测试版为 Windows 2.1.158；正式版下载链接仍保持 1.0.7，测试安装程序通过本地交付。
+当前正式版为 Windows 1.0.8 和 Android 1.0.4。你可以在 [看影音 v1.0.8 Release](https://github.com/ddddd-ren/KanYingYin/releases/tag/v1.0.8) 查看 Windows 更新说明和文件校验信息。
 
 | 平台 | 当前版本 | 下载文件 | 用途 |
 | --- | --- | --- | --- |
-| Windows 10/11 x64 | 1.0.7 | [KanYingYin-1.0.7.exe](https://github.com/ddddd-ren/KanYingYin/releases/download/v1.0.7/KanYingYin-1.0.7.exe) | 普通用户安装程序 |
+| Windows 10/11 x64 | 1.0.8 | [KanYingYin-1.0.8.exe](https://github.com/ddddd-ren/KanYingYin/releases/download/v1.0.8/KanYingYin-1.0.8.exe) | 普通用户安装程序 |
 | Android 7.0+ | 1.0.4 (10004) | [KanYingYin-1.0.4.apk](https://github.com/ddddd-ren/KanYingYin/releases/download/v1.0.7/KanYingYin-1.0.4.apk) | Android 手机安装包 |
 | Android 应用商店 | 1.0.4 (10004) | [KanYingYin-1.0.4.aab](https://github.com/ddddd-ren/KanYingYin/releases/download/v1.0.7/KanYingYin-1.0.4.aab) | 应用商店交付包 |
 
@@ -87,7 +85,7 @@
 | --- | --- |
 | 支持平台 | Windows 10/11 x64；Android 7.0+（API 24+） |
 | 安装格式 | EXE / APK |
-| 当前版本 | 2.1.158 |
+| 当前版本 | 1.0.8 |
 | Android 版本 | 1.0.4 (10004) |
 | Dart 包名 | `kanyingyin` |
 | Windows 包标识 | `com.kanyingyin.player` |
@@ -100,7 +98,7 @@ Windows 安装目录、应用数据目录和缓存目录均可由你选择，不
 
 ### Windows
 
-1. 下载 [KanYingYin-1.0.7.exe](https://github.com/ddddd-ren/KanYingYin/releases/download/v1.0.7/KanYingYin-1.0.7.exe)
+1. 下载 [KanYingYin-1.0.8.exe](https://github.com/ddddd-ren/KanYingYin/releases/download/v1.0.8/KanYingYin-1.0.8.exe)
 2. 运行安装程序，在安装向导中选择安装目录
 3. 首次启动时，如桌面或开始菜单没有快捷方式，按弹窗提示决定是否创建
 

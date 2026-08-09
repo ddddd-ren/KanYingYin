@@ -179,6 +179,18 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '1.0.8',
+    date: '2026-08-09',
+    changes: [
+      'Windows 1.0.8 正式版改善本地媒体库、个人网盘和手动匹配候选的 TMDB 海报网络连接',
+      '本地媒体库、个人网盘和手动匹配候选使用统一的 TMDB 海报网络设置',
+      '改善 TMDB 海报的网络连接。部分网络可以正常获取影片资料，但无法直接下载海报；遇到这种情况时，可保持 Clash Verge 等本机代理在后台运行，并选择能够访问 TMDB 图片的节点。关闭系统代理不影响已经运行的本机代理，但完全退出代理软件后，海报可能再次无法加载。',
+      '海报暂时下载失败时，已经获取的标题、简介、评分和季集信息会继续保留，不影响媒体扫描和播放',
+      '继续使用 TMDB 官方图片端点和系统证书校验，不接受无效证书，也不会把 API Key 发送到第三方图片服务',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频和字幕',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.158',
     date: '2026-08-09',
     isPrerelease: true,
@@ -2775,6 +2787,9 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '1.0.8' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[_androidFifthRelease];
+  }
   if (currentVersion == '2.1.158' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[_androidFifthRelease];
   }

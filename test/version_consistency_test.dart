@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('二点一五八 Windows 测试版和 Android 正式版文案保持一致', () {
-    const expectedVersion = '2.1.158';
-    const expectedBuildNumber = '20158';
+  test('一点零八 Windows 正式版和 Android 保留版本文案保持一致', () {
+    const expectedVersion = '1.0.8';
+    const expectedBuildNumber = '10008';
     const expectedAndroidVersion = '1.0.4';
     const expectedAndroidVersionCode = '10004';
     final pubspec = File('pubspec.yaml').readAsStringSync();
@@ -91,7 +91,7 @@ void main() {
     expect(updateDialogCopy, contains('Android 应用版本：$expectedAndroidVersion'));
     expect(updateDialogCopy,
         contains('Android versionCode：$expectedAndroidVersionCode'));
-    expect(updateDialogCopy, contains('看影音 $version 测试版'));
+    expect(updateDialogCopy, contains('看影音 $version 正式版'));
     expect(updateDialogCopy, contains('Android 弹窗正文'));
     expect(
       updateDialogCopy,
@@ -137,7 +137,7 @@ void main() {
       currentVersionHistory
     ]) {
       expect(currentCopy, contains('网盘'));
-      expect(currentCopy, contains('不会修改或删除'));
+      expect(currentCopy, contains('不会修改、删除、改名或移动'));
       for (final tvOnlyText in <String>[
         'Android TV',
         'tvTest',
@@ -148,15 +148,15 @@ void main() {
         expect(currentCopy, isNot(contains(tvOnlyText)));
       }
     }
-    expect(currentReleaseNotes, contains('测试版'));
-    expect(updateDialogCopy, contains('Windows 测试版 EXE'));
+    expect(currentReleaseNotes, contains('正式版'));
+    expect(updateDialogCopy, contains('Windows 正式版 EXE'));
     expect(
       updateDialogCopy,
-      contains('本轮交付：仅 Windows 测试版 EXE；不打包 Android'),
+      contains('本轮交付：仅 Windows 正式版 EXE；不打包 Android'),
     );
     expect(currentReleaseNotes, contains('本轮不打包'));
     expect(currentReleaseNotes, isNot(contains('本轮未打包')));
-    expect(currentVersionHistory, contains('isPrerelease: true'));
+    expect(currentVersionHistory, isNot(contains('isPrerelease: true')));
   });
 }
 

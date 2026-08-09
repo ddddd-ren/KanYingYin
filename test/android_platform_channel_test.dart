@@ -107,6 +107,13 @@ void main() {
         'television': true,
         'touchscreen': false,
         'webView': true,
+        'manufacturer': 'vivo',
+        'model': 'V2219A',
+        'hardware': 'mt6877',
+        'socModel': 'MT6877V/TTZA',
+        'currentRefreshRate': 120.0,
+        'supportedRefreshRates': <double>[60.0, 90.0, 120.0],
+        'preferredDisplayModeId': 3,
       };
     });
     const client = AndroidPlatformChannel(channel: channel);
@@ -116,6 +123,8 @@ void main() {
     expect(received?.method, 'getDeviceCapabilities');
     expect(result?['sdkInt'], 36);
     expect(result?['leanback'], isTrue);
+    expect(result?['socModel'], 'MT6877V/TTZA');
+    expect(result?['supportedRefreshRates'], <double>[60.0, 90.0, 120.0]);
   });
 
   test('Android TV 文件选择由应用原生通道流式复制到缓存', () {

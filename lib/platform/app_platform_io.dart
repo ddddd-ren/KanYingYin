@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:kanyingyin/platform/android/android_device_capabilities.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:kanyingyin/utils/logger.dart';
 
 AppPlatformCapabilities? _installedCapabilities;
 
@@ -23,8 +24,25 @@ Future<AppPlatformCapabilities> loadAppPlatformCapabilities() async {
     touchscreen: device.touchscreen,
     androidSdkInt: device.sdkInt,
     webViewAvailable: device.webView,
+    androidPerformanceProfile: device.performanceProfile,
+    androidManufacturer: device.manufacturer,
+    androidModel: device.model,
+    androidHardware: device.hardware,
+    androidSocModel: device.socModel,
+    androidCurrentRefreshRate: device.currentRefreshRate,
+    androidSupportedRefreshRates: device.supportedRefreshRates,
+    androidPreferredDisplayModeId: device.preferredDisplayModeId,
   );
   _installedCapabilities = enriched;
+  AppLogger().i(
+    'AndroidPerformance: manufacturer=${device.manufacturer} '
+    'model=${device.model} hardware=${device.hardware} '
+    'soc=${device.socModel} refresh=${device.currentRefreshRate} '
+    'supported=${device.supportedRefreshRates.join(',')} '
+    'preferredMode=${device.preferredDisplayModeId} '
+    'profile=${device.performanceProfile.name}',
+    forceLog: true,
+  );
   return enriched;
 }
 

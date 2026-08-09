@@ -77,6 +77,8 @@ class AppPlatformCapabilities {
   bool get isWindows => kind == AppPlatformKind.windows;
   bool get isAndroid => kind == AppPlatformKind.android;
   bool get isAndroidTv => isAndroid && television;
+  bool get usesMt6877QuarkTuning =>
+      androidPerformanceProfile == AndroidPerformanceProfile.mt6877;
 
   AppPlatformCapabilities copyWith({
     bool? television,

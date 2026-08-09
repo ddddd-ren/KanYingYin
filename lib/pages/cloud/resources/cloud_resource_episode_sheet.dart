@@ -10,6 +10,7 @@ import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/services/local_episode_parser.dart';
+import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 Future<CloudFileEntry?> showCloudResourceEpisodeSheet({
   required BuildContext context,
@@ -321,8 +322,8 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
       size: 'w500',
     );
     if (url == null) return _seriesPoster(context, decodeSize);
-    return Image.network(
-      url,
+    return TmdbNetworkImage(
+      url: url,
       fit: BoxFit.cover,
       cacheWidth: decodeSize?.width,
       cacheHeight: decodeSize?.height,
@@ -360,8 +361,8 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
       size: 'w500',
     );
     if (url == null) return _placeholder(context);
-    return Image.network(
-      url,
+    return TmdbNetworkImage(
+      url: url,
       fit: BoxFit.cover,
       cacheWidth: decodeSize?.width,
       cacheHeight: decodeSize?.height,

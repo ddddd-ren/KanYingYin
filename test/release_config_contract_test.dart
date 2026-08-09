@@ -3,29 +3,32 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('当前发布配置为 Windows 一点零七和 Android 一点零四正式版', () {
+  test('当前发布配置为 Windows 二点一五八测试版和 Android 一点零四正式版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
     final currentReleaseNotes = releaseNotes.substring(
-      releaseNotes.indexOf('## 1.0.7+10007'),
-      releaseNotes.indexOf('\n## 2.1.157+20157'),
+      releaseNotes.indexOf('## 2.1.158+20158'),
+      releaseNotes.indexOf('\n## 1.0.7+10007'),
     );
 
-    expect(pubspec, contains('version: 1.0.7+10007'));
-    expect(pubspec, contains('msix_version: 1.0.7.0'));
-    expect(currentReleaseNotes, contains('Windows 和 Android 正式版'));
-    expect(currentReleaseNotes, contains('1.0.7'));
+    expect(pubspec, contains('version: 2.1.158+20158'));
+    expect(pubspec, contains('msix_version: 2.1.158.0'));
+    expect(currentReleaseNotes, contains('Windows 测试版'));
+    expect(currentReleaseNotes, contains('2.1.158'));
     expect(currentReleaseNotes, contains('1.0.4'));
     expect(currentReleaseNotes, contains('Windows'));
-    expect(currentReleaseNotes, contains('搜索无匹配结果'));
-    expect(currentReleaseNotes, contains('视频已隐藏'));
-    expect(currentReleaseNotes, contains('没有找到匹配的视频'));
+    expect(currentReleaseNotes, contains('TMDB 海报'));
+    expect(currentReleaseNotes, contains('手动匹配'));
+    expect(currentReleaseNotes, contains('代理'));
     expect(currentReleaseNotes, contains('不会修改或删除'));
     expect(currentReleaseNotes, contains('EXE'));
-    expect(updateDialogCopy, contains('Windows 正式版 EXE'));
-    expect(updateDialogCopy, contains('Android 正式版 APK/AAB'));
-    expect(updateDialogCopy, contains('1.0.7'));
+    expect(updateDialogCopy, contains('Windows 测试版 EXE'));
+    expect(
+      updateDialogCopy,
+      contains('本轮交付：仅 Windows 测试版 EXE；不打包 Android'),
+    );
+    expect(updateDialogCopy, contains('2.1.158'));
     expect(updateDialogCopy, contains('1.0.4'));
     expect(updateDialogCopy, contains('10004'));
     for (final tvOnlyText in <String>[

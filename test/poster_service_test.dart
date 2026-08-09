@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/services/poster_service.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_image_client.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -62,5 +63,38 @@ void main() {
     expect(await target.readAsBytes(), <int>[1, 2, 3]);
     expect(recoveryCalls, 1);
     expect(factoryCalls, 1);
+  });
+
+  test('海报保存委托注入的统一 TMDB 图片客户端', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'poster-unified-image-client-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final imageDio = Dio()
+      ..interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) => handler.resolve(
+            Response<List<int>>(
+              requestOptions: options,
+              data: <int>[7, 8, 9],
+            ),
+          ),
+        ),
+      );
+    final service = PosterService(
+      apiDio: Dio(),
+      imageClient: TmdbImageClient(dio: imageDio),
+    );
+    final target = File(
+      '${directory.path}${Platform.pathSeparator}poster.jpg',
+    );
+
+    final result = await service.downloadPosterTo(
+      'https://image.tmdb.org/t/p/w780/poster.jpg',
+      target.path,
+    );
+
+    expect(result, target.path);
+    expect(await target.readAsBytes(), <int>[7, 8, 9]);
   });
 }

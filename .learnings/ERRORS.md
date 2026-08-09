@@ -4,6 +4,73 @@ Command failures and integration errors.
 
 ---
 
+## [ERR-20260809-002] flutter_analyze_tmdb_image_nonnull
+
+**Logged**: 2026-08-09T14:30:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+统一 TMDB 图片客户端改为非空字节返回后，`PosterService` 保留了两处不可达的 null 判断。
+
+### Error
+```text
+unnecessary_null_comparison
+lib/services/poster_service.dart
+```
+
+### Context
+- Command attempted: `D:\flutter\bin\flutter.bat analyze`
+- `TmdbImageClient.downloadBytes` 遇到空响应会抛出 `FormatException`，返回类型为 `Future<List<int>>`。
+
+### Suggested Fix
+删除调用方冗余 null 比较，仅保留空列表防御或依赖统一客户端的空响应校验。
+
+### Metadata
+- Reproducible: yes
+- Related Files: lib/services/poster_service.dart, lib/services/tmdb/tmdb_image_client.dart
+
+### Resolution
+- **Resolved**: 2026-08-09T14:30:00+08:00
+- **Notes**: 已删除不可达 null 判断并重新运行静态分析。
+
+---
+
+## [ERR-20260809-001] flutter_test_timeout_pipe
+
+**Logged**: 2026-08-09T14:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+基线 `flutter test` 被过短的命令超时截断，导致 Flutter 在输出管道关闭后报告 `FileSystemException`。
+
+### Error
+```text
+command timed out
+FileSystemException: writeFrom failed (OS Error: 管道正在被关闭。)
+```
+
+### Context
+- Command attempted: `D:\flutter\bin\flutter.bat test`
+- 命令执行超时仅设置为 1 秒，进程被宿主终止。
+- 这不是项目测试断言失败。
+
+### Suggested Fix
+Flutter 全量测试、静态分析和 Windows 构建必须使用足够长的完整执行窗口，避免主动关闭其输出管道。
+
+### Metadata
+- Reproducible: yes
+- Related Files: pubspec.yaml
+
+### Resolution
+- **Resolved**: 2026-08-09T14:00:00+08:00
+- **Notes**: 后续命令改用完整超时窗口重新执行。
+
+---
+
 ## [ERR-20260717-001] powershell_relative_path
 
 **Logged**: 2026-07-17T02:10:00+08:00

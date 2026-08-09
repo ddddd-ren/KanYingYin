@@ -179,6 +179,22 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.158',
+    date: '2026-08-09',
+    isPrerelease: true,
+    changes: [
+      'Windows 2.1.158 测试版修复部分电脑上 TMDB 资料可以搜索，但海报因网络限制无法显示的问题',
+      '本地刮削、个人网盘海报缓存和手动匹配候选现在统一使用同一套 TMDB 海报网络与代理配置',
+      '遇到 TLS 握手或连接异常时会重新探测代理、重建图片客户端并安全重试一次，不会反复请求',
+      '没有可用代理且图片 HTTPS 仍被拦截时，仅对不含 API Key 的 TMDB 官方公开图片使用 HTTP 备用地址',
+      '海报网络恢复进入一分钟冷却并在会话内复用可用线路，避免多个海报重复触发代理探测',
+      '网络健康检查会同时确认 TMDB API 与图片域名可用，避免只因备用 API 可访问而误判海报网络正常',
+      'TMDB 海报暂时下载失败时继续保留已匹配的标题、简介、评分和季集信息，本地与网盘扫描及播放不受影响',
+      '继续使用 TMDB 官方端点和系统证书校验，不接受无效证书，也不会把 API Key 发送到第三方图片服务',
+      '本次更新不会修改或删除，也不会改名、移动本地及个人网盘原始视频和字幕',
+    ],
+  ),
+  VersionHistory(
     version: '1.0.7',
     date: '2026-08-09',
     changes: [
@@ -2759,6 +2775,9 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '2.1.158' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[_androidFifthRelease];
+  }
   if (currentVersion == '1.0.7' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[_androidFifthRelease];
   }

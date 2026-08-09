@@ -9,6 +9,7 @@ import 'package:kanyingyin/bean/widget/skeleton_loader.dart';
 import 'package:kanyingyin/bean/widget/empty_state.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
+import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 typedef LibraryMediaAction = FutureOr<void> Function(
   LibraryMediaItemViewData item,
@@ -85,6 +86,7 @@ class LibraryMediaCoverFallback {
     LibraryMediaItemViewData item, {
     required WidgetBuilder placeholderBuilder,
     TvImageDecodeSize? decodeSize,
+    TmdbImageBytesLoader? bytesLoader,
   }) {
     Widget local(BuildContext context) => buildLocal(
           item,
@@ -95,6 +97,7 @@ class LibraryMediaCoverFallback {
           item,
           localBuilder: placeholderBuilder,
           decodeSize: decodeSize,
+          bytesLoader: bytesLoader,
         );
     if (item.preferLocalCover) {
       return buildLocal(
@@ -103,7 +106,12 @@ class LibraryMediaCoverFallback {
         decodeSize: decodeSize,
       );
     }
-    return buildNetwork(item, localBuilder: local, decodeSize: decodeSize);
+    return buildNetwork(
+      item,
+      localBuilder: local,
+      decodeSize: decodeSize,
+      bytesLoader: bytesLoader,
+    );
   }
 
   static Widget buildLocal(
@@ -146,6 +154,7 @@ class LibraryMediaCoverFallback {
     LibraryMediaItemViewData item, {
     required WidgetBuilder localBuilder,
     TvImageDecodeSize? decodeSize,
+    TmdbImageBytesLoader? bytesLoader,
   }) {
     final provider = item.networkCoverProvider;
     if (provider != null) {
@@ -166,8 +175,9 @@ class LibraryMediaCoverFallback {
     if (url == null || url.isEmpty) {
       return Builder(builder: localBuilder);
     }
-    return Image.network(
-      url,
+    return TmdbNetworkImage(
+      url: url,
+      bytesLoader: bytesLoader,
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,
@@ -191,6 +201,7 @@ class LibraryMediaGrid extends StatelessWidget {
     this.onClearSearch,
     this.trailingBuilder,
     this.capabilities,
+    this.networkImageLoader,
   });
 
   final LibraryMediaGridViewData data;
@@ -202,6 +213,7 @@ class LibraryMediaGrid extends StatelessWidget {
   final VoidCallback? onClearSearch;
   final LibraryMediaTrailingBuilder? trailingBuilder;
   final AppPlatformCapabilities? capabilities;
+  final TmdbImageBytesLoader? networkImageLoader;
 
   @override
   Widget build(BuildContext context) {
@@ -294,6 +306,7 @@ class LibraryMediaGrid extends StatelessWidget {
             onPlay: onPlay,
             onShowActions: onShowActions,
             trailingBuilder: trailingBuilder,
+            networkImageLoader: networkImageLoader,
           );
         },
       ),
@@ -309,12 +322,14 @@ class _LibraryMediaTile extends StatefulWidget {
     this.onPlay,
     this.onShowActions,
     this.trailingBuilder,
+    this.networkImageLoader,
   });
   final LibraryMediaItemViewData item;
   final TvImageDecodeSize? decodeSize;
   final LibraryMediaAction? onPlay;
   final LibraryMediaAction? onShowActions;
   final LibraryMediaTrailingBuilder? trailingBuilder;
+  final TmdbImageBytesLoader? networkImageLoader;
 
   @override
   State<_LibraryMediaTile> createState() => _LibraryMediaTileState();
@@ -391,6 +406,7 @@ class _LibraryMediaTileState extends State<_LibraryMediaTile> {
       widget.item,
       placeholderBuilder: (_) => placeholder(),
       decodeSize: widget.decodeSize,
+      bytesLoader: widget.networkImageLoader,
     );
   }
 }

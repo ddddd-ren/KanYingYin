@@ -8,6 +8,7 @@ import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 typedef TmdbMatchSearchCallback = Future<TmdbPreparedSearchOutcome> Function(
   TmdbPreparedSearchRequest request,
@@ -489,8 +490,8 @@ class _TmdbMatchDialogState<TResult> extends State<TmdbMatchDialog<TResult>> {
                     ? const Icon(Icons.movie_outlined, size: 36)
                     : ClipRRect(
                         borderRadius: BorderRadius.circular(6),
-                        child: Image.network(
-                          poster,
+                        child: TmdbNetworkImage(
+                          url: poster,
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) =>
                               const Icon(Icons.broken_image_outlined),

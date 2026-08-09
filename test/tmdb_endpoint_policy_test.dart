@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_endpoint_policy.dart';
@@ -44,6 +46,45 @@ void main() {
         ),
       ),
       isFalse,
+    );
+  });
+
+  test('未知类型中的 TLS 握手异常仍可恢复', () {
+    final options = RequestOptions(path: '/poster.jpg');
+
+    expect(
+      TmdbEndpointPolicy.canTryAnotherEndpoint(
+        DioException(
+          requestOptions: options,
+          type: DioExceptionType.unknown,
+          error: const HandshakeException(
+            'Connection terminated during handshake',
+          ),
+        ),
+      ),
+      isTrue,
+    );
+  });
+
+  test('代理探测同时要求 TMDB API 和图片域名可用', () {
+    expect(
+      TmdbEndpointPolicy.requiredResourceProbeGroups.keys,
+      <String>['TMDB API', 'TMDB 图片'],
+    );
+    expect(
+      TmdbEndpointPolicy.requiredResourceProbeGroups['TMDB API']!
+          .map((uri) => uri.host),
+      <String>['api.themoviedb.org', 'api.tmdb.org'],
+    );
+    expect(
+      TmdbEndpointPolicy.requiredResourceProbeGroups['TMDB 图片']!
+          .map((uri) => uri.scheme),
+      <String>['https', 'http'],
+    );
+    expect(
+      TmdbEndpointPolicy.requiredResourceProbeGroups['TMDB 图片']!
+          .map((uri) => uri.host),
+      <String>['image.tmdb.org', 'image.tmdb.org'],
     );
   });
 }

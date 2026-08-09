@@ -108,6 +108,24 @@ void main() {
     expect(source, isNot(contains('网络客户端配置已刷新')));
     expect(source, isNot(contains('网络客户端代理已清除')));
   });
+
+  test('生产网盘海报缓存统一使用 TMDB 图片客户端', () {
+    final cloudBindings =
+        File('lib/app/bindings/cloud_bindings.dart').readAsStringSync();
+    final localController =
+        File('lib/pages/local/local_controller.dart').readAsStringSync();
+
+    expect(
+      cloudBindings,
+      contains('downloader: TmdbImageClient.shared.downloadBytes'),
+    );
+    expect(
+      localController,
+      contains('downloader: TmdbImageClient.shared.downloadBytes'),
+    );
+    expect(cloudBindings, isNot(contains('_downloadCloudPoster')));
+    expect(localController, isNot(contains('final client = HttpClient();')));
+  });
 }
 
 class _RecordingHttpClient implements HttpClient {

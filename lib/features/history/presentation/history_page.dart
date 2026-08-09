@@ -12,6 +12,7 @@ import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/services/local_playback_request_builder.dart';
+import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -317,8 +318,8 @@ class _Poster extends StatelessWidget {
     }
     final url = entry.posterUrl;
     if (url != null && url.startsWith('http')) {
-      return Image.network(
-        url,
+      return TmdbNetworkImage(
+        url: url,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => _placeholder(context),
       );

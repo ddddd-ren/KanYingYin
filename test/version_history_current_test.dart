@@ -5,9 +5,9 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('一点零七正式版为 Android mobile 显示一点零四更新', () {
+  test('二点一五八测试版为 Android mobile 继续显示一点零四更新', () {
     final entries = versionHistoryForCurrent(
-      '1.0.7',
+      '2.1.158',
       platform: AppPlatformKind.android,
     );
 
@@ -33,6 +33,23 @@ void main() {
       '海信',
     ]) {
       expect(changes, isNot(contains(tvOnlyText)));
+    }
+  });
+
+  test('二点一五八测试版说明 TMDB 海报网络恢复', () {
+    final entries = versionHistoryForCurrent('2.1.158');
+
+    expect(entries, hasLength(1));
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      'TMDB 海报',
+      '手动匹配',
+      '代理',
+      '网盘',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
     }
   });
 

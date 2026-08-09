@@ -15,6 +15,7 @@ import 'package:kanyingyin/repositories/local_media_tag_repository.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
+import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 /// 带搜索、排序和 TMDB 信息展示的媒体库面板。
 class LibrarySheetContent extends StatefulWidget {
@@ -806,7 +807,8 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
     if (remoteUrl != null && remoteUrl.isNotEmpty) {
       return ClipRRect(
           borderRadius: BorderRadius.circular(4),
-          child: Image.network(remoteUrl,
+          child: TmdbNetworkImage(
+              url: remoteUrl,
               width: 40,
               height: 56,
               fit: BoxFit.cover,

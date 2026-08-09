@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('一点零七正式版双平台版本和发布文案保持一致', () {
-    const expectedVersion = '1.0.7';
-    const expectedBuildNumber = '10007';
+  test('二点一五八 Windows 测试版和 Android 正式版文案保持一致', () {
+    const expectedVersion = '2.1.158';
+    const expectedBuildNumber = '20158';
     const expectedAndroidVersion = '1.0.4';
     const expectedAndroidVersionCode = '10004';
     final pubspec = File('pubspec.yaml').readAsStringSync();
@@ -74,7 +74,9 @@ void main() {
     expect(
       releaseNotes,
       contains(
-          'APK/AAB 版本：$expectedAndroidVersion ($expectedAndroidVersionCode)'),
+        'Android 当前版本：$expectedAndroidVersion '
+        '($expectedAndroidVersionCode，本轮不打包)',
+      ),
     );
     expect(readme, contains('| 当前版本 | $version |'));
     expect(
@@ -89,7 +91,7 @@ void main() {
     expect(updateDialogCopy, contains('Android 应用版本：$expectedAndroidVersion'));
     expect(updateDialogCopy,
         contains('Android versionCode：$expectedAndroidVersionCode'));
-    expect(updateDialogCopy, contains('看影音 $version 正式版'));
+    expect(updateDialogCopy, contains('看影音 $version 测试版'));
     expect(updateDialogCopy, contains('Android 弹窗正文'));
     expect(
       updateDialogCopy,
@@ -146,12 +148,15 @@ void main() {
         expect(currentCopy, isNot(contains(tvOnlyText)));
       }
     }
-    expect(currentReleaseNotes, contains('正式版'));
-    expect(updateDialogCopy, contains('Windows 正式版 EXE'));
-    expect(updateDialogCopy, contains('Android 正式版 APK/AAB'));
-    expect(releaseNotes, contains('APK/AAB'));
+    expect(currentReleaseNotes, contains('测试版'));
+    expect(updateDialogCopy, contains('Windows 测试版 EXE'));
+    expect(
+      updateDialogCopy,
+      contains('本轮交付：仅 Windows 测试版 EXE；不打包 Android'),
+    );
+    expect(currentReleaseNotes, contains('本轮不打包'));
     expect(currentReleaseNotes, isNot(contains('本轮未打包')));
-    expect(currentVersionHistory, isNot(contains('isPrerelease: true')));
+    expect(currentVersionHistory, contains('isPrerelease: true'));
   });
 }
 

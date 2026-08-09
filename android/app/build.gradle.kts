@@ -39,9 +39,9 @@ val pubspecVersionPattern =
 val pubspecVersionMatch =
     pubspecVersionPattern.matchEntire(pubspecVersionLines.single())
         ?: throw GradleException("pubspec.yaml 的 version 格式无效")
-if (pubspecVersionMatch.groupValues[1] != "1.0.7" ||
-    pubspecVersionMatch.groupValues[2] != "10007") {
-    throw GradleException("Windows pubspec 版本必须为 1.0.7+10007")
+if (pubspecVersionMatch.groupValues[1] != "2.1.158" ||
+    pubspecVersionMatch.groupValues[2] != "20158") {
+    throw GradleException("Windows pubspec 版本必须为 2.1.158+20158")
 }
 val androidVersionName = "1.0.4"
 val androidVersionCode = 10004

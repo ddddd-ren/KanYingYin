@@ -13,6 +13,7 @@ import 'package:kanyingyin/features/tv/presentation/tv_image_decode_policy.dart'
 import 'package:kanyingyin/features/tv/presentation/tv_layout_policy.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
+import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 typedef CloudResourceGroupAction = FutureOr<void> Function(
   CloudResourceMediaGroup group,
@@ -337,8 +338,8 @@ class CloudResourcePosterWall extends StatelessWidget {
   ) {
     final url = TmdbMatchSheet.imageUrl(data.posterUrl, size: 'w500');
     if (url == null) return _mediaPlaceholder(context);
-    return Image.network(
-      url,
+    return TmdbNetworkImage(
+      url: url,
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,

@@ -8,6 +8,7 @@ import 'package:kanyingyin/pages/local/local_episode_scrape_flow.dart';
 import 'package:kanyingyin/pages/local/manual_episode_match_flow.dart';
 import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
+import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 class LocalSeriesDetailPage extends StatelessWidget {
   const LocalSeriesDetailPage({
@@ -34,7 +35,7 @@ class LocalSeriesDetailPage extends StatelessWidget {
           if (backdrop != null)
             AspectRatio(
               aspectRatio: 16 / 7,
-              child: Image.network(backdrop, fit: BoxFit.cover),
+              child: TmdbNetworkImage(url: backdrop, fit: BoxFit.cover),
             ),
           Padding(
             padding: const EdgeInsets.all(20),
@@ -163,7 +164,7 @@ class LocalSeriesDetailPage extends StatelessWidget {
     if (remote != null) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(6),
-        child: Image.network(remote, fit: BoxFit.cover),
+        child: TmdbNetworkImage(url: remote, fit: BoxFit.cover),
       );
     }
     return const ColoredBox(

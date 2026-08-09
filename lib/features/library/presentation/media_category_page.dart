@@ -12,6 +12,7 @@ import 'package:kanyingyin/features/library/presentation/media_library_details_d
 import 'package:kanyingyin/features/tv/presentation/tv_layout_policy.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
+import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 class MediaCategoryPage extends StatefulWidget {
   const MediaCategoryPage({
@@ -436,8 +437,8 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
   ) {
     final url = _tmdbImageUrl(series.tmdbPosterUrl);
     if (url == null) return placeholder();
-    return Image.network(
-      url,
+    return TmdbNetworkImage(
+      url: url,
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,

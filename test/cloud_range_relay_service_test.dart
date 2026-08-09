@@ -2,12 +2,41 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
+import 'package:kanyingyin/platform/android/android_performance_profile.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/services/cloud/range/cloud_range_relay_service.dart';
 import 'package:kanyingyin/services/cloud/range/cloud_range_relay_session.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
+  test('天玑 930 手机仅为夸克启用两MiB和十路自适应档位', () {
+    final mt6877 = AppPlatformCapabilities.android.copyWith(
+      androidPerformanceProfile: AndroidPerformanceProfile.mt6877,
+    );
+    final quark = CloudRangeRelayService.tuningFor(
+      capabilities: mt6877,
+      providerType: CloudSourceType.quark,
+    );
+
+    expect(quark.chunkSize, 2 * 1024 * 1024);
+    expect(quark.maxChunks, 64);
+    expect(quark.chunkSize * quark.maxChunks, 128 * 1024 * 1024);
+    expect(quark.maxConcurrentReads, 8);
+    expect(quark.maxConcurrentPrefetch, 7);
+    expect(quark.prefetchAheadChunks, 14);
+    expect(quark.adaptivePolicy?.maxConcurrentReads, 10);
+    expect(quark.adaptivePolicy?.maxConcurrentPrefetch, 9);
+    expect(quark.adaptivePolicy?.prefetchAheadChunks, 18);
+
+    expect(
+      CloudRangeRelayService.tuningFor(
+        capabilities: mt6877,
+        providerType: CloudSourceType.baidu,
+      ),
+      same(CloudRangeRelayTuning.androidHighThroughput),
+    );
+  });
+
   test('Android 仅为夸克启用八路自适应上限和192MiB缓存', () {
     final quark = CloudRangeRelayService.tuningFor(
       capabilities: AppPlatformCapabilities.android,

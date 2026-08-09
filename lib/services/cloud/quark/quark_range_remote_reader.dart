@@ -73,7 +73,9 @@ class QuarkRangeRemoteReader implements CloudRangeRemoteReader {
     QuarkHttpClientFactory? httpClientFactory,
     QuarkRetryDelay? delay,
     this.requestTimeout = const Duration(seconds: 15),
-  })  : _resource = resource,
+    this.maxConnectionsPerHost = 10,
+  })  : assert(maxConnectionsPerHost > 0),
+        _resource = resource,
         _refreshResource = refreshResource,
         _uriValidator = uriValidator ??
             const QuarkRequestPolicy().isTrustedOriginalDownloadUri,
@@ -98,6 +100,7 @@ class QuarkRangeRemoteReader implements CloudRangeRemoteReader {
   final QuarkHttpClientFactory _httpClientFactory;
   final QuarkRetryDelay _delay;
   final Duration requestTimeout;
+  final int maxConnectionsPerHost;
   HttpClient? _client;
   final StreamController<CloudRangeReaderEvent> _events =
       StreamController<CloudRangeReaderEvent>.broadcast(sync: true);
@@ -434,7 +437,7 @@ class QuarkRangeRemoteReader implements CloudRangeRemoteReader {
   HttpClient _sharedClient() => _client ??= (_httpClientFactory()
     ..connectionTimeout = requestTimeout
     ..idleTimeout = const Duration(seconds: 30)
-    ..maxConnectionsPerHost = 8
+    ..maxConnectionsPerHost = maxConnectionsPerHost
     ..autoUncompress = false
     ..findProxy = (_) => 'DIRECT');
 

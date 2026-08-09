@@ -9,12 +9,13 @@ void main() {
   late Directory directory;
   final servers = <HttpServer>[];
 
-  test('夸克读取器允许自适应调度使用八路连接', () {
+  test('夸克读取器允许天玑 930 专项调度使用十路连接', () {
     final source = File(
       'lib/services/cloud/quark/quark_range_remote_reader.dart',
     ).readAsStringSync();
 
-    expect(source, contains('..maxConnectionsPerHost = 8'));
+    expect(source, contains('..maxConnectionsPerHost = maxConnectionsPerHost'));
+    expect(source, contains('this.maxConnectionsPerHost = 10'));
     expect(source, contains("..findProxy = (_) => 'DIRECT'"));
     expect(source, contains('..autoUncompress = false'));
   });

@@ -91,6 +91,19 @@ class CloudRangeRelayTuning {
     ),
   );
 
+  static const androidQuarkMt6877 = CloudRangeRelayTuning(
+    chunkSize: 2 * 1024 * 1024,
+    maxChunks: 64,
+    maxConcurrentReads: 8,
+    maxConcurrentPrefetch: 7,
+    prefetchAheadChunks: 14,
+    adaptivePolicy: CloudRangeRelayAdaptivePolicy(
+      maxConcurrentReads: 10,
+      maxConcurrentPrefetch: 9,
+      prefetchAheadChunks: 18,
+    ),
+  );
+
   final int chunkSize;
   final int maxChunks;
   final int maxConcurrentReads;

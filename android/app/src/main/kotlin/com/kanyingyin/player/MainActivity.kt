@@ -29,6 +29,9 @@ class MainActivity : AudioServiceActivity() {
     private val immersiveModeController by lazy {
         ImmersiveModeController(AndroidImmersiveModeApplier(this))
     }
+    private val highRefreshRateController by lazy {
+        AndroidHighRefreshRateController(this)
+    }
     private val directoryPickerRequestCode = 4201
     private val notificationPermissionRequestCode = 4202
     private val screenshotPermissionRequestCode = 4203
@@ -49,17 +52,20 @@ class MainActivity : AudioServiceActivity() {
         super.onCreate(savedInstanceState)
         immersiveModeController.initialize()
         applyTabletLandscapePolicy(resources.configuration)
+        highRefreshRateController.applyPreferredMode()
     }
 
     override fun onResume() {
         super.onResume()
         immersiveModeController.reapplyCurrent()
+        highRefreshRateController.applyPreferredMode()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
             immersiveModeController.reapplyCurrent()
+            highRefreshRateController.applyPreferredMode()
         }
     }
 
@@ -67,6 +73,7 @@ class MainActivity : AudioServiceActivity() {
         super.onConfigurationChanged(newConfig)
         applyTabletLandscapePolicy(newConfig)
         immersiveModeController.reapplyCurrent()
+        highRefreshRateController.applyPreferredMode()
     }
 
     private fun applyTabletLandscapePolicy(configuration: Configuration) {

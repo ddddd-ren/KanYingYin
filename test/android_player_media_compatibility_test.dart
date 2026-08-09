@@ -171,6 +171,20 @@ void main() {
     expect(windowUtils, contains('setImmersive(false)'));
   });
 
+  test('Android 手机在关键生命周期重新申请最高同分辨率刷新模式', () {
+    expect(
+      mainActivity,
+      contains('AndroidHighRefreshRateController(this)'),
+    );
+    expect(
+      mainActivity,
+      contains('highRefreshRateController.applyPreferredMode()'),
+    );
+    expect(mainActivity, contains('override fun onResume()'));
+    expect(mainActivity, contains('override fun onWindowFocusChanged'));
+    expect(mainActivity, contains('override fun onConfigurationChanged'));
+  });
+
   test('Android TrueHD 无兼容音轨时保持视频并提示导出日志', () {
     expect(
       controller,

@@ -5,6 +5,39 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一五九说明 Android 高刷和天玑九三零夸克专项优化', () {
+    final entries = versionHistoryForCurrent(
+      '2.1.159',
+      platform: AppPlatformKind.android,
+    );
+
+    expect(entries, hasLength(1));
+    expect(entries.single.version, '2.1.159');
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      'Android 手机',
+      '高刷新率',
+      'vivo Y77',
+      '天玑 930',
+      '夸克原画',
+      '诊断日志',
+      '4K HDR 120 帧',
+      '硬件解码能力',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+    for (final unsupportedClaim in <String>[
+      '网速已达到',
+      '保证达到',
+      'Android TV',
+      'tvTest',
+    ]) {
+      expect(changes, isNot(contains(unsupportedClaim)));
+    }
+  });
+
   test('一点零八正式版为 Android mobile 继续显示一点零四更新', () {
     final entries = versionHistoryForCurrent(
       '1.0.8',

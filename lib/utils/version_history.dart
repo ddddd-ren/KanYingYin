@@ -179,6 +179,19 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.159',
+    date: '2026-08-09',
+    isPrerelease: true,
+    changes: [
+      'Windows 2.1.159 测试版与 Android 手机使用同一版本；本轮主要优化 Android 手机高刷新率和夸克原画读取',
+      'Android 手机界面会优先使用设备支持的高刷新率，滑动和页面切换更顺畅',
+      '优化 vivo Y77 等天玑 930 设备读取夸克原画的分片与并发策略，减少高码率视频等待',
+      '诊断日志会显示设备刷新率、处理器档位和夸克读取配置，便于继续排查兼容问题',
+      '4K HDR 120 帧视频仍取决于手机硬件解码能力；网络变快不代表设备一定能够流畅解码',
+      '本次更新不会修改或删除，也不会改名、移动本地及个人网盘原始视频和字幕',
+    ],
+  ),
+  VersionHistory(
     version: '1.0.8',
     date: '2026-08-09',
     changes: [

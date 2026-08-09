@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/features/configuration_transfer/application/configuration_archive_codec.dart';
 import 'package:kanyingyin/features/configuration_transfer/application/configuration_importer.dart';
@@ -29,6 +27,7 @@ import 'package:kanyingyin/services/media_recognition_settings.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_image_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 
 /// 注册网盘媒体库、索引和 TMDB 协调依赖。
@@ -120,7 +119,7 @@ void registerCloudBindings(Injector i) {
           cache: context.cache,
           posterCache: CloudPosterCache(
             cacheRoot: await defaultCloudCacheRoot(),
-            downloader: _downloadCloudPoster,
+            downloader: TmdbImageClient.shared.downloadBytes,
           ),
         );
       },
@@ -144,7 +143,7 @@ void registerCloudBindings(Injector i) {
           cache: context.cache,
           posterCache: CloudPosterCache(
             cacheRoot: await defaultCloudCacheRoot(),
-            downloader: _downloadCloudPoster,
+            downloader: TmdbImageClient.shared.downloadBytes,
           ),
         );
       },
@@ -178,21 +177,5 @@ TmdbScrapeOptions _tmdbScrapeOptions() {
     );
   } on Object {
     return const TmdbScrapeOptions.defaults();
-  }
-}
-
-Future<List<int>> _downloadCloudPoster(String url) async {
-  final client = HttpClient();
-  try {
-    final response = await (await client.getUrl(Uri.parse(url))).close();
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw HttpException('海报下载失败：${response.statusCode}');
-    }
-    return await response.fold<List<int>>(<int>[], (bytes, chunk) {
-      bytes.addAll(chunk);
-      return bytes;
-    });
-  } finally {
-    client.close(force: true);
   }
 }

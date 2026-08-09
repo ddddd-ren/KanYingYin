@@ -38,6 +38,7 @@ import 'package:kanyingyin/services/tmdb/local_tmdb_scrape_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client_capabilities.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_image_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_poster_policy.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scraper.dart';
@@ -1207,21 +1208,7 @@ abstract class _LocalController with Store {
     if (apiKey.isEmpty) throw StateError('请先在设置中填写 TMDB API Key');
     final cache = CloudPosterCache(
       cacheRoot: await _cloudCacheRootProvider(),
-      downloader: (url) async {
-        final client = HttpClient();
-        try {
-          final response = await (await client.getUrl(Uri.parse(url))).close();
-          if (response.statusCode < 200 || response.statusCode >= 300) {
-            throw HttpException('海报下载失败：${response.statusCode}');
-          }
-          return await response.fold<List<int>>(<int>[], (bytes, chunk) {
-            bytes.addAll(chunk);
-            return bytes;
-          });
-        } finally {
-          client.close(force: true);
-        }
-      },
+      downloader: TmdbImageClient.shared.downloadBytes,
     );
     final context = _tmdbClientContextRegistry.contextFor(apiKey);
     return _cloudTmdbMetadataService = CloudTmdbMetadataService(

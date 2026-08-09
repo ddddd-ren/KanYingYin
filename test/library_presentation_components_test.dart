@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' show PointerDeviceKind;
@@ -17,6 +18,7 @@ import 'package:kanyingyin/features/library/presentation/library_path_bar.dart';
 import 'package:kanyingyin/features/library/presentation/library_source_menu.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_focus_surface.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 void main() {
   test('TMDB 匹配状态显示实际 current/total 而不是插值字面量', () {
@@ -802,6 +804,7 @@ void main() {
         scrapeLabel: '已刮削',
         networkCoverUrl: 'https://image.example.invalid/poster.jpg',
       );
+      final imageLoad = Completer<List<int>>();
 
       await tester.pumpWidget(
         MaterialApp(
@@ -812,17 +815,18 @@ void main() {
                 androidSdkInt: 28,
               ),
               data: LibraryMediaGridViewData(items: const [imageItem]),
+              networkImageLoader: (_) => imageLoad.future,
             ),
           ),
         ),
       );
       await tester.pump();
 
-      final image = tester.widget<Image>(find.byType(Image).first);
-      expect(image.image, isA<ResizeImage>());
-      final resized = image.image as ResizeImage;
-      expect(resized.width, 720);
-      expect(resized.height, 1080);
+      final image = tester.widget<TmdbNetworkImage>(
+        find.byType(TmdbNetworkImage).first,
+      );
+      expect(image.cacheWidth, 720);
+      expect(image.cacheHeight, 1080);
       expect(image.filterQuality, FilterQuality.medium);
     });
 

@@ -8,7 +8,7 @@ void main() {
     final gradle = File('android/app/build.gradle.kts').readAsStringSync();
     final agents = File('AGENTS.md').readAsStringSync();
 
-    expect(pubspec, contains('version: 1.0.7+10007'));
+    expect(pubspec, contains('version: 2.1.158+20158'));
     expect(gradle, contains('val androidVersionName = "1.0.4"'));
     expect(gradle, contains('val androidVersionCode = 10004'));
     expect(gradle, contains('versionName = androidVersionName'));

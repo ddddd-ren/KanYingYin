@@ -6,6 +6,7 @@ import 'package:kanyingyin/core/network/network_config.dart';
 import 'package:kanyingyin/services/local_cover_finder.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_endpoint_policy.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_image_client.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:kanyingyin/utils/network_settings_config_factory.dart';
 import 'package:kanyingyin/utils/proxy_manager.dart';
@@ -17,10 +18,9 @@ typedef PosterProxyRecovery = Future<bool> Function();
 
 class PosterService {
   Dio _dio;
-  Dio _downloadDio;
+  final TmdbImageClient _imageClient;
   final TmdbApiKeyProvider _apiKeyProvider;
   final PosterDioFactory? _apiDioFactory;
-  final PosterDioFactory? _downloadDioFactory;
   final PosterProxyRecovery? _recoverProxy;
   Future<bool>? _recoveringNetwork;
   String? _workingBaseUrl;
@@ -32,6 +32,7 @@ class PosterService {
     PosterDioFactory? apiDioFactory,
     PosterDioFactory? downloadDioFactory,
     PosterProxyRecovery? recoverProxy,
+    TmdbImageClient? imageClient,
   })  : _apiKeyProvider =
             apiKeyProvider ?? TmdbApiKeyProvider(userKeyReader: () => ''),
         _apiDioFactory = apiDioFactory ??
@@ -41,29 +42,20 @@ class PosterService {
                       receiveTimeout: const Duration(seconds: 10),
                     )
                 : null),
-        _downloadDioFactory = downloadDioFactory ??
-            (downloadDio == null
-                ? () => _createDefaultDio(
-                      connectTimeout: const Duration(seconds: 10),
-                      receiveTimeout: const Duration(seconds: 30),
-                    )
-                : null),
         _recoverProxy = recoverProxy ??
-            ((apiDio == null && downloadDio == null)
-                ? ProxyManager.recoverOnlineResourceProxy
-                : null),
+            (apiDio == null ? ProxyManager.recoverOnlineResourceProxy : null),
         _dio = apiDio ??
             (apiDioFactory ??
                 (() => _createDefaultDio(
                       connectTimeout: const Duration(seconds: 8),
                       receiveTimeout: const Duration(seconds: 10),
                     )))(),
-        _downloadDio = downloadDio ??
-            (downloadDioFactory ??
-                (() => _createDefaultDio(
-                      connectTimeout: const Duration(seconds: 10),
-                      receiveTimeout: const Duration(seconds: 30),
-                    )))();
+        _imageClient = imageClient ??
+            TmdbImageClient(
+              dio: downloadDio,
+              dioFactory: downloadDioFactory,
+              recoverProxy: recoverProxy,
+            );
 
   final Map<String, String?> _searchCache = {};
 
@@ -264,7 +256,7 @@ class PosterService {
       }
 
       final bytes = await _downloadBytes(posterUrl);
-      if (bytes == null || bytes.isEmpty) {
+      if (bytes.isEmpty) {
         throw const FormatException('海报响应为空');
       }
 
@@ -294,7 +286,7 @@ class PosterService {
       await File(savePath).parent.create(recursive: true);
 
       final bytes = await _downloadBytes(posterUrl);
-      if (bytes == null || bytes.isEmpty) {
+      if (bytes.isEmpty) {
         throw const FormatException('海报响应为空');
       }
 
@@ -358,25 +350,8 @@ class PosterService {
     return null;
   }
 
-  Future<List<int>?> _downloadBytes(String posterUrl) async {
-    try {
-      final response = await _downloadDio.get<List<int>>(
-        posterUrl,
-        options: Options(responseType: ResponseType.bytes),
-      );
-      return response.data;
-    } on DioException catch (error, stackTrace) {
-      if (!TmdbEndpointPolicy.canTryAnotherEndpoint(error) ||
-          !await _recoverAndRebuildNetwork()) {
-        Error.throwWithStackTrace(error, stackTrace);
-      }
-      final response = await _downloadDio.get<List<int>>(
-        posterUrl,
-        options: Options(responseType: ResponseType.bytes),
-      );
-      return response.data;
-    }
-  }
+  Future<List<int>> _downloadBytes(String posterUrl) =>
+      _imageClient.downloadBytes(posterUrl);
 
   Future<bool> _recoverAndRebuildNetwork() {
     final existing = _recoveringNetwork;
@@ -392,13 +367,6 @@ class PosterService {
     final recoverProxy = _recoverProxy;
     if (recoverProxy == null || !await recoverProxy()) return false;
 
-    final downloadFactory = _downloadDioFactory;
-    if (downloadFactory != null) {
-      final previous = _downloadDio;
-      final replacement = downloadFactory();
-      _downloadDio = replacement;
-      if (!identical(previous, replacement)) previous.close(force: true);
-    }
     final apiFactory = _apiDioFactory;
     if (apiFactory != null) {
       final previous = _dio;

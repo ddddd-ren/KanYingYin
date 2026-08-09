@@ -40,6 +40,7 @@ import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client_capabilities.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 CloudResourceMediaGroup _seasonMediaGroup() {
   const video = CloudFileEntry(
@@ -597,20 +598,20 @@ void main() {
     );
     await tester.pump();
 
-    final poster = tester.widget<Image>(find.byType(Image).first);
-    expect(poster.image, isA<ResizeImage>());
-    final resizedPoster = poster.image as ResizeImage;
-    expect(resizedPoster.width, 720);
-    expect(resizedPoster.height, 1080);
+    final poster = tester.widget<TmdbNetworkImage>(
+      find.byType(TmdbNetworkImage).first,
+    );
+    expect(poster.cacheWidth, 720);
+    expect(poster.cacheHeight, 1080);
     expect(poster.filterQuality, FilterQuality.medium);
 
     await tester.tap(find.byType(TextButton));
     await tester.pumpAndSettle();
-    final seasonPoster = tester.widget<Image>(find.byType(Image).last);
-    expect(seasonPoster.image, isA<ResizeImage>());
-    final resizedSeasonPoster = seasonPoster.image as ResizeImage;
-    expect(resizedSeasonPoster.width, 368);
-    expect(resizedSeasonPoster.height, 552);
+    final seasonPoster = tester.widget<TmdbNetworkImage>(
+      find.byType(TmdbNetworkImage).last,
+    );
+    expect(seasonPoster.cacheWidth, 368);
+    expect(seasonPoster.cacheHeight, 552);
     expect(seasonPoster.filterQuality, FilterQuality.medium);
   });
 

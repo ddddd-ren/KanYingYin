@@ -128,7 +128,8 @@ void main() {
     expect(controllerSource, contains('tmdbPosterUrlForPaths'));
     expect(pageSource, contains('tmdbPosterUrlForPaths'));
     expect(pageSource, contains('networkCoverUrl:'));
-    expect(gridSource, contains('Image.network'));
+    expect(gridSource, contains('TmdbNetworkImage'));
+    expect(gridSource, isNot(contains('Image.network')));
     expect(
       librarySource.indexOf('if (remoteUrl != null && remoteUrl.isNotEmpty)'),
       lessThan(librarySource.indexOf('if (cover != null && cover.isNotEmpty)')),

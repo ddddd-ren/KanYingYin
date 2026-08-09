@@ -6,6 +6,33 @@ Corrections, insights, and knowledge gaps captured during development.
 
 ---
 
+## [LRN-20260809-001] correction
+
+**Logged**: 2026-08-09T14:35:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: infra
+
+### Summary
+Windows 2.1.158 修复交付只打包 Inno Setup EXE，不打包任何 Android 版本。
+
+### Details
+用户明确要求“不打包安卓版本”。发布说明可以记录 Android 当前正式版信息，但必须明确本轮不构建、不复制、不交付 APK/AAB，也不得运行已暂停的电视端发布流程。
+
+### Suggested Action
+当前发布文案使用“仅 Windows 测试版 EXE；不打包 Android”，验证阶段只执行 Flutter 测试、静态分析、Windows Release 和 Inno Setup。
+
+### Metadata
+- Source: user_feedback
+- Related Files: RELEASE_NOTES.md, UPDATE_DIALOG_COPY.md, docs/superpowers/plans/2026-08-09-tmdb-image-network-recovery-2.1.158.md
+- Tags: windows, inno-setup, android, release-boundary
+
+### Resolution
+- **Resolved**: 2026-08-09T14:35:00+08:00
+- **Notes**: 已同步发布契约和执行计划。
+
+---
+
 ## [LRN-20260623-001] best_practice
 
 **Logged**: 2026-06-23T03:15:21+08:00

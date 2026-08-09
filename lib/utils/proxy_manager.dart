@@ -37,12 +37,12 @@ class ProxyManager {
   static const Duration _probeTimeout = Duration(seconds: 5);
   static const ProxyProbeHttpClientFactory _probeClientFactory =
       ProxyProbeHttpClientFactory(connectionTimeout: _probeTimeout);
-  static final List<_ProxyProbeGroup> _probeGroups = [
-    _ProxyProbeGroup(
-      name: 'TMDB API',
-      uris: TmdbEndpointPolicy.configurationUris,
-    ),
-  ];
+  static final List<_ProxyProbeGroup> _probeGroups =
+      TmdbEndpointPolicy.requiredResourceProbeGroups.entries
+          .map(
+            (entry) => _ProxyProbeGroup(name: entry.key, uris: entry.value),
+          )
+          .toList(growable: false);
   static Future<bool>? _recoveringProxy;
 
   /// 启动时初始化代理。

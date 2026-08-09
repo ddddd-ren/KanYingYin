@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 class TmdbMatchSheet extends StatelessWidget {
   const TmdbMatchSheet({
@@ -53,8 +54,8 @@ class TmdbMatchSheet extends StatelessWidget {
                                 ? const Icon(Icons.movie_outlined)
                                 : ClipRRect(
                                     borderRadius: BorderRadius.circular(4),
-                                    child: Image.network(poster,
-                                        fit: BoxFit.cover),
+                                    child: TmdbNetworkImage(
+                                        url: poster, fit: BoxFit.cover),
                                   ),
                           ),
                           title: Text(item.title),

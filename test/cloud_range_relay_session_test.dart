@@ -281,6 +281,51 @@ void main() {
     }
   });
 
+  test('天玑 930 夸克前台缓存压力升为十路且重连后退回八路', () async {
+    final adaptiveDirectory =
+        await Directory.systemTemp.createTemp('cloud-relay-mt6877-');
+    final adaptiveReader = _AdaptiveRangeReader(
+      totalLength: 1024,
+      delay: const Duration(milliseconds: 100),
+    );
+    final logs = <String>[];
+    final adaptiveSession = await CloudRangeRelaySession.start(
+      reader: adaptiveReader,
+      directory: adaptiveDirectory,
+      providerName: '夸克',
+      tuning: CloudRangeRelayTuning.androidQuarkMt6877,
+      chunkSize: 4,
+      maxChunks: 64,
+      log: logs.add,
+    );
+    final client = HttpClient()..findProxy = (_) => 'DIRECT';
+    try {
+      expect(adaptiveSession.adaptiveMode, CloudRangeRelayAdaptiveMode.base);
+      expect(adaptiveSession.currentMaxConcurrentReads, 8);
+      expect(adaptiveSession.currentMaxConcurrentPrefetch, 7);
+
+      final request = await client.getUrl(adaptiveSession.uri);
+      request.headers.set(HttpHeaders.rangeHeader, 'bytes=128-191');
+      await (await request.close()).drain<void>();
+
+      expect(
+        adaptiveSession.adaptiveMode,
+        CloudRangeRelayAdaptiveMode.boosted,
+      );
+      expect(adaptiveSession.currentMaxConcurrentReads, 10);
+      expect(adaptiveSession.currentMaxConcurrentPrefetch, 9);
+      expect(adaptiveReader.maxActiveReads, lessThanOrEqualTo(10));
+
+      adaptiveReader.emit(CloudRangeReaderEvent.reconnecting);
+      expect(adaptiveSession.adaptiveMode, CloudRangeRelayAdaptiveMode.base);
+      expect(adaptiveSession.currentMaxConcurrentReads, 8);
+      expect(logs.join('\n'), contains('reconnecting'));
+    } finally {
+      client.close(force: true);
+      await adaptiveSession.close();
+    }
+  });
+
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('cloud-relay-test-');
     remoteServer = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);

@@ -3,11 +3,13 @@ import 'dart:math';
 
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
+import 'package:kanyingyin/platform/android/android_performance_profile.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/services/cloud/cloud_cache_directories.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:kanyingyin/services/cloud/range/cloud_range_relay_session.dart';
 import 'package:kanyingyin/services/cloud/range/cloud_range_remote_reader.dart';
+import 'package:kanyingyin/utils/logger.dart';
 import 'package:path/path.dart' as p;
 
 typedef CloudRangeRelayStarter = Future<CloudRangeRelayPlayback> Function({
@@ -45,6 +47,11 @@ class CloudRangeRelayService {
   }) {
     if (!capabilities.isAndroid) return CloudRangeRelayTuning.windows;
     if (capabilities.isAndroidTv) return CloudRangeRelayTuning.androidTv;
+    if (providerType == CloudSourceType.quark &&
+        capabilities.androidPerformanceProfile ==
+            AndroidPerformanceProfile.mt6877) {
+      return CloudRangeRelayTuning.androidQuarkMt6877;
+    }
     return switch (providerType) {
       CloudSourceType.quark => CloudRangeRelayTuning.androidQuarkAdaptive,
       CloudSourceType.baidu => CloudRangeRelayTuning.androidHighThroughput,
@@ -93,14 +100,22 @@ class CloudRangeRelayService {
       await directory.create(recursive: true);
       await File(p.join(directory.path, '.created'))
           .writeAsBytes(const <int>[]);
+      final tuning = tuningFor(
+        capabilities: _capabilities,
+        providerType: providerType,
+      );
+      AppLogger().i(
+        'CloudRangeRelayService: provider=$normalizedProviderName '
+        'profile=${_capabilities.androidPerformanceProfile.name} '
+        'chunkMiB=${tuning.chunkSize ~/ (1024 * 1024)} '
+        'baseReads=${tuning.maxConcurrentReads} '
+        'boostReads=${tuning.adaptivePolicy?.maxConcurrentReads ?? tuning.maxConcurrentReads}',
+      );
       final session = await CloudRangeRelaySession.start(
         reader: reader,
         directory: directory,
         providerName: normalizedProviderName,
-        tuning: tuningFor(
-          capabilities: _capabilities,
-          providerType: providerType,
-        ),
+        tuning: tuning,
       );
       late final _TrackedPlaybackLease lease;
       lease = _TrackedPlaybackLease(

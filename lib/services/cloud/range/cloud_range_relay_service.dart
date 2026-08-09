@@ -3,7 +3,6 @@ import 'dart:math';
 
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
-import 'package:kanyingyin/platform/android/android_performance_profile.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/services/cloud/cloud_cache_directories.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
@@ -48,8 +47,7 @@ class CloudRangeRelayService {
     if (!capabilities.isAndroid) return CloudRangeRelayTuning.windows;
     if (capabilities.isAndroidTv) return CloudRangeRelayTuning.androidTv;
     if (providerType == CloudSourceType.quark &&
-        capabilities.androidPerformanceProfile ==
-            AndroidPerformanceProfile.mt6877) {
+        capabilities.usesMt6877QuarkTuning) {
       return CloudRangeRelayTuning.androidQuarkMt6877;
     }
     return switch (providerType) {

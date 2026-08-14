@@ -35,6 +35,33 @@ void main() {
     expect(presentation.text, contains('缓存 2 秒'));
     expect(presentation.warning, isTrue);
     expect(presentation.stable, isFalse);
+    expect(presentation.dismissible, isTrue);
+  });
+
+  test('关闭状态只隐藏同一视频的低速提示', () {
+    final lowSpeed = CloudRelayStatusPresenter.present(
+      const CloudRangeRelayStatus(
+        providerName: '夸克网盘',
+        phase: CloudRangeRelayPhase.degraded,
+      ),
+    );
+    final failed = CloudRelayStatusPresenter.present(
+      const CloudRangeRelayStatus(
+        providerName: '夸克网盘',
+        phase: CloudRangeRelayPhase.failed,
+      ),
+    );
+    final dismissal = CloudRelayStatusDismissal();
+
+    dismissal.dismiss('cloud:episode-1');
+
+    expect(dismissal.hides(lowSpeed, 'cloud:episode-1'), isTrue);
+    expect(dismissal.hides(lowSpeed, 'cloud:episode-2'), isFalse);
+    expect(dismissal.hides(failed, 'cloud:episode-1'), isFalse);
+
+    dismissal.clear();
+
+    expect(dismissal.hides(lowSpeed, 'cloud:episode-1'), isFalse);
   });
 
   test('播放器页面使用公共中转状态提示', () {

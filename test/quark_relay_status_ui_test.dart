@@ -92,4 +92,26 @@ void main() {
     expect(page, contains('Flexible('));
     expect(page, isNot(contains('visualDensity: VisualDensity.compact')));
   });
+
+  test('完整和紧凑控制栏共用实时网速展示器', () {
+    for (final path in [
+      'lib/pages/player/player_item_panel.dart',
+      'lib/pages/player/smallest_player_item_panel.dart',
+    ]) {
+      final source = File(path).readAsStringSync();
+      expect(source, contains('PlayerNetworkSpeedPresenter.present'),
+          reason: path);
+      expect(source, contains('videoPageController.relayStatus'), reason: path);
+    }
+
+    expect(
+      File('lib/pages/player/player_item_panel.dart').readAsStringSync(),
+      contains("const ValueKey<String>('full-player-network-speed')"),
+    );
+    expect(
+      File('lib/pages/player/smallest_player_item_panel.dart')
+          .readAsStringSync(),
+      contains("const ValueKey<String>('compact-player-network-speed')"),
+    );
+  });
 }

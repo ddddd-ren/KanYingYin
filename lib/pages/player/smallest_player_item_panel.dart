@@ -17,6 +17,7 @@ import 'package:kanyingyin/services/timed_shutdown_service.dart';
 import 'package:kanyingyin/pages/player/widgets/embedded_track_menus.dart';
 import 'package:kanyingyin/features/player/application/anime4k_policy.dart';
 import 'package:kanyingyin/pages/player/widgets/anime4k_status_label.dart';
+import 'package:kanyingyin/features/player/presentation/player_network_speed_presenter.dart';
 import 'package:kanyingyin/features/player/presentation/tv_remote_key_policy.dart';
 
 class SmallestPlayerItemPanel extends StatefulWidget {
@@ -469,6 +470,8 @@ class _SmallestPlayerItemPanelState extends State<SmallestPlayerItemPanel> {
 
   Widget get bottomControlWidget {
     return Observer(builder: (context) {
+      final networkSpeedText =
+          PlayerNetworkSpeedPresenter.present(videoPageController.relayStatus);
       return Row(
         children: [
           IconButton(
@@ -482,24 +485,43 @@ class _SmallestPlayerItemPanelState extends State<SmallestPlayerItemPanel> {
             },
           ),
           Expanded(
-            child: ProgressBar(
-              thumbRadius: 8,
-              thumbGlowRadius: 18,
-              timeLabelLocation: TimeLabelLocation.none,
-              progress: playerController.currentPosition,
-              buffered: playerController.buffer,
-              total: playerController.duration,
-              onSeek: (duration) {
-                playerController.seek(duration);
-              },
-              onDragStart: (details) {
-                widget.handleProgressBarDragStart(details);
-              },
-              onDragUpdate: (details) =>
-                  {playerController.currentPosition = details.timeStamp},
-              onDragEnd: () {
-                widget.handleProgressBarDragEnd();
-              },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ProgressBar(
+                  thumbRadius: 8,
+                  thumbGlowRadius: 18,
+                  timeLabelLocation: TimeLabelLocation.none,
+                  progress: playerController.currentPosition,
+                  buffered: playerController.buffer,
+                  total: playerController.duration,
+                  onSeek: (duration) {
+                    playerController.seek(duration);
+                  },
+                  onDragStart: (details) {
+                    widget.handleProgressBarDragStart(details);
+                  },
+                  onDragUpdate: (details) =>
+                      {playerController.currentPosition = details.timeStamp},
+                  onDragEnd: () {
+                    widget.handleProgressBarDragEnd();
+                  },
+                ),
+                if (networkSpeedText != null)
+                  Padding(
+                    key: const ValueKey<String>('compact-player-network-speed'),
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      networkSpeedText,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
           Text(

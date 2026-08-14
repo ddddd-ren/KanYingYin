@@ -46,6 +46,8 @@ class _VideoPageState extends State<VideoPage>
   bool _relayStatusHidden = false;
   bool _relayVisibilityResetScheduled = false;
   Timer? _relayStableTimer;
+  final CloudRelayStatusDismissal _relayStatusDismissal =
+      CloudRelayStatusDismissal();
   final FocusNode keyboardFocus = FocusNode();
   final GlobalKey<PlayerItemState> _playerItemKey =
       GlobalKey<PlayerItemState>();
@@ -217,6 +219,7 @@ class _VideoPageState extends State<VideoPage>
 
   Future<void> changeEpisode(int episode,
       {int currentRoad = 0, int offset = 0}) async {
+    final previousPlaybackIdentity = _relayPlaybackIdentity;
     await _recordPlaybackHistory(forcePersist: true);
     _resetRelayVisibility();
     clearPlayerLog();
@@ -227,8 +230,16 @@ class _VideoPageState extends State<VideoPage>
     if (!mounted) return;
     await localVideoController.changeEpisode(episode,
         currentRoad: currentRoad, offset: offset);
+    if (localVideoController.errorMessage == null &&
+        _relayPlaybackIdentity != previousPlaybackIdentity) {
+      _relayStatusDismissal.clear();
+    }
     if (mounted) setState(() {});
   }
+
+  String get _relayPlaybackIdentity =>
+      localVideoController.currentPlaybackHistoryKey ??
+      'relay-session:${localVideoController.currentEpisode}:${localVideoController.currentRoad}';
 
   Future<void> _recordPlaybackHistory({bool forcePersist = false}) async {
     if (!localVideoController.hasSession ||
@@ -705,12 +716,32 @@ class _VideoPageState extends State<VideoPage>
           right: 32,
           child: Observer(builder: (context) {
             final presentation = _relayPresentation();
+            final playbackIdentity = _relayPlaybackIdentity;
+            final dismissed = presentation != null &&
+                _relayStatusDismissal.hides(presentation, playbackIdentity);
             _syncRelayVisibility(presentation);
             final visible = presentation != null &&
                 !_relayStatusHidden &&
+                !dismissed &&
                 !localVideoController.loading &&
                 !playerController.loading;
+            final foregroundColor = presentation?.warning == true
+                ? Theme.of(context).colorScheme.onErrorContainer
+                : Colors.white;
+            final dismissButton = presentation?.dismissible == true
+                ? IconButton(
+                    key: const ValueKey<String>('cloud-relay-dismiss-button'),
+                    tooltip: '隐藏本视频低速提示',
+                    color: foregroundColor,
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                    onPressed: () => setState(
+                      () => _relayStatusDismissal.dismiss(playbackIdentity),
+                    ),
+                  )
+                : null;
             return IgnorePointer(
+              ignoring: !visible,
               child: AnimatedOpacity(
                 opacity: visible ? 1 : 0,
                 duration: StyleString.fastAnimationDuration,
@@ -730,15 +761,19 @@ class _VideoPageState extends State<VideoPage>
                           : Colors.black.withValues(alpha: 0.72),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(
-                      presentation?.text ?? '',
-                      style: TextStyle(
-                        color: presentation?.warning == true
-                            ? Theme.of(context).colorScheme.onErrorContainer
-                            : Colors.white,
-                        fontSize: 13,
-                      ),
-                      textAlign: TextAlign.center,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          presentation?.text ?? '',
+                          style: TextStyle(
+                            color: foregroundColor,
+                            fontSize: 13,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        if (dismissButton != null) dismissButton,
+                      ],
                     ),
                   ),
                 ),

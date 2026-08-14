@@ -79,4 +79,15 @@ void main() {
     expect(page, contains('StyleString.fastAnimationDuration'));
     expect(page, isNot(contains('夸克永久状态栏')));
   });
+
+  test('播放器允许只隐藏当前视频的低速提示', () {
+    final page = File('lib/pages/video/video_page.dart').readAsStringSync();
+
+    expect(page, contains('CloudRelayStatusDismissal'));
+    expect(page, contains('_relayStatusDismissal.hides'));
+    expect(
+        page, contains("const ValueKey<String>('cloud-relay-dismiss-button')"));
+    expect(page, contains("tooltip: '隐藏本视频低速提示'"));
+    expect(page, contains('ignoring: !visible'));
+  });
 }

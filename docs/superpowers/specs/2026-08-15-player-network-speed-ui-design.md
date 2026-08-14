@@ -32,7 +32,7 @@
 
 ### 技术方案
 
-新增纯展示器 `PlayerNetworkSpeedPresenter`，由完整控制栏与紧凑控制栏共同使用。展示器通过现有 `IVideoPageController.relayStatus` 接收网盘中转状态，不让播放器依赖 `LocalVideoController`，也不在两套控制栏内重复格式化逻辑。
+新增纯展示器 `PlayerNetworkSpeedPresenter`，由完整控制栏与紧凑控制栏共同使用。两套控制栏通过现有 `IVideoPageController.relayStatus` 读取网盘中转状态，并在调用边界提取 `double? bytesPerSecond` 交给展示器，不让播放器依赖 `LocalVideoController`，也不在两套控制栏内重复格式化逻辑。
 
 不采用以下方案：
 
@@ -47,8 +47,8 @@
 
 职责：
 
-- 接收 `CloudRangeRelayStatus?`。
-- 对有限且大于零的 `bytesPerSecond` 使用 `1024 * 1024` 换算为 MB/s。
+- 接收 `double? bytesPerSecond`。
+- 对有限且大于零的数值使用 `1024 * 1024` 换算为 MB/s。
 - 固定保留一位小数并输出 `网速 4.3 MB/s`。
 - 状态为空，或速度为零、负数、`NaN`、正负无穷时返回空，不显示占位。
 
@@ -62,7 +62,7 @@
 
 ### 播放器控制栏
 
-完整控制栏和紧凑控制栏继续通过 `IVideoPageController` 读取 `relayStatus`，再调用 `PlayerNetworkSpeedPresenter`。本地播放没有网盘中转状态，因此不显示网速，也不显示 `0 MB/s`。
+完整控制栏和紧凑控制栏继续通过 `IVideoPageController` 读取 `relayStatus`，在调用边界提取 `relayStatus?.bytesPerSecond`，再调用 `PlayerNetworkSpeedPresenter`。本地播放没有网盘中转状态，因此不显示网速，也不显示 `0 MB/s`。
 
 ## 数据流
 
@@ -71,7 +71,7 @@
   -> LocalVideoController.relayStatus（Observable）
     -> IVideoPageController.relayStatus
       -> CloudRelayStatusPresenter -> 顶部状态提示
-      -> PlayerNetworkSpeedPresenter -> 完整/紧凑控制栏网速行
+      -> 调用边界提取 bytesPerSecond -> PlayerNetworkSpeedPresenter -> 完整/紧凑控制栏网速行
 ```
 
 两种展示共享同一份实时状态，但各自负责不同信息层级：顶部提示表达连接、缓冲、低速和失败；控制栏只表达当前读取速度。

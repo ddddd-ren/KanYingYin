@@ -4,7 +4,7 @@
 
 **Goal:** 让 Windows 与手机版 Android 的播放器在进度条下显示实时网速，并允许用户只对当前视频隐藏低速提示，最终交付 `2.1.160+20160` 测试版 EXE、APK 和 AAB。
 
-**Architecture:** 复用现有 `CloudRangeRelayStatus`、`IVideoPageController` 和顶部状态展示链路，只新增一个纯 `PlayerNetworkSpeedPresenter`。低速可关闭语义与极小的关闭状态放在现有 `cloud_relay_status_presenter.dart`，`VideoPage` 负责当前视频身份和关闭按钮；两套控制栏只负责调用共享展示器并渲染一行文字。
+**Architecture:** 复用现有 `CloudRangeRelayStatus`、`IVideoPageController` 和顶部状态展示链路，只新增一个接收 `double? bytesPerSecond` 的纯 `PlayerNetworkSpeedPresenter`。低速可关闭语义与极小的关闭状态放在现有 `cloud_relay_status_presenter.dart`，`VideoPage` 负责当前视频身份和关闭按钮；两套控制栏在调用边界提取基础数值，只负责调用共享展示器并渲染一行文字。
 
 **Tech Stack:** Flutter 3.41.9、Dart 3.11、MobX、Flutter Modular、`flutter_test`、PowerShell、Inno Setup 6、Android Gradle、APK Signature Scheme v2、AAB JAR 签名。
 
@@ -19,6 +19,8 @@
 - 复用现有 `CloudRelayStatusPresenter`、`IVideoPageController.relayStatus`、两套控制栏和发布脚本。
 - 不修改网盘中转、缓存、并发、重连或播放器动画。
 - 不更新 Inno Setup 脚本中的备用版本常量；正式构建脚本已经通过 `/DMyAppVersion` 传入实际版本。
+
+执行修正（2026-08-15）：架构门禁禁止 `presentation -> services`，故调用者提取 `relayStatus?.bytesPerSecond`，展示器只接收 `double?`。
 
 ## 文件结构
 
@@ -155,17 +157,13 @@ Create `test/player_network_speed_presenter_test.dart`:
 ```dart
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/player/presentation/player_network_speed_presenter.dart';
-import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 
 void main() {
   test('有效网盘速度显示一位小数', () {
-    const status = CloudRangeRelayStatus(
-      providerName: '夸克',
-      phase: CloudRangeRelayPhase.ready,
-      bytesPerSecond: 4.3 * 1024 * 1024,
+    expect(
+      PlayerNetworkSpeedPresenter.present(4.3 * 1024 * 1024),
+      '网速 4.3 MB/s',
     );
-
-    expect(PlayerNetworkSpeedPresenter.present(status), '网速 4.3 MB/s');
   });
 
   test('没有状态或速度无效时不显示网速', () {
@@ -177,13 +175,8 @@ void main() {
       double.infinity,
       double.negativeInfinity,
     ]) {
-      final status = CloudRangeRelayStatus(
-        providerName: '夸克',
-        phase: CloudRangeRelayPhase.ready,
-        bytesPerSecond: speed,
-      );
       expect(
-        PlayerNetworkSpeedPresenter.present(status),
+        PlayerNetworkSpeedPresenter.present(speed),
         isNull,
         reason: '$speed 不应生成网速文字',
       );
@@ -207,11 +200,8 @@ Expected: FAIL，错误指向缺少 `player_network_speed_presenter.dart` 或 `P
 Create `lib/features/player/presentation/player_network_speed_presenter.dart`:
 
 ```dart
-import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
-
 abstract final class PlayerNetworkSpeedPresenter {
-  static String? present(CloudRangeRelayStatus? status) {
-    final bytesPerSecond = status?.bytesPerSecond;
+  static String? present(double? bytesPerSecond) {
     if (bytesPerSecond == null ||
         !bytesPerSecond.isFinite ||
         bytesPerSecond <= 0) {
@@ -651,7 +641,7 @@ import 'package:kanyingyin/features/player/presentation/player_network_speed_pre
 
 ```dart
 final networkSpeedText = PlayerNetworkSpeedPresenter.present(
-  videoPageController.relayStatus,
+  videoPageController.relayStatus?.bytesPerSecond,
 );
 ```
 
@@ -679,7 +669,7 @@ if (networkSpeedText != null)
 
 ```dart
 final networkSpeedText = PlayerNetworkSpeedPresenter.present(
-  videoPageController.relayStatus,
+  videoPageController.relayStatus?.bytesPerSecond,
 );
 ```
 

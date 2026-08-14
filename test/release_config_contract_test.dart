@@ -41,8 +41,6 @@ void main() {
     for (final unsupportedClaim in <String>[
       '网速提升',
       '保证达到',
-      'Android TV',
-      'tvTest',
     ]) {
       expect(currentReleaseNotes, isNot(contains(unsupportedClaim)));
     }

@@ -17,4 +17,23 @@ void main() {
     expect(agents, contains('Android TV 版发布无限期暂停'));
     expect(agents, contains('不得运行 `tvTest` 发布流程'));
   });
+
+  test('TV 构建脚本保存并验证独立包记录', () {
+    final script = File('tool/android/build_tv_test.ps1').readAsStringSync();
+
+    for (final text in <String>[
+      'private-output',
+      'aapt dump badging',
+      'aapt dump xmltree',
+      'leanback-launchable-activity',
+      'android.hardware.touchscreen',
+      'android:banner',
+      'apksigner verify --verbose --print-certs',
+      'verify_full_media_bundle.ps1',
+      'Get-FileHash',
+      'SHA256',
+    ]) {
+      expect(script, contains(text), reason: text);
+    }
+  });
 }

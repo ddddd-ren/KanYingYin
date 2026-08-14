@@ -34,6 +34,7 @@ void main() {
     expect(presentation.text, contains('缓存 2 秒'));
     expect(presentation.warning, isTrue);
     expect(presentation.stable, isFalse);
+    expect(presentation.dismissible, isTrue);
   });
 
   test('总时长未知时只显示速度且就绪状态可自动隐藏', () {
@@ -51,24 +52,23 @@ void main() {
   });
 
   test('重连和失败状态使用明确文案', () {
-    expect(
-      CloudRelayStatusPresenter.present(
-        const CloudRangeRelayStatus(
-          providerName: '夸克',
-          phase: CloudRangeRelayPhase.reconnecting,
-        ),
-      ).text,
-      '夸克正在重新连接',
+    final reconnecting = CloudRelayStatusPresenter.present(
+      const CloudRangeRelayStatus(
+        providerName: '夸克',
+        phase: CloudRangeRelayPhase.reconnecting,
+      ),
     );
-    expect(
-      CloudRelayStatusPresenter.present(
-        const CloudRangeRelayStatus(
-          providerName: '夸克',
-          phase: CloudRangeRelayPhase.failed,
-        ),
-      ).text,
-      '夸克分段读取失败',
+    final failed = CloudRelayStatusPresenter.present(
+      const CloudRangeRelayStatus(
+        providerName: '夸克',
+        phase: CloudRangeRelayPhase.failed,
+      ),
     );
+
+    expect(reconnecting.text, '夸克正在重新连接');
+    expect(reconnecting.dismissible, isFalse);
+    expect(failed.text, '夸克分段读取失败');
+    expect(failed.dismissible, isFalse);
   });
 
   test('播放器页面复用现有加载层并使用短暂状态提示', () {

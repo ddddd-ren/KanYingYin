@@ -5,11 +5,13 @@ class CloudRelayStatusPresentation {
     required this.text,
     required this.warning,
     required this.stable,
+    this.dismissible = false,
   });
 
   final String text;
   final bool warning;
   final bool stable;
+  final bool dismissible;
 }
 
 class CloudRelayStatusPresenter {
@@ -47,6 +49,7 @@ class CloudRelayStatusPresenter {
         text: withDetails('当前网盘读取速度不足'),
         warning: true,
         stable: false,
+        dismissible: true,
       );
     }
     return switch (status.phase) {
@@ -111,4 +114,23 @@ class CloudRelayStatusPresenter {
             : 0);
     return seconds > 0 ? '缓存 $seconds 秒' : null;
   }
+}
+
+class CloudRelayStatusDismissal {
+  String? _dismissedPlaybackIdentity;
+
+  void dismiss(String playbackIdentity) {
+    _dismissedPlaybackIdentity = playbackIdentity;
+  }
+
+  void clear() {
+    _dismissedPlaybackIdentity = null;
+  }
+
+  bool hides(
+    CloudRelayStatusPresentation presentation,
+    String playbackIdentity,
+  ) =>
+      presentation.dismissible &&
+      _dismissedPlaybackIdentity == playbackIdentity;
 }

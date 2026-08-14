@@ -2,47 +2,58 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-const _highRefreshCopy = 'Android 手机界面会优先使用设备支持的高刷新率，滑动和页面切换更顺畅。';
+const _networkSpeedCopy = '播放网盘视频时，进度条下方会显示实时网速，控制栏收起后同步隐藏。';
 
 void main() {
-  test('当前发布配置为二点一五九 Windows 与 Android 手机测试版', () {
+  test('当前发布配置为二点一六零 Windows 与 Android 手机测试版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
-    final releaseNotesStart = releaseNotes.indexOf('## 2.1.159+20159');
-    final releaseNotesEnd = releaseNotes.indexOf('\n## 1.0.8+10008');
+    final releaseNotesStart = releaseNotes.indexOf('## 2.1.160+20160');
+    final releaseNotesEnd = releaseNotes.indexOf('\n## 2.1.159+20159');
     final currentReleaseNotes =
         releaseNotesStart >= 0 && releaseNotesEnd > releaseNotesStart
             ? releaseNotes.substring(releaseNotesStart, releaseNotesEnd)
             : '';
 
-    expect(pubspec, contains('version: 2.1.159+20159'));
-    expect(pubspec, contains('msix_version: 2.1.159.0'));
+    expect(pubspec, contains('version: 2.1.160+20160'));
+    expect(pubspec, contains('msix_version: 2.1.160.0'));
     expect(currentReleaseNotes, contains('Windows 和 Android 手机测试版'));
-    expect(currentReleaseNotes, contains('2.1.159'));
+    expect(currentReleaseNotes, contains('2.1.160'));
     expect(
       currentReleaseNotes,
-      contains('APK/AAB 版本：2.1.159 (20159)'),
+      contains('APK/AAB 版本：2.1.160 (20160)'),
     );
     expect(currentReleaseNotes, contains('Windows'));
     expect(currentReleaseNotes, contains('Android 手机'));
-    expect(currentReleaseNotes, contains('高刷新率'));
-    expect(currentReleaseNotes, contains('天玑 930'));
-    expect(currentReleaseNotes, contains('夸克原画'));
-    expect(currentReleaseNotes, contains('诊断日志'));
-    expect(currentReleaseNotes, contains('4K HDR 120 帧'));
-    expect(currentReleaseNotes, contains('不会修改或删除'));
     expect(currentReleaseNotes, contains('EXE'));
-    expect(currentReleaseNotes, contains(_highRefreshCopy));
-    expect(currentReleaseNotes, isNot(contains('网速已达到')));
+    expect(currentReleaseNotes, contains(_networkSpeedCopy));
+    for (final text in <String>[
+      '进度条',
+      '实时网速',
+      '当前视频',
+      '重新连接',
+      '读取失败',
+      '不会修改或删除',
+    ]) {
+      expect(currentReleaseNotes, contains(text));
+    }
+    for (final unsupportedClaim in <String>[
+      '网速提升',
+      '保证达到',
+      'Android TV',
+      'tvTest',
+    ]) {
+      expect(currentReleaseNotes, isNot(contains(unsupportedClaim)));
+    }
     expect(updateDialogCopy, contains('Windows 测试版 EXE'));
     expect(
       updateDialogCopy,
       contains('本轮交付：Windows 测试版 EXE 与 Android 手机 APK/AAB'),
     );
-    expect(updateDialogCopy, contains('2.1.159'));
-    expect(updateDialogCopy, contains('20159'));
-    expect(updateDialogCopy, contains(_highRefreshCopy));
+    expect(updateDialogCopy, contains('2.1.160'));
+    expect(updateDialogCopy, contains('20160'));
+    expect(updateDialogCopy, contains(_networkSpeedCopy));
     expect(updateDialogCopy, contains('Android TV 继续暂停'));
     for (final tvOnlyText in <String>[
       'Android TV',

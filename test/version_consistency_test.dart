@@ -5,11 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('二点一五九 Windows 与 Android 手机测试版版本文案保持一致', () {
-    const expectedVersion = '2.1.159';
-    const expectedBuildNumber = '20159';
-    const expectedAndroidVersion = '2.1.159';
-    const expectedAndroidVersionCode = '20159';
+  test('二点一六零 Windows 与 Android 手机测试版版本文案保持一致', () {
+    const expectedVersion = '2.1.160';
+    const expectedBuildNumber = '20160';
+    const expectedAndroidVersion = '2.1.160';
+    const expectedAndroidVersionCode = '20160';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final androidGradle =
@@ -135,11 +135,16 @@ void main() {
       currentVersionHistory
     ]) {
       expect(currentCopy, contains('Android 手机'));
-      expect(currentCopy, contains('高刷新率'));
-      expect(currentCopy, contains('天玑 930'));
-      expect(currentCopy, contains('夸克'));
-      expect(currentCopy, contains('4K HDR 120'));
-      expect(currentCopy, contains('不会修改或删除'));
+      for (final text in <String>[
+        '进度条',
+        '实时网速',
+        '当前视频',
+        '重新连接',
+        '读取失败',
+        '不会修改或删除',
+      ]) {
+        expect(currentCopy, contains(text));
+      }
       for (final tvOnlyText in <String>[
         'Android TV',
         'tvTest',
@@ -157,7 +162,10 @@ void main() {
       contains('本轮交付：Windows 测试版 EXE 与 Android 手机 APK/AAB'),
     );
     expect(currentReleaseNotes, isNot(contains('本轮不打包')));
-    expect(currentReleaseNotes, isNot(contains('网速已达到')));
+    for (final unsupportedClaim in <String>['网速提升', '保证达到']) {
+      expect(currentReleaseNotes, isNot(contains(unsupportedClaim)));
+      expect(currentVersionHistory, isNot(contains(unsupportedClaim)));
+    }
     expect(currentVersionHistory, contains('isPrerelease: true'));
   });
 }

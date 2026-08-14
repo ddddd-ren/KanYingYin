@@ -5,31 +5,29 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一五九说明 Android 高刷和天玑九三零夸克专项优化', () {
+  test('二点一六零说明播放器网速展示和提示边界', () {
     final entries = versionHistoryForCurrent(
-      '2.1.159',
+      '2.1.160',
       platform: AppPlatformKind.android,
     );
 
     expect(entries, hasLength(1));
-    expect(entries.single.version, '2.1.159');
+    expect(entries.single.version, '2.1.160');
     expect(entries.single.isPrerelease, isTrue);
     final changes = entries.single.changes.join('\n');
     for (final text in <String>[
       'Android 手机',
-      '高刷新率',
-      'vivo Y77',
-      '天玑 930',
-      '夸克原画',
-      '诊断日志',
-      '4K HDR 120 帧',
-      '硬件解码能力',
+      '进度条',
+      '实时网速',
+      '当前视频',
+      '重新连接',
+      '读取失败',
       '不会修改或删除',
     ]) {
       expect(changes, contains(text));
     }
     for (final unsupportedClaim in <String>[
-      '网速已达到',
+      '网速提升',
       '保证达到',
       'Android TV',
       'tvTest',

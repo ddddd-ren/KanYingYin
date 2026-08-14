@@ -1,8 +1,5 @@
-import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
-
 abstract final class PlayerNetworkSpeedPresenter {
-  static String? present(CloudRangeRelayStatus? status) {
-    final bytesPerSecond = status?.bytesPerSecond;
+  static String? present(double? bytesPerSecond) {
     if (bytesPerSecond == null ||
         !bytesPerSecond.isFinite ||
         bytesPerSecond <= 0) {

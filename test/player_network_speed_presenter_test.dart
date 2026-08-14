@@ -1,15 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/player/presentation/player_network_speed_presenter.dart';
-import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 
 void main() {
   test('就绪的有效中转速度格式化为 MB 每秒', () {
     final result = PlayerNetworkSpeedPresenter.present(
-      const CloudRangeRelayStatus(
-        providerName: '测试网盘',
-        phase: CloudRangeRelayPhase.ready,
-        bytesPerSecond: 4.3 * 1024 * 1024,
-      ),
+      4.3 * 1024 * 1024,
     );
 
     expect(result, '网速 4.3 MB/s');
@@ -25,13 +20,8 @@ void main() {
       double.infinity,
       double.negativeInfinity,
     ]) {
-      final status = CloudRangeRelayStatus(
-        providerName: '测试网盘',
-        phase: CloudRangeRelayPhase.ready,
-        bytesPerSecond: speed,
-      );
       expect(
-        PlayerNetworkSpeedPresenter.present(status),
+        PlayerNetworkSpeedPresenter.present(speed),
         isNull,
         reason: '$speed 不应生成网速文字',
       );

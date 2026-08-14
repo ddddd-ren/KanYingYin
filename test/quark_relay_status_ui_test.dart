@@ -101,7 +101,11 @@ void main() {
       final source = File(path).readAsStringSync();
       expect(source, contains('PlayerNetworkSpeedPresenter.present'),
           reason: path);
-      expect(source, contains('videoPageController.relayStatus'), reason: path);
+      expect(
+        source,
+        contains('videoPageController.relayStatus?.bytesPerSecond'),
+        reason: path,
+      );
     }
 
     expect(

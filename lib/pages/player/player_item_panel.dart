@@ -545,8 +545,8 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
 
   Widget get bottomControlWidget {
     return Observer(builder: (context) {
-      final networkSpeedText =
-          PlayerNetworkSpeedPresenter.present(videoPageController.relayStatus);
+      final networkSpeedText = PlayerNetworkSpeedPresenter.present(
+          videoPageController.relayStatus?.bytesPerSecond);
       return SafeArea(
         top: false,
         bottom: videoPageController.isFullscreen,

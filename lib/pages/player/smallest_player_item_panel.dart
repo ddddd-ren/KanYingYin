@@ -470,8 +470,8 @@ class _SmallestPlayerItemPanelState extends State<SmallestPlayerItemPanel> {
 
   Widget get bottomControlWidget {
     return Observer(builder: (context) {
-      final networkSpeedText =
-          PlayerNetworkSpeedPresenter.present(videoPageController.relayStatus);
+      final networkSpeedText = PlayerNetworkSpeedPresenter.present(
+          videoPageController.relayStatus?.bytesPerSecond);
       return Row(
         children: [
           IconButton(

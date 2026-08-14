@@ -21,6 +21,7 @@ void main() {
       const CloudRangeRelayStatus(
         providerName: '测试网盘',
         phase: CloudRangeRelayPhase.ready,
+        bytesPerSecond: 0,
       ),
       const CloudRangeRelayStatus(
         providerName: '测试网盘',

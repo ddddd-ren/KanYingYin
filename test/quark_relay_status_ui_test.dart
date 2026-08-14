@@ -89,5 +89,7 @@ void main() {
         page, contains("const ValueKey<String>('cloud-relay-dismiss-button')"));
     expect(page, contains("tooltip: '隐藏本视频低速提示'"));
     expect(page, contains('ignoring: !visible'));
+    expect(page, contains('Flexible('));
+    expect(page, isNot(contains('visualDensity: VisualDensity.compact')));
   });
 }

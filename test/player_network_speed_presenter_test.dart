@@ -16,37 +16,25 @@ void main() {
   });
 
   test('无效中转速度不展示', () {
-    final invalidStatuses = <CloudRangeRelayStatus?>[
-      null,
-      const CloudRangeRelayStatus(
-        providerName: '测试网盘',
-        phase: CloudRangeRelayPhase.ready,
-        bytesPerSecond: 0,
-      ),
-      const CloudRangeRelayStatus(
-        providerName: '测试网盘',
-        phase: CloudRangeRelayPhase.ready,
-        bytesPerSecond: -1,
-      ),
-      CloudRangeRelayStatus(
-        providerName: '测试网盘',
-        phase: CloudRangeRelayPhase.ready,
-        bytesPerSecond: double.nan,
-      ),
-      CloudRangeRelayStatus(
-        providerName: '测试网盘',
-        phase: CloudRangeRelayPhase.ready,
-        bytesPerSecond: double.infinity,
-      ),
-      CloudRangeRelayStatus(
-        providerName: '测试网盘',
-        phase: CloudRangeRelayPhase.ready,
-        bytesPerSecond: double.negativeInfinity,
-      ),
-    ];
+    expect(PlayerNetworkSpeedPresenter.present(null), isNull);
 
-    for (final status in invalidStatuses) {
-      expect(PlayerNetworkSpeedPresenter.present(status), isNull);
+    for (final speed in <double>[
+      0,
+      -1,
+      double.nan,
+      double.infinity,
+      double.negativeInfinity,
+    ]) {
+      final status = CloudRangeRelayStatus(
+        providerName: '测试网盘',
+        phase: CloudRangeRelayPhase.ready,
+        bytesPerSecond: speed,
+      );
+      expect(
+        PlayerNetworkSpeedPresenter.present(status),
+        isNull,
+        reason: '$speed 不应生成网速文字',
+      );
     }
   });
 }

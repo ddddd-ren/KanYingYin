@@ -179,6 +179,19 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.160',
+    date: '2026-08-15',
+    isPrerelease: true,
+    changes: [
+      'Windows 2.1.160 测试版与 Android 手机使用同一版本；播放网盘视频时，进度条下方会显示实时网速',
+      '实时网速会随控制栏显示或隐藏，不影响本地视频播放',
+      '网盘读取速度不足提示可以对当前视频关闭，切换视频后自动恢复',
+      '当前视频发生重新连接或读取失败时仍会显示必要提示，避免隐藏重要错误',
+      '本次更新只调整播放器状态展示，不改变网盘读取、缓存或重连策略',
+      '本次更新不会修改或删除，也不会改名、移动本地及个人网盘原始视频和字幕',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.159',
     date: '2026-08-09',
     isPrerelease: true,

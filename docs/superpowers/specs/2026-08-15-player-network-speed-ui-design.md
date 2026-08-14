@@ -161,7 +161,7 @@
 版本更新为：
 
 - Flutter：`2.1.160+20160`。
-- Windows 产品版本：`2.1.160.0`。
+- Windows EXE `ProductVersion`：`2.1.160`；历史兼容配置 `msix_version` 同步为 `2.1.160.0`，但不生成 MSIX。
 - Android 手机版：`versionName 2.1.160`、`versionCode 20160`。
 
 同步更新 `RELEASE_NOTES.md`、`lib/utils/version_history.dart` 和 `UPDATE_DIALOG_COPY.md`，文案面向普通用户，不宣称未经实机验证的网速提升。

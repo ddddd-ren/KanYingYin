@@ -17,6 +17,7 @@ import 'package:kanyingyin/services/timed_shutdown_service.dart';
 import 'package:kanyingyin/pages/player/widgets/embedded_track_menus.dart';
 import 'package:kanyingyin/features/player/application/anime4k_policy.dart';
 import 'package:kanyingyin/pages/player/widgets/anime4k_status_label.dart';
+import 'package:kanyingyin/features/player/presentation/player_network_speed_presenter.dart';
 import 'package:kanyingyin/features/player/presentation/tv_remote_key_policy.dart';
 
 class PlayerItemPanel extends StatefulWidget {
@@ -544,6 +545,8 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
 
   Widget get bottomControlWidget {
     return Observer(builder: (context) {
+      final networkSpeedText =
+          PlayerNetworkSpeedPresenter.present(videoPageController.relayStatus);
       return SafeArea(
         top: false,
         bottom: videoPageController.isFullscreen,
@@ -609,6 +612,19 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
                   },
                 ),
               ),
+              if (networkSpeedText != null)
+                Padding(
+                  key: const ValueKey<String>('full-player-network-speed'),
+                  padding: const EdgeInsets.fromLTRB(10, 4, 10, 0),
+                  child: Text(
+                    networkSpeedText,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: Row(

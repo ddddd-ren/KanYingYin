@@ -51,7 +51,7 @@ void main() {
     expect(presentation.stable, isTrue);
   });
 
-  test('重连和失败状态使用明确文案', () {
+  test('重连和失败状态使用明确文案且不可按低速规则关闭', () {
     final reconnecting = CloudRelayStatusPresenter.present(
       const CloudRangeRelayStatus(
         providerName: '夸克',

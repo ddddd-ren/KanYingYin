@@ -14,11 +14,11 @@
 
 本计划使用 `ponytail:ponytail` full：
 
-- 只新增一个生产文件和一个测试文件。
+- 功能实现只新增一个 Dart 生产文件和一个测试文件；执行中为 NuGet fresh build 另新增 `tool/windows/prepare_nuget.ps1`。
 - 不新增设置项、依赖、接口、工厂、Banner 组件或状态仓库。
 - 复用现有 `CloudRelayStatusPresenter`、`IVideoPageController.relayStatus`、两套控制栏和发布脚本。
 - 不修改网盘中转、缓存、并发、重连或播放器动画。
-- 不更新 Inno Setup 脚本中的备用版本常量；正式构建脚本已经通过 `/DMyAppVersion` 传入实际版本。
+- 正式构建脚本通过 `/DMyAppVersion` 传入实际版本；执行中也已同步 Inno Setup 脚本中的回退版本常量。
 
 执行修正（2026-08-15）：架构门禁禁止 `presentation -> services`，故调用者提取 `relayStatus?.bytesPerSecond`，展示器只接收 `double?`。
 
@@ -36,7 +36,7 @@
 - `lib/pages/player/player_item_panel.dart`：完整控制栏在进度条下显示网速。
 - `lib/pages/player/smallest_player_item_panel.dart`：紧凑控制栏在进度条下显示网速。
 - `test/cloud_relay_status_ui_test.dart`：覆盖通用低速可关闭语义与关闭状态。
-- `test/quark_relay_status_ui_test.dart`：覆盖顶部关闭按钮和两套控制栏接线契约。
+- `test/quark_relay_status_ui_test.dart`：用真实 Widget 覆盖顶部低速提示交互和两套控制栏的窄宽度布局。
 - `pubspec.yaml`、`lib/core/app_version.dart`、`android/app/build.gradle.kts`、`tool/android/build_signed_release.ps1`：同步 `2.1.160+20160`。
 - `RELEASE_NOTES.md`、`UPDATE_DIALOG_COPY.md`、`lib/utils/version_history.dart`：增加普通用户可理解的测试版更新说明。
 - `test/release_config_contract_test.dart`、`test/version_consistency_test.dart`、`test/version_history_current_test.dart`、`test/android_release_packaging_test.dart`、`test/android_tv_release_contract_test.dart`、`test/identity_v2_zero_residue_test.dart`：同步版本和发布契约。
@@ -413,24 +413,20 @@ git commit -m '功能：定义低速提示关闭规则'
 - Modify: `lib/pages/video/video_page.dart:46,218,700`
 - Modify: `test/quark_relay_status_ui_test.dart:75`
 
-- [ ] **Step 1：先写页面接线失败测试**
+- [ ] **Step 1：先写页面行为失败测试**
 
-在 `test/quark_relay_status_ui_test.dart` 增加：
+在 `test/quark_relay_status_ui_test.dart` 增加真实 Widget 测试。测试使用最小 `VideoPage` harness 注入可变更的中转状态和媒体 identity，不读取生产源码，也不依赖专用测试标记：
 
 ```dart
-test('播放器允许只隐藏当前视频的低速提示', () {
-  final page = File('lib/pages/video/video_page.dart').readAsStringSync();
-
-  expect(page, contains('CloudRelayStatusDismissal'));
-  expect(page, contains('_relayStatusDismissal.hides'));
-  expect(
-    page,
-    contains("const ValueKey<String>('cloud-relay-dismiss-button')"),
-  );
-  expect(page, contains("tooltip: '隐藏本视频低速提示'"));
-  expect(page, contains('ignoring: !visible'));
+testWidgets('低速提示具备语义且关闭只影响当前视频', (tester) async {
+  // 注入 degraded 状态并 pump VideoPage。
+  // 按 tooltip 找到关闭按钮，确认可点击语义。
+  // 点击后低速提示透明，但 reconnecting/failed 仍可见。
+  // 切换媒体 identity 后，degraded 提示恢复可见。
 });
 ```
+
+最终真实测试入口：`test/quark_relay_status_ui_test.dart`。
 
 - [ ] **Step 2：运行测试并确认接线尚不存在**
 
@@ -440,7 +436,7 @@ Run:
 D:\flutter\bin\flutter.bat test --no-pub test/quark_relay_status_ui_test.dart
 ```
 
-Expected: FAIL，缺少 `CloudRelayStatusDismissal` 页面接线或关闭按钮 key。
+Expected: FAIL，关闭后的可见性、重连/失败状态或切换媒体后恢复行为尚未满足。
 
 - [ ] **Step 3：增加当前播放身份与关闭状态**
 
@@ -543,7 +539,6 @@ return IgnorePointer(
             ),
             if (presentation?.dismissible == true)
               IconButton(
-                key: const ValueKey<String>('cloud-relay-dismiss-button'),
                 tooltip: '隐藏本视频低速提示',
                 color: foregroundColor,
                 visualDensity: VisualDensity.compact,
@@ -562,7 +557,7 @@ return IgnorePointer(
 );
 ```
 
-- [ ] **Step 5：格式化并确认页面契约转绿**
+- [ ] **Step 5：格式化并确认页面行为测试转绿**
 
 Run:
 
@@ -595,29 +590,21 @@ git commit -m '功能：允许隐藏当前视频低速提示'
 - Modify: `lib/pages/player/smallest_player_item_panel.dart:475`
 - Modify: `test/quark_relay_status_ui_test.dart:75`
 
-- [ ] **Step 1：先写两套控制栏接线失败测试**
+- [ ] **Step 1：先写两套控制栏布局失败测试**
 
-在 `test/quark_relay_status_ui_test.dart` 增加：
+在 `test/quark_relay_status_ui_test.dart` 的真实播放器控件 group 中，分别 pump 完整和紧凑控制栏，注入固定网速并使用窄宽度：
 
 ```dart
-test('完整和紧凑控制栏共用实时网速展示器', () {
-  final expectedKeys = <String>[
-    'full-player-network-speed',
-    'compact-player-network-speed',
-  ];
-  final paths = <String>[
-    'lib/pages/player/player_item_panel.dart',
-    'lib/pages/player/smallest_player_item_panel.dart',
-  ];
-
-  for (var index = 0; index < paths.length; index++) {
-    final source = File(paths[index]).readAsStringSync();
-    expect(source, contains('PlayerNetworkSpeedPresenter.present'));
-    expect(source, contains(expectedKeys[index]));
-    expect(source, contains('videoPageController.relayStatus'));
-  }
-});
+for (final compact in <bool>[false, true]) {
+  testWidgets('控制栏在窄宽度中将网速放在进度条下方', (tester) async {
+    // 注入 4.3 MB/s，pump 对应控制栏。
+    // 确认无 overflow/异常，网速文字只出现一次。
+    // 用实际坐标确认网速在 ProgressBar 下方且处于底部动画层内。
+  });
+}
 ```
+
+最终真实测试入口：`test/quark_relay_status_ui_test.dart`。
 
 - [ ] **Step 2：运行测试并确认控制栏尚未接入**
 
@@ -627,7 +614,7 @@ Run:
 D:\flutter\bin\flutter.bat test --no-pub test/quark_relay_status_ui_test.dart
 ```
 
-Expected: FAIL，两套文件均缺少 `PlayerNetworkSpeedPresenter.present`。
+Expected: FAIL，至少一套控制栏未显示网速、布局溢出，或网速不在进度条下方。
 
 - [ ] **Step 3：接入完整控制栏**
 
@@ -650,7 +637,6 @@ final networkSpeedText = PlayerNetworkSpeedPresenter.present(
 ```dart
 if (networkSpeedText != null)
   Padding(
-    key: const ValueKey<String>('full-player-network-speed'),
     padding: const EdgeInsets.fromLTRB(10, 4, 10, 0),
     child: Text(
       networkSpeedText,
@@ -702,7 +688,6 @@ Expanded(
       ),
       if (networkSpeedText != null)
         Padding(
-          key: const ValueKey<String>('compact-player-network-speed'),
           padding: const EdgeInsets.only(top: 4),
           child: Text(
             networkSpeedText,
@@ -1127,28 +1112,21 @@ Expected: exit code 0，输出 `No issues found!`。
 - Desktop output: `%USERPROFILE%\Desktop\看影音-2.1.160-测试版-安装程序.exe`
 - No install, no MSIX
 
-- [ ] **Step 1：构建 Windows Release**
-
-Run:
-
-```powershell
-chcp 65001 > $null
-D:\flutter\bin\flutter.bat build windows --release --no-pub
-```
-
-Expected: exit code 0，生成 `build\windows\x64\runner\Release\kanyingyin.exe`。
-
-- [ ] **Step 2：复用 Release 目录生成 Inno Setup 测试版安装器**
+- [ ] **Step 1：从任意 cwd 调用 worktree 标准脚本完成构建和打包**
 
 Run:
 
 ```powershell
 chcp 65001 > $null
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File tool\windows\build_exe_release.ps1 -SkipBuild
+  -File 'D:\KanYingYin\.worktrees\player-network-speed-ui\tool\windows\build_exe_release.ps1'
 ```
 
-Expected: 输出 `Version=2.1.160`、Release 主程序路径、桌面安装器路径、SHA-256 和实际签名状态；文件名精确为 `看影音-2.1.160-测试版-安装程序.exe`。
+Expected: 脚本从自身位置解析 worktree 项目根目录，校验 worktree 内 NuGet，清理旧 Release 与 CMake cache，在项目根目录执行 fresh Windows Release 构建，验证新鲜度后生成 Inno Setup 安装器。调用者 cwd 必须恢复，不得跳过构建阶段。
+
+- [ ] **Step 2：核对完整链路输出**
+
+Expected: 同一次脚本调用输出 `Version=2.1.160`、worktree Release 主程序路径、桌面安装器路径、SHA-256 和实际签名状态；文件名精确为 `看影音-2.1.160-测试版-安装程序.exe`。
 
 - [ ] **Step 3：独立核对主程序与安装器**
 
@@ -1156,7 +1134,7 @@ Run:
 
 ```powershell
 chcp 65001 > $null
-$releaseExe = 'D:\KanYingYin\build\windows\x64\runner\Release\kanyingyin.exe'
+$releaseExe = 'D:\KanYingYin\.worktrees\player-network-speed-ui\build\windows\x64\runner\Release\kanyingyin.exe'
 $installer = Join-Path $env:USERPROFILE `
   'Desktop\看影音-2.1.160-测试版-安装程序.exe'
 $release = Get-Item -LiteralPath $releaseExe
@@ -1326,7 +1304,14 @@ git add -- `
   test/version_history_current_test.dart `
   test/android_release_packaging_test.dart `
   test/android_tv_release_contract_test.dart `
-  test/identity_v2_zero_residue_test.dart
+  test/identity_v2_zero_residue_test.dart `
+  test/player_resource_lifecycle_test.dart `
+  test/windows_installer_contract_test.dart `
+  tool/windows/build_exe_release.ps1 `
+  tool/windows/prepare_nuget.ps1 `
+  tool/windows/installer/看影音测试版.iss `
+  docs/superpowers/specs/2026-08-15-player-network-speed-ui-design.md `
+  docs/superpowers/plans/2026-08-15-player-network-speed-ui.md
 git diff --cached --check
 git commit -m '修复：完善播放器网速测试版验证'
 ```

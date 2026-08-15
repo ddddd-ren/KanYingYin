@@ -18,7 +18,14 @@ void main() {
     expect(panel, contains('textFieldFocus.dispose()'));
     expect(smallestPanel, contains('textController.dispose()'));
     expect(videoPage, contains('keyboardFocus.dispose()'));
-    expect(videoPage, contains('scrollController.dispose()'));
+    expect(
+      'scrollController.dispose()'.allMatches(videoPage),
+      hasLength(1),
+    );
+    expect(
+      videoPage,
+      isNot(contains('observerController.controller?.dispose()')),
+    );
     expect(decoder, contains('decoder.dispose()'));
   });
 

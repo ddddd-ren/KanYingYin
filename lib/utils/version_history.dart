@@ -183,6 +183,7 @@ const List<VersionHistory> versionHistoryList = [
     date: '2026-08-15',
     isPrerelease: true,
     changes: [
+      'Android 手机 APK/AAB 已构建并交付，包级校验通过；本轮未安装到设备，真机播放与 UI 验收尚未完成。',
       'Windows 2.1.160 测试版与 Android 手机使用同一版本；播放网盘视频时，进度条下方会显示实时网速',
       '实时网速会随控制栏显示或隐藏，不影响本地视频播放',
       '网盘读取速度不足提示可以对当前视频关闭，切换视频后自动恢复',

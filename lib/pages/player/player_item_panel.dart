@@ -614,7 +614,6 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
               ),
               if (networkSpeedText != null)
                 Padding(
-                  key: const ValueKey<String>('full-player-network-speed'),
                   padding: const EdgeInsets.fromLTRB(10, 4, 10, 0),
                   child: Text(
                     networkSpeedText,

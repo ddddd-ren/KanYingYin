@@ -55,6 +55,46 @@ void main() {
     expect(source.toLowerCase(), isNot(contains('msix:create')));
   });
 
+  test('Windows 测试版构建固定校验 worktree 内的 NuGet', () {
+    final prepareScript = File(
+      'tool/windows/prepare_nuget.ps1',
+    ).readAsStringSync();
+    final buildScript =
+        File('tool/windows/build_exe_release.ps1').readAsStringSync();
+
+    expect(
+      prepareScript,
+      contains(
+        '751EE5E79481626A428C1241DC7F94BCA2739B32588E669715BC5FB54D8FB8A2',
+      ),
+    );
+    expect(prepareScript, contains('Get-AuthenticodeSignature'));
+    expect(prepareScript, contains('Microsoft Corporation'));
+    expect(prepareScript, contains('https://dist.nuget.org/'));
+    expect(buildScript, contains('prepare_nuget.ps1'));
+    expect(
+      buildScript,
+      contains(r'$env:PATH = "$nuGetDirectory;$originalPath"'),
+    );
+    expect(buildScript, contains(r'$env:PATH = $originalPath'));
+    expect(buildScript, contains(r'$cmakeCachePath'));
+    expect(buildScript, contains(r'$releaseDirectory'));
+    expect(buildScript, contains(r'$buildStartedAt'));
+    expect(buildScript, contains(r'$flutterApp'));
+    expect(buildScript, contains('Get-FileHash'));
+    expect(buildScript, contains('data\\app.so'));
+  });
+
+  test('Windows 测试版构建在项目根目录执行并恢复调用者目录', () {
+    final source =
+        File('tool/windows/build_exe_release.ps1').readAsStringSync();
+
+    expect(source, contains(r'Push-Location -LiteralPath $projectRoot'));
+    expect(source, contains(r'$locationPushed = $true'));
+    expect(source, contains(r'if ($locationPushed)'));
+    expect(source, contains('Pop-Location'));
+  });
+
   test('Windows 主程序和安装器使用相同的三段版本号', () {
     final runner = File('windows/runner/Runner.rc').readAsStringSync();
     final buildScript =

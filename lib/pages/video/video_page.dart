@@ -153,9 +153,6 @@ class _VideoPageState extends State<VideoPage>
       unawaited(Utils.exitFullScreen());
     }
     try {
-      observerController.controller?.dispose();
-    } catch (_) {}
-    try {
       animation.dispose();
     } catch (_) {}
     try {
@@ -729,7 +726,6 @@ class _VideoPageState extends State<VideoPage>
                 : Colors.white;
             final dismissButton = presentation?.dismissible == true
                 ? IconButton(
-                    key: const ValueKey<String>('cloud-relay-dismiss-button'),
                     tooltip: '隐藏本视频低速提示',
                     color: foregroundColor,
                     icon: const Icon(Icons.close_rounded, size: 18),

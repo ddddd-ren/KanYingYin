@@ -510,7 +510,6 @@ class _SmallestPlayerItemPanelState extends State<SmallestPlayerItemPanel> {
                 ),
                 if (networkSpeedText != null)
                   Padding(
-                    key: const ValueKey<String>('compact-player-network-speed'),
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       networkSpeedText,

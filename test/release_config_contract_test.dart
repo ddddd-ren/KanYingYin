@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 const _networkSpeedCopy = '播放网盘视频时，进度条下方会显示实时网速，控制栏收起后同步隐藏。';
+const _androidDeliveryBoundaryCopy =
+    'Android 手机 APK/AAB 已构建并交付，包级校验通过；本轮未安装到设备，真机播放与 UI 验收尚未完成。';
 
 void main() {
   test('当前发布配置为二点一六零 Windows 与 Android 手机测试版', () {
@@ -28,6 +30,7 @@ void main() {
     expect(currentReleaseNotes, contains('Android 手机'));
     expect(currentReleaseNotes, contains('EXE'));
     expect(currentReleaseNotes, contains(_networkSpeedCopy));
+    expect(currentReleaseNotes, contains(_androidDeliveryBoundaryCopy));
     for (final text in <String>[
       '进度条',
       '实时网速',
@@ -52,6 +55,7 @@ void main() {
     expect(updateDialogCopy, contains('2.1.160'));
     expect(updateDialogCopy, contains('20160'));
     expect(updateDialogCopy, contains(_networkSpeedCopy));
+    expect(updateDialogCopy, contains(_androidDeliveryBoundaryCopy));
     expect(updateDialogCopy, contains('Android TV 继续暂停'));
     for (final tvOnlyText in <String>[
       'Android TV',

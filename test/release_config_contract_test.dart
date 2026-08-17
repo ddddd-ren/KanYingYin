@@ -2,25 +2,25 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-const _episodeNameFixCopy = '修复网盘剧集已识别作品但逐集名称仍显示原文件名的问题。';
+const _episodeNameFixCopy = '修复手动保存剧集匹配后提示成功，但选集仍显示原文件名的问题。';
 const _androidDeliveryBoundaryCopy = 'Android 当前已交付版本：2.1.160 (20160，本轮不打包)';
 
 void main() {
-  test('当前发布配置为二点一六二 Windows 测试版', () {
+  test('当前发布配置为二点一六三 Windows 测试版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
-    final releaseNotesStart = releaseNotes.indexOf('## 2.1.162+20162');
-    final releaseNotesEnd = releaseNotes.indexOf('\n## 2.1.161+20161');
+    final releaseNotesStart = releaseNotes.indexOf('## 2.1.163+20163');
+    final releaseNotesEnd = releaseNotes.indexOf('\n## 2.1.162+20162');
     final currentReleaseNotes =
         releaseNotesStart >= 0 && releaseNotesEnd > releaseNotesStart
             ? releaseNotes.substring(releaseNotesStart, releaseNotesEnd)
             : '';
 
-    expect(pubspec, contains('version: 2.1.162+20162'));
-    expect(pubspec, contains('msix_version: 2.1.162.0'));
+    expect(pubspec, contains('version: 2.1.163+20163'));
+    expect(pubspec, contains('msix_version: 2.1.163.0'));
     expect(currentReleaseNotes, contains('Windows 测试版'));
-    expect(currentReleaseNotes, contains('2.1.162'));
+    expect(currentReleaseNotes, contains('2.1.163'));
     expect(
       currentReleaseNotes,
       contains('Android 当前已交付版本：2.1.160 (20160，本轮不打包)'),
@@ -31,11 +31,11 @@ void main() {
     expect(currentReleaseNotes, contains(_episodeNameFixCopy));
     expect(currentReleaseNotes, contains(_androidDeliveryBoundaryCopy));
     for (final text in <String>[
-      '网盘剧集',
+      '手动保存剧集匹配',
       '逐集名称',
-      'TMDB 独立作品',
-      '集数完全一致',
-      '真实多季度作品',
+      '原文件名',
+      '用户确认的新季度号',
+      '重新打开选集',
       '不会修改或删除',
     ]) {
       expect(currentReleaseNotes, contains(text));
@@ -51,7 +51,7 @@ void main() {
       updateDialogCopy,
       contains('本轮交付：Windows 测试版 EXE'),
     );
-    expect(updateDialogCopy, contains('2.1.162'));
+    expect(updateDialogCopy, contains('2.1.163'));
     expect(updateDialogCopy, contains('2.1.160'));
     expect(updateDialogCopy, contains(_episodeNameFixCopy));
     expect(updateDialogCopy, contains(_androidDeliveryBoundaryCopy));

@@ -5,11 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('二点一六二 Windows 测试版版本文案保持一致', () {
-    const expectedVersion = '2.1.162';
-    const expectedBuildNumber = '20162';
-    const expectedAndroidVersion = '2.1.162';
-    const expectedAndroidVersionCode = '20162';
+  test('二点一六三 Windows 测试版版本文案保持一致', () {
+    const expectedVersion = '2.1.163';
+    const expectedBuildNumber = '20163';
+    const expectedAndroidVersion = '2.1.163';
+    const expectedAndroidVersionCode = '20163';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final androidGradle =
@@ -128,11 +128,11 @@ void main() {
       currentVersionHistory
     ]) {
       for (final text in <String>[
-        '网盘剧集',
+        '手动保存剧集匹配',
+        '原文件名',
+        '用户确认的新季度号',
         '逐集名称',
-        'TMDB 独立作品',
-        '集数完全一致',
-        '映射回本地季度',
+        '重新打开选集',
         '不会修改或删除',
       ]) {
         expect(currentCopy, contains(text));

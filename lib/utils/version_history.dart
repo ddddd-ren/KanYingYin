@@ -179,6 +179,18 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.161',
+    date: '2026-08-17',
+    isPrerelease: true,
+    changes: [
+      'Windows 2.1.161 测试版修复夸克网盘季度目录内以“01 集名”“02 集名”开头的视频未被扫描为剧集的问题',
+      '支持季度目录中再嵌套同名子目录；重新扫描后，这类文件会按所在季度和文件名前缀恢复正确集号',
+      '集号开头的文件名只用于识别分集，不会把“01 自然的馈赠”等集名误当成作品名',
+      'Android 手机当前已交付版本仍为 2.1.160，本轮不打包',
+      '本次更新不会修改或删除，也不会改名、移动本地及个人网盘原始视频和字幕',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.160',
     date: '2026-08-15',
     isPrerelease: true,

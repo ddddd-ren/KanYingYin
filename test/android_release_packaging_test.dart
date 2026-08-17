@@ -29,7 +29,7 @@ void main() {
     );
   });
 
-  test('Android mobile Release 使用二点一六零测试版并使用本机环境签名', () {
+  test('Android mobile Release 使用二点一六一测试版并使用本机环境签名', () {
     final gradle = File('android/app/build.gradle.kts').readAsStringSync();
 
     for (final variable in const <String>[
@@ -47,13 +47,13 @@ void main() {
     expect(
       gradle,
       contains(
-        'val androidVersionName = "2.1.160"',
+        'val androidVersionName = "2.1.161"',
       ),
     );
     expect(
       gradle,
       contains(
-        'val androidVersionCode = 20160',
+        'val androidVersionCode = 20161',
       ),
     );
     expect(gradle, contains('create("mobile")'));
@@ -97,9 +97,9 @@ void main() {
     );
     expect(script, contains(r'$apkTarget = Join-Path $desktop'));
     expect(script, contains(r'$aabTarget = Join-Path $desktop'));
-    expect(script, contains(r"$androidVersion = '2.1.160'"));
-    expect(script, contains(r'$androidVersionCode = 20160'));
-    expect(script, contains('Windows pubspec 版本必须为 2.1.160+20160'));
+    expect(script, contains(r"$androidVersion = '2.1.161'"));
+    expect(script, contains(r'$androidVersionCode = 20161'));
+    expect(script, contains('Windows pubspec 版本必须为 2.1.161+20161'));
     expect(script, contains("[ValidateSet('mobile', 'tvTest')]"));
     expect(script, contains(r"[string]$Flavor = 'mobile'"));
     expect(script, contains(r'[switch]$ApkOnly'));

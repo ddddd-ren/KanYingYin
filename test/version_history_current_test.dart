@@ -5,6 +5,29 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一六一说明夸克季度目录集号开头文件扫描修复', () {
+    final entries = versionHistoryForCurrent('2.1.161');
+
+    expect(entries, hasLength(1));
+    expect(entries.single.version, '2.1.161');
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      'Windows',
+      '夸克网盘',
+      '季度目录',
+      '01 集名',
+      '同名子目录',
+      '正确集号',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+    for (final unsupportedClaim in <String>['已经扫描到', '保证匹配']) {
+      expect(changes, isNot(contains(unsupportedClaim)));
+    }
+  });
+
   test('二点一六零说明播放器网速展示和提示边界', () {
     final entries = versionHistoryForCurrent(
       '2.1.160',

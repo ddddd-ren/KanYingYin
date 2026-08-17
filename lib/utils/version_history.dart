@@ -179,6 +179,18 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.162',
+    date: '2026-08-17',
+    isPrerelease: true,
+    changes: [
+      'Windows 2.1.162 测试版修复网盘剧集已识别作品但逐集名称仍显示原文件名的问题',
+      '当本地只有一个季度、文件标记的季度号与 TMDB 独立作品的季度号不同且集数完全一致时，会自动取得正确季度的逐集名称并映射回本地季度',
+      '重新刮削可替换旧的季度摘要；真实多季度作品或集数不一致时不会自动改写季度号',
+      'Android 手机当前已交付版本仍为 2.1.160，本轮不打包',
+      '本次更新不会修改或删除，也不会改名、移动本地及个人网盘原始视频和字幕',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.161',
     date: '2026-08-17',
     isPrerelease: true,

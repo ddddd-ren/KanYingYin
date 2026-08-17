@@ -215,20 +215,30 @@ class CloudWorkTmdbService {
       candidate.mediaType,
       language: options.language,
     );
+    final seasonNumberMapping = _singleSeasonNumberMapping(work, fetched);
     final hydrated = await _engine.hydrateSeasons(
       fetched,
-      seasonNumbers: subject.seasonNumbers,
+      seasonNumbers: seasonNumberMapping == null
+          ? subject.seasonNumbers
+          : <int>[seasonNumberMapping.tmdbSeasonNumber],
       language: options.language,
     );
+    final normalizedHydrated = seasonNumberMapping == null
+        ? hydrated
+        : _remapSeasonNumber(hydrated, seasonNumberMapping);
+    final existingMetadata = seasonNumberMapping != null &&
+            subject.existingMetadata?.id == normalizedHydrated.id
+        ? _remapSeasonNumber(subject.existingMetadata!, seasonNumberMapping)
+        : subject.existingMetadata;
     var metadata = const TmdbMetadataMergePolicy().merge(
-      existing: subject.existingMetadata,
-      fetched: hydrated,
+      existing: existingMetadata,
+      fetched: normalizedHydrated,
       options: options,
       locks: subject.fieldLocks,
       matchConfidence: candidate.matchConfidence,
       // 作品记录需要保留完整季度资料，海报墙才能在跨目录归并后显示
       // 任意季度的 TMDB 海报；当前作品实际包含哪些季度由索引项决定。
-      existingSeasons: hydrated.mediaType == TmdbMediaType.tv
+      existingSeasons: normalizedHydrated.mediaType == TmdbMediaType.tv
           ? const <int>{}
           : existingSeasons,
     );
@@ -369,4 +379,70 @@ class CloudWorkTmdbService {
   static String _imageUrl(String value) => value.startsWith('http')
       ? value
       : 'https://image.tmdb.org/t/p/w500$value';
+}
+
+_SeasonNumberMapping? _singleSeasonNumberMapping(
+  CloudWorkIdentity work,
+  TmdbMetadata metadata,
+) {
+  if (metadata.mediaType != TmdbMediaType.tv || work.seasons.length != 1) {
+    return null;
+  }
+  final tmdbSeasons = metadata.seasons
+      .where((season) => season.seasonNumber > 0)
+      .toList(growable: false);
+  if (tmdbSeasons.length != 1) return null;
+
+  final localSeason = work.seasons.single;
+  final tmdbSeason = tmdbSeasons.single;
+  if (localSeason.seasonNumber <= 0 ||
+      localSeason.seasonNumber == tmdbSeason.seasonNumber) {
+    return null;
+  }
+  final localEpisodeCount = localSeason.episodes
+      .map((episode) => episode.episodeNumber)
+      .where((number) => number > 0)
+      .toSet()
+      .length;
+  if (localEpisodeCount == 0 ||
+      tmdbSeason.episodeCount <= 0 ||
+      localEpisodeCount != tmdbSeason.episodeCount) {
+    return null;
+  }
+  return _SeasonNumberMapping(
+    tmdbSeasonNumber: tmdbSeason.seasonNumber,
+    localSeasonNumber: localSeason.seasonNumber,
+  );
+}
+
+TmdbMetadata _remapSeasonNumber(
+  TmdbMetadata metadata,
+  _SeasonNumberMapping mapping,
+) {
+  return metadata.copyWith(
+    seasons: metadata.seasons.map((season) {
+      if (season.seasonNumber != mapping.tmdbSeasonNumber) return season;
+      return TmdbSeasonMetadata(
+        id: season.id,
+        seasonNumber: mapping.localSeasonNumber,
+        name: season.name,
+        episodeCount: season.episodeCount,
+        overview: season.overview,
+        airDate: season.airDate,
+        posterUrl: season.posterUrl,
+        posterCachePath: season.posterCachePath,
+        episodes: season.episodes,
+      );
+    }).toList(growable: false),
+  );
+}
+
+class _SeasonNumberMapping {
+  const _SeasonNumberMapping({
+    required this.tmdbSeasonNumber,
+    required this.localSeasonNumber,
+  });
+
+  final int tmdbSeasonNumber;
+  final int localSeasonNumber;
 }

@@ -6,11 +6,13 @@ import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
 import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/modules/media/media_name_analysis.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_poster_cache.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_tmdb_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_client_capabilities.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
@@ -266,6 +268,135 @@ void main() {
     expect(cache.stableIds, contains('${work.workKey}|season:2'));
   });
 
+  test('单季度独立续作按集数将 TMDB 第1季逐集资料映射到本地第2季', () async {
+    final work = _singleSeasonWork(
+      displayTitle: '古灵精探B',
+      localSeasonNumber: 2,
+      episodeCount: 25,
+    );
+    final client = _SingleSeasonTmdbClient(
+      detail: _singleSeasonDetails(episodeCount: 25),
+    );
+    final service = CloudWorkTmdbService(
+      repository: CloudWorkTmdbRepository(
+        storage: MemoryCloudWorkTmdbStorage(),
+      ),
+      indexRepository: CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      ),
+      client: client,
+    );
+
+    final outcome = await service.select(
+      work,
+      _candidate('古灵精探B'),
+      existingSeasons: const <int>{2},
+    );
+
+    expect(client.seasonCalls, <int>[1]);
+    expect(outcome.record.seasons, hasLength(1));
+    expect(outcome.record.seasons.single.seasonNumber, 2);
+    expect(outcome.record.seasons.single.episodes, hasLength(25));
+    expect(outcome.record.seasons.single.episodes.first.name, '真相初现');
+  });
+
+  test('单季度集数冲突时不改写 TMDB 季号', () async {
+    final work = _singleSeasonWork(
+      displayTitle: '古灵精探B',
+      localSeasonNumber: 2,
+      episodeCount: 24,
+    );
+    final client = _SingleSeasonTmdbClient(
+      detail: _singleSeasonDetails(episodeCount: 25),
+    );
+    final service = CloudWorkTmdbService(
+      repository: CloudWorkTmdbRepository(
+        storage: MemoryCloudWorkTmdbStorage(),
+      ),
+      indexRepository: CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      ),
+      client: client,
+    );
+
+    final outcome = await service.select(
+      work,
+      _candidate('古灵精探B'),
+      existingSeasons: const <int>{2},
+    );
+
+    expect(client.seasonCalls, <int>[2]);
+    expect(outcome.record.seasons.single.seasonNumber, 1);
+    expect(outcome.record.seasons.single.episodes, isEmpty);
+  });
+
+  test('重新刮削时用映射后的逐集资料替换旧 TMDB 季度摘要', () async {
+    final work = _singleSeasonWork(
+      displayTitle: '古灵精探B',
+      localSeasonNumber: 2,
+      episodeCount: 25,
+    );
+    final repository = CloudWorkTmdbRepository(
+      storage: MemoryCloudWorkTmdbStorage(),
+    );
+    final indexRepository = CloudMediaIndexRepository(
+      storage: MemoryCloudMediaIndexStorage(),
+    );
+    await repository.upsert(
+      CloudWorkTmdbRecord.matched(
+        sourceId: work.sourceId,
+        workKey: work.workKey,
+        workRootId: work.root.id,
+        workRootPath: work.root.remotePath,
+        remoteName: work.remoteName,
+        metadata: _singleSeasonDetails(episodeCount: 25),
+        checkedAt: DateTime.utc(2026, 8, 16),
+      ),
+    );
+    final service = CloudWorkTmdbService(
+      repository: repository,
+      indexRepository: indexRepository,
+      client: _SingleSeasonTmdbClient(
+        detail: _singleSeasonDetails(episodeCount: 25),
+      ),
+    );
+
+    final outcome = await service.select(
+      work,
+      _candidate('古灵精探B'),
+      existingSeasons: const <int>{2},
+    );
+
+    expect(outcome.record.seasons, hasLength(1));
+    expect(outcome.record.seasons.single.seasonNumber, 2);
+    expect(outcome.record.seasons.single.episodes, hasLength(25));
+  });
+
+  test('本地多季度作品不套用单季度季号映射', () async {
+    final work = _work(seasonNumbers: const <int>[1, 2]);
+    final client = _SingleSeasonTmdbClient(
+      detail: _singleSeasonDetails(episodeCount: 25),
+    );
+    final service = CloudWorkTmdbService(
+      repository: CloudWorkTmdbRepository(
+        storage: MemoryCloudWorkTmdbStorage(),
+      ),
+      indexRepository: CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      ),
+      client: client,
+    );
+
+    final outcome = await service.select(
+      work,
+      _candidate('规范剧名'),
+      existingSeasons: const <int>{1, 2},
+    );
+
+    expect(client.seasonCalls, unorderedEquals(<int>[1, 2]));
+    expect(outcome.record.seasons.single.seasonNumber, 1);
+  });
+
   test('共同分集文件标题作为回魂计的第一搜索候选', () async {
     final work = _work(
       displayTitle: 'The Resurrected',
@@ -387,6 +518,56 @@ CloudWorkIdentity _work({
           remoteDirectories: const <CloudFileEntry>[],
           episodes: const <CloudEpisodeIdentity>[],
         ),
+    ],
+  );
+}
+
+CloudWorkIdentity _singleSeasonWork({
+  required String displayTitle,
+  required int localSeasonNumber,
+  required int episodeCount,
+}) {
+  final root = CloudFileEntry(
+    id: 'single-season-work',
+    remotePath: '/视频/$displayTitle',
+    name: displayTitle,
+    size: 0,
+    modifiedAt: null,
+    isDirectory: true,
+  );
+  const workKey = 'quark-a|work|single-season-work';
+  return CloudWorkIdentity(
+    sourceId: 'quark-a',
+    workKey: workKey,
+    root: root,
+    remoteName: root.name,
+    displayTitle: displayTitle,
+    titleCandidates: <String>[displayTitle],
+    seasons: <CloudSeasonIdentity>[
+      CloudSeasonIdentity(
+        workKey: workKey,
+        seasonNumber: localSeasonNumber,
+        displayName: '$displayTitle 第 $localSeasonNumber 季',
+        remoteDirectories: const <CloudFileEntry>[],
+        episodes: <CloudEpisodeIdentity>[
+          for (var episode = 1; episode <= episodeCount; episode++)
+            CloudEpisodeIdentity(
+              entry: CloudFileEntry(
+                id: 'episode-$episode',
+                remotePath: '/视频/$displayTitle/episode-$episode.mp4',
+                name: 'episode-$episode.mp4',
+                size: 100,
+                modifiedAt: null,
+                isDirectory: false,
+              ),
+              remoteName: 'episode-$episode.mp4',
+              displayName: 'episode-$episode.mp4',
+              seasonNumber: localSeasonNumber,
+              episodeNumber: episode,
+              releaseTags: const MediaReleaseTags(),
+            ),
+        ],
+      ),
     ],
   );
 }
@@ -524,6 +705,23 @@ TmdbMetadata _details() => TmdbMetadata(
       ],
     );
 
+TmdbMetadata _singleSeasonDetails({required int episodeCount}) => TmdbMetadata(
+      id: 42,
+      mediaType: TmdbMediaType.tv,
+      title: '古灵精探B',
+      language: 'zh-CN',
+      matchedAt: DateTime.utc(2026, 8, 17),
+      matchConfidence: 1,
+      seasons: <TmdbSeasonMetadata>[
+        TmdbSeasonMetadata(
+          id: 100,
+          seasonNumber: 1,
+          name: '第 1 季',
+          episodeCount: episodeCount,
+        ),
+      ],
+    );
+
 class _FakeTmdbClient implements ITmdbClient {
   _FakeTmdbClient({required this.detail, required this.searches});
 
@@ -553,6 +751,70 @@ class _FakeTmdbClient implements ITmdbClient {
     searchedTypes.add(mediaType);
     return searches[query] ?? const <TmdbMetadata>[];
   }
+}
+
+class _SingleSeasonTmdbClient implements ITmdbClient, ITmdbClientCapabilities {
+  _SingleSeasonTmdbClient({required this.detail});
+
+  final TmdbMetadata detail;
+  final List<int> seasonCalls = <int>[];
+
+  @override
+  Future<TmdbMetadata> details(
+    int id,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) async =>
+      detail;
+
+  @override
+  Future<TmdbSeasonMetadata> seasonDetails(
+    int id,
+    int seasonNumber, {
+    String language = 'zh-CN',
+  }) async {
+    seasonCalls.add(seasonNumber);
+    if (seasonNumber != 1) throw StateError('TMDB 不存在该季度');
+    return TmdbSeasonMetadata(
+      id: 100,
+      seasonNumber: 1,
+      name: '第 1 季',
+      episodeCount: 25,
+      episodes: <TmdbEpisodeMetadata>[
+        for (var episode = 1; episode <= 25; episode++)
+          TmdbEpisodeMetadata(
+            id: 1000 + episode,
+            episodeNumber: episode,
+            name: episode == 1 ? '真相初现' : '第 $episode 集',
+          ),
+      ],
+    );
+  }
+
+  @override
+  Future<List<TmdbMetadata>> search(
+    String query,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) async =>
+      const <TmdbMetadata>[];
+
+  @override
+  Future<TmdbSearchPage> searchPage(
+    String query,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+    required int page,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<String>> alternativeTitles(
+    int id,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) async =>
+      const <String>[];
 }
 
 class _RecordingPosterCache extends CloudPosterCache {

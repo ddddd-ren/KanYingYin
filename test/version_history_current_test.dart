@@ -5,20 +5,21 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一六一说明夸克季度目录集号开头文件扫描修复', () {
-    final entries = versionHistoryForCurrent('2.1.161');
+  test('二点一六二说明单季度独立续作逐集名称映射修复', () {
+    final entries = versionHistoryForCurrent('2.1.162');
 
     expect(entries, hasLength(1));
-    expect(entries.single.version, '2.1.161');
+    expect(entries.single.version, '2.1.162');
     expect(entries.single.isPrerelease, isTrue);
     final changes = entries.single.changes.join('\n');
     for (final text in <String>[
       'Windows',
-      '夸克网盘',
-      '季度目录',
-      '01 集名',
-      '同名子目录',
-      '正确集号',
+      '网盘剧集',
+      '逐集名称',
+      'TMDB 独立作品',
+      '集数完全一致',
+      '映射回本地季度',
+      '真实多季度作品',
       '不会修改或删除',
     ]) {
       expect(changes, contains(text));

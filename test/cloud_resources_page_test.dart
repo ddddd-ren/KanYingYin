@@ -27,6 +27,7 @@ import 'package:kanyingyin/repositories/cloud_media_tag_repository.dart';
 import 'package:kanyingyin/repositories/cloud_episode_match_rule_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
+import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_indexer.dart';
@@ -35,6 +36,8 @@ import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_coordinator.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
+import 'package:kanyingyin/services/cloud/cloud_work_tmdb_coordinator.dart';
+import 'package:kanyingyin/services/cloud/cloud_work_tmdb_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
@@ -436,6 +439,114 @@ void main() {
     expect(updated.tmdbTitle, '异世界悠闲农家');
     expect(updated.displayName, '异世界悠闲农家 S03E02 第一位村民.mkv');
     expect(await ruleRepository.getBySource(_quarkSource.id), hasLength(1));
+    controller.dispose();
+  });
+
+  test('单季度手动改选 TMDB 季度后作品同步使用新的季度号', () async {
+    final credentials = MemoryCloudCredentialStore();
+    final sourceRepository = CloudSourceRepository(
+      storage: MemoryCloudSourceStorage(),
+      credentialStore: credentials,
+    );
+    await sourceRepository.save(_quarkSource);
+    final indexRepository = CloudMediaIndexRepository(
+      storage: MemoryCloudMediaIndexStorage(),
+    );
+    const video = CloudFileEntry(
+      id: 'episode-1',
+      remotePath: '/影视/古灵精探B/第 2 季/古灵精探B.S02E01.mp4',
+      name: '古灵精探B.S02E01.mp4',
+      size: 200,
+      modifiedAt: null,
+      isDirectory: false,
+    );
+    await indexRepository.replaceSource(
+      _quarkSource.id,
+      const <CloudMediaIndexItem>[
+        CloudMediaIndexItem(
+          sourceId: 'quark-source',
+          remoteId: 'episode-1',
+          remotePath: '/影视/古灵精探B/第 2 季/古灵精探B.S02E01.mp4',
+          name: '古灵精探B.S02E01.mp4',
+          workKey: 'quark-source|work|work-root',
+          workRootId: 'work-root',
+          workRootPath: '/影视/古灵精探B',
+          size: 200,
+          modifiedAt: null,
+          seriesName: '古灵精探B',
+          seasonNumber: 2,
+          episodeNumber: 1,
+          mediaType: CloudMediaType.episode,
+        ),
+      ],
+      const <String, String>{},
+      const <String, List<CloudFileEntry>>{
+        '/影视': <CloudFileEntry>[
+          CloudFileEntry(
+            id: 'work-root',
+            remotePath: '/影视/古灵精探B',
+            name: '古灵精探B',
+            size: 0,
+            modifiedAt: null,
+            isDirectory: true,
+          ),
+        ],
+        '/影视/古灵精探B': <CloudFileEntry>[
+          CloudFileEntry(
+            id: 'season-2',
+            remotePath: '/影视/古灵精探B/第 2 季',
+            name: '第 2 季',
+            size: 0,
+            modifiedAt: null,
+            isDirectory: true,
+          ),
+        ],
+        '/影视/古灵精探B/第 2 季': <CloudFileEntry>[video],
+      },
+      const <String>['/影视'],
+    );
+    final episodeService = CloudEpisodeMatchService(
+      ruleRepository: CloudEpisodeMatchRuleRepository(
+        storage: MemoryCloudEpisodeMatchRuleStorage(),
+      ),
+      indexRepository: indexRepository,
+    );
+    final workCoordinator = _ManualWorkTmdbCoordinator(indexRepository);
+    final controller = CloudResourcesController(
+      repository: sourceRepository,
+      credentialStore: credentials,
+      mediaIndexRepository: indexRepository,
+      workTmdbCoordinator: workCoordinator,
+      episodeMatchService: episodeService,
+      tmdbApiKeyProvider: TmdbApiKeyProvider(userKeyReader: () => 'key'),
+      tmdbClientContextRegistry: TmdbClientContextRegistry(
+        clientFactory: (_) => _SeasonOneManualEpisodeTmdbClient(),
+      ),
+      minRecognizedVideoSizeBytesProvider: () => 0,
+    );
+    await controller.reloadSourcesAndSnapshot(
+      preferredSourceId: _quarkSource.id,
+    );
+    final group = controller.collection.groups.single;
+    expect(controller.works, hasLength(1));
+    expect(controller.works.single.seasons.single.seasonNumber, 2);
+    expect(group.workKeys, contains(controller.works.single.workKey));
+    final matchController =
+        await controller.manualEpisodeMatchControllerForGroup(
+      group: group,
+      selectedSeries: _seasonOneManualEpisodeMetadata(summaryOnly: true),
+    );
+    await matchController.initialize();
+    matchController.assignEpisode('episode-1', 1);
+
+    await controller.saveManualEpisodeAssignments(
+      group: group,
+      assignments: matchController.assignments,
+      metadata: matchController.metadata,
+      selectedSeasonNumber: 1,
+    );
+
+    expect(workCoordinator.selectedWork?.seasons.single.seasonNumber, 1);
     controller.dispose();
   });
 
@@ -2827,6 +2938,127 @@ TmdbMetadata _manualEpisodeMetadata({required bool summaryOnly}) {
       ),
     ],
   );
+}
+
+TmdbMetadata _seasonOneManualEpisodeMetadata({required bool summaryOnly}) {
+  return TmdbMetadata(
+    id: 7694,
+    mediaType: TmdbMediaType.tv,
+    title: '古灵精探B',
+    language: 'zh-CN',
+    matchedAt: DateTime.utc(2026, 8, 17),
+    matchConfidence: 1,
+    seasons: <TmdbSeasonMetadata>[
+      TmdbSeasonMetadata(
+        id: 1,
+        seasonNumber: 1,
+        name: '第 1 季',
+        episodeCount: 1,
+        episodes: summaryOnly
+            ? const <TmdbEpisodeMetadata>[]
+            : const <TmdbEpisodeMetadata>[
+                TmdbEpisodeMetadata(
+                  id: 11,
+                  episodeNumber: 1,
+                  name: '灵异奇案',
+                ),
+              ],
+      ),
+    ],
+  );
+}
+
+final class _ManualWorkTmdbCoordinator extends CloudWorkTmdbCoordinator {
+  _ManualWorkTmdbCoordinator(CloudMediaIndexRepository indexRepository)
+      : super(
+          repository: CloudWorkTmdbRepository(
+            storage: MemoryCloudWorkTmdbStorage(),
+          ),
+          legacyRepository: CloudResourceTmdbRepository(
+            storage: MemoryCloudResourceTmdbStorage(),
+          ),
+          indexRepository: indexRepository,
+          serviceFactory: (_) => throw UnimplementedError(),
+          apiKeyProvider: () => 'key',
+        );
+
+  CloudWorkIdentity? selectedWork;
+
+  @override
+  Future<void> loadAndSchedule(CloudMediaTree tree) async {}
+
+  @override
+  Future<CloudWorkTmdbSelectionOutcome> selectCandidate(
+    CloudWorkIdentity work,
+    TmdbMetadata candidate, {
+    TmdbScrapeOptions? options,
+  }) async {
+    selectedWork = work;
+    return CloudWorkTmdbSelectionOutcome(
+      record: CloudWorkTmdbRecord.matched(
+        sourceId: work.sourceId,
+        workKey: work.workKey,
+        workRootId: work.root.id,
+        workRootPath: work.root.remotePath,
+        remoteName: work.remoteName,
+        metadata: candidate,
+        checkedAt: DateTime.utc(2026, 8, 17),
+      ),
+      updatedIndexItems: 1,
+      posterCached: true,
+      indexSynced: true,
+    );
+  }
+}
+
+final class _SeasonOneManualEpisodeTmdbClient
+    implements ITmdbClient, ITmdbClientCapabilities {
+  @override
+  Future<TmdbMetadata> details(
+    int id,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) async =>
+      _seasonOneManualEpisodeMetadata(summaryOnly: true);
+
+  @override
+  Future<TmdbSeasonMetadata> seasonDetails(
+    int id,
+    int seasonNumber, {
+    String language = 'zh-CN',
+  }) async =>
+      _seasonOneManualEpisodeMetadata(summaryOnly: false).seasons.single;
+
+  @override
+  Future<List<TmdbMetadata>> search(
+    String query,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) async =>
+      <TmdbMetadata>[_seasonOneManualEpisodeMetadata(summaryOnly: true)];
+
+  @override
+  Future<TmdbSearchPage> searchPage(
+    String query,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+    required int page,
+  }) async =>
+      TmdbSearchPage(
+        page: page,
+        totalPages: 1,
+        results: <TmdbMetadata>[
+          _seasonOneManualEpisodeMetadata(summaryOnly: true),
+        ],
+      );
+
+  @override
+  Future<List<String>> alternativeTitles(
+    int id,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) async =>
+      const <String>[];
 }
 
 final class _ManualEpisodeTmdbClient

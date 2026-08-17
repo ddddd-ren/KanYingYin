@@ -981,7 +981,11 @@ class CloudResourcesController extends ChangeNotifier {
     if (workCoordinator != null && works.isNotEmpty) {
       for (final work in works) {
         await workCoordinator.selectCandidate(
-          work,
+          _workForManualEpisodeSelection(
+            work,
+            assignments: assignments,
+            selectedSeasonNumber: selectedSeasonNumber,
+          ),
           metadata,
           options: tmdbScrapeOptions.copyWith(
             mediaTypeMode: TmdbMediaTypeMode.tv,
@@ -1002,6 +1006,61 @@ class CloudResourcesController extends ChangeNotifier {
     _invalidateCollection();
     _notify();
     return outcome;
+  }
+
+  CloudWorkIdentity _workForManualEpisodeSelection(
+    CloudWorkIdentity work, {
+    required List<ManualEpisodeAssignment> assignments,
+    required int selectedSeasonNumber,
+  }) {
+    if (work.seasons.length != 1) return work;
+    final season = work.seasons.single;
+    if (season.seasonNumber == selectedSeasonNumber ||
+        season.episodes.isEmpty) {
+      return work;
+    }
+    final assignmentsById = <String, ManualEpisodeAssignment>{
+      for (final assignment in assignments) assignment.resourceId: assignment,
+    };
+    final remappedEpisodes = <CloudEpisodeIdentity>[];
+    for (final episode in season.episodes) {
+      final assignment = assignmentsById[episode.entry.id];
+      if (assignment?.mode != ManualEpisodeAssignmentMode.mapped ||
+          assignment?.seasonNumber != selectedSeasonNumber ||
+          assignment?.episodeNumber == null) {
+        return work;
+      }
+      remappedEpisodes.add(
+        CloudEpisodeIdentity(
+          entry: episode.entry,
+          remoteName: episode.remoteName,
+          displayName: episode.displayName,
+          seasonNumber: selectedSeasonNumber,
+          episodeNumber: assignment!.episodeNumber!,
+          releaseTags: episode.releaseTags,
+        ),
+      );
+    }
+    return CloudWorkIdentity(
+      sourceId: work.sourceId,
+      workKey: work.workKey,
+      root: work.root,
+      remoteName: work.remoteName,
+      displayTitle: work.displayTitle,
+      titleCandidates: work.titleCandidates,
+      seasons: <CloudSeasonIdentity>[
+        CloudSeasonIdentity(
+          workKey: season.workKey,
+          seasonNumber: selectedSeasonNumber,
+          displayName: '${work.displayTitle} 第 $selectedSeasonNumber 季',
+          remoteDirectories: season.remoteDirectories,
+          episodes: remappedEpisodes,
+          year: season.year,
+        ),
+      ],
+      standaloneVideos: work.standaloneVideos,
+      standaloneReleaseTags: work.standaloneReleaseTags,
+    );
   }
 
   Future<TmdbRankedResult> searchWorkTmdb(

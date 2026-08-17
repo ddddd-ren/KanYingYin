@@ -149,6 +149,98 @@ void main() {
       );
     });
 
+    test('季度目录递归识别集号开头并带集名的视频', () async {
+      final repository =
+          CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());
+      const sampleSource = CloudSource(
+        id: 'quark-a',
+        type: CloudSourceType.quark,
+        name: '夸克网盘',
+        baseUrl: '',
+        rootPaths: <String>['/视频'],
+      );
+      const workPath = '/视频/舌尖上的中国 1-4季';
+      const seasonName = '第一季（2012）全7集 国粤英三语 内封简繁英特效字幕 1080P';
+      const seasonPath = '$workPath/$seasonName';
+      const contentPath = '$seasonPath/$seasonName';
+      const season2Path = '$workPath/第二季';
+      final client = _FakeCloudClient(<String, List<CloudFileEntry>>{
+        '/视频': <CloudFileEntry>[_dir('work', workPath)],
+        workPath: <CloudFileEntry>[
+          _dir('season-1', seasonPath),
+          _dir('season-2', season2Path),
+        ],
+        seasonPath: <CloudFileEntry>[_dir('season-1-content', contentPath)],
+        contentPath: <CloudFileEntry>[
+          _file('s1e1', '$contentPath/01 自然的馈赠.mkv', size: 200),
+          _file('s1e2', '$contentPath/02 主食的故事.mkv', size: 200),
+        ],
+        season2Path: <CloudFileEntry>[
+          _file('s2e1', '$season2Path/舌尖上的中国.S02E01.mkv', size: 200),
+        ],
+      });
+
+      final result = await CloudMediaIndexer(
+        repository: repository,
+        minRecognizedVideoSizeBytesProvider: () => 100,
+      ).scan(source: sampleSource, client: client);
+      final items = await repository.getBySource(sampleSource.id);
+
+      expect(result.videoCount, 3);
+      expect(items, hasLength(3));
+      expect(items.map((item) => item.seasonNumber).toSet(), <int>{1, 2});
+      expect(
+        items
+            .where((item) => item.seasonNumber == 1)
+            .map((item) => item.episodeNumber),
+        orderedEquals(<int>[1, 2]),
+      );
+      expect(
+        items.map((item) => item.seriesName).toSet(),
+        <String>{'舌尖上的中国'},
+      );
+
+      final snapshot = await repository.snapshot(sampleSource.id);
+      await repository.replaceSource(
+        sampleSource.id,
+        <CloudMediaIndexItem>[
+          const CloudMediaIndexItem(
+            sourceId: 'quark-a',
+            remoteId: 's2e1',
+            remotePath: '$season2Path/舌尖上的中国.S02E01.mkv',
+            name: '舌尖上的中国.S02E01.mkv',
+            displayName: '舌尖上的中国 S02E01.mkv',
+            workKey: 'quark-a|work|work',
+            workRootId: 'work',
+            workRootPath: workPath,
+            size: 200,
+            modifiedAt: null,
+            seriesName: '舌尖上的中国',
+            seasonNumber: 2,
+            episodeNumber: 1,
+            mediaType: CloudMediaType.episode,
+            recognitionVersion: 12,
+          ),
+        ],
+        snapshot.fingerprints,
+        snapshot.directoryEntries,
+        snapshot.indexedRoots,
+      );
+
+      final cachedResult = await CloudMediaIndexer(
+        repository: repository,
+        minRecognizedVideoSizeBytesProvider: () => 100,
+      ).scan(source: sampleSource, client: client);
+      final refreshedItems = await repository.getBySource(sampleSource.id);
+
+      expect(cachedResult.skipped, 5);
+      expect(refreshedItems, hasLength(3));
+      expect(
+        refreshedItems.map((item) => item.seasonNumber).toSet(),
+        <int>{1, 2},
+      );
+    });
+
     test('透明中字目录只统计实际视频并按上级作品第一季索引', () async {
       final repository =
           CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());

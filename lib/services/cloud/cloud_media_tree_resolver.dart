@@ -83,6 +83,10 @@ class _ResolutionContext {
     r'^(.*?)[\s._-]+(\d{1,3})$',
     unicode: true,
   );
+  static final RegExp _leadingEpisodePattern = RegExp(
+    r'^(\d{1,3})[\s._-]+\S',
+    unicode: true,
+  );
 
   void discoverConfiguredRoot(String directoryPath) {
     final directoryName = p.posix.basename(directoryPath);
@@ -856,12 +860,17 @@ class _ResolutionContext {
         continue;
       }
       final episodeNumber = analysis.episodeNumber ?? parsed?.episodeNumber;
-      if (episodeNumber == null || episodeNumber <= 0) {
+      final leadingEpisodeNumber =
+          episodeNumber == null ? _leadingEpisodeNumber(entry.name) : null;
+      final resolvedEpisodeNumber = episodeNumber ?? leadingEpisodeNumber;
+      if (resolvedEpisodeNumber == null || resolvedEpisodeNumber <= 0) {
         _ignore(entry);
         continue;
       }
-      for (final candidate in analysis.titleCandidates) {
-        _addUnique(aliases, candidate);
+      if (leadingEpisodeNumber == null) {
+        for (final candidate in analysis.titleCandidates) {
+          _addUnique(aliases, candidate);
+        }
       }
       final parsedTitle = parsed?.seriesName.trim();
       if (parsedTitle != null && parsedTitle.isNotEmpty) {
@@ -870,7 +879,7 @@ class _ResolutionContext {
       episodes.add(
         _ParsedEpisode(
           entry: entry,
-          episodeNumber: episodeNumber,
+          episodeNumber: resolvedEpisodeNumber,
           releaseTags: _mergeReleaseTags(
             analysis.releaseTags,
             inheritedReleaseTags,
@@ -878,6 +887,12 @@ class _ResolutionContext {
         ),
       );
     }
+  }
+
+  int? _leadingEpisodeNumber(String fileName) {
+    final baseName = p.basenameWithoutExtension(fileName).trim();
+    final match = _leadingEpisodePattern.firstMatch(baseName);
+    return match == null ? null : int.tryParse(match.group(1)!);
   }
 
   void _resolveStandaloneFile(CloudFileEntry entry) {

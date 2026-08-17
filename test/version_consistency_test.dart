@@ -5,11 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('二点一六零 Windows 与 Android 手机测试版版本文案保持一致', () {
-    const expectedVersion = '2.1.160';
-    const expectedBuildNumber = '20160';
-    const expectedAndroidVersion = '2.1.160';
-    const expectedAndroidVersionCode = '20160';
+  test('二点一六一 Windows 测试版版本文案保持一致', () {
+    const expectedVersion = '2.1.161';
+    const expectedBuildNumber = '20161';
+    const expectedAndroidVersion = '2.1.161';
+    const expectedAndroidVersionCode = '20161';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final androidGradle =
@@ -73,8 +73,7 @@ void main() {
     expect(releaseNotes, contains('Windows EXE 安装器版本：$version'));
     expect(
       releaseNotes,
-      contains('APK/AAB 版本：$expectedAndroidVersion '
-          '($expectedAndroidVersionCode)'),
+      contains('Android 当前已交付版本：2.1.160 (20160，本轮不打包)'),
     );
     expect(readme, contains('| 当前版本 | 1.0.8 |'));
     expect(
@@ -86,15 +85,9 @@ void main() {
     expect(versionHistory, contains("version: '$version'"));
     expect(updateDialogCopy, contains('应用版本：$version'));
     expect(updateDialogCopy, contains('Windows EXE 安装器版本：$version'));
-    expect(updateDialogCopy, contains('Android 应用版本：$expectedAndroidVersion'));
-    expect(updateDialogCopy,
-        contains('Android versionCode：$expectedAndroidVersionCode'));
     expect(updateDialogCopy, contains('看影音 $version 测试版'));
     expect(updateDialogCopy, contains('Android 弹窗正文'));
-    expect(
-      updateDialogCopy,
-      contains('看影音 Android $expectedAndroidVersion 测试版'),
-    );
+    expect(updateDialogCopy, contains('Android 手机本轮不发布新版本'));
     final versionHistoryListStart = versionHistory.indexOf(
       'const List<VersionHistory> versionHistoryList',
     );
@@ -134,13 +127,11 @@ void main() {
       currentReleaseNotes,
       currentVersionHistory
     ]) {
-      expect(currentCopy, contains('Android 手机'));
       for (final text in <String>[
-        '进度条',
-        '实时网速',
-        '当前视频',
-        '重新连接',
-        '读取失败',
+        '夸克网盘',
+        '季度目录',
+        '01 集名',
+        '正确集号',
         '不会修改或删除',
       ]) {
         expect(currentCopy, contains(text));
@@ -159,10 +150,10 @@ void main() {
     expect(updateDialogCopy, contains('Windows 测试版 EXE'));
     expect(
       updateDialogCopy,
-      contains('本轮交付：Windows 测试版 EXE 与 Android 手机 APK/AAB'),
+      contains('本轮交付：Windows 测试版 EXE'),
     );
-    expect(currentReleaseNotes, isNot(contains('本轮不打包')));
-    for (final unsupportedClaim in <String>['网速提升', '保证达到']) {
+    expect(currentReleaseNotes, contains('本轮不打包'));
+    for (final unsupportedClaim in <String>['已经扫描到', '保证匹配']) {
       expect(currentReleaseNotes, isNot(contains(unsupportedClaim)));
       expect(currentVersionHistory, isNot(contains(unsupportedClaim)));
     }

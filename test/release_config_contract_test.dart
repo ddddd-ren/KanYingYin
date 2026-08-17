@@ -2,59 +2,57 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-const _networkSpeedCopy = '播放网盘视频时，进度条下方会显示实时网速，控制栏收起后同步隐藏。';
-const _androidDeliveryBoundaryCopy =
-    'Android 手机 APK/AAB 已构建并交付，包级校验通过；本轮未安装到设备，真机播放与 UI 验收尚未完成。';
+const _scanFixCopy = '修复夸克网盘季度目录内以“01 集名”“02 集名”开头的视频未被扫描为剧集的问题。';
+const _androidDeliveryBoundaryCopy = 'Android 当前已交付版本：2.1.160 (20160，本轮不打包)';
 
 void main() {
-  test('当前发布配置为二点一六零 Windows 与 Android 手机测试版', () {
+  test('当前发布配置为二点一六一 Windows 测试版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
-    final releaseNotesStart = releaseNotes.indexOf('## 2.1.160+20160');
-    final releaseNotesEnd = releaseNotes.indexOf('\n## 2.1.159+20159');
+    final releaseNotesStart = releaseNotes.indexOf('## 2.1.161+20161');
+    final releaseNotesEnd = releaseNotes.indexOf('\n## 2.1.160+20160');
     final currentReleaseNotes =
         releaseNotesStart >= 0 && releaseNotesEnd > releaseNotesStart
             ? releaseNotes.substring(releaseNotesStart, releaseNotesEnd)
             : '';
 
-    expect(pubspec, contains('version: 2.1.160+20160'));
-    expect(pubspec, contains('msix_version: 2.1.160.0'));
-    expect(currentReleaseNotes, contains('Windows 和 Android 手机测试版'));
-    expect(currentReleaseNotes, contains('2.1.160'));
+    expect(pubspec, contains('version: 2.1.161+20161'));
+    expect(pubspec, contains('msix_version: 2.1.161.0'));
+    expect(currentReleaseNotes, contains('Windows 测试版'));
+    expect(currentReleaseNotes, contains('2.1.161'));
     expect(
       currentReleaseNotes,
-      contains('APK/AAB 版本：2.1.160 (20160)'),
+      contains('Android 当前已交付版本：2.1.160 (20160，本轮不打包)'),
     );
     expect(currentReleaseNotes, contains('Windows'));
     expect(currentReleaseNotes, contains('Android 手机'));
     expect(currentReleaseNotes, contains('EXE'));
-    expect(currentReleaseNotes, contains(_networkSpeedCopy));
+    expect(currentReleaseNotes, contains(_scanFixCopy));
     expect(currentReleaseNotes, contains(_androidDeliveryBoundaryCopy));
     for (final text in <String>[
-      '进度条',
-      '实时网速',
-      '当前视频',
-      '重新连接',
-      '读取失败',
+      '夸克网盘',
+      '季度目录',
+      '同名子目录',
+      '正确集号',
       '不会修改或删除',
     ]) {
       expect(currentReleaseNotes, contains(text));
     }
     for (final unsupportedClaim in <String>[
-      '网速提升',
-      '保证达到',
+      '已经扫描到',
+      '保证匹配',
     ]) {
       expect(currentReleaseNotes, isNot(contains(unsupportedClaim)));
     }
     expect(updateDialogCopy, contains('Windows 测试版 EXE'));
     expect(
       updateDialogCopy,
-      contains('本轮交付：Windows 测试版 EXE 与 Android 手机 APK/AAB'),
+      contains('本轮交付：Windows 测试版 EXE'),
     );
+    expect(updateDialogCopy, contains('2.1.161'));
     expect(updateDialogCopy, contains('2.1.160'));
-    expect(updateDialogCopy, contains('20160'));
-    expect(updateDialogCopy, contains(_networkSpeedCopy));
+    expect(updateDialogCopy, contains(_scanFixCopy));
     expect(updateDialogCopy, contains(_androidDeliveryBoundaryCopy));
     expect(updateDialogCopy, contains('Android TV 继续暂停'));
     for (final tvOnlyText in <String>[

@@ -5,12 +5,12 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一六九说明海报和每个选集的媒体技术标签', () {
-    final entries = versionHistoryForCurrent('2.1.169');
+  test('一点零九正式版说明海报和每个选集的媒体技术标签', () {
+    final entries = versionHistoryForCurrent('1.0.9');
 
     expect(entries, hasLength(1));
-    expect(entries.single.version, '2.1.169');
-    expect(entries.single.isPrerelease, isTrue);
+    expect(entries.single.version, '1.0.9');
+    expect(entries.single.isPrerelease, isFalse);
     final changes = entries.single.changes.join('\n');
     for (final text in <String>['4K', '杜比视界', '选集', '不会修改或删除']) {
       expect(changes, contains(text));

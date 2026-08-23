@@ -2,48 +2,55 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-const _posterProxyCopy =
-    '改善 TMDB 海报的网络连接。部分网络可以正常获取影片资料，但无法直接下载海报；遇到这种情况时，可保持 Clash Verge 等本机代理在后台运行，并选择能够访问 TMDB 图片的节点。关闭系统代理不影响已经运行的本机代理，但完全退出代理软件后，海报可能再次无法加载。';
+const _technicalBadgeCopy =
+    '本地与个人网盘媒体海报现在常驻显示作品的最高规格标签，包括 4K、2K、1080P、杜比视界、HDR10+、HDR 和杜比全景声。';
+const _androidDeliveryBoundaryCopy = 'Android 正式版：1.0.5 (10005)';
 
 void main() {
-  test('当前发布配置为 Windows 一点零八正式版且 Android 本轮不打包', () {
+  test('当前发布配置为一点零九 Windows 和一点零五 Android 正式版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
-    final releaseNotesStart = releaseNotes.indexOf('## 1.0.8+10008');
-    final releaseNotesEnd = releaseNotes.indexOf('\n## 2.1.158+20158');
+    final releaseNotesStart = releaseNotes.indexOf('## 1.0.9+10009');
+    final releaseNotesEnd = releaseNotes.indexOf('\n## 2.1.169+20169');
     final currentReleaseNotes =
         releaseNotesStart >= 0 && releaseNotesEnd > releaseNotesStart
             ? releaseNotes.substring(releaseNotesStart, releaseNotesEnd)
             : '';
 
-    expect(pubspec, contains('version: 1.0.8+10008'));
-    expect(pubspec, contains('msix_version: 1.0.8.0'));
+    expect(pubspec, contains('version: 1.0.9+10009'));
+    expect(pubspec, contains('msix_version: 1.0.9.0'));
     expect(currentReleaseNotes, contains('Windows 正式版'));
-    expect(currentReleaseNotes, contains('1.0.8'));
-    expect(currentReleaseNotes, contains('1.0.4'));
-    expect(
-      currentReleaseNotes,
-      contains('Android 当前版本：1.0.4 (10004，本轮不打包)'),
-    );
+    expect(currentReleaseNotes, contains('1.0.9'));
+    expect(currentReleaseNotes, contains(_androidDeliveryBoundaryCopy));
     expect(currentReleaseNotes, contains('Windows'));
-    expect(currentReleaseNotes, contains('TMDB 海报'));
-    expect(currentReleaseNotes, contains('手动匹配'));
-    expect(currentReleaseNotes, contains('代理'));
-    expect(currentReleaseNotes, contains('不会修改、删除、改名或移动'));
+    expect(currentReleaseNotes, contains('Android 手机'));
     expect(currentReleaseNotes, contains('EXE'));
-    expect(currentReleaseNotes, contains(_posterProxyCopy));
+    expect(currentReleaseNotes, contains(_technicalBadgeCopy));
+    expect(currentReleaseNotes, contains(_androidDeliveryBoundaryCopy));
+    for (final text in <String>[
+      '4K',
+      '杜比视界',
+      '选集',
+      '播放器右侧选集',
+      '不会修改或删除',
+    ]) {
+      expect(currentReleaseNotes, contains(text));
+    }
+    for (final unsupportedClaim in <String>[
+      '已经扫描到',
+      '保证匹配',
+    ]) {
+      expect(currentReleaseNotes, isNot(contains(unsupportedClaim)));
+    }
     expect(updateDialogCopy, contains('Windows 正式版 EXE'));
-    expect(
-      updateDialogCopy,
-      contains('本轮交付：仅 Windows 正式版 EXE；不打包 Android'),
-    );
-    expect(updateDialogCopy, contains('1.0.8'));
-    expect(updateDialogCopy, contains('1.0.4'));
-    expect(updateDialogCopy, contains('10004'));
-    expect(updateDialogCopy, contains(_posterProxyCopy));
+    expect(updateDialogCopy, contains('本轮交付：Windows 正式版 EXE、Android 正式版 APK/AAB'));
+    expect(updateDialogCopy, contains('1.0.9'));
+    expect(updateDialogCopy, contains('1.0.5'));
+    expect(updateDialogCopy, contains(_technicalBadgeCopy));
+    expect(updateDialogCopy, contains(_androidDeliveryBoundaryCopy));
+    expect(updateDialogCopy, contains('Android TV 继续暂停'));
     for (final tvOnlyText in <String>[
-      'Android TV',
       'tvTest',
       '遥控器',
       '手机扫码配置',

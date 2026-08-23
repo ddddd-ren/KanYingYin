@@ -5,6 +5,75 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('一点零九正式版说明海报和每个选集的媒体技术标签', () {
+    final entries = versionHistoryForCurrent('1.0.9');
+
+    expect(entries, hasLength(1));
+    expect(entries.single.version, '1.0.9');
+    expect(entries.single.isPrerelease, isFalse);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>['4K', '杜比视界', '选集', '不会修改或删除']) {
+      expect(changes, contains(text));
+    }
+  });
+
+  test('二点一六七说明网盘海报状态保持稳定', () {
+    final entries = versionHistoryForCurrent('2.1.167');
+
+    expect(entries, hasLength(1));
+    expect(entries.single.version, '2.1.167');
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      'Windows',
+      '网盘资源',
+      '网盘资源的匹配状态或季度信息更新时',
+      '已经显示的海报保持不变',
+      '不再再次加载',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+    for (final unsupportedClaim in <String>['已经扫描到', '保证匹配']) {
+      expect(changes, isNot(contains(unsupportedClaim)));
+    }
+  });
+
+  test('二点一六零说明播放器网速展示和提示边界', () {
+    final entries = versionHistoryForCurrent(
+      '2.1.160',
+      platform: AppPlatformKind.android,
+    );
+
+    expect(entries, hasLength(1));
+    expect(entries.single.version, '2.1.160');
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      'Android 手机',
+      '进度条',
+      '实时网速',
+      '当前视频',
+      '重新连接',
+      '读取失败',
+      'APK/AAB 已构建并交付',
+      '包级校验通过',
+      '未安装到设备',
+      '真机播放与 UI 验收尚未完成',
+      '不会修改或删除',
+    ]) {
+      expect(changes, contains(text));
+    }
+    for (final unsupportedClaim in <String>[
+      '网速提升',
+      '保证达到',
+      'Android TV',
+      'tvTest',
+    ]) {
+      expect(changes, isNot(contains(unsupportedClaim)));
+    }
+  });
+
   test('一点零八正式版为 Android mobile 继续显示一点零四更新', () {
     final entries = versionHistoryForCurrent(
       '1.0.8',

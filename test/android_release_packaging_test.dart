@@ -4,7 +4,32 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Android mobile Release 使用独立正式版版本并使用本机环境签名', () {
+  test('Android Gradle 构建门禁与当前 pubspec 版本一致', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    final gradle = File('android/app/build.gradle.kts').readAsStringSync();
+    final packageVersion = RegExp(
+      r'^version:\s*(\d+\.\d+\.\d+)\+(\d+)$',
+      multiLine: true,
+    ).firstMatch(pubspec);
+
+    expect(packageVersion, isNotNull);
+    expect(
+      gradle,
+      contains(
+        'pubspecVersionMatch.groupValues[1] != '
+        '"${packageVersion!.group(1)}"',
+      ),
+    );
+    expect(
+      gradle,
+      contains(
+        'pubspecVersionMatch.groupValues[2] != '
+        '"${packageVersion.group(2)}"',
+      ),
+    );
+  });
+
+  test('Android mobile Release 使用一点零五版本契约并使用本机环境签名', () {
     final gradle = File('android/app/build.gradle.kts').readAsStringSync();
 
     for (final variable in const <String>[
@@ -22,13 +47,13 @@ void main() {
     expect(
       gradle,
       contains(
-        'val androidVersionName = "1.0.4"',
+        'val androidVersionName = "1.0.5"',
       ),
     );
     expect(
       gradle,
       contains(
-        'val androidVersionCode = 10004',
+        'val androidVersionCode = 10005',
       ),
     );
     expect(gradle, contains('create("mobile")'));
@@ -72,9 +97,9 @@ void main() {
     );
     expect(script, contains(r'$apkTarget = Join-Path $desktop'));
     expect(script, contains(r'$aabTarget = Join-Path $desktop'));
-    expect(script, contains(r"$androidVersion = '1.0.4'"));
-    expect(script, contains(r'$androidVersionCode = 10004'));
-    expect(script, contains('Windows pubspec 版本必须为 1.0.8+10008'));
+    expect(script, contains(r"$androidVersion = '1.0.5'"));
+    expect(script, contains(r'$androidVersionCode = 10005'));
+    expect(script, contains('Windows pubspec 版本必须为 1.0.9+10009'));
     expect(script, contains("[ValidateSet('mobile', 'tvTest')]"));
     expect(script, contains(r"[string]$Flavor = 'mobile'"));
     expect(script, contains(r'[switch]$ApkOnly'));

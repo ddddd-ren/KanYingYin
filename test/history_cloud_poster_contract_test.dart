@@ -19,5 +19,8 @@ void main() {
       RegExp(r'return CloudPosterImage\(').allMatches(posterSource),
       hasLength(1),
     );
+
+    expect(source, contains('findItemIndexCallback: (key)'));
+    expect(source, contains("const prefix = 'history-entry-'"));
   });
 }

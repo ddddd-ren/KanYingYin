@@ -70,6 +70,19 @@ void main() {
     expect(source, isNot(contains('SettingBoxKey.lastSeenVersion')));
   });
 
+  test('当前版本下方提供 GitHub 正式版手动检查入口', () {
+    final source = File('lib/pages/about/about_page.dart').readAsStringSync();
+    final currentVersionIndex = source.indexOf("'当前版本'");
+    final checkUpdateIndex = source.indexOf("'检查更新'");
+    final updateNotesIndex = source.indexOf("'更新说明'");
+
+    expect(checkUpdateIndex, greaterThan(currentVersionIndex));
+    expect(updateNotesIndex, greaterThan(checkUpdateIndex));
+    expect(source, contains("'从 GitHub 检查最新正式版本'"));
+    expect(source, contains('Modular.get<AppUpdateFlow>().runManual()'));
+    expect(source, contains('_checkingUpdate'));
+  });
+
   test('持续集成仅保留 Windows 质量门禁与发布', () {
     for (final workflowPath in [
       '.github/workflows/pr.yaml',

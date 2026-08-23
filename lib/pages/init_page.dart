@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/core/app_version.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
+import 'package:kanyingyin/features/app_update/presentation/app_update_flow.dart';
 import 'package:kanyingyin/features/version/presentation/version_changelog_dialog.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/utils/version_history.dart';
@@ -38,6 +39,16 @@ Future<void> runInitStartupSequence({
   navigateToDefaultPage();
 }
 
+Future<void> runPostNavigationStartupSequence({
+  required Future<void> Function() delayUntilPageReady,
+  required Future<void> Function() showVersionChangelog,
+  required Future<void> Function() checkForUpdates,
+}) async {
+  await delayUntilPageReady();
+  await showVersionChangelog();
+  await checkForUpdates();
+}
+
 class InitPage extends StatefulWidget {
   const InitPage({super.key});
 
@@ -70,9 +81,13 @@ class _InitPageState extends State<InitPage> {
       ),
     );
 
-    // delay to ensure that the default page is fully loaded
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    _showVersionChangelog();
+    await runPostNavigationStartupSequence(
+      // 等待默认页面完成首次布局，避免全局弹窗挂载到初始化页。
+      delayUntilPageReady: () =>
+          Future<void>.delayed(const Duration(milliseconds: 500)),
+      showVersionChangelog: _showVersionChangelog,
+      checkForUpdates: () => Modular.get<AppUpdateFlow>().runAutomatic(),
+    );
   }
 
   Future<void> _runPreloadedImport() async {
@@ -160,7 +175,7 @@ class _InitPageState extends State<InitPage> {
     }
   }
 
-  void _showVersionChangelog() {
+  Future<void> _showVersionChangelog() async {
     final lastSeenVersion =
         setting.get(SettingBoxKey.lastSeenVersion, defaultValue: '');
     final currentVersion = AppVersion.current;
@@ -176,7 +191,7 @@ class _InitPageState extends State<InitPage> {
     // 更新 lastSeenVersion
     setting.put(SettingBoxKey.lastSeenVersion, currentVersion);
 
-    AppDialog.show<void>(
+    await AppDialog.show<void>(
       builder: (context) => VersionChangelogDialog(versions: newVersions),
     );
   }

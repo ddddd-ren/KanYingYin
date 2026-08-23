@@ -3,6 +3,7 @@ import 'package:kanyingyin/features/settings/presentation/settings_presentation.
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/core/app_version.dart';
+import 'package:kanyingyin/features/app_update/presentation/app_update_flow.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/features/version/presentation/version_changelog_dialog.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
@@ -27,6 +28,7 @@ class _AboutPageState extends State<AboutPage> {
     defaultValue: 2,
   );
   double _cacheSizeMB = -1;
+  bool _checkingUpdate = false;
   final MenuController menuController = MenuController();
   late final LocalImageCacheService _cacheService;
 
@@ -109,6 +111,16 @@ class _AboutPageState extends State<AboutPage> {
     AppDialog.show<void>(
       builder: (context) => VersionChangelogDialog(versions: versions),
     );
+  }
+
+  Future<void> _checkForUpdates() async {
+    if (_checkingUpdate) return;
+    setState(() => _checkingUpdate = true);
+    try {
+      await Modular.get<AppUpdateFlow>().runManual();
+    } finally {
+      if (mounted) setState(() => _checkingUpdate = false);
+    }
   }
 
   @override
@@ -223,6 +235,20 @@ class _AboutPageState extends State<AboutPage> {
                     AppVersion.current,
                     style: TextStyle(fontFamily: fontFamily),
                   ),
+                ),
+                KSettingsTile<void>.navigation(
+                  onPressed: (_) => _checkForUpdates(),
+                  title: Text('检查更新', style: TextStyle(fontFamily: fontFamily)),
+                  description: Text(
+                    '从 GitHub 检查最新正式版本',
+                    style: TextStyle(fontFamily: fontFamily),
+                  ),
+                  value: _checkingUpdate
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : null,
                 ),
                 KSettingsTile<void>.navigation(
                   onPressed: (_) => _showCurrentVersionChangelog(),

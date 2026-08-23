@@ -62,6 +62,7 @@ class UnifiedMediaCardInfoBuilder {
             if (episode.localItem != null) episode.localItem!.path,
             if (episode.remotePath != null) episode.remotePath!,
           ],
+          releaseTags: [episode.releaseTags],
           resolution: episode.localItem?.resolution,
           videoWidth: episode.localItem?.videoWidth,
           videoHeight: episode.localItem?.videoHeight,

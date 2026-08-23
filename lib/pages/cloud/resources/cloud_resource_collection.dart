@@ -504,6 +504,7 @@ class CloudResourceCollectionGrouper {
         seasonNumber: item.seasonNumber,
         episodeNumber: item.episodeNumber,
         variantLabel: variantLabel,
+        releaseTags: item.releaseTags,
       );
     }).toList(growable: false);
   }
@@ -929,6 +930,7 @@ class _CloudResourceMediaGroupBuilder {
       seasonNumber: entry.seasonNumber,
       episodeNumber: entry.episodeNumber,
       variantLabel: entry.variantLabel,
+      releaseTags: entry.releaseTags,
     );
   }
 

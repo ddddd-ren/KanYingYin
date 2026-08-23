@@ -1,4 +1,5 @@
 import 'package:kanyingyin/services/media_name_analyzer.dart';
+import 'package:kanyingyin/modules/media/media_name_analysis.dart';
 
 enum MediaTechnicalBadgeKind {
   resolution,
@@ -31,16 +32,18 @@ class MediaTechnicalBadgeResolver {
     String? resolution,
     int? videoWidth,
     int? videoHeight,
+    Iterable<MediaReleaseTags> releaseTags = const <MediaReleaseTags>[],
   }) {
     final sources =
         names.where((name) => name.trim().isNotEmpty).toList(growable: false);
-    final parsed = sources
+    final parsedFromNames = sources
         .map(
           (name) => const MediaNameAnalyzer()
               .analyze(name, isDirectory: false)
               .releaseTags,
         )
         .toList(growable: false);
+    final parsed = <MediaReleaseTags>[...parsedFromNames, ...releaseTags];
     final hasDimensions = videoWidth != null &&
         videoHeight != null &&
         videoWidth > 0 &&

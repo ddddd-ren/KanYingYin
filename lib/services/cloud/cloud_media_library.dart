@@ -3,6 +3,7 @@ import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/modules/media/media_name_analysis.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_grouping_metadata.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
@@ -35,6 +36,7 @@ class MediaLibraryEpisode {
     this.episodeNumber,
     this.subtitleRemotePaths = const <String>[],
     this.subtitleRemoteRefs = const <CloudRemoteRef>[],
+    this.releaseTags = const MediaReleaseTags(),
   });
 
   factory MediaLibraryEpisode.local({
@@ -79,6 +81,7 @@ class MediaLibraryEpisode {
     int? episodeNumber,
     List<String> subtitleRemotePaths = const <String>[],
     List<CloudRemoteRef> subtitleRemoteRefs = const <CloudRemoteRef>[],
+    MediaReleaseTags releaseTags = const MediaReleaseTags(),
   }) {
     if (sourceId.isEmpty ||
         remoteId.isEmpty ||
@@ -108,6 +111,7 @@ class MediaLibraryEpisode {
       episodeNumber: episodeNumber,
       subtitleRemotePaths: subtitleRemotePaths,
       subtitleRemoteRefs: subtitleRemoteRefs,
+      releaseTags: releaseTags,
     );
   }
 
@@ -133,6 +137,7 @@ class MediaLibraryEpisode {
   final int? episodeNumber;
   final List<String> subtitleRemotePaths;
   final List<CloudRemoteRef> subtitleRemoteRefs;
+  final MediaReleaseTags releaseTags;
 }
 
 class MediaLibrarySeries {

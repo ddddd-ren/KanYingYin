@@ -13,23 +13,11 @@ void main() {
     ).firstMatch(pubspec);
 
     expect(packageVersion, isNotNull);
-    expect(
-      gradle,
-      contains(
-        'pubspecVersionMatch.groupValues[1] != '
-        '"${packageVersion!.group(1)}"',
-      ),
-    );
-    expect(
-      gradle,
-      contains(
-        'pubspecVersionMatch.groupValues[2] != '
-        '"${packageVersion.group(2)}"',
-      ),
-    );
+    expect(gradle, contains('val androidVersionName = pubspecVersionMatch.groupValues[1]'));
+    expect(gradle, contains('val androidVersionCode = pubspecVersionMatch.groupValues[2].toInt()'));
   });
 
-  test('Android mobile Release 使用一点零五版本契约并使用本机环境签名', () {
+  test('Android mobile Release 使用当前版本契约并使用本机环境签名', () {
     final gradle = File('android/app/build.gradle.kts').readAsStringSync();
 
     for (final variable in const <String>[
@@ -45,17 +33,13 @@ void main() {
     expect(gradle, contains('proguard-rules.pro'));
     expect(gradle, isNot(contains('signingConfigs.getByName("debug")')));
     expect(
-      gradle,
-      contains(
-        'val androidVersionName = "1.0.5"',
-      ),
-    );
+        gradle,
+        contains(
+            'val androidVersionName = pubspecVersionMatch.groupValues[1]'));
     expect(
-      gradle,
-      contains(
-        'val androidVersionCode = 10005',
-      ),
-    );
+        gradle,
+        contains(
+            'val androidVersionCode = pubspecVersionMatch.groupValues[2].toInt()'));
     expect(gradle, contains('create("mobile")'));
     expect(gradle, contains('create("tvTest")'));
     expect(gradle, contains('versionCode = androidVersionCode'));
@@ -97,9 +81,8 @@ void main() {
     );
     expect(script, contains(r'$apkTarget = Join-Path $desktop'));
     expect(script, contains(r'$aabTarget = Join-Path $desktop'));
-    expect(script, contains(r"$androidVersion = '1.0.5'"));
-    expect(script, contains(r'$androidVersionCode = 10005'));
-    expect(script, contains('Windows pubspec 版本必须为 1.0.9+10009'));
+    expect(script, contains(r'$androidVersion = $pubspecVersion.Name'));
+    expect(script, contains(r'$androidVersionCode = $pubspecVersion.Code'));
     expect(script, contains("[ValidateSet('mobile', 'tvTest')]"));
     expect(script, contains(r"[string]$Flavor = 'mobile'"));
     expect(script, contains(r'[switch]$ApkOnly'));

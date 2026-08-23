@@ -87,6 +87,19 @@ const VersionHistory _androidFifthRelease = VersionHistory(
   ],
 );
 
+const VersionHistory _androidSixthRelease = VersionHistory(
+  version: '1.0.5',
+  date: '2026-08-24',
+  changes: [
+    'Android 1.0.5 正式版综合近期移动端更新，支持高刷新率界面、实时网速显示和当前视频低速提示关闭',
+    '季度目录和逐集名称识别更加稳定，手动匹配结果会保留；电影、动漫和电视剧分类继续按媒体类型展示',
+    'OpenList 使用账号或令牌时要求 HTTPS；网盘海报优先使用稳定缓存，减少重复加载和白色占位',
+    '选集和播放器会显示 4K、杜比视界、HDR10+、HDR 和杜比全景声等媒体技术标签',
+    'TMDB 海报暂时获取失败时仍保留标题、简介、评分和季集资料，不影响扫描、浏览和播放',
+    '本次更新不会修改或删除，也不会改名、移动本地及个人网盘原始视频和字幕',
+  ],
+);
+
 const VersionHistory _androidAdaptiveQuarkSystemBarsPrerelease = VersionHistory(
   version: '2.1.103',
   date: '2026-08-03',
@@ -178,6 +191,19 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 );
 
 const List<VersionHistory> versionHistoryList = [
+  VersionHistory(
+    version: '1.0.9',
+    date: '2026-08-24',
+    changes: [
+      'Windows 1.0.9 正式版综合 2.1.159 至 2.1.169 测试版更新',
+      '改善网盘季度目录、逐集名称、手动匹配、海报缓存和占位图显示，并为选集与播放器补充 4K、杜比视界、HDR10+、HDR 和杜比全景声等媒体技术标签',
+      '本地与个人网盘媒体海报现在常驻显示作品的最高规格标签，包括 4K、2K、1080P、杜比视界、HDR10+、HDR 和杜比全景声。',
+      '播放器右侧选集和每个版本标题下方会显示对应文件自身的规格。',
+      'OpenList 账号或令牌连接要求 HTTPS；GitHub 更新下载增加大小与 SHA-256 校验',
+      '改善 TMDB 海报的网络连接。部分网络可以正常获取影片资料，但无法直接下载海报；遇到这种情况时，可保持 Clash Verge 等本机代理在后台运行，并选择能够访问 TMDB 图片的节点。关闭系统代理不影响已经运行的本机代理，但完全退出代理软件后，海报可能再次无法加载。',
+      '本次更新不会修改或删除，也不会改名、移动本地及个人网盘原始视频和字幕',
+    ],
+  ),
   VersionHistory(
     version: '2.1.169',
     date: '2026-08-24',
@@ -2922,6 +2948,9 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '1.0.9' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[_androidSixthRelease];
+  }
   if (currentVersion == '1.0.8' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[_androidFifthRelease];
   }

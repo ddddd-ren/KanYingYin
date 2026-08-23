@@ -171,6 +171,44 @@ void main() {
     expect(data.badges.map((badge) => badge.label), isNot(contains('无字幕')));
   });
 
+  test('网盘卡片汇总真实文件名中的最高技术规格', () {
+    const taggedVideos = <CloudFileEntry>[
+      CloudFileEntry(
+        id: 'video-1',
+        remotePath: '/影视/S01E01.1080p.HDR.mkv',
+        name: 'S01E01.1080p.HDR.mkv',
+        size: 1024,
+        modifiedAt: null,
+        isDirectory: false,
+      ),
+      CloudFileEntry(
+        id: 'video-2',
+        remotePath: '/影视/S01E02.2160p.DV.Atmos.mkv',
+        name: 'S01E02.2160p.DV.Atmos.mkv',
+        size: 1024,
+        modifiedAt: null,
+        isDirectory: false,
+      ),
+    ];
+    final data = CloudResourceCardViewData.fromGroup(
+      group: CloudResourceMediaGroup(
+        stableKey: 'source|show',
+        seriesName: '示例',
+        displayName: '示例',
+        isSeries: true,
+        videos: taggedVideos,
+        seasons: <CloudResourceSeasonGroup>[],
+        record: null,
+      ),
+      scraping: false,
+    );
+
+    expect(
+      data.technicalBadges.map((badge) => badge.label),
+      ['4K', '杜比视界', 'HDR', '杜比全景声'],
+    );
+  });
+
   test('独立视频显示未匹配、失败、未检查和刮削中状态', () {
     CloudResourceCardViewData build(
       CloudResourceTmdbRecord? record, {

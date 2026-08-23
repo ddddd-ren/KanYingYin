@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/features/library/application/media_card_info.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
@@ -21,6 +22,7 @@ class CloudResourceCardViewData {
     this.unifiedSubtitle = '',
     this.unifiedDetails = '',
     this.unifiedBadges = const <ImmersiveMediaCardBadge>[],
+    this.technicalBadges = const <MediaTechnicalBadge>[],
     this.posterCachePath,
     this.posterUrl,
   }) : badges = List<ImmersiveMediaCardBadge>.unmodifiable(badges);
@@ -120,6 +122,8 @@ class CloudResourceCardViewData {
         unified?.badges ?? const <ImmersiveMediaCardBadge>[],
         scraping: scraping,
       ),
+      technicalBadges:
+          unified?.technicalBadges ?? const <MediaTechnicalBadge>[],
       posterCachePath: hasMetadata ? record?.posterCachePath : null,
       posterUrl: hasMetadata ? record?.posterUrl : null,
     );
@@ -195,6 +199,7 @@ class CloudResourceCardViewData {
         unified.badges,
         scraping: scraping,
       ),
+      technicalBadges: unified.technicalBadges,
       posterCachePath: matched
           ? group.seasonMetadata?.posterCachePath ?? record?.posterCachePath
           : null,
@@ -213,6 +218,7 @@ class CloudResourceCardViewData {
   final String unifiedSubtitle;
   final String unifiedDetails;
   final List<ImmersiveMediaCardBadge> unifiedBadges;
+  final List<MediaTechnicalBadge> technicalBadges;
   final String? posterCachePath;
   final String? posterUrl;
 

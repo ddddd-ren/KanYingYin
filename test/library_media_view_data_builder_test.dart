@@ -32,20 +32,21 @@ void main() {
     expect(data.hasSubtitle, isTrue);
     expect(data.scrapeLabel, '正在刮削');
     expect(data.networkCoverUrl, 'https://image.example/poster.jpg');
+    expect(data.technicalBadges.map((badge) => badge.label), ['4K']);
   });
 
   test('多集卡片汇总格式、总大小和最近修改日期', () {
     final group = LocalVideoGroup(
       episodes: [
         _item(
-          path: r'D:\Series\S01E01.mkv',
-          name: 'S01E01.mkv',
+          path: r'D:\Series\S01E01.1080p.HDR.mkv',
+          name: 'S01E01.1080p.HDR.mkv',
           size: 1024 * 1024 * 1024,
           modified: DateTime(2026, 7, 20),
         ),
         _item(
-          path: r'D:\Series\S01E02.mp4',
-          name: 'S01E02.mp4',
+          path: r'D:\Series\S01E02.2160p.DV.Atmos.mp4',
+          name: 'S01E02.2160p.DV.Atmos.mp4',
           size: 512 * 1024 * 1024,
           modified: DateTime(2026, 7, 23),
         ),
@@ -60,6 +61,10 @@ void main() {
     expect(data.modifiedText, '2026-07-23');
     expect(data.hasMultipleEpisodes, isTrue);
     expect(data.scrapeLabel, '未刮削');
+    expect(
+      data.technicalBadges.map((badge) => badge.label),
+      ['4K', '杜比视界', 'HDR', '杜比全景声'],
+    );
   });
 }
 

@@ -1,5 +1,6 @@
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
 import 'package:kanyingyin/features/library/application/media_card_info.dart';
+import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/local_media_source.dart';
 import 'package:kanyingyin/services/local_series_grouper.dart';
@@ -14,6 +15,16 @@ class LibraryMediaViewDataBuilder {
     String? networkCoverUrl,
   }) {
     final first = group.firstEpisode;
+    const resolver = MediaTechnicalBadgeResolver();
+    final technicalBadges = resolver.aggregate([
+      for (final item in group.episodes)
+        resolver.resolve(
+          names: [item.name, item.path],
+          resolution: item.resolution,
+          videoWidth: item.videoWidth,
+          videoHeight: item.videoHeight,
+        ),
+    ]);
     final scrapeLabel = isScraping
         ? '正在刮削'
         : group.needsOnlinePoster
@@ -52,6 +63,7 @@ class LibraryMediaViewDataBuilder {
       unifiedSubtitle: unified.subtitle,
       unifiedDetails: unified.details,
       unifiedBadges: unified.badges,
+      technicalBadges: technicalBadges,
       localCoverPath: group.cover,
       networkCoverUrl: networkCoverUrl,
       isScraping: isScraping,

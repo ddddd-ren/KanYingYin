@@ -57,6 +57,11 @@ class OpenListClient implements CloudDriveClient {
       await _credentialStore.write(_source.id, credential);
     }
     final current = await _credentialStore.read(_source.id);
+    if (Uri.parse(_dio.options.baseUrl).scheme == 'http' &&
+        ((current?.password?.isNotEmpty ?? false) ||
+            (current?.token?.isNotEmpty ?? false))) {
+      throw const CloudDriveException(CloudDriveErrorType.invalidAddress);
+    }
     if (current?.token?.isNotEmpty ?? false) return;
     if (!_hasAccountCredential(current)) return;
     await _login(current!);

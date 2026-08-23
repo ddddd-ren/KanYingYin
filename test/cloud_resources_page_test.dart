@@ -547,6 +547,17 @@ void main() {
     );
 
     expect(workCoordinator.selectedWork?.seasons.single.seasonNumber, 1);
+
+    workCoordinator.failSelection = true;
+    await expectLater(
+      controller.saveManualEpisodeAssignments(
+        group: group,
+        assignments: matchController.assignments,
+        metadata: matchController.metadata,
+        selectedSeasonNumber: 1,
+      ),
+      completes,
+    );
     controller.dispose();
   });
 
@@ -2983,6 +2994,7 @@ final class _ManualWorkTmdbCoordinator extends CloudWorkTmdbCoordinator {
         );
 
   CloudWorkIdentity? selectedWork;
+  bool failSelection = false;
 
   @override
   Future<void> loadAndSchedule(CloudMediaTree tree) async {}
@@ -2993,6 +3005,7 @@ final class _ManualWorkTmdbCoordinator extends CloudWorkTmdbCoordinator {
     TmdbMetadata candidate, {
     TmdbScrapeOptions? options,
   }) async {
+    if (failSelection) throw StateError('作品元数据同步失败');
     selectedWork = work;
     return CloudWorkTmdbSelectionOutcome(
       record: CloudWorkTmdbRecord.matched(

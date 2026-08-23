@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/bean/widget/skeleton_loader.dart';
+import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
 import 'package:kanyingyin/features/library/presentation/directory_address_dropdown.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
@@ -529,6 +530,46 @@ void main() {
   });
 
   group('ImmersiveMediaCard', () {
+    testWidgets('技术标签常驻海报左上且空列表不占位', (tester) async {
+      Future<void> pump(List<MediaTechnicalBadge> badges) => tester.pumpWidget(
+            MaterialApp(
+              home: SizedBox(
+                width: 260,
+                height: 380,
+                child: ImmersiveMediaCard(
+                  cover: const ColoredBox(color: Colors.blue),
+                  title: '测试电影',
+                  overlayMode: ImmersiveMediaCardOverlayMode.hover,
+                  technicalBadges: badges,
+                ),
+              ),
+            ),
+          );
+
+      await pump(const [
+        MediaTechnicalBadge('4K', MediaTechnicalBadgeKind.resolution),
+        MediaTechnicalBadge('杜比视界', MediaTechnicalBadgeKind.dolbyVision),
+      ]);
+      expect(
+        find.byKey(const ValueKey('media-technical-badges-poster')),
+        findsOneWidget,
+      );
+      expect(find.text('4K'), findsOneWidget);
+      expect(find.text('杜比视界'), findsOneWidget);
+      final card = tester.getRect(find.byType(ImmersiveMediaCard));
+      final row = tester.getRect(
+        find.byKey(const ValueKey('media-technical-badges-poster')),
+      );
+      expect(row.left, greaterThanOrEqualTo(card.left + 8));
+      expect(row.top, greaterThanOrEqualTo(card.top + 8));
+
+      await pump(const []);
+      expect(
+        find.byKey(const ValueKey('media-technical-badges-poster')),
+        findsNothing,
+      );
+    });
+
     testWidgets('always 模式始终显示信息和状态标签', (tester) async {
       var tapped = false;
       await tester.pumpWidget(

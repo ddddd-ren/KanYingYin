@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/bean/widget/glass_surface.dart';
+import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_focus_surface.dart';
 
 enum ImmersiveMediaCardOverlayMode { hover, always }
@@ -29,6 +30,7 @@ class ImmersiveMediaCard extends StatefulWidget {
     this.subtitle = '',
     this.details = '',
     this.badges = const <ImmersiveMediaCardBadge>[],
+    this.technicalBadges = const <MediaTechnicalBadge>[],
     this.trailing,
     this.loading = false,
     this.onTap,
@@ -41,6 +43,7 @@ class ImmersiveMediaCard extends StatefulWidget {
   final String subtitle;
   final String details;
   final List<ImmersiveMediaCardBadge> badges;
+  final List<MediaTechnicalBadge> technicalBadges;
   final Widget? trailing;
   final bool loading;
   final ImmersiveMediaCardOverlayMode overlayMode;
@@ -112,6 +115,21 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
                           color: colors.scrim.withValues(alpha: 0.34),
                           child:
                               const Center(child: CircularProgressIndicator()),
+                        ),
+                      ),
+                    if (widget.technicalBadges.isNotEmpty)
+                      Positioned(
+                        left: 10,
+                        top: 10,
+                        right: widget.trailing == null ? 10 : 42,
+                        child: IgnorePointer(
+                          child: MediaTechnicalBadgeRow(
+                            key: const ValueKey(
+                              'media-technical-badges-poster',
+                            ),
+                            badges: widget.technicalBadges,
+                            poster: true,
+                          ),
                         ),
                       ),
                     if (widget.trailing != null)
@@ -277,4 +295,58 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
       ),
     );
   }
+}
+
+class MediaTechnicalBadgeRow extends StatelessWidget {
+  const MediaTechnicalBadgeRow({
+    super.key,
+    required this.badges,
+    this.poster = false,
+  });
+
+  final List<MediaTechnicalBadge> badges;
+  final bool poster;
+
+  @override
+  Widget build(BuildContext context) {
+    if (badges.isEmpty) return const SizedBox.shrink();
+    return Wrap(
+      spacing: 5,
+      runSpacing: 5,
+      children: [
+        for (final badge in badges)
+          DecoratedBox(
+            key: ValueKey('media-technical-badge-${badge.label}'),
+            decoration: BoxDecoration(
+              color: _color(badge.kind),
+              borderRadius: BorderRadius.circular(5),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.24),
+              ),
+            ),
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: poster ? 7 : 6,
+                vertical: poster ? 4 : 3,
+              ),
+              child: Text(
+                badge.label,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      height: 1,
+                    ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Color _color(MediaTechnicalBadgeKind kind) => switch (kind) {
+        MediaTechnicalBadgeKind.resolution => const Color(0xE64338CA),
+        MediaTechnicalBadgeKind.dolbyVision => const Color(0xE66D28D9),
+        MediaTechnicalBadgeKind.hdr => const Color(0xE69A3412),
+        MediaTechnicalBadgeKind.dolbyAtmos => const Color(0xE6036991),
+      };
 }

@@ -737,6 +737,38 @@ void main() {
     expect(seasonPoster.filterQuality, FilterQuality.medium);
   });
 
+  testWidgets('网盘海报下载完成前显示媒体占位而不是空白卡片', (tester) async {
+    final group = _seasonMediaGroup();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CloudResourcePosterWall(
+            sourceId: 'source',
+            collection: CloudResourceCollection(
+              groups: <CloudResourceMediaGroup>[group],
+            ),
+            scrapingKeys: const <String>{},
+            onOpenGroup: (_) {},
+            onEditTitle: (_) {},
+            onScrape: (_) {},
+            onRematch: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    final poster = tester.widget<TmdbNetworkImage>(
+      find.byType(TmdbNetworkImage),
+    );
+    expect(poster.loadingBuilder, isNotNull);
+    expect(
+      poster.loadingBuilder!(tester.element(find.byType(TmdbNetworkImage))).key,
+      const ValueKey<String>('cloud-media-placeholder'),
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(minutes: 2));
+  });
+
   testWidgets('媒体详情显示真实原名路径和发布规格', (tester) async {
     final item = CloudMediaIndexItem(
       sourceId: 'source',

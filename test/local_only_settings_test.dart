@@ -8,7 +8,6 @@ void main() {
 
     for (final text in [
       '自动更新',
-      '检查更新',
       'myController.checkUpdate',
       '退出 ${String.fromCharCodes([23601, 30475])}',
       '番剧封面',

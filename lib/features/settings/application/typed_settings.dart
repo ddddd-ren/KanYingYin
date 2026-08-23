@@ -106,5 +106,6 @@ class SettingBoxKey {
       localDefaultPath = 'localDefaultPath',
       localMinRecognizedVideoSizeBytes = 'localMinRecognizedVideoSizeBytes',
       cloudMinRecognizedVideoSizeBytes = 'cloudMinRecognizedVideoSizeBytes',
+      lastSuccessfulUpdateCheckDate = 'lastSuccessfulUpdateCheckDate',
       lastSeenVersion = 'lastSeenVersion';
 }

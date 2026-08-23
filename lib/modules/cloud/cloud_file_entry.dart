@@ -1,3 +1,5 @@
+import 'package:kanyingyin/modules/media/media_name_analysis.dart';
+
 class CloudFileEntry {
   const CloudFileEntry({
     required this.id,
@@ -9,6 +11,7 @@ class CloudFileEntry {
     this.seasonNumber,
     this.episodeNumber,
     this.variantLabel,
+    this.releaseTags = const MediaReleaseTags(),
   });
 
   final String id;
@@ -20,4 +23,5 @@ class CloudFileEntry {
   final int? seasonNumber;
   final int? episodeNumber;
   final String? variantLabel;
+  final MediaReleaseTags releaseTags;
 }

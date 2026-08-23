@@ -7,7 +7,7 @@ const _technicalBadgeCopy =
 const _androidDeliveryBoundaryCopy = 'Android 正式版：1.0.5 (10005)';
 
 void main() {
-  test('当前发布配置为一点零九 Windows 和一点零五 Android 正式版', () {
+  test('当前测试版发布配置与版本说明一致', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
@@ -18,8 +18,8 @@ void main() {
             ? releaseNotes.substring(releaseNotesStart, releaseNotesEnd)
             : '';
 
-    expect(pubspec, contains('version: 1.0.9+10009'));
-    expect(pubspec, contains('msix_version: 1.0.9.0'));
+    expect(pubspec, contains('version: 2.1.171+20171'));
+    expect(pubspec, contains('msix_version: 2.1.171.0'));
     expect(currentReleaseNotes, contains('Windows 正式版'));
     expect(currentReleaseNotes, contains('1.0.9'));
     expect(currentReleaseNotes, contains(_androidDeliveryBoundaryCopy));
@@ -44,7 +44,8 @@ void main() {
       expect(currentReleaseNotes, isNot(contains(unsupportedClaim)));
     }
     expect(updateDialogCopy, contains('Windows 正式版 EXE'));
-    expect(updateDialogCopy, contains('本轮交付：Windows 正式版 EXE、Android 正式版 APK/AAB'));
+    expect(
+        updateDialogCopy, contains('本轮交付：Windows 正式版 EXE、Android 正式版 APK/AAB'));
     expect(updateDialogCopy, contains('1.0.9'));
     expect(updateDialogCopy, contains('1.0.5'));
     expect(updateDialogCopy, contains(_technicalBadgeCopy));

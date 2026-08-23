@@ -96,6 +96,7 @@ class CloudResourceCardViewData {
                   episodeNumber: entry.episodeNumber,
                   subtitleRemotePaths:
                       hasSubtitle ? const ['/subtitle.srt'] : const [],
+                  releaseTags: entry.releaseTags,
                 ),
               ],
               tmdbTitle: hasMetadata ? record?.title : null,
@@ -175,6 +176,7 @@ class CloudResourceCardViewData {
               episodeNumber: video.episodeNumber,
               subtitleRemotePaths:
                   hasSubtitle ? const ['/subtitle.srt'] : const [],
+              releaseTags: video.releaseTags,
             ),
         ],
         tmdbTitle: matched ? metadata?.title : null,

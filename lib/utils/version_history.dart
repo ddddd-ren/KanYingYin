@@ -192,6 +192,16 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.171',
+    date: '2026-08-24',
+    isPrerelease: true,
+    changes: [
+      '根据本地和个人网盘视频原始名称补充识别流媒体来源、码率、帧率、位深、版本、发布组、音频声道和字幕轨道标签，并在海报上显示可读标签',
+      'Android 手机和平板保留相同的媒体标签识别，并支持从“关于”页面检查 GitHub 最新正式版',
+      '本次更新不会修改或删除，也不会改名、移动本地及个人网盘原始视频和字幕',
+    ],
+  ),
+  VersionHistory(
     version: '1.0.9',
     date: '2026-08-24',
     changes: [

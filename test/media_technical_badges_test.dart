@@ -61,4 +61,18 @@ void main() {
       ['4K', '杜比视界', 'HDR', '杜比全景声'],
     );
   });
+
+  test('资源名称中的常见质量标签也显示在海报', () {
+    final result = resolver.resolve(
+      names: const [
+        'Cold.War.2016.2160p.HQ.NF.WEB-DL.H265.DTS5.1.10bit.IMAX.SRTx2-DreamHD.mkv',
+      ],
+    );
+    expect(
+      result.map((item) => item.label),
+      containsAll(
+          <String>['4K', 'HQ', 'Netflix', 'H265', 'DTS 5.1', '10bit', 'IMAX']),
+    );
+    expect(result.map((item) => item.label), contains('字幕'));
+  });
 }

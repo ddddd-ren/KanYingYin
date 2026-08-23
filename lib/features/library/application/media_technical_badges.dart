@@ -2,6 +2,7 @@ import 'package:kanyingyin/services/media_name_analyzer.dart';
 
 enum MediaTechnicalBadgeKind {
   resolution,
+  bitrate,
   source,
   codec,
   dolbyVision,
@@ -9,6 +10,10 @@ enum MediaTechnicalBadgeKind {
   dolbyAtmos,
   audio,
   subtitles,
+  frameRate,
+  bitDepth,
+  edition,
+  releaseGroup,
 }
 
 class MediaTechnicalBadge {
@@ -49,7 +54,10 @@ class MediaTechnicalBadgeResolver {
     final audio = parsed.expand((tags) => tags.audio);
     final sourcesByName = parsed.map((tags) => tags.source).whereType<String>();
     final codecs = parsed.map((tags) => tags.codec).whereType<String>();
+    final bitrates = parsed.map((tags) => tags.bitrate).whereType<String>();
     final subtitles = parsed.expand((tags) => tags.subtitles);
+    final releaseGroups =
+        parsed.map((tags) => tags.releaseGroup).whereType<String>();
     final hasDolbyVision = dynamicRange.any((value) => value == 'DV') ||
         RegExp(
           r'(?<![A-Za-z0-9])(?:DV|DoVi|Dolby[\s._-]*Vision)(?![A-Za-z0-9])',
@@ -78,6 +86,23 @@ class MediaTechnicalBadgeResolver {
         ),
       ..._uniqueBadges(sourcesByName, MediaTechnicalBadgeKind.source),
       ..._uniqueBadges(codecs, MediaTechnicalBadgeKind.codec),
+      ..._uniqueBadges(bitrates, MediaTechnicalBadgeKind.bitrate),
+      ..._tokenBadges(
+        combined,
+        r'(?<![A-Za-z0-9])(?:\d{2,3}\s*(?:FPS|帧)|FPS\s*\d{2,3})(?![A-Za-z0-9])',
+        MediaTechnicalBadgeKind.frameRate,
+      ),
+      ..._tokenBadges(
+        combined,
+        r'(?<![A-Za-z0-9])(?:8|10|12)\s*bit(?![A-Za-z0-9])',
+        MediaTechnicalBadgeKind.bitDepth,
+      ),
+      ..._tokenBadges(
+        combined,
+        r'(?<![A-Za-z0-9])IMAX(?![A-Za-z0-9])',
+        MediaTechnicalBadgeKind.edition,
+      ),
+      ..._uniqueBadges(releaseGroups, MediaTechnicalBadgeKind.releaseGroup),
       if (hasDolbyVision)
         const MediaTechnicalBadge(
           '杜比视界',
@@ -112,11 +137,16 @@ class MediaTechnicalBadgeResolver {
       for (final kind in const [
         MediaTechnicalBadgeKind.source,
         MediaTechnicalBadgeKind.codec,
+        MediaTechnicalBadgeKind.bitrate,
         MediaTechnicalBadgeKind.dolbyVision,
         MediaTechnicalBadgeKind.hdr,
         MediaTechnicalBadgeKind.dolbyAtmos,
         MediaTechnicalBadgeKind.audio,
         MediaTechnicalBadgeKind.subtitles,
+        MediaTechnicalBadgeKind.frameRate,
+        MediaTechnicalBadgeKind.bitDepth,
+        MediaTechnicalBadgeKind.edition,
+        MediaTechnicalBadgeKind.releaseGroup,
       ])
         for (final item in all.where((item) => item.kind == kind))
           if (labels.add(item.label)) item,
@@ -169,6 +199,19 @@ class MediaTechnicalBadgeResolver {
           .where((value) => value.isNotEmpty)
           .toSet()
           .map((value) => MediaTechnicalBadge(value, kind))
+          .toList(growable: false);
+
+  List<MediaTechnicalBadge> _tokenBadges(
+    String value,
+    String pattern,
+    MediaTechnicalBadgeKind kind,
+  ) =>
+      RegExp(pattern, caseSensitive: false)
+          .allMatches(value)
+          .map(
+              (match) => match.group(0)!.replaceAll(RegExp(r'\s+'), ' ').trim())
+          .toSet()
+          .map((label) => MediaTechnicalBadge(label, kind))
           .toList(growable: false);
 
   List<MediaTechnicalBadge> _posterAudioBadges(Iterable<String> values) {

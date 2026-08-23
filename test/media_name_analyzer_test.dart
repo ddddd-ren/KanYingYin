@@ -293,6 +293,17 @@ void main() {
       expect(result.releaseTags.dynamicRange, contains('HDR'));
     });
 
+    test('扩充流媒体来源、码率、声道和字幕轨道标签', () {
+      final result = analyzer.analyze(
+        'Cold.War.2016.2160p.HQ.NF.WEB-DL.H265.DTS5.1.SRTx2.mkv',
+        isDirectory: false,
+      );
+      expect(result.releaseTags.bitrate, 'HQ');
+      expect(result.releaseTags.source, 'Netflix');
+      expect(result.releaseTags.audio, contains('DTS 5.1'));
+      expect(result.releaseTags.subtitles, contains('SRTx2'));
+    });
+
     test('字幕版本标签支持 JSON 往返', () {
       const tags = MediaReleaseTags(subtitles: <String>['内封简繁英']);
 

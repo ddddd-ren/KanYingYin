@@ -8,9 +8,9 @@ void main() {
     final gradle = File('android/app/build.gradle.kts').readAsStringSync();
     final agents = File('AGENTS.md').readAsStringSync();
 
-    expect(pubspec, contains('version: 2.1.165+20165'));
-    expect(gradle, contains('val androidVersionName = "2.1.165"'));
-    expect(gradle, contains('val androidVersionCode = 20165'));
+    expect(pubspec, contains('version: 2.1.166+20166'));
+    expect(gradle, contains('val androidVersionName = "2.1.166"'));
+    expect(gradle, contains('val androidVersionCode = 20166'));
     expect(gradle, contains('versionName = androidVersionName'));
     expect(gradle, contains('versionCode = androidVersionCode'));
     expect(gradle, contains('create("tvTest")'));

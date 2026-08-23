@@ -179,6 +179,18 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.164',
+    date: '2026-08-23',
+    isPrerelease: true,
+    changes: [
+      'Windows 2.1.164 测试版修复手动剧集匹配保存后，后续作品资料同步暂时失败却提示整体保存失败的问题',
+      '手动剧集匹配保存后，即使作品资料同步暂时失败，已保存的匹配结果也会保留',
+      'OpenList 使用账号或令牌时要求 HTTPS，避免通过明文连接发送凭据；匿名 HTTP 连接保持可用',
+      'Android 手机当前已交付版本仍为 2.1.160，本轮不打包',
+      '本次更新不会修改或删除，也不会改名、移动本地及个人网盘原始视频和字幕',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.163',
     date: '2026-08-17',
     isPrerelease: true,

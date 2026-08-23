@@ -235,7 +235,8 @@ class _OpenListSourceEditorPageState extends State<OpenListSourceEditorPage> {
               obscureText: true,
               decoration: InputDecoration(
                 labelText: '密码',
-                helperText: widget.source == null ? '密码仅安全保存在本机' : '留空将保留原密码',
+                helperText:
+                    widget.source == null ? '使用账号时必须填写 HTTPS 地址' : '留空将保留原密码',
               ),
             ),
             const SizedBox(height: 8),

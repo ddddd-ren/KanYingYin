@@ -59,11 +59,11 @@ if ($VersionOnly) {
     Write-Output "$($pubspecVersion.Name)+$($pubspecVersion.Code)"
     return
 }
-if ($pubspecVersion.Name -ne '2.1.163' -or $pubspecVersion.Code -ne 20163) {
-    throw "Windows pubspec 版本必须为 2.1.163+20163，实际为 $($pubspecVersion.Name)+$($pubspecVersion.Code)"
+if ($pubspecVersion.Name -ne '2.1.164' -or $pubspecVersion.Code -ne 20164) {
+    throw "Windows pubspec 版本必须为 2.1.164+20164，实际为 $($pubspecVersion.Name)+$($pubspecVersion.Code)"
 }
-$androidVersion = '2.1.163'
-$androidVersionCode = 20163
+$androidVersion = '2.1.164'
+$androidVersionCode = 20164
 $requiredVariables = @(
     'KANYINGYIN_ANDROID_KEYSTORE',
     'KANYINGYIN_ANDROID_STORE_PASSWORD',

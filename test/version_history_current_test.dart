@@ -5,20 +5,21 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一六三说明手动剧集匹配后的季度同步修复', () {
-    final entries = versionHistoryForCurrent('2.1.163');
+  test('二点一六四说明保存容错和 OpenList 安全连接', () {
+    final entries = versionHistoryForCurrent('2.1.164');
 
     expect(entries, hasLength(1));
-    expect(entries.single.version, '2.1.163');
+    expect(entries.single.version, '2.1.164');
     expect(entries.single.isPrerelease, isTrue);
     final changes = entries.single.changes.join('\n');
     for (final text in <String>[
       'Windows',
-      '手动保存剧集匹配',
-      '逐集名称',
-      '原文件名',
-      '用户确认的新季度号',
-      '重新打开选集',
+      '手动剧集匹配',
+      '同步暂时失败',
+      '匹配结果',
+      'OpenList',
+      'HTTPS',
+      '明文连接',
       '不会修改或删除',
     ]) {
       expect(changes, contains(text));

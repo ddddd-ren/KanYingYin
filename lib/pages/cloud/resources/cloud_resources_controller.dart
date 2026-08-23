@@ -42,6 +42,7 @@ import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client_capabilities.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/utils/logger.dart';
 
 int _defaultCloudMinSizeBytes() =>
     LocalVideoFileTypes.minRecognizedVideoSizeBytes;
@@ -978,27 +979,35 @@ class CloudResourcesController extends ChangeNotifier {
           (work) => group.workKeys.contains(work.workKey),
         )
         .toList(growable: false);
-    if (workCoordinator != null && works.isNotEmpty) {
-      for (final work in works) {
-        await workCoordinator.selectCandidate(
-          _workForManualEpisodeSelection(
-            work,
-            assignments: assignments,
-            selectedSeasonNumber: selectedSeasonNumber,
-          ),
+    try {
+      if (workCoordinator != null && works.isNotEmpty) {
+        for (final work in works) {
+          await workCoordinator.selectCandidate(
+            _workForManualEpisodeSelection(
+              work,
+              assignments: assignments,
+              selectedSeasonNumber: selectedSeasonNumber,
+            ),
+            metadata,
+            options: tmdbScrapeOptions.copyWith(
+              mediaTypeMode: TmdbMediaTypeMode.tv,
+            ),
+          );
+        }
+      } else if (_tmdbCoordinator != null) {
+        await _tmdbCoordinator.select(
+          tmdbTargetFor(group.anchor),
           metadata,
           options: tmdbScrapeOptions.copyWith(
             mediaTypeMode: TmdbMediaTypeMode.tv,
           ),
         );
       }
-    } else if (_tmdbCoordinator != null) {
-      await _tmdbCoordinator.select(
-        tmdbTargetFor(group.anchor),
-        metadata,
-        options: tmdbScrapeOptions.copyWith(
-          mediaTypeMode: TmdbMediaTypeMode.tv,
-        ),
+    } on Object catch (error, stackTrace) {
+      AppLogger().w(
+        'CloudResourcesController: 作品元数据同步失败，已保留剧集匹配结果',
+        error: error,
+        stackTrace: stackTrace,
       );
     }
     if (selectedSource?.id != source.id) return outcome;

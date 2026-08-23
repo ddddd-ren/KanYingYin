@@ -8,6 +8,36 @@ import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/openlist/openlist_client.dart';
 
 void main() {
+  test('OpenList 明文 HTTP 不发送账号密码', () async {
+    final client = OpenListClient(
+      source: const CloudSource(
+        id: 'openlist-http',
+        type: CloudSourceType.openList,
+        name: 'OpenList',
+        baseUrl: 'HTTP://openlist.example.invalid',
+        rootPaths: <String>['/'],
+      ),
+      credentialStore: MemoryCloudCredentialStore(),
+    );
+
+    await expectLater(
+      client.ensureAuthenticated(
+        credential: const CloudCredential(
+          username: 'alice',
+          password: 'secret',
+        ),
+      ),
+      throwsA(
+        isA<CloudDriveException>().having(
+          (error) => error.type,
+          'type',
+          CloudDriveErrorType.invalidAddress,
+        ),
+      ),
+    );
+    await client.close();
+  });
+
   group('OpenListClient', () {
     late Dio dio;
     late _RecordingInterceptor api;

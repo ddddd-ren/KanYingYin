@@ -371,7 +371,8 @@ class _CloudResourcePosterWallState extends State<CloudResourcePosterWall> {
     CloudResourceCardViewData data,
     TvImageDecodeSize? decodeSize,
   ) {
-    final poster = CloudPosterImage(
+    return CloudPosterImage(
+      key: ValueKey<String>('cloud-poster-${group.stableKey}'),
       cachePath: data.posterCachePath,
       url: TmdbMatchSheet.imageUrl(data.posterUrl, size: 'w500'),
       fit: BoxFit.cover,
@@ -381,18 +382,6 @@ class _CloudResourcePosterWallState extends State<CloudResourcePosterWall> {
       cacheHeight: decodeSize?.height,
       filterQuality: FilterQuality.medium,
       placeholderBuilder: _mediaPlaceholder,
-    );
-    if (group.isWorkScoped && group.seasonNumber != null) {
-      return KeyedSubtree(
-        key: ValueKey<String>('season-poster-${group.seasonNumber}'),
-        child: poster,
-      );
-    }
-    final record = group.record;
-    if (record?.status != CloudResourceTmdbStatus.matched) return poster;
-    return KeyedSubtree(
-      key: ValueKey<String>('tmdb-poster-${record!.stableKey}'),
-      child: poster,
     );
   }
 

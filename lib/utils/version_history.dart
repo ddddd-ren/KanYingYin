@@ -179,6 +179,18 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.167',
+    date: '2026-08-23',
+    isPrerelease: true,
+    changes: [
+      'Windows 2.1.167 测试版修复部分网盘资源刮削完成后，海报再次加载并短暂显示占位图的问题',
+      '网盘资源的匹配状态或季度信息更新时，已经显示的海报保持不变，不再再次加载',
+      '标题、季号和海报路径仍会正常更新，不影响资源操作、选集和播放',
+      'Android 手机当前已交付版本仍为 2.1.160，本轮不打包',
+      '本次更新不会修改或删除，也不会改名、移动本地及个人网盘原始视频和字幕',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.166',
     date: '2026-08-23',
     isPrerelease: true,

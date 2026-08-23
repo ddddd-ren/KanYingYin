@@ -43,7 +43,7 @@ void main() {
     expect(initSource, contains('WindowsShortcutStartupCoordinator'));
 
     final methodStart = initSource.indexOf('Future<void> _showShortcutDialog');
-    final methodEnd = initSource.indexOf('void _showVersionChangelog');
+    final methodEnd = initSource.indexOf('Future<void> _showVersionChangelog');
     final methodSource = initSource.substring(methodStart, methodEnd);
     expect(
       methodSource.indexOf('inspectShortcutEntries'),

@@ -14,4 +14,16 @@ void main() {
 
     expect(events, <String>['shaders', 'preload', 'shortcut', 'navigate']);
   });
+
+  test('先等待本地更新说明关闭再检查远端更新', () async {
+    final events = <String>[];
+
+    await runPostNavigationStartupSequence(
+      delayUntilPageReady: () async => events.add('delay'),
+      showVersionChangelog: () async => events.add('changelog'),
+      checkForUpdates: () async => events.add('update'),
+    );
+
+    expect(events, const <String>['delay', 'changelog', 'update']);
+  });
 }

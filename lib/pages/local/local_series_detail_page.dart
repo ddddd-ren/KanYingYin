@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
+import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
@@ -84,7 +86,7 @@ class LocalSeriesDetailPage extends StatelessWidget {
             ListTile(
               leading: const Icon(Icons.play_circle_outline),
               title: Text(episode.displayTitle),
-              subtitle: Text(episode.toFileItem().formattedSize),
+              subtitle: _episodeDetails(episode),
               trailing: PopupMenuButton<String>(
                 tooltip: '单集操作',
                 onSelected: (value) =>
@@ -104,6 +106,27 @@ class LocalSeriesDetailPage extends StatelessWidget {
           const SizedBox(height: 20),
         ],
       ),
+    );
+  }
+
+  Widget _episodeDetails(LocalMediaIndexItem episode) {
+    final badges = const MediaTechnicalBadgeResolver().resolve(
+      names: [episode.name, episode.path],
+      resolution: episode.resolution,
+      videoWidth: episode.videoWidth,
+      videoHeight: episode.videoHeight,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (badges.isNotEmpty) ...[
+          const SizedBox(height: 5),
+          MediaTechnicalBadgeRow(badges: badges),
+          const SizedBox(height: 4),
+        ],
+        Text(episode.toFileItem().formattedSize),
+      ],
     );
   }
 

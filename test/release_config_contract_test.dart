@@ -2,25 +2,26 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-const _posterStateCopy = '网盘资源的匹配状态或季度信息更新时，已经显示的海报保持不变，不再再次加载。';
+const _automaticUpdateCopy =
+    'Windows 版现在会每天从 GitHub 自动检查一次最新正式版本，也可以在“关于”页面手动检查。';
 const _androidDeliveryBoundaryCopy = 'Android 当前已交付版本：2.1.160 (20160，本轮不打包)';
 
 void main() {
-  test('当前发布配置为二点一六七 Windows 测试版', () {
+  test('当前发布配置为二点一六八 Windows 测试版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
-    final releaseNotesStart = releaseNotes.indexOf('## 2.1.167+20167');
-    final releaseNotesEnd = releaseNotes.indexOf('\n## 2.1.166+20166');
+    final releaseNotesStart = releaseNotes.indexOf('## 2.1.168+20168');
+    final releaseNotesEnd = releaseNotes.indexOf('\n## 2.1.167+20167');
     final currentReleaseNotes =
         releaseNotesStart >= 0 && releaseNotesEnd > releaseNotesStart
             ? releaseNotes.substring(releaseNotesStart, releaseNotesEnd)
             : '';
 
-    expect(pubspec, contains('version: 2.1.167+20167'));
-    expect(pubspec, contains('msix_version: 2.1.167.0'));
+    expect(pubspec, contains('version: 2.1.168+20168'));
+    expect(pubspec, contains('msix_version: 2.1.168.0'));
     expect(currentReleaseNotes, contains('Windows 测试版'));
-    expect(currentReleaseNotes, contains('2.1.167'));
+    expect(currentReleaseNotes, contains('2.1.168'));
     expect(
       currentReleaseNotes,
       contains('Android 当前已交付版本：2.1.160 (20160，本轮不打包)'),
@@ -28,14 +29,14 @@ void main() {
     expect(currentReleaseNotes, contains('Windows'));
     expect(currentReleaseNotes, contains('Android 手机'));
     expect(currentReleaseNotes, contains('EXE'));
-    expect(currentReleaseNotes, contains(_posterStateCopy));
+    expect(currentReleaseNotes, contains(_automaticUpdateCopy));
     expect(currentReleaseNotes, contains(_androidDeliveryBoundaryCopy));
     for (final text in <String>[
-      '网盘资源',
-      '匹配状态',
-      '季度信息',
-      '保持不变',
-      '不再再次加载',
+      '每天从 GitHub 自动检查',
+      '“关于”页面手动检查',
+      '下载安装程序并启动更新',
+      'SHA-256',
+      '校验失败的文件不会运行',
       '不会修改或删除',
     ]) {
       expect(currentReleaseNotes, contains(text));
@@ -51,9 +52,9 @@ void main() {
       updateDialogCopy,
       contains('本轮交付：Windows 测试版 EXE'),
     );
-    expect(updateDialogCopy, contains('2.1.167'));
+    expect(updateDialogCopy, contains('2.1.168'));
     expect(updateDialogCopy, contains('2.1.160'));
-    expect(updateDialogCopy, contains(_posterStateCopy));
+    expect(updateDialogCopy, contains(_automaticUpdateCopy));
     expect(updateDialogCopy, contains(_androidDeliveryBoundaryCopy));
     expect(updateDialogCopy, contains('Android TV 继续暂停'));
     for (final tvOnlyText in <String>[

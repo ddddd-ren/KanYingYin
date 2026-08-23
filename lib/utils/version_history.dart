@@ -179,6 +179,18 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.168',
+    date: '2026-08-23',
+    isPrerelease: true,
+    changes: [
+      'Windows 版现在会每天从 GitHub 自动检查一次最新正式版本，也可以在“关于”页面手动检查',
+      '发现新版本后，可在应用内查看更新说明、下载安装程序并启动更新',
+      '下载完成后会核对安装包大小和 SHA-256，校验失败的文件不会运行',
+      'Android 手机当前已交付版本仍为 2.1.160，本轮不打包',
+      '本次更新不会修改或删除，也不会改名、移动本地及个人网盘原始视频和字幕',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.167',
     date: '2026-08-23',
     isPrerelease: true,

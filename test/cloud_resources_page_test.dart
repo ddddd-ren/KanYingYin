@@ -43,6 +43,7 @@ import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client_capabilities.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/widgets/cloud_poster_image.dart';
 import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 CloudResourceMediaGroup _seasonMediaGroup() {
@@ -1841,6 +1842,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    expect(find.byType(CloudPosterImage), findsOneWidget);
+    final originalPosterState = tester.state(find.byType(CloudPosterImage));
     await _openCloudMoreActions(tester);
     await tester.tap(find.text('自动整理当前来源'));
     await tester.pumpAndSettle();
@@ -1848,6 +1851,13 @@ void main() {
     await tester.pump();
 
     expect(find.text('正在扫描目录 0，已发现 0 项'), findsOneWidget);
+    expect(
+      identical(
+        tester.state(find.byType(CloudPosterImage)),
+        originalPosterState,
+      ),
+      isTrue,
+    );
     expect(
       tester
           .widget<DropdownButton<String>>(
@@ -1895,6 +1905,13 @@ void main() {
     coordinator.completeMatched();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
+    expect(
+      identical(
+        tester.state(find.byType(CloudPosterImage)),
+        originalPosterState,
+      ),
+      isTrue,
+    );
     expect(
       find.textContaining(
         '自动整理完成：成功 1 项，待确认 0 项，无结果 0 项，失败 0 项，已跳过 0 项',

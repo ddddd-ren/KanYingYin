@@ -654,7 +654,13 @@ void main() {
     expect(actionSurface.type, MaterialType.transparency);
     expect(find.text('中文剧名 第 3 季'), findsOneWidget);
     expect(
-        find.byKey(const ValueKey<String>('season-poster-3')), findsOneWidget);
+      find.byKey(
+        const ValueKey<String>(
+          'cloud-poster-source|work|show|season:3',
+        ),
+      ),
+      findsOneWidget,
+    );
     await tester.tap(find.byTooltip('资源操作'));
     await tester.pumpAndSettle();
     expect(find.text('修改刮削名称'), findsOneWidget);
@@ -768,6 +774,115 @@ void main() {
     );
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(minutes: 2));
+  });
+
+  testWidgets('普通资源匹配状态变化时保持同一个海报 State', (tester) async {
+    const video = CloudFileEntry(
+      id: 'video-fid',
+      remotePath: '/影视/动漫.mkv',
+      name: '动漫.mkv',
+      size: 200,
+      modifiedAt: null,
+      isDirectory: false,
+    );
+    CloudResourceMediaGroup group(CloudResourceTmdbRecord record) =>
+        CloudResourceMediaGroup(
+          stableKey: 'source|card|anime',
+          seriesName: '动漫',
+          isSeries: false,
+          videos: const <CloudFileEntry>[video],
+          seasons: const <CloudResourceSeasonGroup>[],
+          record: record,
+        );
+    Widget app(CloudResourceMediaGroup value) => MaterialApp(
+          home: Scaffold(
+            body: CloudResourcePosterWall(
+              sourceId: 'source',
+              collection: CloudResourceCollection(
+                groups: <CloudResourceMediaGroup>[value],
+              ),
+              scrapingKeys: const <String>{},
+              onOpenGroup: (_) {},
+              onEditTitle: (_) {},
+              onScrape: (_) {},
+              onRematch: (_) {},
+            ),
+          ),
+        );
+
+    final unmatched = CloudResourceTmdbRecord.unmatched(
+      sourceId: 'source',
+      remoteId: video.id,
+      remotePath: video.remotePath,
+      displayName: video.name,
+      resourceKind: CloudResourceKind.standaloneVideo,
+      checkedAt: DateTime.utc(2026, 8, 23),
+    );
+    await tester.pumpWidget(app(group(unmatched)));
+    final originalState = tester.state(find.byType(CloudPosterImage));
+
+    final matched = CloudResourceTmdbRecord.matched(
+      sourceId: 'source',
+      remoteId: video.id,
+      remotePath: video.remotePath,
+      displayName: video.name,
+      resourceKind: CloudResourceKind.standaloneVideo,
+      metadata: TmdbMetadata(
+        id: 42,
+        mediaType: TmdbMediaType.movie,
+        title: '中文片名',
+        language: 'zh-CN',
+        matchedAt: DateTime.utc(2026, 8, 23),
+        matchConfidence: 1,
+      ),
+      checkedAt: DateTime.utc(2026, 8, 23),
+    );
+    await tester.pumpWidget(app(group(matched)));
+
+    expect(
+      identical(tester.state(find.byType(CloudPosterImage)), originalState),
+      isTrue,
+    );
+  });
+
+  testWidgets('季度识别状态变化时保持同一个海报 State', (tester) async {
+    final original = _standaloneMediaGroup();
+    final season = CloudResourceMediaGroup(
+      stableKey: original.stableKey,
+      workKey: original.workKey,
+      displayName: '未识别季度作品 第 3 季',
+      seriesName: original.seriesName,
+      isSeries: true,
+      seasonNumber: 3,
+      videos: original.videos,
+      seasons: original.seasons,
+      record: original.record,
+      isWorkScoped: true,
+    );
+    Widget app(CloudResourceMediaGroup value) => MaterialApp(
+          home: Scaffold(
+            body: CloudResourcePosterWall(
+              sourceId: 'source',
+              collection: CloudResourceCollection(
+                groups: <CloudResourceMediaGroup>[value],
+              ),
+              scrapingKeys: const <String>{},
+              onOpenGroup: (_) {},
+              onEditTitle: (_) {},
+              onScrape: (_) {},
+              onRematch: (_) {},
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(app(original));
+    final originalState = tester.state(find.byType(CloudPosterImage));
+    await tester.pumpWidget(app(season));
+
+    expect(
+      identical(tester.state(find.byType(CloudPosterImage)), originalState),
+      isTrue,
+    );
   });
 
   testWidgets('媒体详情显示真实原名路径和发布规格', (tester) async {
@@ -1944,7 +2059,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.byKey(ValueKey<String>('tmdb-poster-${record.stableKey}')),
+      find.byKey(
+        const ValueKey<String>('cloud-poster-quark-source|tmdb|movie|42'),
+      ),
       findsOneWidget,
     );
     expect(find.byType(ImmersiveMediaCard), findsOneWidget);

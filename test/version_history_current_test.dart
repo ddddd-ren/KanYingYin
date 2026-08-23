@@ -5,20 +5,19 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
-  test('二点一六六说明所有网盘海报即时显示', () {
-    final entries = versionHistoryForCurrent('2.1.166');
+  test('二点一六七说明网盘海报状态保持稳定', () {
+    final entries = versionHistoryForCurrent('2.1.167');
 
     expect(entries, hasLength(1));
-    expect(entries.single.version, '2.1.166');
+    expect(entries.single.version, '2.1.167');
     expect(entries.single.isPrerelease, isTrue);
     final changes = entries.single.changes.join('\n');
     for (final text in <String>[
       'Windows',
       '网盘资源',
-      '已刮削的网盘海报会优先从本地缓存显示',
-      '后台扫描、刷新和刮削时，未变化的海报不再整批重新加载',
-      '网盘媒体库、分类、选集和观看历史统一避免白色封面',
-      '白色空白卡片',
+      '网盘资源的匹配状态或季度信息更新时',
+      '已经显示的海报保持不变',
+      '不再再次加载',
       '不会修改或删除',
     ]) {
       expect(changes, contains(text));

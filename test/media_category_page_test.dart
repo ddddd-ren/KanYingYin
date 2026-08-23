@@ -5,8 +5,68 @@ import 'package:kanyingyin/features/library/presentation/media_category_page.dar
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
+import 'package:kanyingyin/widgets/cloud_poster_image.dart';
 
 void main() {
+  testWidgets('分类页仅网盘资源使用统一海报组件', (tester) async {
+    final local = _series(
+      key: 'local|tv',
+      title: '本地电视剧',
+      sourceKind: MediaSourceKind.local,
+      sourceId: 'local',
+      sourceName: '本地',
+      mediaType: TmdbMediaType.tv,
+      posterUrl: '/local.jpg',
+    );
+    final cloud = _series(
+      key: 'cloud|tv',
+      title: '网盘电视剧',
+      sourceKind: MediaSourceKind.cloud,
+      sourceId: 'cloud',
+      sourceName: '网盘',
+      mediaType: TmdbMediaType.tv,
+      posterCachePath: r'C:\cache\cloud.jpg',
+      posterUrl: '/cloud.jpg',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaCategoryPage(
+          category: MediaLibraryCategory.tvSeries,
+          initialize: () async {},
+          libraryProvider: () => CloudMediaLibrary(
+            series: <MediaLibrarySeries>[local, cloud],
+            filters: const <MediaLibrarySourceFilter>[
+              MediaLibrarySourceFilter('all', '全部', null),
+            ],
+          ),
+          onPlayEpisode: (_, __) async {},
+          observeLibrary: false,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byKey(
+          const ValueKey<String>('media-category-card-cloud|tv'),
+        ),
+        matching: find.byType(CloudPosterImage),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(
+          const ValueKey<String>('media-category-card-local|tv'),
+        ),
+        matching: find.byType(CloudPosterImage),
+      ),
+      findsNothing,
+    );
+  });
+
   testWidgets('电影入口只显示电影并可按来源筛选和打开', (tester) async {
     final localMovie = _series(
       key: 'local|movie',
@@ -304,6 +364,8 @@ MediaLibrarySeries _series({
   required String sourceName,
   required TmdbMediaType mediaType,
   List<String> genres = const <String>[],
+  String? posterCachePath,
+  String? posterUrl,
 }) {
   final episode = sourceKind == MediaSourceKind.local
       ? MediaLibraryEpisode.local(
@@ -348,5 +410,7 @@ MediaLibrarySeries _series({
     episodes: <MediaLibraryEpisode>[episode],
     mediaType: mediaType,
     genres: genres,
+    posterCachePath: posterCachePath,
+    tmdbPosterUrl: posterUrl,
   );
 }

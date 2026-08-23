@@ -345,8 +345,12 @@ class MediaTechnicalBadgeRow extends StatelessWidget {
 
   Color _color(MediaTechnicalBadgeKind kind) => switch (kind) {
         MediaTechnicalBadgeKind.resolution => const Color(0xE64338CA),
+        MediaTechnicalBadgeKind.source => const Color(0xE647556B),
+        MediaTechnicalBadgeKind.codec => const Color(0xE65B21B6),
         MediaTechnicalBadgeKind.dolbyVision => const Color(0xE66D28D9),
         MediaTechnicalBadgeKind.hdr => const Color(0xE69A3412),
         MediaTechnicalBadgeKind.dolbyAtmos => const Color(0xE6036991),
+        MediaTechnicalBadgeKind.audio => const Color(0xE616766E),
+        MediaTechnicalBadgeKind.subtitles => const Color(0xE6654A1F),
       };
 }

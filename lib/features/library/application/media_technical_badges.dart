@@ -1,6 +1,15 @@
 import 'package:kanyingyin/services/media_name_analyzer.dart';
 
-enum MediaTechnicalBadgeKind { resolution, dolbyVision, hdr, dolbyAtmos }
+enum MediaTechnicalBadgeKind {
+  resolution,
+  source,
+  codec,
+  dolbyVision,
+  hdr,
+  dolbyAtmos,
+  audio,
+  subtitles,
+}
 
 class MediaTechnicalBadge {
   const MediaTechnicalBadge(this.label, this.kind);
@@ -38,6 +47,9 @@ class MediaTechnicalBadgeResolver {
     final combined = sources.join(' ');
     final dynamicRange = parsed.expand((tags) => tags.dynamicRange);
     final audio = parsed.expand((tags) => tags.audio);
+    final sourcesByName = parsed.map((tags) => tags.source).whereType<String>();
+    final codecs = parsed.map((tags) => tags.codec).whereType<String>();
+    final subtitles = parsed.expand((tags) => tags.subtitles);
     final hasDolbyVision = dynamicRange.any((value) => value == 'DV') ||
         RegExp(
           r'(?<![A-Za-z0-9])(?:DV|DoVi|Dolby[\s._-]*Vision)(?![A-Za-z0-9])',
@@ -64,6 +76,8 @@ class MediaTechnicalBadgeResolver {
           resolutionLabel,
           MediaTechnicalBadgeKind.resolution,
         ),
+      ..._uniqueBadges(sourcesByName, MediaTechnicalBadgeKind.source),
+      ..._uniqueBadges(codecs, MediaTechnicalBadgeKind.codec),
       if (hasDolbyVision)
         const MediaTechnicalBadge(
           '杜比视界',
@@ -77,6 +91,8 @@ class MediaTechnicalBadgeResolver {
           '杜比全景声',
           MediaTechnicalBadgeKind.dolbyAtmos,
         ),
+      ..._posterAudioBadges(audio),
+      ..._posterSubtitleBadges(subtitles),
     ];
   }
 
@@ -94,9 +110,13 @@ class MediaTechnicalBadgeResolver {
     return <MediaTechnicalBadge>[
       if (resolution != null) resolution,
       for (final kind in const [
+        MediaTechnicalBadgeKind.source,
+        MediaTechnicalBadgeKind.codec,
         MediaTechnicalBadgeKind.dolbyVision,
         MediaTechnicalBadgeKind.hdr,
         MediaTechnicalBadgeKind.dolbyAtmos,
+        MediaTechnicalBadgeKind.audio,
+        MediaTechnicalBadgeKind.subtitles,
       ])
         for (final item in all.where((item) => item.kind == kind))
           if (labels.add(item.label)) item,
@@ -139,4 +159,35 @@ class MediaTechnicalBadgeResolver {
         '1080P' => 1,
         _ => 0,
       };
+
+  List<MediaTechnicalBadge> _uniqueBadges(
+    Iterable<String> values,
+    MediaTechnicalBadgeKind kind,
+  ) =>
+      values
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty)
+          .toSet()
+          .map((value) => MediaTechnicalBadge(value, kind))
+          .toList(growable: false);
+
+  List<MediaTechnicalBadge> _posterAudioBadges(Iterable<String> values) {
+    final labels = values
+        .where((value) => RegExp(r'^(?:TrueHD|DTS|DTS-HD|LPCM|FLAC|DDP)',
+                caseSensitive: false)
+            .hasMatch(value))
+        .map((value) => value.trim())
+        .toSet();
+    return labels
+        .map((value) =>
+            MediaTechnicalBadge(value, MediaTechnicalBadgeKind.audio))
+        .toList(growable: false);
+  }
+
+  List<MediaTechnicalBadge> _posterSubtitleBadges(Iterable<String> values) {
+    if (!values.isNotEmpty) return const <MediaTechnicalBadge>[];
+    return const <MediaTechnicalBadge>[
+      MediaTechnicalBadge('字幕', MediaTechnicalBadgeKind.subtitles),
+    ];
+  }
 }

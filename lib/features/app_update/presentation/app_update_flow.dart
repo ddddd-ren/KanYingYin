@@ -14,14 +14,12 @@ class AppUpdateFlow {
     required UpdateReleasePresenter showRelease,
     required UpdateMessagePresenter showToast,
     required UpdateErrorLogger logError,
-  })  : _capabilities = capabilities,
-        _checker = checker,
+  })  : _checker = checker,
         _policy = policy,
         _showRelease = showRelease,
         _showToast = showToast,
         _logError = logError;
 
-  final AppPlatformCapabilities _capabilities;
   final AppUpdateChecker _checker;
   final DailyUpdateCheckPolicy _policy;
   final UpdateReleasePresenter _showRelease;
@@ -29,7 +27,7 @@ class AppUpdateFlow {
   final UpdateErrorLogger _logError;
 
   Future<void> runAutomatic() async {
-    if (!_capabilities.isWindows || !_policy.isDue) return;
+    if (!_policy.isDue) return;
     try {
       final result = await _checker.check();
       await _policy.markSuccessful();
@@ -42,7 +40,6 @@ class AppUpdateFlow {
   }
 
   Future<void> runManual() async {
-    if (!_capabilities.isWindows) return;
     try {
       final result = await _checker.check();
       await _policy.markSuccessful();

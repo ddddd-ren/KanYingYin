@@ -5,6 +5,8 @@ import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/features/app_update/application/windows_update_installer.dart';
 import 'package:kanyingyin/features/app_update/domain/app_update_models.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 enum _UpdateDialogState { idle, downloading, error }
 
@@ -13,10 +15,12 @@ class AppUpdateDialog extends StatefulWidget {
     super.key,
     required this.release,
     required this.installer,
+    required this.capabilities,
   });
 
   final AppRelease release;
   final WindowsUpdateInstaller installer;
+  final AppPlatformCapabilities capabilities;
 
   @override
   State<AppUpdateDialog> createState() => _AppUpdateDialogState();
@@ -31,6 +35,15 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
   bool get _downloading => _state == _UpdateDialogState.downloading;
 
   Future<void> _downloadAndUpdate() async {
+    if (!widget.capabilities.isWindows) {
+      await launchUrl(
+        Uri.parse(
+          'https://github.com/ddddd-ren/KanYingYin/releases/tag/v${widget.release.version}',
+        ),
+        mode: LaunchMode.externalApplication,
+      );
+      return;
+    }
     if (_downloading) return;
     setState(() {
       _state = _UpdateDialogState.downloading;
@@ -130,9 +143,11 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
                     const SizedBox(width: 8),
                     FilledButton(
                       onPressed: _downloading ? null : _downloadAndUpdate,
-                      child: Text(
-                        _state == _UpdateDialogState.error ? '重试' : '下载并更新',
-                      ),
+                      child: Text(widget.capabilities.isWindows
+                          ? (_state == _UpdateDialogState.error
+                              ? '重试'
+                              : '下载并更新')
+                          : '打开下载页面'),
                     ),
                   ],
                 ),

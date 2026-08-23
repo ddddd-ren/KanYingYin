@@ -281,6 +281,18 @@ void main() {
       expect(MediaReleaseTags.fromJson(tags.toJson()), tags);
     });
 
+    test('识别常见网盘资源发布标签', () {
+      final result = analyzer.analyze(
+        '[Group] 作品 S01E01 2160p REMUX HEVC TrueHD Atmos HLG.mkv',
+        isDirectory: false,
+      );
+      expect(result.releaseTags.resolution, '2160p');
+      expect(result.releaseTags.source, 'Remux');
+      expect(result.releaseTags.codec, 'HEVC');
+      expect(result.releaseTags.audio, contains('TrueHD'));
+      expect(result.releaseTags.dynamicRange, contains('HDR'));
+    });
+
     test('字幕版本标签支持 JSON 往返', () {
       const tags = MediaReleaseTags(subtitles: <String>['内封简繁英']);
 

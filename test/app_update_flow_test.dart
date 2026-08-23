@@ -107,7 +107,7 @@ void main() {
     expect(toasts.single, '当前已是最新正式版');
   });
 
-  test('Android 平台不执行更新请求', () async {
+  test('Android 平台也执行更新检查', () async {
     var requests = 0;
     final flow = _flow(
       settings: settings,
@@ -120,7 +120,7 @@ void main() {
 
     await flow.runManual();
 
-    expect(requests, 0);
+    expect(requests, 1);
   });
 }
 

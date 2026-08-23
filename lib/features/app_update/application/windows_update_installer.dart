@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
-import 'package:dio/dio.dart';
 import 'package:kanyingyin/core/network/dio_factory.dart';
 import 'package:kanyingyin/core/network/network_config.dart';
 import 'package:kanyingyin/features/app_update/domain/app_update_models.dart';

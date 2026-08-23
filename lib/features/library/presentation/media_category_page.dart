@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -12,6 +13,7 @@ import 'package:kanyingyin/features/library/presentation/media_library_details_d
 import 'package:kanyingyin/features/tv/presentation/tv_layout_policy.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
+import 'package:kanyingyin/widgets/cloud_poster_image.dart';
 import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 class MediaCategoryPage extends StatefulWidget {
@@ -46,6 +48,7 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
   bool _loading = true;
   bool _playing = false;
   String? _errorMessage;
+  String? _posterWarmupIdentity;
 
   @override
   void initState() {
@@ -237,6 +240,7 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
     final policy = TvLayoutPolicy.forCapabilities(
       widget.capabilities ?? detectAppPlatform(),
     );
+    _scheduleCloudPosterWarmup(context, series);
     return FocusTraversalGroup(
       key: const ValueKey<String>('media-category-focus-group'),
       child: GridView.builder(
@@ -246,6 +250,14 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
           fallbackChildAspectRatio: 0.68,
         ),
         itemCount: series.length,
+        findChildIndexCallback: (key) {
+          if (key is! ValueKey<String>) return null;
+          const prefix = 'media-category-card-';
+          if (!key.value.startsWith(prefix)) return null;
+          final seriesKey = key.value.substring(prefix.length);
+          final index = series.indexWhere((item) => item.key == seriesKey);
+          return index < 0 ? null : index;
+        },
         itemBuilder: (context, index) => _seriesCard(context, series[index]),
       ),
     );
@@ -418,6 +430,16 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
             ),
           ),
         );
+    if (series.sourceKind == MediaSourceKind.cloud) {
+      return CloudPosterImage(
+        cachePath: series.posterCachePath,
+        url: _tmdbImageUrl(series.tmdbPosterUrl),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        placeholderBuilder: (_) => placeholder(),
+      );
+    }
     final cached = series.posterCachePath;
     if (cached != null && cached.isNotEmpty && File(cached).existsSync()) {
       return Image.file(
@@ -429,6 +451,29 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
       );
     }
     return _networkCover(series, placeholder);
+  }
+
+  void _scheduleCloudPosterWarmup(
+    BuildContext context,
+    List<MediaLibrarySeries> series,
+  ) {
+    final limit = cloudPosterWarmupLimit(
+      MediaQuery.sizeOf(context),
+      maxCrossAxisExtent: 280,
+      childAspectRatio: 0.68,
+    );
+    final paths = series
+        .where((item) => item.sourceKind == MediaSourceKind.cloud)
+        .take(limit)
+        .map((item) => item.posterCachePath)
+        .toList(growable: false);
+    final identity = paths.map((path) => path?.trim() ?? '').join('\u0000');
+    if (_posterWarmupIdentity == identity) return;
+    _posterWarmupIdentity = identity;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _posterWarmupIdentity != identity) return;
+      unawaited(precacheCloudPosterFiles(context, paths, limit: limit));
+    });
   }
 
   Widget _networkCover(

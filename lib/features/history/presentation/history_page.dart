@@ -12,6 +12,8 @@ import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/services/local_playback_request_builder.dart';
+import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
+import 'package:kanyingyin/widgets/cloud_poster_image.dart';
 import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 class HistoryPage extends StatefulWidget {
@@ -67,6 +69,7 @@ class _HistoryPageState extends State<HistoryPage> {
       itemCount: entries.length,
       separatorBuilder: (_, __) => const Divider(height: 1),
       itemBuilder: (context, index) => _HistoryTile(
+        key: ValueKey<String>('history-entry-${entries[index].stableKey}'),
         entry: entries[index],
         enabled: !_opening,
         onTap: () => _open(entries[index]),
@@ -229,6 +232,7 @@ class _HistoryPageState extends State<HistoryPage> {
 
 class _HistoryTile extends StatelessWidget {
   const _HistoryTile({
+    super.key,
     required this.entry,
     required this.enabled,
     required this.onTap,
@@ -308,6 +312,14 @@ class _Poster extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (entry.isCloud) {
+      return CloudPosterImage(
+        cachePath: entry.posterCachePath,
+        url: TmdbMatchSheet.imageUrl(entry.posterUrl, size: 'w500'),
+        fit: BoxFit.cover,
+        placeholderBuilder: _placeholder,
+      );
+    }
     final cached = entry.posterCachePath;
     if (cached != null && File(cached).existsSync()) {
       return Image.file(

@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_episode_tile_surface.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_image_decode_policy.dart';
@@ -10,7 +8,7 @@ import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/services/local_episode_parser.dart';
-import 'package:kanyingyin/widgets/tmdb_network_image.dart';
+import 'package:kanyingyin/widgets/cloud_poster_image.dart';
 
 Future<CloudFileEntry?> showCloudResourceEpisodeSheet({
   required BuildContext context,
@@ -297,77 +295,21 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
     CloudResourceSeasonGroup season,
     TvImageDecodeSize? decodeSize,
   ) {
-    final cached = season.metadata?.posterCachePath;
-    if (cached != null && File(cached).existsSync()) {
-      return Image.file(
-        File(cached),
-        fit: BoxFit.cover,
-        cacheWidth: decodeSize?.width,
-        cacheHeight: decodeSize?.height,
-        filterQuality: FilterQuality.medium,
-        errorBuilder: (_, __, ___) =>
-            _seasonNetworkOrSeries(context, season, decodeSize),
-      );
-    }
-    return _seasonNetworkOrSeries(context, season, decodeSize);
-  }
-
-  Widget _seasonNetworkOrSeries(
-    BuildContext context,
-    CloudResourceSeasonGroup season,
-    TvImageDecodeSize? decodeSize,
-  ) {
-    final url = TmdbMatchSheet.imageUrl(
-      season.metadata?.posterUrl,
-      size: 'w500',
-    );
-    if (url == null) return _seriesPoster(context, decodeSize);
-    return TmdbNetworkImage(
-      url: url,
+    return CloudPosterImage(
+      cachePath: season.metadata?.posterCachePath ??
+          group.workRecord?.posterCachePath ??
+          group.record?.posterCachePath,
+      url: TmdbMatchSheet.imageUrl(
+        season.metadata?.posterUrl ??
+            group.workRecord?.metadata?.posterUrl ??
+            group.record?.posterUrl,
+        size: 'w500',
+      ),
       fit: BoxFit.cover,
       cacheWidth: decodeSize?.width,
       cacheHeight: decodeSize?.height,
       filterQuality: FilterQuality.medium,
-      errorBuilder: (_, __, ___) => _seriesPoster(context, decodeSize),
-    );
-  }
-
-  Widget _seriesPoster(
-    BuildContext context,
-    TvImageDecodeSize? decodeSize,
-  ) {
-    final cached =
-        group.workRecord?.posterCachePath ?? group.record?.posterCachePath;
-    if (cached != null && File(cached).existsSync()) {
-      return Image.file(
-        File(cached),
-        fit: BoxFit.cover,
-        cacheWidth: decodeSize?.width,
-        cacheHeight: decodeSize?.height,
-        filterQuality: FilterQuality.medium,
-        errorBuilder: (_, __, ___) =>
-            _seriesNetworkOrPlaceholder(context, decodeSize),
-      );
-    }
-    return _seriesNetworkOrPlaceholder(context, decodeSize);
-  }
-
-  Widget _seriesNetworkOrPlaceholder(
-    BuildContext context,
-    TvImageDecodeSize? decodeSize,
-  ) {
-    final url = TmdbMatchSheet.imageUrl(
-      group.workRecord?.metadata?.posterUrl ?? group.record?.posterUrl,
-      size: 'w500',
-    );
-    if (url == null) return _placeholder(context);
-    return TmdbNetworkImage(
-      url: url,
-      fit: BoxFit.cover,
-      cacheWidth: decodeSize?.width,
-      cacheHeight: decodeSize?.height,
-      filterQuality: FilterQuality.medium,
-      errorBuilder: (_, __, ___) => _placeholder(context),
+      placeholderBuilder: _placeholder,
     );
   }
 

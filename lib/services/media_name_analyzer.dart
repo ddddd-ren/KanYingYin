@@ -68,19 +68,19 @@ class MediaNameAnalyzer {
     unicode: true,
   );
   static final RegExp _resolutionPattern = RegExp(
-    r'\b(480p|720p|1080p|1440p|2160p|4K|8K)\b',
+    r'\b(360p|480p|576p|720p|1080p|1440p|2160p|4K|8K)\b',
     caseSensitive: false,
   );
   static final RegExp _sourcePattern = RegExp(
-    r'\b(WEB[\s._-]?DL|WEBRip|BDRip|BluRay|BD|TVRip|HDTV)\b',
+    r'\b(WEB[\s._-]?DL|WEBRip|REMUX|BDMV|BDRip|BluRay|UHD(?:\s*BluRay)?|BD|TVRip|HDTV|DVDRip|HD-DVD)\b',
     caseSensitive: false,
   );
   static final RegExp _codecPattern = RegExp(
-    r'(?<![A-Za-z0-9])(x264|x265|H264|H265|HEVC|AVC|AV1)(?![A-Za-z0-9])',
+    r'(?<![A-Za-z0-9])(x264|x265|xvid|H264|H265|HEVC|AVC|AV1|VP9|MPEG[\s._-]*2|MPEG[\s._-]*4)(?![A-Za-z0-9])',
     caseSensitive: false,
   );
   static final RegExp _audioCodecPattern = RegExp(
-    r'(?<![A-Za-z0-9])(AC-?3|AAC|FLAC|DTS)(?![A-Za-z0-9])',
+    r'(?<![A-Za-z0-9])(TrueHD|DTS[\s._-]*(?:HD[\s._-]*MA|X)?|AC-?3|AAC|FLAC|LPCM|MP3|Opus|Vorbis)(?![A-Za-z0-9])',
     caseSensitive: false,
   );
   static final RegExp _audioTrackCountPattern = RegExp(
@@ -100,7 +100,7 @@ class MediaNameAnalyzer {
     caseSensitive: false,
   );
   static final RegExp _hdrPattern = RegExp(
-    r'\bHDR(?:10\+?)?\b',
+    r'(?<![A-Za-z0-9])(?:HDR(?:10(?:\+|Plus)?)?|HLG)(?![A-Za-z0-9])',
     caseSensitive: false,
   );
   static final RegExp _ddpPattern = RegExp(
@@ -320,7 +320,7 @@ class MediaNameAnalyzer {
     final ddp = _ddpPattern.firstMatch(value);
     final audioCodecs = _audioCodecPattern
         .allMatches(value)
-        .map((match) => match.group(1)!.replaceAll('-', '').toUpperCase())
+        .map((match) => _canonicalAudioCodec(match.group(1)!))
         .toSet();
     final subtitles = _subtitlePattern
         .allMatches(value)
@@ -517,10 +517,33 @@ class MediaNameAnalyzer {
       'webrip' => 'WEBRip',
       'bdrip' => 'BDRip',
       'bluray' => 'BluRay',
+      'remux' => 'Remux',
+      'bdmv' => 'BDMV',
+      'uhd-bluray' => 'UHD BluRay',
+      'dvdrip' => 'DVDRip',
+      'hd-dvd' => 'HD-DVD',
       'bd' => 'BD',
       'tvrip' => 'TVRip',
       'hdtv' => 'HDTV',
       _ => value,
+    };
+  }
+
+  String _canonicalAudioCodec(String value) {
+    final normalized = value.replaceAll(RegExp(r'[\s._-]+'), '').toLowerCase();
+    return switch (normalized) {
+      'truehd' => 'TrueHD',
+      'lpcm' => 'LPCM',
+      'opus' => 'Opus',
+      'vorbis' => 'Vorbis',
+      'aac' => 'AAC',
+      'flac' => 'FLAC',
+      'mp3' => 'MP3',
+      'ac3' => 'AC3',
+      'dts' => 'DTS',
+      'dtshdma' => 'DTS-HD MA',
+      'dtsx' => 'DTS-X',
+      _ => value.toUpperCase(),
     };
   }
 

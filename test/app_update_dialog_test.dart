@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/app_update/application/windows_update_installer.dart';
 import 'package:kanyingyin/features/app_update/domain/app_update_models.dart';
 import 'package:kanyingyin/features/app_update/presentation/app_update_dialog.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
 
 void main() {
   testWidgets('显示版本、发布时间、更新说明和操作按钮', (tester) async {
@@ -16,6 +17,7 @@ void main() {
           installer: _TestInstaller(
             download: (_) async => File('update.exe'),
           ),
+          capabilities: AppPlatformCapabilities.windows,
         ),
       ),
     );
@@ -37,7 +39,11 @@ void main() {
       },
     );
     await tester.pumpWidget(
-      _app(AppUpdateDialog(release: _release(), installer: installer)),
+      _app(AppUpdateDialog(
+        release: _release(),
+        installer: installer,
+        capabilities: AppPlatformCapabilities.windows,
+      )),
     );
 
     await tester.tap(find.text('下载并更新'));
@@ -59,7 +65,11 @@ void main() {
       },
     );
     await tester.pumpWidget(
-      _app(AppUpdateDialog(release: _release(), installer: installer)),
+      _app(AppUpdateDialog(
+        release: _release(),
+        installer: installer,
+        capabilities: AppPlatformCapabilities.windows,
+      )),
     );
 
     await tester.tap(find.text('下载并更新'));

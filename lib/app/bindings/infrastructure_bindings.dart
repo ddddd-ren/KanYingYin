@@ -57,6 +57,7 @@ void _registerAppUpdateBindings(Injector i) {
           builder: (_) => AppUpdateDialog(
             release: release,
             installer: Modular.get<WindowsUpdateInstaller>(),
+            capabilities: detectAppPlatform(),
           ),
         );
       },

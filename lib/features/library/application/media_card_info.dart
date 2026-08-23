@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
@@ -11,12 +12,16 @@ class UnifiedMediaCardInfo {
     required this.subtitle,
     required this.details,
     required List<ImmersiveMediaCardBadge> badges,
-  }) : badges = List<ImmersiveMediaCardBadge>.unmodifiable(badges);
+    required List<MediaTechnicalBadge> technicalBadges,
+  })  : badges = List<ImmersiveMediaCardBadge>.unmodifiable(badges),
+        technicalBadges =
+            List<MediaTechnicalBadge>.unmodifiable(technicalBadges);
 
   final String title;
   final String subtitle;
   final String details;
   final List<ImmersiveMediaCardBadge> badges;
+  final List<MediaTechnicalBadge> technicalBadges;
 }
 
 /// 统一生成本地、网盘和分类入口使用的海报信息。
@@ -48,6 +53,20 @@ class UnifiedMediaCardInfoBuilder {
       releaseDate: series.tmdbReleaseDate,
     );
     final badges = <ImmersiveMediaCardBadge>[];
+    const resolver = MediaTechnicalBadgeResolver();
+    final technicalBadges = resolver.aggregate([
+      for (final episode in episodes)
+        resolver.resolve(
+          names: [
+            episode.name,
+            if (episode.localItem != null) episode.localItem!.path,
+            if (episode.remotePath != null) episode.remotePath!,
+          ],
+          resolution: episode.localItem?.resolution,
+          videoWidth: episode.localItem?.videoWidth,
+          videoHeight: episode.localItem?.videoHeight,
+        ),
+    ]);
     final sourceLabel = series.isAvailable ? series.sourceName : '来源不可用';
     if (sourceLabel.trim().isNotEmpty) {
       badges.add(
@@ -95,6 +114,7 @@ class UnifiedMediaCardInfoBuilder {
       subtitle: subtitle,
       details: details,
       badges: badges,
+      technicalBadges: technicalBadges,
     );
   }
 
@@ -159,6 +179,7 @@ class UnifiedMediaCardInfoBuilder {
       subtitle: info.subtitle,
       details: info.details,
       badges: badges,
+      technicalBadges: info.technicalBadges,
     );
   }
 

@@ -203,6 +203,7 @@ class _CloudResourcePosterWallState extends State<CloudResourcePosterWall> {
             subtitle: displaySubtitle,
             details: displayDetails,
             badges: _badges(group, data),
+            technicalBadges: data.technicalBadges,
             loading: data.isScraping,
             overlayMode: ImmersiveMediaCardOverlayMode.hover,
             trailing: _resourceMenu(context, group),

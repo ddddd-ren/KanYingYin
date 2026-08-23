@@ -46,6 +46,14 @@ void main() {
       cloudInfo.badges.map((badge) => badge.label).toList(),
       ['夸克网盘', '电视剧', '有字幕', '已刮削'],
     );
+    expect(
+      localInfo.technicalBadges.map((badge) => badge.label),
+      ['4K', '杜比视界', 'HDR', '杜比全景声'],
+    );
+    expect(
+      cloudInfo.technicalBadges.map((badge) => badge.label),
+      ['4K', '杜比视界', 'HDR', '杜比全景声'],
+    );
   });
 }
 
@@ -61,10 +69,12 @@ MediaLibrarySeries _series({
   final media = <MediaLibraryEpisode>[];
   for (var index = 0; index < episodes.length; index++) {
     final episode = episodes[index];
+    final fileName =
+        episode == 1 ? 'S01E01.1080p.HDR.mkv' : 'S01E02.2160p.DV.Atmos.mkv';
     if (sourceKind == MediaSourceKind.local) {
       final item = LocalMediaIndexItem(
-        path: 'D:/Media/S01E0$episode.mkv',
-        name: 'S01E0$episode.mkv',
+        path: 'D:/Media/$fileName',
+        name: fileName,
         parentPath: 'D:/Media',
         sourcePath: 'D:/Media',
         size: sizes[index],
@@ -94,12 +104,12 @@ MediaLibrarySeries _series({
       media.add(
         MediaLibraryEpisode.cloud(
           stableId: 'remote-$episode',
-          name: 'S01E0$episode.mkv',
+          name: fileName,
           sourceId: sourceId,
           sourceName: sourceName,
           isAvailable: true,
           remoteId: 'remote-$episode',
-          remotePath: '/S01E0$episode.mkv',
+          remotePath: '/$fileName',
           size: sizes[index],
           modifiedAt: DateTime.utc(2026, 5, 28),
           seasonNumber: 1,

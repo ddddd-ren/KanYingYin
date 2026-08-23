@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_image_decode_policy.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_layout_policy.dart';
@@ -33,6 +34,7 @@ class LibraryMediaItemViewData {
     this.unifiedSubtitle = '',
     this.unifiedDetails = '',
     this.unifiedBadges = const <ImmersiveMediaCardBadge>[],
+    this.technicalBadges = const <MediaTechnicalBadge>[],
     this.localCoverPath,
     this.networkCoverUrl,
     this.isScraping = false,
@@ -54,6 +56,7 @@ class LibraryMediaItemViewData {
   final String unifiedSubtitle;
   final String unifiedDetails;
   final List<ImmersiveMediaCardBadge> unifiedBadges;
+  final List<MediaTechnicalBadge> technicalBadges;
   final String? localCoverPath;
   final String? networkCoverUrl;
   final bool isScraping;
@@ -373,6 +376,7 @@ class _LibraryMediaTileState extends State<_LibraryMediaTile> {
       overlayMode: ImmersiveMediaCardOverlayMode.hover,
       trailing: widget.trailingBuilder?.call(context, item),
       badges: badges,
+      technicalBadges: item.technicalBadges,
       onLongPress: widget.onShowActions == null
           ? null
           : () async => await widget.onShowActions!(item),

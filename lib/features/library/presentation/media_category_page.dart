@@ -276,6 +276,7 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
       details: info.details,
       overlayMode: ImmersiveMediaCardOverlayMode.hover,
       badges: info.badges,
+      technicalBadges: info.technicalBadges,
       trailing: _seriesMenu(series),
       onTap: !series.isAvailable || _playing ? null : () => _openSeries(series),
     );

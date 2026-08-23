@@ -126,8 +126,8 @@ void main() {
     expect(msixVersion, isNotNull);
 
     final currentVersion = packageVersion!.group(1)!;
-    expect(currentVersion, '2.1.164');
-    expect(packageVersion.group(2), '20164');
+    expect(currentVersion, '2.1.165');
+    expect(packageVersion.group(2), '20165');
     expect(msixVersion!.group(1), currentVersion);
     expect(
       _yamlField(msixConfig, 'identity_name'),

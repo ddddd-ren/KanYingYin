@@ -47,13 +47,13 @@ void main() {
     expect(
       gradle,
       contains(
-        'val androidVersionName = "2.1.164"',
+        'val androidVersionName = "2.1.165"',
       ),
     );
     expect(
       gradle,
       contains(
-        'val androidVersionCode = 20164',
+        'val androidVersionCode = 20165',
       ),
     );
     expect(gradle, contains('create("mobile")'));
@@ -97,9 +97,9 @@ void main() {
     );
     expect(script, contains(r'$apkTarget = Join-Path $desktop'));
     expect(script, contains(r'$aabTarget = Join-Path $desktop'));
-    expect(script, contains(r"$androidVersion = '2.1.164'"));
-    expect(script, contains(r'$androidVersionCode = 20164'));
-    expect(script, contains('Windows pubspec 版本必须为 2.1.164+20164'));
+    expect(script, contains(r"$androidVersion = '2.1.165'"));
+    expect(script, contains(r'$androidVersionCode = 20165'));
+    expect(script, contains('Windows pubspec 版本必须为 2.1.165+20165'));
     expect(script, contains("[ValidateSet('mobile', 'tvTest')]"));
     expect(script, contains(r"[string]$Flavor = 'mobile'"));
     expect(script, contains(r'[switch]$ApkOnly'));

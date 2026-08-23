@@ -2,26 +2,25 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-const _manualSaveResilienceCopy = '手动剧集匹配保存后，即使作品资料同步暂时失败，已保存的匹配结果也会保留。';
-const _openListHttpsCopy = 'OpenList 使用账号或令牌时要求 HTTPS，避免通过明文连接发送凭据';
+const _posterLoadingCopy = '网盘资源刮削后，海报下载完成前会显示媒体占位图，不再短暂出现白色空白卡片。';
 const _androidDeliveryBoundaryCopy = 'Android 当前已交付版本：2.1.160 (20160，本轮不打包)';
 
 void main() {
-  test('当前发布配置为二点一六四 Windows 测试版', () {
+  test('当前发布配置为二点一六五 Windows 测试版', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
-    final releaseNotesStart = releaseNotes.indexOf('## 2.1.164+20164');
-    final releaseNotesEnd = releaseNotes.indexOf('\n## 2.1.163+20163');
+    final releaseNotesStart = releaseNotes.indexOf('## 2.1.165+20165');
+    final releaseNotesEnd = releaseNotes.indexOf('\n## 2.1.164+20164');
     final currentReleaseNotes =
         releaseNotesStart >= 0 && releaseNotesEnd > releaseNotesStart
             ? releaseNotes.substring(releaseNotesStart, releaseNotesEnd)
             : '';
 
-    expect(pubspec, contains('version: 2.1.164+20164'));
-    expect(pubspec, contains('msix_version: 2.1.164.0'));
+    expect(pubspec, contains('version: 2.1.165+20165'));
+    expect(pubspec, contains('msix_version: 2.1.165.0'));
     expect(currentReleaseNotes, contains('Windows 测试版'));
-    expect(currentReleaseNotes, contains('2.1.164'));
+    expect(currentReleaseNotes, contains('2.1.165'));
     expect(
       currentReleaseNotes,
       contains('Android 当前已交付版本：2.1.160 (20160，本轮不打包)'),
@@ -29,16 +28,13 @@ void main() {
     expect(currentReleaseNotes, contains('Windows'));
     expect(currentReleaseNotes, contains('Android 手机'));
     expect(currentReleaseNotes, contains('EXE'));
-    expect(currentReleaseNotes, contains(_manualSaveResilienceCopy));
-    expect(currentReleaseNotes, contains(_openListHttpsCopy));
+    expect(currentReleaseNotes, contains(_posterLoadingCopy));
     expect(currentReleaseNotes, contains(_androidDeliveryBoundaryCopy));
     for (final text in <String>[
-      '手动剧集匹配',
-      '同步暂时失败',
-      '匹配结果',
-      'OpenList',
-      'HTTPS',
-      '明文连接',
+      '网盘资源',
+      '海报下载完成前',
+      '媒体占位图',
+      '白色空白卡片',
       '不会修改或删除',
     ]) {
       expect(currentReleaseNotes, contains(text));
@@ -54,10 +50,9 @@ void main() {
       updateDialogCopy,
       contains('本轮交付：Windows 测试版 EXE'),
     );
-    expect(updateDialogCopy, contains('2.1.164'));
+    expect(updateDialogCopy, contains('2.1.165'));
     expect(updateDialogCopy, contains('2.1.160'));
-    expect(updateDialogCopy, contains(_manualSaveResilienceCopy));
-    expect(updateDialogCopy, contains(_openListHttpsCopy));
+    expect(updateDialogCopy, contains(_posterLoadingCopy));
     expect(updateDialogCopy, contains(_androidDeliveryBoundaryCopy));
     expect(updateDialogCopy, contains('Android TV 继续暂停'));
     for (final tvOnlyText in <String>[

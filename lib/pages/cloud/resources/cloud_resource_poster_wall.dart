@@ -346,6 +346,7 @@ class CloudResourcePosterWall extends StatelessWidget {
       cacheWidth: decodeSize?.width,
       cacheHeight: decodeSize?.height,
       filterQuality: FilterQuality.medium,
+      loadingBuilder: _mediaPlaceholder,
       errorBuilder: (_, __, ___) => _mediaPlaceholder(context),
     );
   }

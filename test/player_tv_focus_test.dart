@@ -116,6 +116,9 @@ void main() {
     expect(videoPage, contains('current: isCurrent'));
     expect(videoPage, contains('autofocus: isCurrent'));
     expect(videoPage, contains('FocusTraversalGroup('));
+    expect(videoPage, contains('MediaTechnicalBadgeResolver'));
+    expect(videoPage, contains('MediaTechnicalBadgeRow'));
+    expect(videoPage, contains('names: [item.title, item.url]'));
   });
 
   test('TV 返回键优先收回选集侧栏并保留播放器焦点', () {

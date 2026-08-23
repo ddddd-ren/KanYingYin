@@ -26,6 +26,8 @@ import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:kanyingyin/features/player/presentation/player_exit_coordinator.dart';
 import 'package:kanyingyin/features/player/application/player_back_policy.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_episode_tile_surface.dart';
+import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
+import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 
 class VideoPage extends StatefulWidget {
   const VideoPage({super.key});
@@ -919,6 +921,9 @@ class _VideoPageState extends State<VideoPage>
     final colorScheme = Theme.of(context).colorScheme;
     final titleColor = isCurrent ? colorScheme.primary : colorScheme.onSurface;
     final isTv = detectAppPlatform().isAndroidTv;
+    final technicalBadges = const MediaTechnicalBadgeResolver().resolve(
+      names: [item.title, item.url],
+    );
     final content = Padding(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
       child: Row(
@@ -946,15 +951,24 @@ class _VideoPageState extends State<VideoPage>
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              item.title,
-              softWrap: true,
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.35,
-                color: titleColor,
-                fontWeight: isCurrent ? FontWeight.w600 : FontWeight.normal,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.title,
+                  softWrap: true,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.35,
+                    color: titleColor,
+                    fontWeight: isCurrent ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
+                if (technicalBadges.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  MediaTechnicalBadgeRow(badges: technicalBadges),
+                ],
+              ],
             ),
           ),
         ],

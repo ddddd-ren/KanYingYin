@@ -179,6 +179,19 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.166',
+    date: '2026-08-23',
+    isPrerelease: true,
+    changes: [
+      'Windows 2.1.166 测试版让所有已刮削的网盘资源海报即时显示，避免重复加载和白色封面',
+      '已刮削的网盘海报会优先从本地缓存显示，不再每次重新加载',
+      '后台扫描、刷新和刮削时，未变化的海报不再整批重新加载，也不会先闪成白色空白卡片',
+      '网盘媒体库、分类、选集和观看历史统一避免白色封面；本地资源显示逻辑保持不变',
+      'Android 手机当前已交付版本仍为 2.1.160，本轮不打包',
+      '本次更新不会修改或删除，也不会改名、移动本地及个人网盘原始视频和字幕',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.165',
     date: '2026-08-23',
     isPrerelease: true,

@@ -5,11 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('二点一六五 Windows 测试版版本文案保持一致', () {
-    const expectedVersion = '2.1.165';
-    const expectedBuildNumber = '20165';
-    const expectedAndroidVersion = '2.1.165';
-    const expectedAndroidVersionCode = '20165';
+  test('二点一六六 Windows 测试版版本文案保持一致', () {
+    const expectedVersion = '2.1.166';
+    const expectedBuildNumber = '20166';
+    const expectedAndroidVersion = '2.1.166';
+    const expectedAndroidVersionCode = '20166';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final androidGradle =
@@ -129,8 +129,9 @@ void main() {
     ]) {
       for (final text in <String>[
         '网盘资源',
-        '海报下载完成前',
-        '媒体占位图',
+        '本地缓存',
+        '不再整批重新加载',
+        '媒体库、分类、选集和观看历史',
         '白色空白卡片',
         '不会修改或删除',
       ]) {

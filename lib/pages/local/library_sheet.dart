@@ -2,7 +2,9 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
 import 'package:kanyingyin/features/library/application/media_library_query.dart';
+import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
@@ -709,6 +711,12 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
 
   Widget _epTile(BuildContext ctx, ColorScheme cs, TextTheme tt,
       LocalMediaSeries series, LocalMediaIndexItem ep) {
+    final technicalBadges = const MediaTechnicalBadgeResolver().resolve(
+      names: [ep.name, ep.path],
+      resolution: ep.resolution,
+      videoWidth: ep.videoWidth,
+      videoHeight: ep.videoHeight,
+    );
     return ListTile(
       dense: true,
       contentPadding: const EdgeInsets.only(left: 8, right: 4),
@@ -723,11 +731,22 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
               child:
                   Icon(Icons.edit_note_outlined, size: 16, color: cs.primary)),
       ]),
-      subtitle: Text(
-        _epSub(ep),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: tt.labelSmall?.copyWith(color: cs.outline),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (technicalBadges.isNotEmpty) ...[
+            const SizedBox(height: 5),
+            MediaTechnicalBadgeRow(badges: technicalBadges),
+            const SizedBox(height: 4),
+          ],
+          Text(
+            _epSub(ep),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: tt.labelSmall?.copyWith(color: cs.outline),
+          ),
+        ],
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,

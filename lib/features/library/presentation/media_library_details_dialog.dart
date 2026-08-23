@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/features/library/application/media_card_info.dart';
 import 'package:kanyingyin/features/library/application/media_category_runtime.dart';
+import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
+import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:path/path.dart' as p;
 
@@ -144,6 +146,16 @@ class MediaLibraryDetailsDialog extends StatelessWidget {
     final modifiedAt = episode.modifiedAt ?? local?.modified;
     final extension =
         p.extension(episode.name).replaceFirst('.', '').toUpperCase();
+    final technicalBadges = const MediaTechnicalBadgeResolver().resolve(
+      names: [
+        episode.name,
+        if (local != null) local.path,
+        if (episode.remotePath != null) episode.remotePath!,
+      ],
+      resolution: local?.resolution,
+      videoWidth: local?.videoWidth,
+      videoHeight: local?.videoHeight,
+    );
     final details = <String>[
       if (episode.seasonNumber != null || episode.episodeNumber != null)
         _seasonEpisode(episode),
@@ -161,6 +173,10 @@ class MediaLibraryDetailsDialog extends StatelessWidget {
           episode.name,
           style: Theme.of(context).textTheme.titleSmall,
         ),
+        if (technicalBadges.isNotEmpty) ...[
+          const SizedBox(height: 5),
+          MediaTechnicalBadgeRow(badges: technicalBadges),
+        ],
         if (details.isNotEmpty) ...[
           const SizedBox(height: 4),
           Text(

@@ -17,8 +17,8 @@ CloudResourceMediaGroup _episodeGroup({
   const videos = <CloudFileEntry>[
     CloudFileEntry(
       id: 'episode-1',
-      remotePath: '/影视/示例/S01E01.mkv',
-      name: '示例 S01E01.mkv',
+      remotePath: '/影视/示例/S01E01.2160p.DV.Atmos.mkv',
+      name: '示例 S01E01.2160p.DV.Atmos.mkv',
       size: 1024,
       modifiedAt: null,
       isDirectory: false,
@@ -72,6 +72,14 @@ void main() {
       await tester.tap(find.text('打开选集'));
       await tester.pumpAndSettle();
       expect(find.byType(CloudPosterImage), findsOneWidget);
+      expect(find.text('4K'), findsOneWidget);
+      expect(find.text('杜比视界'), findsOneWidget);
+      expect(find.text('杜比全景声'), findsOneWidget);
+      final title = tester.getRect(
+        find.text('示例 S01E01.2160p.DV.Atmos.mkv'),
+      );
+      final badges = tester.getRect(find.text('4K'));
+      expect(badges.top, greaterThan(title.bottom));
       return tester.widget<CloudPosterImage>(find.byType(CloudPosterImage));
     }
 

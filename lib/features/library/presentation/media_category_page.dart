@@ -7,6 +7,7 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:kanyingyin/features/library/application/media_category_runtime.dart';
 import 'package:kanyingyin/features/library/application/media_library_category.dart';
 import 'package:kanyingyin/features/library/application/media_library_query.dart';
+import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/features/library/application/media_card_info.dart';
 import 'package:kanyingyin/features/library/presentation/media_library_details_dialog.dart';
@@ -548,6 +549,22 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
                     itemCount: series.episodes.length,
                     itemBuilder: (context, index) {
                       final episode = series.episodes[index];
+                      final local = episode.localItem;
+                      final technicalBadges =
+                          const MediaTechnicalBadgeResolver().resolve(
+                        names: [
+                          episode.name,
+                          if (local != null) local.path,
+                          if (episode.remotePath != null) episode.remotePath!,
+                        ],
+                        resolution: local?.resolution,
+                        videoWidth: local?.videoWidth,
+                        videoHeight: local?.videoHeight,
+                      );
+                      final detailsText =
+                          episode.sourceKind == MediaSourceKind.local
+                              ? local?.path ?? ''
+                              : episode.remotePath ?? '';
                       return Focus(
                         autofocus: index == 0,
                         child: ListTile(
@@ -557,12 +574,23 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          subtitle: Text(
-                            episode.sourceKind == MediaSourceKind.local
-                                ? episode.localItem?.path ?? ''
-                                : episode.remotePath ?? '',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (technicalBadges.isNotEmpty) ...[
+                                const SizedBox(height: 5),
+                                MediaTechnicalBadgeRow(
+                                  badges: technicalBadges,
+                                ),
+                                const SizedBox(height: 4),
+                              ],
+                              Text(
+                                detailsText,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
                           ),
                           onTap: () => Navigator.of(context).pop(episode),
                         ),

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
+import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_episode_tile_surface.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_image_decode_policy.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
@@ -258,6 +260,9 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
         remotePath: video.remotePath,
       ),
     );
+    final technicalBadges = const MediaTechnicalBadgeResolver().resolve(
+      names: [video.name, video.remotePath],
+    );
     final tile = ListTile(
       leading: SizedBox(
         width: 68,
@@ -273,7 +278,18 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
-      subtitle: Text(_formatBytes(video.size)),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (technicalBadges.isNotEmpty) ...[
+            const SizedBox(height: 5),
+            MediaTechnicalBadgeRow(badges: technicalBadges),
+            const SizedBox(height: 4),
+          ],
+          Text(_formatBytes(video.size)),
+        ],
+      ),
       trailing: hasSubtitle
           ? const Tooltip(
               message: '有字幕',

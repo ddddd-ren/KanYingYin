@@ -67,6 +67,15 @@ class _HistoryPageState extends State<HistoryPage> {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       itemCount: entries.length,
+      findItemIndexCallback: (key) {
+        if (key is! ValueKey<String>) return null;
+        const prefix = 'history-entry-';
+        if (!key.value.startsWith(prefix)) return null;
+        final stableKey = key.value.substring(prefix.length);
+        final index =
+            entries.indexWhere((entry) => entry.stableKey == stableKey);
+        return index < 0 ? null : index;
+      },
       separatorBuilder: (_, __) => const Divider(height: 1),
       itemBuilder: (context, index) => _HistoryTile(
         key: ValueKey<String>('history-entry-${entries[index].stableKey}'),

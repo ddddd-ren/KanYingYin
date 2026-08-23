@@ -179,6 +179,17 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.169',
+    date: '2026-08-24',
+    isPrerelease: true,
+    changes: [
+      'Windows 本地与个人网盘媒体海报现在常驻显示作品的最高规格标签，包括 4K、2K、1080P、杜比视界、HDR10+、HDR 和杜比全景声',
+      '每个选集和版本会在标题下方显示该文件自身的规格，播放器右侧选集也使用相同标签',
+      'Android 手机当前已交付版本仍为 2.1.160，本轮不打包',
+      '本次更新不会修改或删除，也不会改名、移动本地及个人网盘原始视频和字幕',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.168',
     date: '2026-08-23',
     isPrerelease: true,

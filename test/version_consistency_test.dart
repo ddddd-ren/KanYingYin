@@ -5,11 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('二点一六八 Windows 测试版版本文案保持一致', () {
-    const expectedVersion = '2.1.168';
-    const expectedBuildNumber = '20168';
-    const expectedAndroidVersion = '2.1.168';
-    const expectedAndroidVersionCode = '20168';
+  test('二点一六九 Windows 测试版版本文案保持一致', () {
+    const expectedVersion = '2.1.169';
+    const expectedBuildNumber = '20169';
+    const expectedAndroidVersion = '2.1.169';
+    const expectedAndroidVersionCode = '20169';
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final androidGradle =
@@ -128,11 +128,10 @@ void main() {
       currentVersionHistory
     ]) {
       for (final text in <String>[
-        '每天从 GitHub 自动检查',
-        '“关于”页面手动检查',
-        '下载安装程序并启动更新',
-        'SHA-256',
-        '校验失败的文件不会运行',
+        '4K',
+        '杜比视界',
+        '选集',
+        '播放器右侧选集',
         '不会修改或删除',
       ]) {
         expect(currentCopy, contains(text));

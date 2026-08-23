@@ -1193,6 +1193,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
             _autoOrganizeIndicator(_autoOrganizeProgress!)
           else if (_batchScraping)
             Padding(
+              key: const ValueKey<String>('cloud-batch-scrape-progress'),
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: Row(
                 children: [
@@ -1209,6 +1210,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
           else if (_controller.tmdbTotalCount > 0 &&
               _controller.tmdbCompletedCount < _controller.tmdbTotalCount)
             Padding(
+              key: const ValueKey<String>('cloud-tmdb-progress'),
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: LinearProgressIndicator(
                 value:
@@ -1217,6 +1219,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
             ),
           if (_controller.scanning)
             Padding(
+              key: const ValueKey<String>('cloud-scan-progress'),
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: Row(
                 children: [
@@ -1233,6 +1236,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
               ),
             ),
           Padding(
+            key: const ValueKey<String>('cloud-resource-search-surface'),
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
             child: TextField(
               decoration: const InputDecoration(
@@ -1244,6 +1248,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
             ),
           ),
           Expanded(
+            key: const ValueKey<String>('cloud-resource-poster-surface'),
             child: CloudResourcePosterWall(
               capabilities: widget.capabilities ?? detectAppPlatform(),
               sourceId: _controller.selectedSource!.id,
@@ -1271,6 +1276,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
 
   Widget _autoOrganizeIndicator(CloudResourceAutoOrganizeProgress progress) {
     return Padding(
+      key: const ValueKey<String>('cloud-auto-organize-progress'),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Row(
         children: [

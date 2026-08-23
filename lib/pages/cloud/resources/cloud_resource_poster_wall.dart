@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
@@ -13,13 +12,13 @@ import 'package:kanyingyin/features/tv/presentation/tv_image_decode_policy.dart'
 import 'package:kanyingyin/features/tv/presentation/tv_layout_policy.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
-import 'package:kanyingyin/widgets/tmdb_network_image.dart';
+import 'package:kanyingyin/widgets/cloud_poster_image.dart';
 
 typedef CloudResourceGroupAction = FutureOr<void> Function(
   CloudResourceMediaGroup group,
 );
 
-class CloudResourcePosterWall extends StatelessWidget {
+class CloudResourcePosterWall extends StatefulWidget {
   const CloudResourcePosterWall({
     super.key,
     required this.sourceId,
@@ -58,6 +57,78 @@ class CloudResourcePosterWall extends StatelessWidget {
   final CloudResourceGroupAction? onDetails;
   final CloudResourceGroupAction? onHide;
   final AppPlatformCapabilities? capabilities;
+
+  @override
+  State<CloudResourcePosterWall> createState() =>
+      _CloudResourcePosterWallState();
+}
+
+class _CloudResourcePosterWallState extends State<CloudResourcePosterWall> {
+  String? _warmupIdentity;
+
+  String get sourceId => widget.sourceId;
+  String get sourceName => widget.sourceName;
+  CloudResourceCollection get collection => widget.collection;
+  Set<String> get scrapingKeys => widget.scrapingKeys;
+  String get searchQuery => widget.searchQuery;
+  Set<String> get subtitleVideoKeys => widget.subtitleVideoKeys;
+  int get hiddenVideoCount => widget.hiddenVideoCount;
+  CloudResourceGroupAction get onOpenGroup => widget.onOpenGroup;
+  CloudResourceGroupAction get onEditTitle => widget.onEditTitle;
+  CloudResourceGroupAction? get onEditTags => widget.onEditTags;
+  CloudResourceGroupAction get onScrape => widget.onScrape;
+  CloudResourceGroupAction get onRematch => widget.onRematch;
+  CloudResourceGroupAction? get onManualMatch => widget.onManualMatch;
+  CloudResourceGroupAction? get onMatchEpisodes => widget.onMatchEpisodes;
+  CloudResourceGroupAction? get onDetails => widget.onDetails;
+  CloudResourceGroupAction? get onHide => widget.onHide;
+  AppPlatformCapabilities? get capabilities => widget.capabilities;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _schedulePosterWarmup();
+  }
+
+  @override
+  void didUpdateWidget(covariant CloudResourcePosterWall oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _schedulePosterWarmup();
+  }
+
+  void _schedulePosterWarmup() {
+    if (collection.groups.isEmpty) return;
+    final platform = capabilities ?? detectAppPlatform();
+    final decodeSize = TvImageDecodePolicy.poster(
+      platform,
+      devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+    );
+    final limit = cloudPosterWarmupLimit(
+      MediaQuery.sizeOf(context),
+      maxCrossAxisExtent: 300,
+      childAspectRatio: 0.68,
+    );
+    final paths = collection.groups
+        .take(limit)
+        .map(_cardData)
+        .map((data) => data.posterCachePath)
+        .toList(growable: false);
+    final identity = paths.map((path) => path?.trim() ?? '').join('\u0000');
+    if (_warmupIdentity == identity) return;
+    _warmupIdentity = identity;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _warmupIdentity != identity) return;
+      unawaited(
+        precacheCloudPosterFiles(
+          context,
+          paths,
+          limit: limit,
+          cacheWidth: decodeSize?.width,
+          cacheHeight: decodeSize?.height,
+        ),
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -102,28 +173,7 @@ class CloudResourcePosterWall extends StatelessWidget {
         itemBuilder: (context, index) {
           final group = collection.groups[index];
           final anchor = group.anchor;
-          final scraping = group.isWorkScoped
-              ? scrapingKeys.contains(group.workKey)
-              : group.videos.any(
-                  (video) => scrapingKeys.contains(_resourceKey(video)),
-                );
-          final hasSubtitle = group.videos.any(
-            (video) => subtitleVideoKeys.contains(_resourceKey(video)),
-          );
-          final data = group.isWorkScoped
-              ? CloudResourceCardViewData.fromGroup(
-                  group: group,
-                  scraping: scraping,
-                  hasSubtitle: hasSubtitle,
-                  sourceName: sourceName,
-                )
-              : CloudResourceCardViewData.fromEntry(
-                  entry: anchor,
-                  record: group.record,
-                  scraping: scraping,
-                  hasSubtitle: hasSubtitle,
-                  sourceName: sourceName,
-                );
+          final data = _cardData(group);
           final range = data.unifiedSubtitle.contains(' · ')
               ? data.unifiedSubtitle.substring(
                   data.unifiedSubtitle.indexOf(' · ') + 3,
@@ -153,7 +203,7 @@ class CloudResourcePosterWall extends StatelessWidget {
             subtitle: displaySubtitle,
             details: displayDetails,
             badges: _badges(group, data),
-            loading: scraping,
+            loading: data.isScraping,
             overlayMode: ImmersiveMediaCardOverlayMode.hover,
             trailing: _resourceMenu(context, group),
             onTap: () => onOpenGroup(group),
@@ -161,6 +211,31 @@ class CloudResourcePosterWall extends StatelessWidget {
         },
       ),
     );
+  }
+
+  CloudResourceCardViewData _cardData(CloudResourceMediaGroup group) {
+    final scraping = group.isWorkScoped
+        ? scrapingKeys.contains(group.workKey)
+        : group.videos.any(
+            (video) => scrapingKeys.contains(_resourceKey(video)),
+          );
+    final hasSubtitle = group.videos.any(
+      (video) => subtitleVideoKeys.contains(_resourceKey(video)),
+    );
+    return group.isWorkScoped
+        ? CloudResourceCardViewData.fromGroup(
+            group: group,
+            scraping: scraping,
+            hasSubtitle: hasSubtitle,
+            sourceName: sourceName,
+          )
+        : CloudResourceCardViewData.fromEntry(
+            entry: group.anchor,
+            record: group.record,
+            scraping: scraping,
+            hasSubtitle: hasSubtitle,
+            sourceName: sourceName,
+          );
   }
 
   Widget _resourceMenu(BuildContext context, CloudResourceMediaGroup group) {
@@ -296,58 +371,28 @@ class CloudResourcePosterWall extends StatelessWidget {
     CloudResourceCardViewData data,
     TvImageDecodeSize? decodeSize,
   ) {
-    final record = group.record;
+    final poster = CloudPosterImage(
+      cachePath: data.posterCachePath,
+      url: TmdbMatchSheet.imageUrl(data.posterUrl, size: 'w500'),
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      cacheWidth: decodeSize?.width,
+      cacheHeight: decodeSize?.height,
+      filterQuality: FilterQuality.medium,
+      placeholderBuilder: _mediaPlaceholder,
+    );
     if (group.isWorkScoped && group.seasonNumber != null) {
       return KeyedSubtree(
         key: ValueKey<String>('season-poster-${group.seasonNumber}'),
-        child: _cachedPoster(context, data, decodeSize) ??
-            _networkPoster(context, data, decodeSize),
+        child: poster,
       );
     }
-    final key = record?.status == CloudResourceTmdbStatus.matched
-        ? ValueKey<String>('tmdb-poster-${record!.stableKey}')
-        : null;
-    final poster = _cachedPoster(context, data, decodeSize) ??
-        _networkPoster(context, data, decodeSize);
-    return key == null ? poster : KeyedSubtree(key: key, child: poster);
-  }
-
-  Widget? _cachedPoster(
-    BuildContext context,
-    CloudResourceCardViewData data,
-    TvImageDecodeSize? decodeSize,
-  ) {
-    final path = data.posterCachePath;
-    if (path == null || !File(path).existsSync()) return null;
-    return Image.file(
-      File(path),
-      fit: BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-      cacheWidth: decodeSize?.width,
-      cacheHeight: decodeSize?.height,
-      filterQuality: FilterQuality.medium,
-      errorBuilder: (_, __, ___) => _networkPoster(context, data, decodeSize),
-    );
-  }
-
-  Widget _networkPoster(
-    BuildContext context,
-    CloudResourceCardViewData data,
-    TvImageDecodeSize? decodeSize,
-  ) {
-    final url = TmdbMatchSheet.imageUrl(data.posterUrl, size: 'w500');
-    if (url == null) return _mediaPlaceholder(context);
-    return TmdbNetworkImage(
-      url: url,
-      fit: BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-      cacheWidth: decodeSize?.width,
-      cacheHeight: decodeSize?.height,
-      filterQuality: FilterQuality.medium,
-      loadingBuilder: _mediaPlaceholder,
-      errorBuilder: (_, __, ___) => _mediaPlaceholder(context),
+    final record = group.record;
+    if (record?.status != CloudResourceTmdbStatus.matched) return poster;
+    return KeyedSubtree(
+      key: ValueKey<String>('tmdb-poster-${record!.stableKey}'),
+      child: poster,
     );
   }
 

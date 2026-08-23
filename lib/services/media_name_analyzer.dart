@@ -72,7 +72,7 @@ class MediaNameAnalyzer {
     caseSensitive: false,
   );
   static final RegExp _sourcePattern = RegExp(
-    r'\b(WEB[\s._-]?DL|WEBRip|REMUX|BDMV|BDRip|BluRay|UHD(?:\s*BluRay)?|BD|TVRip|HDTV|DVDRip|HD-DVD)\b',
+    r'\b(WEB[\s._-]?DL|WEBRip|REMUX|BDMV|BDRip|BluRay|UHD(?:\s*BluRay)?|BD|TVRip|HDTV|DVDRip|HD-DVD|NF|AMZN|DSNP|ATVP|HMAX|HULU|CR)\b',
     caseSensitive: false,
   );
   static final RegExp _codecPattern = RegExp(
@@ -80,7 +80,7 @@ class MediaNameAnalyzer {
     caseSensitive: false,
   );
   static final RegExp _audioCodecPattern = RegExp(
-    r'(?<![A-Za-z0-9])(TrueHD|DTS[\s._-]*(?:HD[\s._-]*MA|X)?|AC-?3|AAC|FLAC|LPCM|MP3|Opus|Vorbis)(?![A-Za-z0-9])',
+    r'(?<![A-Za-z0-9])(TrueHD|DTS[\s._-]*(?:HD[\s._-]*MA|X)?[\s._-]*\d(?:\.\d)?|DTS[\s._-]*(?:HD[\s._-]*MA|X)?|AC-?3|AAC|FLAC|LPCM|MP3|Opus|Vorbis)(?![A-Za-z0-9])',
     caseSensitive: false,
   );
   static final RegExp _audioTrackCountPattern = RegExp(
@@ -112,7 +112,7 @@ class MediaNameAnalyzer {
     caseSensitive: false,
   );
   static final RegExp _bitratePattern = RegExp(
-    r'高码率|低码率',
+    r'高码率|低码率|(?<![A-Za-z0-9])HQ(?![A-Za-z0-9])|(?<![A-Za-z0-9])LQ(?![A-Za-z0-9])',
     caseSensitive: false,
     unicode: true,
   );
@@ -327,6 +327,10 @@ class MediaNameAnalyzer {
         .map((match) => match.group(0)!)
         .toSet()
         .toList(growable: false);
+    final subtitleTracks = _subtitleTrackCountPattern
+        .allMatches(value)
+        .map((match) => match.group(0)!)
+        .toSet();
     final releaseGroup = _releaseGroup(value);
     return MediaReleaseTags(
       resolution: _canonicalResolution(resolution),
@@ -346,7 +350,7 @@ class MediaNameAnalyzer {
             .map((match) => match.group(0)!)
             .toSet(),
       ],
-      subtitles: subtitles,
+      subtitles: <String>[...subtitles, ...subtitleTracks],
       releaseGroup: releaseGroup,
     );
   }
@@ -522,6 +526,13 @@ class MediaNameAnalyzer {
       'uhd-bluray' => 'UHD BluRay',
       'dvdrip' => 'DVDRip',
       'hd-dvd' => 'HD-DVD',
+      'nf' => 'Netflix',
+      'amzn' => 'Amazon',
+      'dsnp' => 'Disney+',
+      'atvp' => 'Apple TV+',
+      'hmax' => 'Max',
+      'hulu' => 'Hulu',
+      'cr' => 'Crunchyroll',
       'bd' => 'BD',
       'tvrip' => 'TVRip',
       'hdtv' => 'HDTV',
@@ -530,7 +541,16 @@ class MediaNameAnalyzer {
   }
 
   String _canonicalAudioCodec(String value) {
+    final channelMatch = RegExp(
+      r'^DTS[\s._-]*(\d(?:[._]\d)?)$',
+      caseSensitive: false,
+    ).firstMatch(value.trim());
+    if (channelMatch != null) {
+      return 'DTS ${channelMatch.group(1)!.replaceAll('_', '.')}';
+    }
     final normalized = value.replaceAll(RegExp(r'[\s._-]+'), '').toLowerCase();
+    final dtsChannel = RegExp(r'^dts([0-9].*)$').firstMatch(normalized);
+    if (dtsChannel != null) return 'DTS ${dtsChannel.group(1)}';
     return switch (normalized) {
       'truehd' => 'TrueHD',
       'lpcm' => 'LPCM',

@@ -347,10 +347,15 @@ class MediaTechnicalBadgeRow extends StatelessWidget {
         MediaTechnicalBadgeKind.resolution => const Color(0xE64338CA),
         MediaTechnicalBadgeKind.source => const Color(0xE647556B),
         MediaTechnicalBadgeKind.codec => const Color(0xE65B21B6),
+        MediaTechnicalBadgeKind.bitrate => const Color(0xE6774B1B),
         MediaTechnicalBadgeKind.dolbyVision => const Color(0xE66D28D9),
         MediaTechnicalBadgeKind.hdr => const Color(0xE69A3412),
         MediaTechnicalBadgeKind.dolbyAtmos => const Color(0xE6036991),
         MediaTechnicalBadgeKind.audio => const Color(0xE616766E),
         MediaTechnicalBadgeKind.subtitles => const Color(0xE6654A1F),
+        MediaTechnicalBadgeKind.frameRate => const Color(0xE64B5563),
+        MediaTechnicalBadgeKind.bitDepth => const Color(0xE64D7C0F),
+        MediaTechnicalBadgeKind.edition => const Color(0xE67C2D12),
+        MediaTechnicalBadgeKind.releaseGroup => const Color(0xE64C1D95),
       };
 }

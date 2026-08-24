@@ -192,6 +192,17 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.174',
+    date: '2026-08-24',
+    isPrerelease: true,
+    changes: [
+      '修复个人网盘海报滑出当前界面后，再滑回时重新显示占位图的问题',
+      '已加载成功的网盘海报会保留显示状态，往返浏览海报墙时不再触发二次加载视觉',
+      'Android 手机当前已交付测试版仍为 2.1.171，本轮不打包；Android TV 继续暂停',
+      '本次更新不会修改或删除，也不会改名、移动本地及个人网盘原始视频和字幕',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.173',
     date: '2026-08-24',
     isPrerelease: true,

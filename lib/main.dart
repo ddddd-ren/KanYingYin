@@ -136,11 +136,6 @@ Future<void> _startApplication() async {
   );
   final isLowResolution =
       capabilities.desktopShell && await Utils.isLowResolution();
-  await bootstrap.prepareWindow(
-    showWindowButtons: showWindowButton,
-    lowResolution: isLowResolution,
-  );
-  await ProxyManager.initializeProxy();
   runApp(
     ChangeNotifierProvider(
       create: (_) => ThemeProvider(),
@@ -149,5 +144,18 @@ Future<void> _startApplication() async {
         child: AppWidget(capabilities: capabilities),
       ),
     ),
+  );
+  await bootstrap.prepareWindow(
+    showWindowButtons: showWindowButton,
+    lowResolution: isLowResolution,
+  );
+  unawaited(
+    ProxyManager.initializeProxy().catchError((Object error, StackTrace stack) {
+      AppLogger().w(
+        '启动代理探测失败，不影响应用使用',
+        error: error,
+        stackTrace: stack,
+      );
+    }),
   );
 }

@@ -31,6 +31,20 @@ void main() {
     expect(mainSource, isNot(contains('package:window_manager')));
     expect(mainSource, isNot(contains('windowManager.')));
   });
+
+  test('Windows 先渲染并显示首帧，再在后台探测代理', () {
+    final mainSource = File('lib/main.dart').readAsStringSync();
+    final runAppIndex =
+        mainSource.indexOf('runApp(\n    ChangeNotifierProvider(');
+    final prepareWindowIndex =
+        mainSource.indexOf('await bootstrap.prepareWindow(');
+    final proxyIndex = mainSource.indexOf('ProxyManager.initializeProxy()');
+
+    expect(runAppIndex, greaterThanOrEqualTo(0));
+    expect(prepareWindowIndex, greaterThan(runAppIndex));
+    expect(proxyIndex, greaterThan(prepareWindowIndex));
+    expect(mainSource, isNot(contains('await ProxyManager.initializeProxy()')));
+  });
 }
 
 class _FakeDesktopWindowPort implements DesktopWindowPort {

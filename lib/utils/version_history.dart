@@ -192,6 +192,17 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.173',
+    date: '2026-08-24',
+    isPrerelease: true,
+    changes: [
+      '修复首次打开时可能长时间显示空白窗口的问题，应用界面现在会先显示，再在后台完成网络代理探测',
+      '本地扫描、媒体库浏览和播放不再等待 TMDB 网络探测；断网或代理不可用时仍可正常进入应用',
+      'Android 手机当前已交付测试版仍为 2.1.171，本轮不打包；Android TV 继续暂停',
+      '本次更新不会修改或删除，也不会改名、移动本地及个人网盘原始视频和字幕',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.172',
     date: '2026-08-24',
     isPrerelease: true,

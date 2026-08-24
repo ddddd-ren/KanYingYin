@@ -92,7 +92,8 @@ class SubtitlePreferences {
     await _storage.put(SettingBoxKey.subtitleForceStyle, settings.forceStyle);
   }
 
-  double loadDelay(String key) {
+  double loadDelay(String? key) {
+    if (key == null || key.isEmpty) return 0.0;
     final values = _delayMap();
     final value = values[key];
     if (value is! num) return 0.0;
@@ -101,8 +102,8 @@ class SubtitlePreferences {
     return converted.clamp(-30.0, 30.0).toDouble();
   }
 
-  Future<void> saveDelay(String key, double seconds) async {
-    if (key.isEmpty) return;
+  Future<void> saveDelay(String? key, double seconds) async {
+    if (key == null || key.isEmpty) return;
     final values = _delayMap();
     final normalized = _normalizeDelay(seconds);
     if (normalized == 0) {

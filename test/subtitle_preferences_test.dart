@@ -51,12 +51,16 @@ void main() {
 
   test('保存和读取当前视频 delay，零值删除且保留其他视频', () async {
     final preferences = SubtitlePreferences(storage: box);
+    await preferences.saveDelay(null, 1.5);
+    await preferences.saveDelay('', 1.5);
     await preferences.saveDelay('other', 2.5);
     await preferences.saveDelay('current', 1.24);
     expect(preferences.loadDelay('current'), 1.0);
     await preferences.saveDelay('current', 0);
     expect(preferences.loadDelay('current'), 0);
     expect(preferences.loadDelay('other'), 2.5);
+    expect(preferences.loadDelay(null), 0);
+    expect(preferences.loadDelay(''), 0);
   });
 
   test('保存并读取八项字幕样式', () async {

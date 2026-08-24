@@ -1,34 +1,35 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:kanyingyin/features/player/application/player_orientation_policy.dart';
+import 'package:kanyingyin/utils/window_utils.dart';
 
 void main() {
-  test('Android TV 退出播放器后保持横屏', () {
+  test('退出播放器后 TV 和平板保持横屏，手机恢复竖屏', () {
     expect(
-      PlayerOrientationPolicy.afterPlayback(
+      WindowUtils.preferredOrientationsAfterPlayback(
         isAndroidTv: true,
         isTablet: false,
       ),
-      PlayerExitOrientation.landscape,
+      const [
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ],
     );
-  });
-
-  test('Android 平板退出播放器后保持横屏', () {
     expect(
-      PlayerOrientationPolicy.afterPlayback(
+      WindowUtils.preferredOrientationsAfterPlayback(
         isAndroidTv: false,
         isTablet: true,
       ),
-      PlayerExitOrientation.landscape,
+      const [
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ],
     );
-  });
-
-  test('手机退出播放器后恢复竖屏', () {
     expect(
-      PlayerOrientationPolicy.afterPlayback(
+      WindowUtils.preferredOrientationsAfterPlayback(
         isAndroidTv: false,
         isTablet: false,
       ),
-      PlayerExitOrientation.portrait,
+      const [DeviceOrientation.portraitUp],
     );
   });
 }

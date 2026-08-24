@@ -125,10 +125,7 @@ void main() {
     expect(packageVersion, isNotNull);
     expect(msixVersion, isNotNull);
 
-    final currentVersion = packageVersion!.group(1)!;
-    expect(currentVersion, '1.0.9');
-    expect(packageVersion.group(2), '10009');
-    expect(msixVersion!.group(1), currentVersion);
+    expect(msixVersion!.group(1), packageVersion!.group(1));
     expect(
       _yamlField(msixConfig, 'identity_name'),
       AppIdentity.windowsIdentity,

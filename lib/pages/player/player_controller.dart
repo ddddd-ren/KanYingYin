@@ -28,7 +28,6 @@ import 'package:kanyingyin/features/player/application/player_runtime_preference
 import 'package:kanyingyin/features/player/application/player_color_profile.dart';
 import 'package:kanyingyin/features/player/application/player_decoder_recovery_policy.dart';
 import 'package:kanyingyin/features/player/application/player_resource_disposer.dart';
-import 'package:kanyingyin/features/player/application/player_subtitle_coordinator.dart';
 import 'package:kanyingyin/features/player/application/subtitle_preferences.dart';
 import 'package:kanyingyin/features/player/application/truehd_fallback_policy.dart';
 import 'package:kanyingyin/pages/player/models/embedded_track_info.dart';
@@ -252,8 +251,6 @@ abstract class _PlayerController with Store {
   final AppPlatformCapabilities _capabilities;
   final Future<void> Function()? _clearLocalPlaybackCache;
   final PlayerRuntimePreferences _runtimePreferences;
-  late final PlayerSubtitleCoordinator _subtitleCoordinator =
-      PlayerSubtitleCoordinator(_subtitlePreferences);
   late final EmbeddedTrackCoordinator _embeddedTrackCoordinator =
       EmbeddedTrackCoordinator(_trackLanguagePreferences);
   final CloudPlaybackLeaseCoordinator _playbackLeaseCoordinator =
@@ -1601,7 +1598,7 @@ abstract class _PlayerController with Store {
     subtitleForceStyle = forceStyle ?? subtitleForceStyle;
 
     if (save) {
-      await _subtitleCoordinator.saveStyle(subtitleStyleSettings);
+      await _subtitlePreferences.saveStyle(subtitleStyleSettings);
     }
     await _syncSubtitleStyleToPlayer();
   }
@@ -1636,8 +1633,9 @@ abstract class _PlayerController with Store {
     if (!isLocalPlayback && _subtitleStorageKey == null) return;
     if (_subtitleDelayStorageKey.isEmpty) return;
     try {
-      subtitleDelaySeconds =
-          _subtitleCoordinator.loadDelay(_subtitleDelayStorageKey);
+      subtitleDelaySeconds = _subtitlePreferences.loadDelay(
+        _subtitleDelayStorageKey,
+      );
     } catch (e) {
       AppLogger()
           .w('PlayerController: failed to load subtitle delay', error: e);
@@ -1648,7 +1646,7 @@ abstract class _PlayerController with Store {
     if (!isLocalPlayback && _subtitleStorageKey == null) return;
     if (_subtitleDelayStorageKey.isEmpty) return;
     try {
-      await _subtitleCoordinator.saveDelay(
+      await _subtitlePreferences.saveDelay(
         _subtitleDelayStorageKey,
         subtitleDelaySeconds,
       );
@@ -1730,7 +1728,7 @@ abstract class _PlayerController with Store {
   }
 
   void _applyStoredSubtitleStyle() {
-    final style = _subtitleCoordinator.loadStyle();
+    final style = _subtitlePreferences.loadStyle();
     subtitleFontSize = style.fontSize;
     subtitleColorValue = style.colorValue;
     subtitleBorderColorValue = style.borderColorValue;

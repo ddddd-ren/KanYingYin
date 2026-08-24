@@ -2,7 +2,6 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:kanyingyin/platform/android/android_system_service.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
-import 'package:kanyingyin/features/player/application/player_orientation_policy.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -51,18 +50,23 @@ class WindowUtils {
       final view = WidgetsBinding.instance.platformDispatcher.views.first;
       final isTablet =
           view.physicalSize.shortestSide / view.devicePixelRatio >= 600;
-      final orientation = PlayerOrientationPolicy.afterPlayback(
-        isAndroidTv: detectAppPlatform().isAndroidTv,
-        isTablet: isTablet,
-      );
       await SystemChrome.setPreferredOrientations(
-        orientation == PlayerExitOrientation.landscape
-            ? const [
-                DeviceOrientation.landscapeLeft,
-                DeviceOrientation.landscapeRight,
-              ]
-            : const [DeviceOrientation.portraitUp],
+        preferredOrientationsAfterPlayback(
+          isAndroidTv: detectAppPlatform().isAndroidTv,
+          isTablet: isTablet,
+        ),
       );
     }
   }
+
+  static List<DeviceOrientation> preferredOrientationsAfterPlayback({
+    required bool isAndroidTv,
+    required bool isTablet,
+  }) =>
+      isAndroidTv || isTablet
+          ? const [
+              DeviceOrientation.landscapeLeft,
+              DeviceOrientation.landscapeRight,
+            ]
+          : const [DeviceOrientation.portraitUp];
 }

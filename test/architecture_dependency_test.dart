@@ -1,5 +1,8 @@
 import 'dart:io';
 
+import 'package:analyzer/dart/analysis/features.dart';
+import 'package:analyzer/dart/analysis/utilities.dart';
+import 'package:analyzer/dart/ast/ast.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -38,7 +41,9 @@ export 'package:kanyingyin/\u0070ages/init_page.dart';
 ''');
 
     expect(
-      _imports(fixture).map((directive) => directive.uri),
+      _imports(fixture)
+          .map((directive) => directive.uri)
+          .toList(growable: false),
       [
         'package:kanyingyin/core/network/network_config.dart',
         '../../utils/logger.dart',
@@ -71,7 +76,8 @@ import 'package:flutter_modular/flutter_modular.dart';
 
     expect(
       _imports(fixture, projectRoot: fixtureRoot)
-          .map((directive) => directive.uri),
+          .map((directive) => directive.uri)
+          .toList(growable: false),
       [
         'lib/pages/init_page.dart',
         'lib/modules/bangumi/bangumi_item.g.dart',
@@ -336,8 +342,7 @@ Iterable<_ImportRecord> _imports(
   File file, {
   Directory? projectRoot,
 }) sync* {
-  final source = file.readAsStringSync();
-  for (final uri in _directiveUris(source)) {
+  for (final uri in _directiveUris(file)) {
     yield _ImportRecord(
       file.path,
       projectRoot == null ? uri : _normalizeUri(file, uri, projectRoot),
@@ -390,217 +395,23 @@ bool _isAllowedCoreNetworkUri(String uri) =>
     uri.startsWith('dart:') ||
     uri.startsWith('package:dio/');
 
-Iterable<String> _directiveUris(String source) sync* {
-  var index = 0;
-  while (index < source.length) {
-    index = _skipWhitespaceAndComments(source, index);
-    if (index >= source.length) return;
-
-    final identifier = _readIdentifier(source, index);
-    if (identifier == null) {
-      final string = _readStringLiteral(source, index);
-      index = string?.end ?? index + 1;
-      continue;
-    }
-
-    index = identifier.end;
-    if (identifier.value != 'import' &&
-        identifier.value != 'export' &&
-        identifier.value != 'part') {
-      continue;
-    }
-
-    if (identifier.value == 'part') {
-      final nextIndex = _skipWhitespaceAndComments(source, index);
-      final nextIdentifier = _readIdentifier(source, nextIndex);
-      if (nextIdentifier?.value == 'of') {
-        index = nextIdentifier!.end;
-        continue;
-      }
-    }
-
-    while (index < source.length) {
-      index = _skipWhitespaceAndComments(source, index);
-      if (index >= source.length || source.codeUnitAt(index) == 0x3b) {
-        index++;
-        break;
-      }
-      final string = _readStringLiteral(source, index);
-      if (string != null) {
-        yield string.value;
-        index = string.end;
-      } else {
-        index++;
+Iterable<String> _directiveUris(File file) sync* {
+  final unit = parseFile(
+    path: file.absolute.path,
+    featureSet: FeatureSet.latestLanguageVersion(),
+    throwIfDiagnostics: false,
+  ).unit;
+  for (final directive in unit.directives) {
+    if (directive is! UriBasedDirective) continue;
+    final uri = directive.uri.stringValue;
+    if (uri != null) yield uri;
+    if (directive is NamespaceDirective) {
+      for (final configuration in directive.configurations) {
+        final configuredUri = configuration.uri.stringValue;
+        if (configuredUri != null) yield configuredUri;
       }
     }
   }
-}
-
-int _skipWhitespaceAndComments(String source, int start) {
-  var index = start;
-  while (index < source.length) {
-    final codeUnit = source.codeUnitAt(index);
-    if (codeUnit == 0x20 ||
-        codeUnit == 0x09 ||
-        codeUnit == 0x0a ||
-        codeUnit == 0x0d) {
-      index++;
-      continue;
-    }
-    if (source.startsWith('//', index)) {
-      final lineEnd = source.indexOf('\n', index + 2);
-      return lineEnd == -1 ? source.length : lineEnd + 1;
-    }
-    if (source.startsWith('/*', index)) {
-      index = _skipBlockComment(source, index);
-      continue;
-    }
-    break;
-  }
-  return index;
-}
-
-int _skipBlockComment(String source, int start) {
-  var depth = 1;
-  var index = start + 2;
-  while (index < source.length && depth > 0) {
-    if (source.startsWith('/*', index)) {
-      depth++;
-      index += 2;
-    } else if (source.startsWith('*/', index)) {
-      depth--;
-      index += 2;
-    } else {
-      index++;
-    }
-  }
-  return index;
-}
-
-_Lexeme? _readIdentifier(String source, int start) {
-  if (start >= source.length || !_isIdentifierStart(source.codeUnitAt(start))) {
-    return null;
-  }
-  var end = start + 1;
-  while (end < source.length && _isIdentifierPart(source.codeUnitAt(end))) {
-    end++;
-  }
-  return _Lexeme(source.substring(start, end), end);
-}
-
-bool _isIdentifierStart(int codeUnit) =>
-    codeUnit == 0x5f ||
-    codeUnit == 0x24 ||
-    codeUnit >= 0x41 && codeUnit <= 0x5a ||
-    codeUnit >= 0x61 && codeUnit <= 0x7a;
-
-bool _isIdentifierPart(int codeUnit) =>
-    _isIdentifierStart(codeUnit) || codeUnit >= 0x30 && codeUnit <= 0x39;
-
-_Lexeme? _readStringLiteral(String source, int start) {
-  if (start >= source.length) return null;
-  var quoteIndex = start;
-  var raw = false;
-  if ((source.codeUnitAt(start) == 0x72 || source.codeUnitAt(start) == 0x52) &&
-      start + 1 < source.length) {
-    raw = true;
-    quoteIndex++;
-  }
-  final quote = source.codeUnitAt(quoteIndex);
-  if (quote != 0x27 && quote != 0x22) return null;
-
-  final triple = quoteIndex + 2 < source.length &&
-      source.codeUnitAt(quoteIndex + 1) == quote &&
-      source.codeUnitAt(quoteIndex + 2) == quote;
-  final contentStart = quoteIndex + (triple ? 3 : 1);
-  var index = contentStart;
-  while (index < source.length) {
-    if (!raw && source.codeUnitAt(index) == 0x5c) {
-      index += 2;
-      continue;
-    }
-    if (triple) {
-      if (index + 2 < source.length &&
-          source.codeUnitAt(index) == quote &&
-          source.codeUnitAt(index + 1) == quote &&
-          source.codeUnitAt(index + 2) == quote) {
-        final content = source.substring(contentStart, index);
-        return _Lexeme(raw ? content : _decodeDartString(content), index + 3);
-      }
-    } else if (source.codeUnitAt(index) == quote) {
-      final content = source.substring(contentStart, index);
-      return _Lexeme(raw ? content : _decodeDartString(content), index + 1);
-    }
-    index++;
-  }
-  final content = source.substring(contentStart);
-  return _Lexeme(raw ? content : _decodeDartString(content), source.length);
-}
-
-String _decodeDartString(String source) {
-  final result = StringBuffer();
-  var index = 0;
-  while (index < source.length) {
-    if (source.codeUnitAt(index) != 0x5c || index + 1 >= source.length) {
-      result.writeCharCode(source.codeUnitAt(index));
-      index++;
-      continue;
-    }
-
-    final escape = source.codeUnitAt(index + 1);
-    final simpleEscape = switch (escape) {
-      0x6e => 0x0a,
-      0x72 => 0x0d,
-      0x66 => 0x0c,
-      0x62 => 0x08,
-      0x74 => 0x09,
-      0x76 => 0x0b,
-      _ => null,
-    };
-    if (simpleEscape != null) {
-      result.writeCharCode(simpleEscape);
-      index += 2;
-      continue;
-    }
-
-    if (escape == 0x78 && index + 3 < source.length) {
-      final value = int.tryParse(
-        source.substring(index + 2, index + 4),
-        radix: 16,
-      );
-      if (value != null) {
-        result.writeCharCode(value);
-        index += 4;
-        continue;
-      }
-    }
-
-    if (escape == 0x75) {
-      final braced =
-          index + 2 < source.length && source.codeUnitAt(index + 2) == 0x7b;
-      final digitsStart = index + (braced ? 3 : 2);
-      final digitsEnd = braced
-          ? source.indexOf('}', digitsStart)
-          : digitsStart + 4 <= source.length
-              ? digitsStart + 4
-              : -1;
-      if (digitsEnd != -1) {
-        final value = int.tryParse(
-          source.substring(digitsStart, digitsEnd),
-          radix: 16,
-        );
-        if (value != null && value <= 0x10ffff) {
-          result.writeCharCode(value);
-          index = digitsEnd + (braced ? 1 : 0);
-          continue;
-        }
-      }
-    }
-
-    result.writeCharCode(escape);
-    index += 2;
-  }
-  return result.toString();
 }
 
 String _formatImports(List<_ImportRecord> imports) =>
@@ -611,11 +422,4 @@ class _ImportRecord {
 
   final String path;
   final String uri;
-}
-
-class _Lexeme {
-  const _Lexeme(this.value, this.end);
-
-  final String value;
-  final int end;
 }

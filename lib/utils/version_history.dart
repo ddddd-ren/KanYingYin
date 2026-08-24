@@ -192,6 +192,18 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.172',
+    date: '2026-08-24',
+    isPrerelease: true,
+    changes: [
+      '精简内部字幕设置和退出全屏方向处理，字幕样式、按视频保存的字幕延迟以及手机、平板退出全屏后的方向保持不变',
+      '移除未使用的网络状态和加密加速依赖，并清理已经由公共网盘中转服务取代的旧夸克包装代码',
+      '精简项目内部校验和历史实施文件，正式版文案与测试版构建版本分别校验，减少后续维护中的重复和冲突',
+      'Android 手机当前已交付测试版仍为 2.1.171，本轮不打包；Android TV 继续暂停',
+      '本次更新不会修改或删除，也不会改名、移动本地及个人网盘原始视频和字幕',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.171',
     date: '2026-08-24',
     isPrerelease: true,

@@ -18,8 +18,8 @@ void main() {
             ? releaseNotes.substring(releaseNotesStart, releaseNotesEnd)
             : '';
 
-    expect(pubspec, contains('version: 2.1.173+20173'));
-    expect(pubspec, contains('msix_version: 2.1.173.0'));
+    expect(pubspec, contains('version: 2.1.174+20174'));
+    expect(pubspec, contains('msix_version: 2.1.174.0'));
     expect(currentReleaseNotes, contains('Windows 正式版'));
     expect(currentReleaseNotes, contains('1.0.9'));
     expect(currentReleaseNotes, contains(_androidDeliveryBoundaryCopy));

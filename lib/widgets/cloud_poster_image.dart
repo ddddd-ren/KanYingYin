@@ -35,9 +35,13 @@ class CloudPosterImage extends StatefulWidget {
   State<CloudPosterImage> createState() => _CloudPosterImageState();
 }
 
-class _CloudPosterImageState extends State<CloudPosterImage> {
+class _CloudPosterImageState extends State<CloudPosterImage>
+    with AutomaticKeepAliveClientMixin {
   String? _failedCachePath;
   bool _hasDisplayedLocalFrame = false;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void didUpdateWidget(covariant CloudPosterImage oldWidget) {
@@ -49,6 +53,7 @@ class _CloudPosterImageState extends State<CloudPosterImage> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final cachePath = _normalized(widget.cachePath);
     if (cachePath != null &&
         _failedCachePath != cachePath &&

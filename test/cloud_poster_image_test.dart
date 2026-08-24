@@ -83,6 +83,37 @@ void main() {
     expect(requests, 1);
   });
 
+  testWidgets('网盘海报滑出网格后保留已显示状态', (tester) async {
+    final posterKey = GlobalKey();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GridView.builder(
+          cacheExtent: 0,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 1,
+            mainAxisExtent: 500,
+          ),
+          itemCount: 3,
+          itemBuilder: (context, index) => index == 0
+              ? CloudPosterImage(
+                  key: posterKey,
+                  cachePath: 'assets/images/logo/logo_rounded.png',
+                  url: null,
+                )
+              : const SizedBox.expand(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final originalState = posterKey.currentState;
+
+    await tester.drag(find.byType(GridView), const Offset(0, -1000));
+    await tester.pumpAndSettle();
+
+    expect(posterKey.currentState, same(originalState));
+  });
+
   test('网盘海报预热数量按视口增加一行并限制上限', () {
     expect(
       cloudPosterWarmupLimit(

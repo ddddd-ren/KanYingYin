@@ -3,19 +3,21 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Android mobile 版本来自 pubspec 并仅保留 tvTest 源码 flavor', () {
+  test('Android mobile 使用独立正式版并仅保留 tvTest 源码 flavor', () {
     final gradle = File('android/app/build.gradle.kts').readAsStringSync();
     final agents = File('AGENTS.md').readAsStringSync();
 
     expect(
       gradle,
-      contains('val androidVersionName = pubspecVersionMatch.groupValues[1]'),
+      contains('val windowsVersionName = pubspecVersionMatch.groupValues[1]'),
     );
     expect(
       gradle,
       contains(
-          'val androidVersionCode = pubspecVersionMatch.groupValues[2].toInt()'),
+          'val windowsVersionCode = pubspecVersionMatch.groupValues[2].toInt()'),
     );
+    expect(gradle, contains('val androidVersionName = "1.0.6"'));
+    expect(gradle, contains('val androidVersionCode = 10006'));
     expect(gradle, contains('versionName = androidVersionName'));
     expect(gradle, contains('versionCode = androidVersionCode'));
     expect(gradle, contains('create("tvTest")'));

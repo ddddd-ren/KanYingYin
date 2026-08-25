@@ -100,6 +100,17 @@ const VersionHistory _androidSixthRelease = VersionHistory(
   ],
 );
 
+const VersionHistory _androidSeventhRelease = VersionHistory(
+  version: '1.0.6',
+  date: '2026-08-25',
+  changes: [
+    '手机和平板可以根据视频文件名识别流媒体来源、码率、帧率、位深、版本、发布组、音频声道和字幕轨道，并在海报上显示对应标签',
+    '支持每天自动检查 GitHub 最新正式版，也可以在“关于”页面手动检查；发现新版本后可打开官方下载页面',
+    '修复个人网盘海报往返浏览时重新显示占位图的问题，已经加载的海报会保持显示',
+    '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频和字幕',
+  ],
+);
+
 const VersionHistory _androidAdaptiveQuarkSystemBarsPrerelease = VersionHistory(
   version: '2.1.103',
   date: '2026-08-03',
@@ -191,6 +202,17 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 );
 
 const List<VersionHistory> versionHistoryList = [
+  VersionHistory(
+    version: '1.0.10',
+    date: '2026-08-25',
+    changes: [
+      'Windows 根据视频文件名补充识别流媒体来源、码率、帧率、位深、版本、发布组、音频声道和字幕轨道，并在海报上显示对应标签',
+      '修复首次打开时可能长时间显示空白窗口的问题。应用界面会先显示，网络代理检查改为后台执行',
+      '本地扫描、媒体库浏览和播放不再等待 TMDB 网络检查；断网或代理不可用时仍可正常进入应用',
+      '修复个人网盘海报滑出界面后，再次滑回时重新显示占位图的问题。已经加载的海报会保持显示',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频和字幕',
+    ],
+  ),
   VersionHistory(
     version: '2.1.174',
     date: '2026-08-24',
@@ -2994,6 +3016,9 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '1.0.10' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[_androidSeventhRelease];
+  }
   if (currentVersion == '1.0.9' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[_androidSixthRelease];
   }

@@ -5,6 +5,50 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('一点零十正式版展示媒体标签、启动和海报修复', () {
+    final entries = versionHistoryForCurrent('1.0.10');
+
+    expect(entries, hasLength(1));
+    expect(entries.single.version, '1.0.10');
+    expect(entries.single.isPrerelease, isFalse);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      'Windows',
+      '码率',
+      '字幕轨道',
+      '空白窗口',
+      'TMDB',
+      '海报',
+      '不会修改',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
+  test('Android 一点零六正式版只展示 Android 功能', () {
+    final entries = versionHistoryForCurrent(
+      '1.0.10',
+      platform: AppPlatformKind.android,
+    );
+
+    expect(entries, hasLength(1));
+    expect(entries.single.version, '1.0.6');
+    expect(entries.single.isPrerelease, isFalse);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      '手机和平板',
+      '码率',
+      '检查 GitHub',
+      '关于',
+      '海报',
+      '不会修改',
+    ]) {
+      expect(changes, contains(text));
+    }
+    expect(changes, isNot(contains('Windows')));
+    expect(changes, isNot(contains('空白窗口')));
+  });
+
   test('一点零九正式版说明海报和每个选集的媒体技术标签', () {
     final entries = versionHistoryForCurrent('1.0.9');
 

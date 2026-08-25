@@ -4,9 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('一点零九 Windows 与一点零五 Android 正式版文案保持一致', () {
-    const expectedVersion = '1.0.9';
-    const expectedBuildNumber = '10009';
+  test('一点零十 Windows 与一点零六 Android 正式版文案保持一致', () {
+    const expectedVersion = '1.0.10';
+    const expectedBuildNumber = '10010';
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final readme = File('README.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
@@ -21,8 +21,8 @@ void main() {
     expect(readmeIdentity, AppIdentity.windowsIdentity);
     expect(releaseNotes, contains('## $expectedVersion+$expectedBuildNumber'));
     expect(releaseNotes, contains('Windows EXE 安装器版本：$expectedVersion'));
-    expect(releaseNotes, contains('Android 正式版：1.0.5 (10005)'));
-    expect(readme, contains('| 当前版本 | 1.0.9 |'));
+    expect(releaseNotes, contains('Android 正式版：1.0.6 (10006)'));
+    expect(readme, contains('| 当前版本 | 1.0.10 |'));
     expect(
       readme,
       contains('| 支持平台 | Windows 10/11 x64；Android 7.0+（API 24+） |'),
@@ -47,7 +47,7 @@ void main() {
         versionHistoryListStart,
       ),
       lessThan(
-        versionHistory.indexOf("version: '1.0.8'", versionHistoryListStart),
+        versionHistory.indexOf("version: '2.1.174'", versionHistoryListStart),
       ),
     );
     expect(versionHistory, contains("version: '1.0.2'"));
@@ -81,11 +81,11 @@ void main() {
       currentVersionHistory
     ]) {
       for (final text in <String>[
-        '4K',
-        '杜比视界',
-        '选集',
-        '播放器右侧选集',
-        '不会修改或删除',
+        'Windows',
+        '码率',
+        '字幕轨道',
+        '海报',
+        '不会修改、删除',
       ]) {
         expect(currentCopy, contains(text));
       }

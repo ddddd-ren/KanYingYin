@@ -3,37 +3,37 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 const _technicalBadgeCopy =
-    '本地与个人网盘媒体海报现在常驻显示作品的最高规格标签，包括 4K、2K、1080P、杜比视界、HDR10+、HDR 和杜比全景声。';
-const _androidDeliveryBoundaryCopy = 'Android 正式版：1.0.5 (10005)';
+    '根据视频文件名补充识别流媒体来源、码率、帧率、位深、版本、发布组、音频声道和字幕轨道，并在海报上显示对应标签。';
+const _androidDeliveryBoundaryCopy = 'Android 正式版：1.0.6 (10006)';
 
 void main() {
-  test('当前测试版发布配置与版本说明一致', () {
+  test('当前正式版发布配置与版本说明一致', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
-    final releaseNotesStart = releaseNotes.indexOf('## 1.0.9+10009');
-    final releaseNotesEnd = releaseNotes.indexOf('\n## 2.1.169+20169');
+    final releaseNotesStart = releaseNotes.indexOf('## 1.0.10+10010');
+    final releaseNotesEnd = releaseNotes.indexOf('\n## 2.1.174+20174');
     final currentReleaseNotes =
         releaseNotesStart >= 0 && releaseNotesEnd > releaseNotesStart
             ? releaseNotes.substring(releaseNotesStart, releaseNotesEnd)
             : '';
 
-    expect(pubspec, contains('version: 2.1.174+20174'));
-    expect(pubspec, contains('msix_version: 2.1.174.0'));
+    expect(pubspec, contains('version: 1.0.10+10010'));
+    expect(pubspec, contains('msix_version: 1.0.10.0'));
     expect(currentReleaseNotes, contains('Windows 正式版'));
-    expect(currentReleaseNotes, contains('1.0.9'));
+    expect(currentReleaseNotes, contains('1.0.10'));
     expect(currentReleaseNotes, contains(_androidDeliveryBoundaryCopy));
     expect(currentReleaseNotes, contains('Windows'));
-    expect(currentReleaseNotes, contains('Android 手机'));
+    expect(currentReleaseNotes, contains('Android'));
     expect(currentReleaseNotes, contains('EXE'));
     expect(currentReleaseNotes, contains(_technicalBadgeCopy));
     expect(currentReleaseNotes, contains(_androidDeliveryBoundaryCopy));
     for (final text in <String>[
-      '4K',
-      '杜比视界',
-      '选集',
-      '播放器右侧选集',
-      '不会修改或删除',
+      '码率',
+      '字幕轨道',
+      '空白窗口',
+      '海报',
+      '不会修改、删除',
     ]) {
       expect(currentReleaseNotes, contains(text));
     }
@@ -46,11 +46,11 @@ void main() {
     expect(updateDialogCopy, contains('Windows 正式版 EXE'));
     expect(
         updateDialogCopy, contains('本轮交付：Windows 正式版 EXE、Android 正式版 APK/AAB'));
-    expect(updateDialogCopy, contains('1.0.9'));
-    expect(updateDialogCopy, contains('1.0.5'));
+    expect(updateDialogCopy, contains('1.0.10'));
+    expect(updateDialogCopy, contains('1.0.6'));
     expect(updateDialogCopy, contains(_technicalBadgeCopy));
     expect(updateDialogCopy, contains(_androidDeliveryBoundaryCopy));
-    expect(updateDialogCopy, contains('Android TV 继续暂停'));
+    expect(updateDialogCopy, isNot(contains('Android TV')));
     for (final tvOnlyText in <String>[
       'tvTest',
       '遥控器',

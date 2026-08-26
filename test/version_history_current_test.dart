@@ -5,6 +5,27 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一八四测试版恢复稳定布局并保留海报优化', () {
+    final entries = versionHistoryForCurrent('2.1.184');
+
+    expect(entries, hasLength(1));
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      '稳定的导航',
+      '媒体库分类',
+      '播放器布局',
+      '不包含尚未稳定',
+      '2:3 海报',
+      '深色模式白边',
+      '技术标签',
+      '底部信息面板',
+      '不会修改',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一八一测试版让海报信息面板贴齐底框', () {
     final entries = versionHistoryForCurrent('2.1.181');
 

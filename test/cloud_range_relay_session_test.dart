@@ -116,6 +116,43 @@ void main() {
     }
   });
 
+  test(
+    '上游首字节延迟八秒时本地 Range 响应头仍在两秒内返回',
+    () async {
+      final slowDirectory =
+          await Directory.systemTemp.createTemp('cloud-relay-slow-ttfb-');
+      final slowReader = _DelayedRangeReader(
+        totalLength: 8,
+        delay: const Duration(seconds: 8),
+      );
+      final slowSession = await CloudRangeRelaySession.start(
+        reader: slowReader,
+        directory: slowDirectory,
+        providerName: '夸克',
+        chunkSize: 4,
+        maxChunks: 2,
+      );
+      final client = HttpClient()..findProxy = (_) => 'DIRECT';
+      try {
+        final request = await client.getUrl(slowSession.uri);
+        request.headers.set(HttpHeaders.rangeHeader, 'bytes=0-3');
+        final stopwatch = Stopwatch()..start();
+
+        final response = await request.close().timeout(
+              const Duration(seconds: 2),
+            );
+
+        expect(response.statusCode, HttpStatus.partialContent);
+        expect(stopwatch.elapsed, lessThan(const Duration(seconds: 2)));
+        expect(await _readResponse(response), hasLength(4));
+      } finally {
+        client.close(force: true);
+        await slowSession.close();
+      }
+    },
+    timeout: const Timeout(Duration(seconds: 15)),
+  );
+
   test('Android 会话连续播放时启用三路后台预取', () async {
     final androidDirectory =
         await Directory.systemTemp.createTemp('cloud-relay-android-');
@@ -277,6 +314,42 @@ void main() {
       expect(logs.join('\n'), contains('refreshing'));
     } finally {
       client.close(force: true);
+      await adaptiveSession.close();
+    }
+  });
+
+  test('Windows 夸克按健康吞吐恢复五路并在慢速事件后退回两路', () async {
+    final adaptiveDirectory =
+        await Directory.systemTemp.createTemp('cloud-relay-windows-adaptive-');
+    final adaptiveReader = _AdaptiveRangeReader(
+      totalLength: 512,
+      delay: const Duration(milliseconds: 100),
+    );
+    final logs = <String>[];
+    final adaptiveSession = await CloudRangeRelaySession.start(
+      reader: adaptiveReader,
+      directory: adaptiveDirectory,
+      providerName: '夸克',
+      tuning: CloudRangeRelayTuning.windowsQuarkAdaptive,
+      chunkSize: 4,
+      maxChunks: 48,
+      log: logs.add,
+    );
+    try {
+      expect(adaptiveSession.adaptiveMode, CloudRangeRelayAdaptiveMode.base);
+      expect(adaptiveSession.currentMaxConcurrentReads, 2);
+
+      adaptiveReader.emit(CloudRangeReaderEvent.healthy);
+      expect(adaptiveSession.adaptiveMode, CloudRangeRelayAdaptiveMode.boosted);
+      expect(adaptiveSession.currentMaxConcurrentReads, 5);
+      expect(adaptiveSession.currentMaxConcurrentPrefetch, 4);
+      expect(logs.join('\n'), contains('healthy_transfer'));
+
+      adaptiveReader.emit(CloudRangeReaderEvent.slow);
+      expect(adaptiveSession.adaptiveMode, CloudRangeRelayAdaptiveMode.base);
+      expect(adaptiveSession.currentMaxConcurrentReads, 2);
+      expect(logs.join('\n'), contains('slow_transfer'));
+    } finally {
       await adaptiveSession.close();
     }
   });
@@ -563,6 +636,7 @@ class _DelayedRangeReader implements CloudRangeRemoteReader {
   var activeReads = 0;
   var maxActiveReads = 0;
   final List<ByteRange> readRanges = <ByteRange>[];
+  final Completer<void> _closed = Completer<void>();
 
   @override
   String get contentType => 'video/mp4';
@@ -584,7 +658,10 @@ class _DelayedRangeReader implements CloudRangeRemoteReader {
     activeReads++;
     if (activeReads > maxActiveReads) maxActiveReads = activeReads;
     try {
-      await Future<void>.delayed(delay);
+      await Future.any<void>(<Future<void>>[
+        Future<void>.delayed(delay),
+        _closed.future.then<void>((_) => throw StateError('测试读取器已关闭')),
+      ]);
       await destination.writeAsBytes(
         List<int>.filled(range.length, 0),
         flush: true,
@@ -599,7 +676,9 @@ class _DelayedRangeReader implements CloudRangeRemoteReader {
       throw StateError('测试读取器只支持 Range');
 
   @override
-  Future<void> close() async {}
+  Future<void> close() async {
+    if (!_closed.isCompleted) _closed.complete();
+  }
 }
 
 class _AdaptiveRangeReader extends _DelayedRangeReader {
@@ -624,6 +703,7 @@ class _AdaptiveRangeReader extends _DelayedRangeReader {
 
   @override
   Future<void> close() async {
+    await super.close();
     await eventController.close();
   }
 }

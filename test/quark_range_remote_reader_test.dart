@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -220,6 +221,259 @@ void main() {
 
     expect(refreshCalls, 1);
     await reader.close();
+  });
+
+  test('上游 401 和 403 重试后保留真实 HTTP 状态', () async {
+    for (final statusCode in <int>[
+      HttpStatus.unauthorized,
+      HttpStatus.forbidden,
+    ]) {
+      final server = await serve((request) async {
+        request.response.statusCode = statusCode;
+        await request.response.close();
+      });
+      final uri = Uri.parse('http://127.0.0.1:${server.port}/video');
+      final reader = QuarkRangeRemoteReader(
+        resource: QuarkRemoteResource(uri: uri),
+        refreshResource: () async => QuarkRemoteResource(uri: uri),
+        uriValidator: allowTestUri,
+      );
+
+      await expectLater(
+        reader.readTo(
+          const ByteRange(0, 0),
+          File('${directory.path}/http-$statusCode.bin'),
+        ),
+        throwsA(
+          predicate<Object>(
+            (error) => error.toString().contains('HTTP $statusCode'),
+          ),
+        ),
+      );
+      await reader.close();
+    }
+  });
+
+  test(
+    '2 MB/s 保持一MiB而 2 Mbps 动态降为512KiB分块',
+    () async {
+      const mebibyte = 1024 * 1024;
+      const minimumChunk = 512 * 1024;
+
+      Future<List<int>> readAt(
+        int bytesPerSecond,
+        String name, {
+        int totalLength = 2 * mebibyte,
+      }) async {
+        final requestedLengths = <int>[];
+        final server = await serve((request) async {
+          final value = request.headers.value(HttpHeaders.rangeHeader)!;
+          final match = RegExp(r'^bytes=(\d+)-(\d+)$').firstMatch(value)!;
+          final start = int.parse(match.group(1)!);
+          final end = int.parse(match.group(2)!);
+          final length = end - start + 1;
+          requestedLengths.add(length);
+          request.response
+            ..statusCode = HttpStatus.partialContent
+            ..headers.set(
+              HttpHeaders.contentRangeHeader,
+              'bytes $start-$end/$totalLength',
+            )
+            ..contentLength = length;
+          await request.response.flush();
+          await Future<void>.delayed(
+            Duration(
+              microseconds:
+                  (length * Duration.microsecondsPerSecond) ~/ bytesPerSecond,
+            ),
+          );
+          request.response.add(List<int>.filled(length, 1));
+          await request.response.close();
+        });
+        final reader = QuarkRangeRemoteReader(
+          resource: QuarkRemoteResource(
+            uri: Uri.parse('http://127.0.0.1:${server.port}/video'),
+          ),
+          refreshResource: () => throw StateError('不应刷新'),
+          uriValidator: allowTestUri,
+        );
+        reader.configureAdaptiveReads(
+          minReadSize: minimumChunk,
+          initialReadSize: mebibyte,
+          maxReadSize: 4 * mebibyte,
+        );
+        await reader.readTo(
+          ByteRange(0, totalLength - 1),
+          File('${directory.path}/$name.bin'),
+        );
+        await reader.close();
+        return requestedLengths;
+      }
+
+      const twoMegabytesPerSecond = 2 * 1000 * 1000;
+      const twoMegabitsPerSecond = 2 * 1000 * 1000 ~/ 8;
+      expect(twoMegabytesPerSecond, 2000000);
+      expect(twoMegabitsPerSecond, 250000);
+
+      expect(
+        await readAt(twoMegabytesPerSecond, 'two-megabytes'),
+        everyElement(mebibyte),
+      );
+      final megabitsRanges = await readAt(twoMegabitsPerSecond, 'two-megabits');
+      expect(megabitsRanges.first, mebibyte);
+      expect(megabitsRanges.skip(1), everyElement(minimumChunk));
+
+      final normalRanges = await readAt(
+        8 * mebibyte,
+        'normal-speed',
+        totalLength: 5 * mebibyte,
+      );
+      expect(normalRanges, <int>[mebibyte, 4 * mebibyte]);
+    },
+    timeout: const Timeout(Duration(seconds: 20)),
+  );
+
+  test(
+    '首字节延迟十五秒仍成功且连续读取停顿按三十秒语义单独超时',
+    () async {
+      final delayedServer = await serve((request) async {
+        await Future<void>.delayed(const Duration(seconds: 15));
+        request.response
+          ..statusCode = HttpStatus.partialContent
+          ..headers.set(HttpHeaders.contentRangeHeader, 'bytes 0-0/1')
+          ..contentLength = 1
+          ..add(const <int>[1]);
+        await request.response.close();
+      });
+      final delayedReader = QuarkRangeRemoteReader(
+        resource: QuarkRemoteResource(
+          uri: Uri.parse('http://127.0.0.1:${delayedServer.port}/video'),
+        ),
+        refreshResource: () => throw StateError('不应刷新'),
+        uriValidator: allowTestUri,
+      );
+
+      expect((await delayedReader.probe()).totalLength, 1);
+      await delayedReader.close();
+
+      final stalledServer = await serve((request) async {
+        request.response
+          ..statusCode = HttpStatus.partialContent
+          ..headers.set(HttpHeaders.contentRangeHeader, 'bytes 0-1/2')
+          ..contentLength = 2
+          ..add(const <int>[1]);
+        await request.response.flush();
+        await Future<void>.delayed(const Duration(seconds: 1));
+      });
+      final logs = <String>[];
+      final stalledReader = QuarkRangeRemoteReader(
+        resource: QuarkRemoteResource(
+          uri: Uri.parse('http://127.0.0.1:${stalledServer.port}/video'),
+        ),
+        refreshResource: () => throw StateError('不应刷新'),
+        uriValidator: allowTestUri,
+        firstByteTimeout: const Duration(seconds: 1),
+        readTimeout: const Duration(milliseconds: 50),
+        delay: (_) async {},
+        log: logs.add,
+      );
+
+      await expectLater(
+        stalledReader.readTo(
+          const ByteRange(0, 1),
+          File('${directory.path}/stalled.bin'),
+        ),
+        throwsA(isA<QuarkRemoteTransportException>()),
+      );
+      expect(logs.join('\n'), contains('failure=timeout'));
+      expect(
+        logs.where((message) => message.contains('stage=retry')),
+        hasLength(1),
+      );
+      await stalledReader.close();
+    },
+    timeout: const Timeout(Duration(seconds: 25)),
+  );
+
+  test('上游 404 和 5xx 快速返回真实状态且日志不泄露地址或 Cookie', () async {
+    for (final statusCode in <int>[
+      HttpStatus.notFound,
+      HttpStatus.badGateway
+    ]) {
+      final server = await serve((request) async {
+        request.response.statusCode = statusCode;
+        await request.response.close();
+      });
+      final logs = <String>[];
+      final reader = QuarkRangeRemoteReader(
+        resource: QuarkRemoteResource(
+          uri: Uri.parse(
+            'http://127.0.0.1:${server.port}/private?token=secret',
+          ),
+          headers: const <String, String>{'Cookie': 'session=secret'},
+        ),
+        refreshResource: () => throw StateError('不应刷新'),
+        uriValidator: allowTestUri,
+        log: logs.add,
+      );
+      final stopwatch = Stopwatch()..start();
+
+      await expectLater(
+        reader.readTo(
+          const ByteRange(0, 0),
+          File('${directory.path}/status-$statusCode.bin'),
+        ),
+        throwsA(
+          isA<QuarkRemoteHttpException>().having(
+            (error) => error.statusCode,
+            'statusCode',
+            statusCode,
+          ),
+        ),
+      );
+
+      expect(stopwatch.elapsed, lessThan(const Duration(seconds: 1)));
+      final combined = logs.join('\n');
+      expect(combined, contains('stage=response'));
+      expect(combined, contains('range=0-0'));
+      expect(combined, contains('status=$statusCode'));
+      expect(combined, contains('failure=http_status'));
+      expect(combined, isNot(contains('private')));
+      expect(combined, isNot(contains('secret')));
+      expect(combined, isNot(contains('Cookie')));
+      await reader.close();
+    }
+  });
+
+  test('取消播放会立即中断上游读取并删除未完成分块', () async {
+    final requestStarted = Completer<void>();
+    final server = await serve((request) async {
+      request.response
+        ..statusCode = HttpStatus.partialContent
+        ..headers.set(HttpHeaders.contentRangeHeader, 'bytes 0-1/2')
+        ..contentLength = 2;
+      await request.response.flush();
+      requestStarted.complete();
+      await Future<void>.delayed(const Duration(seconds: 10));
+    });
+    final reader = QuarkRangeRemoteReader(
+      resource: QuarkRemoteResource(
+        uri: Uri.parse('http://127.0.0.1:${server.port}/video'),
+      ),
+      refreshResource: () => throw StateError('不应刷新'),
+      uriValidator: allowTestUri,
+    );
+    final destination = File('${directory.path}/cancelled.bin');
+    final read = reader.readTo(const ByteRange(0, 1), destination);
+    await requestStarted.future;
+
+    await reader.close();
+
+    await expectLater(
+      read.timeout(const Duration(seconds: 1)),
+      throwsA(anything),
+    );
+    expect(await destination.exists(), isFalse);
   });
 
   test('连接失败按 500ms、1s、2s 退避且不泄露完整地址', () async {

@@ -44,7 +44,11 @@ class CloudRangeRelayService {
     required AppPlatformCapabilities capabilities,
     required CloudSourceType providerType,
   }) {
-    if (!capabilities.isAndroid) return CloudRangeRelayTuning.windows;
+    if (!capabilities.isAndroid) {
+      return providerType == CloudSourceType.quark
+          ? CloudRangeRelayTuning.windowsQuarkAdaptive
+          : CloudRangeRelayTuning.windows;
+    }
     if (capabilities.isAndroidTv) return CloudRangeRelayTuning.androidTv;
     if (providerType == CloudSourceType.quark &&
         capabilities.usesMt6877QuarkTuning) {

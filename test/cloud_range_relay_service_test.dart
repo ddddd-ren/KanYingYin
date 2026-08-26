@@ -85,8 +85,29 @@ void main() {
     }
   });
 
-  test('Windows 所有提供方继续使用原有参数', () {
-    for (final providerType in CloudSourceType.values) {
+  test('Windows 夸克低速档起步并恢复改造前的正常档', () {
+    final quark = CloudRangeRelayService.tuningFor(
+      capabilities: AppPlatformCapabilities.windows,
+      providerType: CloudSourceType.quark,
+    );
+
+    expect(quark.chunkSize, 4 * 1024 * 1024);
+    expect(quark.maxChunks, 64);
+    expect(quark.maxConcurrentReads, 2);
+    expect(quark.maxConcurrentPrefetch, 1);
+    expect(quark.prefetchAheadChunks, 2);
+    expect(quark.minRemoteReadSize, 512 * 1024);
+    expect(quark.initialRemoteReadSize, 1024 * 1024);
+    expect(quark.adaptivePolicy?.maxConcurrentReads, 5);
+    expect(quark.adaptivePolicy?.maxConcurrentPrefetch, 4);
+    expect(quark.adaptivePolicy?.prefetchAheadChunks, 8);
+  });
+
+  test('Windows 非夸克提供方继续使用原有参数', () {
+    for (final providerType in <CloudSourceType>[
+      CloudSourceType.baidu,
+      CloudSourceType.xunlei,
+    ]) {
       expect(
         CloudRangeRelayService.tuningFor(
           capabilities: AppPlatformCapabilities.windows,

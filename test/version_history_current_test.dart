@@ -5,6 +5,30 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一八五测试版优化夸克低速播放', () {
+    final entries = versionHistoryForCurrent('2.1.185');
+
+    expect(entries, hasLength(1));
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      '夸克网盘低速播放',
+      '2 MB/s',
+      '16 Mbps',
+      '2 Mbps',
+      '首字节时间',
+      '实际吞吐',
+      '动态升降',
+      '4 MiB',
+      '读取并发 5',
+      '预取并发 4',
+      '401、403、404',
+      '不会修改',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一八四测试版恢复稳定布局并保留海报优化', () {
     final entries = versionHistoryForCurrent('2.1.184');
 

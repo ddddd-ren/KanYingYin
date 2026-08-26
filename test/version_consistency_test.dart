@@ -9,7 +9,6 @@ void main() {
     const expectedBuildNumber = '10010';
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final readme = File('README.md').readAsStringSync();
-    final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
     final versionHistory =
         File('lib/utils/version_history.dart').readAsStringSync();
 
@@ -30,13 +29,6 @@ void main() {
     expect(readme, contains('| 安装格式 | EXE / APK |'));
     expect(readme, contains('OpenList 功能仍在调试，当前不建议使用'));
     expect(versionHistory, contains("version: '$expectedVersion'"));
-    expect(updateDialogCopy, contains('应用版本：$expectedVersion'));
-    expect(
-      updateDialogCopy,
-      contains('Windows EXE 安装器版本：$expectedVersion'),
-    );
-    expect(updateDialogCopy, contains('看影音 $expectedVersion 正式版'));
-    expect(updateDialogCopy, contains('Android 弹窗正文'));
     final versionHistoryListStart = versionHistory.indexOf(
       'const List<VersionHistory> versionHistoryList',
     );
@@ -47,7 +39,7 @@ void main() {
         versionHistoryListStart,
       ),
       lessThan(
-        versionHistory.indexOf("version: '2.1.174'", versionHistoryListStart),
+        versionHistory.indexOf("version: '2.1.177'", versionHistoryListStart),
       ),
     );
     expect(versionHistory, contains("version: '1.0.2'"));
@@ -100,11 +92,6 @@ void main() {
       }
     }
     expect(currentReleaseNotes, contains('正式版'));
-    expect(updateDialogCopy, contains('Windows 正式版 EXE'));
-    expect(
-      updateDialogCopy,
-      contains('本轮交付：Windows 正式版 EXE、Android 正式版 APK/AAB'),
-    );
     expect(currentReleaseNotes, contains('Android 正式版'));
     for (final unsupportedClaim in <String>['已经扫描到', '保证匹配']) {
       expect(currentReleaseNotes, isNot(contains(unsupportedClaim)));

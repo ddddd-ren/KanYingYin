@@ -304,6 +304,30 @@ void main() {
       expect(result.releaseTags.subtitles, contains('SRTx2'));
     });
 
+    test('新资源中的常见平台会进入来源标签', () {
+      final cases = <String, String>{
+        '作品.2160p.Hami.WEB-DL.H265.mkv': 'Hami Video',
+        '作品.2160p.HBOMax.WEB-DL.H265.mkv': 'Max',
+        '作品.2160p.TVING.WEB-DL.H265.mkv': 'TVING',
+        '作品.2160p.KKTV.WEB-DL.H265.mkv': 'KKTV',
+      };
+
+      for (final entry in cases.entries) {
+        expect(
+          analyzer.analyze(entry.key, isDirectory: false).releaseTags.source,
+          entry.value,
+          reason: entry.key,
+        );
+      }
+    });
+
+    test('平台同名片名不会被误判为来源标签', () {
+      final result = analyzer.analyze('Hami.2026.mkv', isDirectory: false);
+
+      expect(result.releaseTags.source, isNull);
+      expect(result.titleCandidates, contains('Hami'));
+    });
+
     test('字幕版本标签支持 JSON 往返', () {
       const tags = MediaReleaseTags(subtitles: <String>['内封简繁英']);
 

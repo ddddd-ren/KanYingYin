@@ -5,6 +5,56 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('二点一八一测试版让海报信息面板贴齐底框', () {
+    final entries = versionHistoryForCurrent('2.1.181');
+
+    expect(entries, hasLength(1));
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      '海报底框',
+      '底边贴齐',
+      '不再留空隙',
+      '平稳升起',
+      '左右对齐',
+      '技术标签',
+      '资源菜单',
+      '需要确认',
+      '海报缓存',
+      '不会修改',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
+  test('二点一七七测试版首次减少深色海报白边', () {
+    final entries = versionHistoryForCurrent('2.1.177');
+
+    expect(entries, hasLength(1));
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>['深色模式', '海报', '白色边框', '不会修改']) {
+      expect(changes, contains(text));
+    }
+  });
+
+  test('二点一七六测试版说明标签识别增强', () {
+    final entries = versionHistoryForCurrent('2.1.176');
+
+    expect(entries, hasLength(1));
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      'Hami Video',
+      'TVING',
+      'Hybrid',
+      '自动加入',
+      '不会修改',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('一点零十正式版展示媒体标签、启动和海报修复', () {
     final entries = versionHistoryForCurrent('1.0.10');
 

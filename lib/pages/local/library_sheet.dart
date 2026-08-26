@@ -17,6 +17,7 @@ import 'package:kanyingyin/repositories/local_media_tag_repository.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
+import 'package:kanyingyin/widgets/poster_cover.dart';
 import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 /// 带搜索、排序和 TMDB 信息展示的媒体库面板。
@@ -822,37 +823,52 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
     ].where((p) => p.isNotEmpty).join('  ');
   }
 
-  Widget _cover(ColorScheme cs, String? cover, {String? remoteUrl}) {
+  Widget _cover(ColorScheme _, String? cover, {String? remoteUrl}) {
     if (remoteUrl != null && remoteUrl.isNotEmpty) {
       return ClipRRect(
-          borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(4),
+        child: PosterCover(
           child: TmdbNetworkImage(
-              url: remoteUrl,
-              width: 40,
-              height: 56,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => cover != null && cover.isNotEmpty
-                  ? Image.file(File(cover),
-                      width: 40,
-                      height: 56,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Icon(
-                            Icons.movie_creation_outlined,
-                            color: cs.primary,
-                          ))
-                  : Icon(Icons.movie_creation_outlined, color: cs.primary)));
+            url: remoteUrl,
+            width: 40,
+            height: 60,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => cover != null && cover.isNotEmpty
+                ? Image.file(
+                    File(cover),
+                    width: 40,
+                    height: 60,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                        const PosterCover.placeholder(),
+                  )
+                : const PosterCover.placeholder(),
+          ),
+        ),
+      );
     }
     if (cover != null && cover.isNotEmpty) {
       return ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: Image.file(File(cover),
-              width: 40,
-              height: 56,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) =>
-                  Icon(Icons.movie_creation_outlined, color: cs.primary)));
+        borderRadius: BorderRadius.circular(4),
+        child: PosterCover(
+          child: Image.file(
+            File(cover),
+            width: 40,
+            height: 60,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const PosterCover.placeholder(),
+          ),
+        ),
+      );
     }
-    return Icon(Icons.movie_creation_outlined, color: cs.primary);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: const SizedBox(
+        width: 40,
+        height: 60,
+        child: PosterCover.placeholder(),
+      ),
+    );
   }
 
   String _infoLine(LocalMediaSeries s) {

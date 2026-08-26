@@ -7,19 +7,18 @@ const _technicalBadgeCopy =
 const _androidDeliveryBoundaryCopy = 'Android 正式版：1.0.6 (10006)';
 
 void main() {
-  test('当前正式版发布配置与版本说明一致', () {
-    final pubspec = File('pubspec.yaml').readAsStringSync();
+  test('当前正式版发布文案与版本说明一致', () {
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
-    final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
     final releaseNotesStart = releaseNotes.indexOf('## 1.0.10+10010');
-    final releaseNotesEnd = releaseNotes.indexOf('\n## 2.1.174+20174');
+    final releaseNotesEnd = releaseNotes.indexOf(
+      '\n## ',
+      releaseNotesStart + 1,
+    );
     final currentReleaseNotes =
         releaseNotesStart >= 0 && releaseNotesEnd > releaseNotesStart
             ? releaseNotes.substring(releaseNotesStart, releaseNotesEnd)
             : '';
 
-    expect(pubspec, contains('version: 1.0.10+10010'));
-    expect(pubspec, contains('msix_version: 1.0.10.0'));
     expect(currentReleaseNotes, contains('Windows 正式版'));
     expect(currentReleaseNotes, contains('1.0.10'));
     expect(currentReleaseNotes, contains(_androidDeliveryBoundaryCopy));
@@ -43,14 +42,6 @@ void main() {
     ]) {
       expect(currentReleaseNotes, isNot(contains(unsupportedClaim)));
     }
-    expect(updateDialogCopy, contains('Windows 正式版 EXE'));
-    expect(
-        updateDialogCopy, contains('本轮交付：Windows 正式版 EXE、Android 正式版 APK/AAB'));
-    expect(updateDialogCopy, contains('1.0.10'));
-    expect(updateDialogCopy, contains('1.0.6'));
-    expect(updateDialogCopy, contains(_technicalBadgeCopy));
-    expect(updateDialogCopy, contains(_androidDeliveryBoundaryCopy));
-    expect(updateDialogCopy, isNot(contains('Android TV')));
     for (final tvOnlyText in <String>[
       'tvTest',
       '遥控器',
@@ -59,6 +50,31 @@ void main() {
     ]) {
       expect(currentReleaseNotes, isNot(contains(tvOnlyText)));
     }
+  });
+
+  test('Windows 二点一八一测试版构建版本面一致', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    final appVersion = File('lib/core/app_version.dart').readAsStringSync();
+    final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
+    final updateDialogCopy = File('UPDATE_DIALOG_COPY.md').readAsStringSync();
+    final versionHistory =
+        File('lib/utils/version_history.dart').readAsStringSync();
+    final gradle = File('android/app/build.gradle.kts').readAsStringSync();
+    final androidScript =
+        File('tool/android/build_signed_release.ps1').readAsStringSync();
+
+    expect(pubspec, contains('version: 2.1.181+20181'));
+    expect(pubspec, contains('msix_version: 2.1.181.0'));
+    expect(appVersion, contains("current = '2.1.181'"));
+    expect(releaseNotes, contains('## 2.1.181+20181'));
+    expect(releaseNotes, contains('Windows 测试版：2.1.181'));
+    expect(updateDialogCopy, contains('应用版本：2.1.181'));
+    expect(updateDialogCopy, contains('Windows EXE 安装器版本：2.1.181 测试版'));
+    expect(versionHistory, contains("version: '2.1.181'"));
+    expect(gradle, contains('windowsVersionName != "2.1.181"'));
+    expect(gradle, contains('windowsVersionCode != 20181'));
+    expect(androidScript, contains("pubspecVersion.Name -ne '2.1.181'"));
+    expect(androidScript, contains('pubspecVersion.Code -ne 20181'));
   });
 
   test('直接依赖使用与锁文件兼容的明确约束', () {

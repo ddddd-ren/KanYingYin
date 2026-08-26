@@ -72,7 +72,7 @@ class MediaNameAnalyzer {
     caseSensitive: false,
   );
   static final RegExp _sourcePattern = RegExp(
-    r'\b(WEB[\s._-]?DL|WEBRip|REMUX|BDMV|BDRip|BluRay|UHD(?:\s*BluRay)?|BD|TVRip|HDTV|DVDRip|HD-DVD|NF|AMZN|DSNP|ATVP|HMAX|HULU|CR)\b',
+    r'\b(Hami(?=[\s._-]+WEB[\s._-]?DL\b)|HBOMax(?=[\s._-]+WEB[\s._-]?DL\b)|TVING(?=[\s._-]+WEB[\s._-]?DL\b)|KKTV(?=[\s._-]+WEB[\s._-]?DL\b)|WEB[\s._-]?DL|WEBRip|REMUX|BDMV|BDRip|BluRay|UHD(?:\s*BluRay)?|BD|TVRip|HDTV|DVDRip|HD-DVD|NF|AMZN|DSNP|ATVP|HMAX|HULU|CR)\b',
     caseSensitive: false,
   );
   static final RegExp _codecPattern = RegExp(
@@ -533,6 +533,10 @@ class MediaNameAnalyzer {
       'hmax' => 'Max',
       'hulu' => 'Hulu',
       'cr' => 'Crunchyroll',
+      'hami' => 'Hami Video',
+      'hbomax' => 'Max',
+      'tving' => 'TVING',
+      'kktv' => 'KKTV',
       'bd' => 'BD',
       'tvrip' => 'TVRip',
       'hdtv' => 'HDTV',

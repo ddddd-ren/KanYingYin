@@ -10,6 +10,7 @@ import 'package:kanyingyin/bean/widget/skeleton_loader.dart';
 import 'package:kanyingyin/bean/widget/empty_state.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
+import 'package:kanyingyin/widgets/poster_cover.dart';
 import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 typedef LibraryMediaAction = FutureOr<void> Function(
@@ -230,7 +231,7 @@ class LibraryMediaGrid extends StatelessWidget {
           padding: policy.gridPadding(const EdgeInsets.all(12)),
           gridDelegate: policy.posterGridDelegate(
             fallbackMaxCrossAxisExtent: 300,
-            fallbackChildAspectRatio: 0.68,
+            fallbackChildAspectRatio: posterAspectRatio,
           ),
           itemCount: policy.isAndroidTv ? 10 : 8, // 电视首屏保持两行五列占位
           itemBuilder: (context, index) => const MediaCardSkeleton(),
@@ -292,7 +293,7 @@ class LibraryMediaGrid extends StatelessWidget {
         padding: policy.gridPadding(const EdgeInsets.all(12)),
         gridDelegate: policy.posterGridDelegate(
           fallbackMaxCrossAxisExtent: 300,
-          fallbackChildAspectRatio: 0.68,
+          fallbackChildAspectRatio: posterAspectRatio,
         ),
         itemCount: data.items.length,
         findChildIndexCallback: (key) {
@@ -341,7 +342,6 @@ class _LibraryMediaTile extends StatefulWidget {
 class _LibraryMediaTileState extends State<_LibraryMediaTile> {
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     final item = widget.item;
     final details = <String>[
       item.infoText,
@@ -366,8 +366,8 @@ class _LibraryMediaTileState extends State<_LibraryMediaTile> {
             ),
           ];
     final cover = item.heroTag == null
-        ? _cover(colors)
-        : Hero(tag: item.heroTag!, child: _cover(colors));
+        ? _cover()
+        : Hero(tag: item.heroTag!, child: _cover());
     return ImmersiveMediaCard(
       cover: cover,
       title: item.title,
@@ -388,29 +388,14 @@ class _LibraryMediaTileState extends State<_LibraryMediaTile> {
     );
   }
 
-  Widget _cover(ColorScheme colors) {
-    Widget placeholder() => DecoratedBox(
-          decoration: BoxDecoration(
-              color: colors.primaryContainer.withValues(alpha: 0.82)),
-          child: Center(
-              child: Container(
-                  width: 82,
-                  height: 82,
-                  decoration: BoxDecoration(
-                      color: colors.primary.withValues(alpha: 0.16),
-                      shape: BoxShape.circle),
-                  child: Icon(
-                      widget.item.hasMultipleEpisodes
-                          ? Icons.video_collection_outlined
-                          : Icons.play_circle_fill,
-                      size: 48,
-                      color: colors.primary))),
-        );
-    return LibraryMediaCoverFallback.build(
-      widget.item,
-      placeholderBuilder: (_) => placeholder(),
-      decodeSize: widget.decodeSize,
-      bytesLoader: widget.networkImageLoader,
+  Widget _cover() {
+    return PosterCover(
+      child: LibraryMediaCoverFallback.build(
+        widget.item,
+        placeholderBuilder: (_) => const PosterCover.placeholder(),
+        decodeSize: widget.decodeSize,
+        bytesLoader: widget.networkImageLoader,
+      ),
     );
   }
 }

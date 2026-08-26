@@ -75,4 +75,24 @@ void main() {
     );
     expect(result.map((item) => item.label), contains('字幕'));
   });
+
+  test('新资源识别到的版本标签会自动加入作品标签', () {
+    final result = resolver.aggregate([
+      resolver.resolve(names: const ['作品.2160p.HYBRID.REMASTERED.mkv']),
+      resolver.resolve(names: const ['作品.1080p.PROPER.OPEN.MATTE.mkv']),
+    ]);
+
+    expect(
+      result.map((item) => item.label),
+      containsAll(<String>['Hybrid', 'Remastered', 'Proper', 'Open Matte']),
+    );
+  });
+
+  test('片名中的普通单词不会误收为版本标签', () {
+    expect(
+      resolver.resolve(
+          names: const ['A.Proper.Movie.2026.mkv']).map((item) => item.label),
+      isNot(contains('Proper')),
+    );
+  });
 }

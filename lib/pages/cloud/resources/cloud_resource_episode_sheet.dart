@@ -325,19 +325,6 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
       cacheWidth: decodeSize?.width,
       cacheHeight: decodeSize?.height,
       filterQuality: FilterQuality.medium,
-      placeholderBuilder: _placeholder,
-    );
-  }
-
-  Widget _placeholder(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return ColoredBox(
-      color: colors.secondaryContainer,
-      child: Icon(
-        Icons.tv_outlined,
-        color: colors.onSecondaryContainer,
-        size: 36,
-      ),
     );
   }
 

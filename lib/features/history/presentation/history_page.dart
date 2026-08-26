@@ -14,6 +14,7 @@ import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/services/local_playback_request_builder.dart';
 import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
 import 'package:kanyingyin/widgets/cloud_poster_image.dart';
+import 'package:kanyingyin/widgets/poster_cover.dart';
 import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 class HistoryPage extends StatefulWidget {
@@ -265,8 +266,8 @@ class _HistoryTile extends StatelessWidget {
       enabled: enabled,
       contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
       leading: SizedBox(
-        width: 72,
-        height: 88,
+        width: 60,
+        height: 90,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(6),
           child: _Poster(entry: entry),
@@ -326,15 +327,18 @@ class _Poster extends StatelessWidget {
         cachePath: entry.posterCachePath,
         url: TmdbMatchSheet.imageUrl(entry.posterUrl, size: 'w500'),
         fit: BoxFit.cover,
-        placeholderBuilder: _placeholder,
       );
     }
+    return PosterCover(child: _localOrNetworkPoster());
+  }
+
+  Widget _localOrNetworkPoster() {
     final cached = entry.posterCachePath;
     if (cached != null && File(cached).existsSync()) {
       return Image.file(
         File(cached),
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _placeholder(context),
+        errorBuilder: (_, __, ___) => const PosterCover.placeholder(),
       );
     }
     final url = entry.posterUrl;
@@ -342,17 +346,9 @@ class _Poster extends StatelessWidget {
       return TmdbNetworkImage(
         url: url,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _placeholder(context),
+        errorBuilder: (_, __, ___) => const PosterCover.placeholder(),
       );
     }
-    return _placeholder(context);
-  }
-
-  Widget _placeholder(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return ColoredBox(
-      color: colors.surfaceContainerHighest,
-      child: Icon(Icons.movie_outlined, color: colors.outline),
-    );
+    return const PosterCover.placeholder();
   }
 }

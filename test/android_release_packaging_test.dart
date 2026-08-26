@@ -21,8 +21,8 @@ void main() {
         gradle,
         contains(
             'val windowsVersionCode = pubspecVersionMatch.groupValues[2].toInt()'));
-    expect(gradle, contains('val androidVersionName = "1.0.6"'));
-    expect(gradle, contains('val androidVersionCode = 10006'));
+    expect(gradle, contains('val androidVersionName = "1.0.7"'));
+    expect(gradle, contains('val androidVersionCode = 10007'));
   });
 
   test('Android mobile Release 使用当前版本契约并使用本机环境签名', () {
@@ -48,8 +48,8 @@ void main() {
         gradle,
         contains(
             'val windowsVersionCode = pubspecVersionMatch.groupValues[2].toInt()'));
-    expect(gradle, contains('val androidVersionName = "1.0.6"'));
-    expect(gradle, contains('val androidVersionCode = 10006'));
+    expect(gradle, contains('val androidVersionName = "1.0.7"'));
+    expect(gradle, contains('val androidVersionCode = 10007'));
     expect(gradle, contains('create("mobile")'));
     expect(gradle, contains('create("tvTest")'));
     expect(gradle, contains('versionCode = androidVersionCode'));
@@ -91,8 +91,8 @@ void main() {
     );
     expect(script, contains(r'$apkTarget = Join-Path $desktop'));
     expect(script, contains(r'$aabTarget = Join-Path $desktop'));
-    expect(script, contains("\$androidVersion = '1.0.6'"));
-    expect(script, contains(r'$androidVersionCode = 10006'));
+    expect(script, contains("\$androidVersion = '1.0.7'"));
+    expect(script, contains(r'$androidVersionCode = 10007'));
     expect(script, contains("[ValidateSet('mobile', 'tvTest')]"));
     expect(script, contains(r"[string]$Flavor = 'mobile'"));
     expect(script, contains(r'[switch]$ApkOnly'));

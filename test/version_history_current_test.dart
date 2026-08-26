@@ -5,6 +5,61 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 void main() {
+  test('一点零十一正式版展示当前 Windows 有效更新', () {
+    final entries = versionHistoryForCurrent('1.0.11');
+
+    expect(entries, hasLength(1));
+    expect(entries.single.version, '1.0.11');
+    expect(entries.single.isPrerelease, isFalse);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      'Windows',
+      'Hami Video',
+      '2:3',
+      '深色模式',
+      '技术标签',
+      '首字节时间',
+      '夸克网盘低速播放',
+      '不会修改',
+    ]) {
+      expect(changes, contains(text));
+    }
+    for (final text in <String>['综合', '测试版', '首次正式发布']) {
+      expect(changes, isNot(contains(text)));
+    }
+  });
+
+  test('Android 一点零七正式版只展示手机适用更新', () {
+    final entries = versionHistoryForCurrent(
+      '1.0.11',
+      platform: AppPlatformKind.android,
+    );
+
+    expect(entries, hasLength(1));
+    expect(entries.single.version, '1.0.7');
+    expect(entries.single.isPrerelease, isFalse);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      '手机和平板',
+      'Hami Video',
+      '2:3',
+      '深色模式',
+      '海报',
+      '不会修改',
+    ]) {
+      expect(changes, contains(text));
+    }
+    for (final text in <String>[
+      'Windows',
+      '夸克网盘低速播放',
+      '鼠标悬停',
+      '测试版',
+      '综合',
+    ]) {
+      expect(changes, isNot(contains(text)));
+    }
+  });
+
   test('二点一八五测试版优化夸克低速播放', () {
     final entries = versionHistoryForCurrent('2.1.185');
 

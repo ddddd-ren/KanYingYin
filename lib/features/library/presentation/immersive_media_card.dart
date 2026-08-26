@@ -101,7 +101,10 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
                       opacity: overlayVisible ? 1 : 0,
                       duration: const Duration(milliseconds: 160),
                       curve: Curves.easeOut,
-                      child: _buildOverlay(context),
+                      child: _buildOverlay(
+                        context,
+                        overlayVisible: overlayVisible,
+                      ),
                     ),
                     if (_hovered)
                       IgnorePointer(
@@ -117,21 +120,6 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
                               const Center(child: CircularProgressIndicator()),
                         ),
                       ),
-                    if (widget.technicalBadges.isNotEmpty)
-                      Positioned(
-                        left: 10,
-                        top: 10,
-                        right: widget.trailing == null ? 10 : 42,
-                        child: IgnorePointer(
-                          child: MediaTechnicalBadgeRow(
-                            key: const ValueKey(
-                              'media-technical-badges-poster',
-                            ),
-                            badges: widget.technicalBadges,
-                            poster: true,
-                          ),
-                        ),
-                      ),
                     if (widget.trailing != null)
                       Positioned(top: 4, right: 4, child: widget.trailing!),
                   ],
@@ -144,7 +132,10 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
     );
   }
 
-  Widget _buildOverlay(BuildContext context) {
+  Widget _buildOverlay(
+    BuildContext context, {
+    required bool overlayVisible,
+  }) {
     final textTheme = Theme.of(context).textTheme;
     return Stack(
       fit: StackFit.expand,
@@ -163,78 +154,90 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
             ),
           ),
         ),
-        Align(
-          alignment: Alignment.bottomCenter,
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 10), // 从 8 增加到 10
-            child: SizedBox(
-              width: double.infinity,
-              child: GlassSurface(
-                borderRadius: BorderRadius.circular(10),
-                blurSigma: 12, // 从 10 增加到 12
-                color: Colors.black.withValues(alpha: 0.32), // 从 0.28 增强到 0.32
-                border: Border.all(
-                  color:
-                      Colors.white.withValues(alpha: 0.18), // 从 0.16 增强到 0.18
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                      12, 10, 12, 12), // 从 (10,8,10,10) 调整
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: AnimatedSlide(
+            offset: overlayVisible ? Offset.zero : const Offset(0, 0.08),
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            child: GlassSurface(
+              borderRadius: BorderRadius.circular(10),
+              blurSigma: 12, // 从 10 增加到 12
+              color: Colors.black.withValues(alpha: 0.32), // 从 0.28 增强到 0.32
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.18), // 从 0.16 增强到 0.18
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    12, 10, 12, 12), // 从 (10,8,10,10) 调整
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.titleLarge?.copyWith(
+                        // 从 titleMedium 升级到 titleLarge
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        height: 1.2, // 从 1.15 调整到 1.2
+                        fontSize: 16, // 明确设置字号
+                        shadows: const <Shadow>[
+                          Shadow(color: Colors.black54, blurRadius: 4),
+                        ],
+                      ),
+                    ),
+                    if (widget.subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 6),
                       Text(
-                        widget.title,
-                        maxLines: 2,
+                        widget.subtitle,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: textTheme.titleLarge?.copyWith(
-                          // 从 titleMedium 升级到 titleLarge
-                          color: Colors.white,
+                        style: textTheme.labelMedium?.copyWith(
+                          color: Colors.white.withValues(alpha: 0.9),
                           fontWeight: FontWeight.w600,
-                          height: 1.2, // 从 1.15 调整到 1.2
-                          fontSize: 16, // 明确设置字号
-                          shadows: const <Shadow>[
-                            Shadow(color: Colors.black54, blurRadius: 4),
-                          ],
                         ),
                       ),
-                      if (widget.subtitle.isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          widget.subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: textTheme.labelMedium?.copyWith(
-                            color: Colors.white.withValues(alpha: 0.9),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                      if (widget.details.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          widget.details,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: textTheme.labelSmall?.copyWith(
-                            color: Colors.white.withValues(alpha: 0.78),
-                            height: 1.3, // 从 1.25 调整到 1.3
-                          ),
-                        ),
-                      ],
-                      if (widget.badges.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: widget.badges
-                              .map((badge) => _buildBadge(context, badge))
-                              .toList(growable: false),
-                        ),
-                      ],
                     ],
-                  ),
+                    if (widget.details.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.details,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.labelSmall?.copyWith(
+                          color: Colors.white.withValues(alpha: 0.78),
+                          height: 1.3, // 从 1.25 调整到 1.3
+                        ),
+                      ),
+                    ],
+                    if (widget.technicalBadges.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      IgnorePointer(
+                        child: MediaTechnicalBadgeRow(
+                          key: const ValueKey(
+                            'media-technical-badges-poster',
+                          ),
+                          badges: widget.technicalBadges,
+                          poster: true,
+                        ),
+                      ),
+                    ],
+                    if (widget.badges.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: widget.badges
+                            .map((badge) => _buildBadge(context, badge))
+                            .toList(growable: false),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),

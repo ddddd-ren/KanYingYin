@@ -44,6 +44,7 @@ import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client_capabilities.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/widgets/cloud_poster_image.dart';
+import 'package:kanyingyin/widgets/poster_cover.dart';
 import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 CloudResourceMediaGroup _seasonMediaGroup() {
@@ -769,8 +770,8 @@ void main() {
     );
     expect(poster.loadingBuilder, isNotNull);
     expect(
-      poster.loadingBuilder!(tester.element(find.byType(TmdbNetworkImage))).key,
-      const ValueKey<String>('cloud-media-placeholder'),
+      find.byKey(const ValueKey<String>('poster-cover-placeholder')),
+      findsOneWidget,
     );
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(minutes: 2));
@@ -2192,7 +2193,7 @@ void main() {
       final delegate =
           grid.gridDelegate as SliverGridDelegateWithMaxCrossAxisExtent;
       expect(delegate.maxCrossAxisExtent, 300);
-      expect(delegate.childAspectRatio, 0.68);
+      expect(delegate.childAspectRatio, posterAspectRatio);
       expect(delegate.crossAxisSpacing, 12);
       expect(delegate.mainAxisSpacing, 12);
       final cards = find.byType(ImmersiveMediaCard);
@@ -2274,7 +2275,7 @@ void main() {
     expect(cards.map((card) => card.loading), <bool>[true, false]);
     expect(find.text('刮削中'), findsOneWidget);
     expect(
-      find.byKey(const ValueKey<String>('cloud-media-placeholder')),
+      find.byKey(const ValueKey<String>('poster-cover-placeholder')),
       findsNWidgets(2),
     );
     await tester.tap(find.byType(ImmersiveMediaCard).last);

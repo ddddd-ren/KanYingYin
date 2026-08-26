@@ -15,6 +15,7 @@ import 'package:kanyingyin/features/tv/presentation/tv_layout_policy.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/widgets/cloud_poster_image.dart';
+import 'package:kanyingyin/widgets/poster_cover.dart';
 import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 class MediaCategoryPage extends StatefulWidget {
@@ -248,7 +249,7 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
         padding: policy.gridPadding(const EdgeInsets.all(12)),
         gridDelegate: policy.posterGridDelegate(
           fallbackMaxCrossAxisExtent: 280,
-          fallbackChildAspectRatio: 0.68,
+          fallbackChildAspectRatio: posterAspectRatio,
         ),
         itemCount: series.length,
         findChildIndexCallback: (key) {
@@ -271,7 +272,7 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
     );
     return ImmersiveMediaCard(
       key: ValueKey<String>('media-category-card-${series.key}'),
-      cover: _cover(context, series),
+      cover: _cover(series),
       title: info.title,
       subtitle: info.subtitle,
       details: info.details,
@@ -420,18 +421,7 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
     );
   }
 
-  Widget _cover(BuildContext context, MediaLibrarySeries series) {
-    final colors = Theme.of(context).colorScheme;
-    Widget placeholder() => ColoredBox(
-          color: colors.surfaceContainerHighest,
-          child: Center(
-            child: Icon(
-              _categoryIcon(),
-              size: 52,
-              color: colors.primary,
-            ),
-          ),
-        );
+  Widget _cover(MediaLibrarySeries series) {
     if (series.sourceKind == MediaSourceKind.cloud) {
       return CloudPosterImage(
         cachePath: series.posterCachePath,
@@ -439,9 +429,12 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
         fit: BoxFit.cover,
         width: double.infinity,
         height: double.infinity,
-        placeholderBuilder: (_) => placeholder(),
       );
     }
+    return PosterCover(child: _localOrNetworkCover(series));
+  }
+
+  Widget _localOrNetworkCover(MediaLibrarySeries series) {
     final cached = series.posterCachePath;
     if (cached != null && cached.isNotEmpty && File(cached).existsSync()) {
       return Image.file(
@@ -449,10 +442,10 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
         fit: BoxFit.cover,
         width: double.infinity,
         height: double.infinity,
-        errorBuilder: (_, __, ___) => _networkCover(series, placeholder),
+        errorBuilder: (_, __, ___) => _networkCover(series),
       );
     }
-    return _networkCover(series, placeholder);
+    return _networkCover(series);
   }
 
   void _scheduleCloudPosterWarmup(
@@ -462,7 +455,7 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
     final limit = cloudPosterWarmupLimit(
       MediaQuery.sizeOf(context),
       maxCrossAxisExtent: 280,
-      childAspectRatio: 0.68,
+      childAspectRatio: posterAspectRatio,
     );
     final paths = series
         .where((item) => item.sourceKind == MediaSourceKind.cloud)
@@ -478,18 +471,15 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
     });
   }
 
-  Widget _networkCover(
-    MediaLibrarySeries series,
-    Widget Function() placeholder,
-  ) {
+  Widget _networkCover(MediaLibrarySeries series) {
     final url = _tmdbImageUrl(series.tmdbPosterUrl);
-    if (url == null) return placeholder();
+    if (url == null) return const PosterCover.placeholder();
     return TmdbNetworkImage(
       url: url,
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,
-      errorBuilder: (_, __, ___) => placeholder(),
+      errorBuilder: (_, __, ___) => const PosterCover.placeholder(),
     );
   }
 

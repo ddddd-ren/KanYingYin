@@ -13,6 +13,7 @@ import 'package:kanyingyin/features/tv/presentation/tv_layout_policy.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/widgets/cloud_poster_image.dart';
+import 'package:kanyingyin/widgets/poster_cover.dart';
 
 typedef CloudResourceGroupAction = FutureOr<void> Function(
   CloudResourceMediaGroup group,
@@ -106,7 +107,7 @@ class _CloudResourcePosterWallState extends State<CloudResourcePosterWall> {
     final limit = cloudPosterWarmupLimit(
       MediaQuery.sizeOf(context),
       maxCrossAxisExtent: 300,
-      childAspectRatio: 0.68,
+      childAspectRatio: posterAspectRatio,
     );
     final paths = collection.groups
         .take(limit)
@@ -160,7 +161,7 @@ class _CloudResourcePosterWallState extends State<CloudResourcePosterWall> {
         padding: policy.gridPadding(const EdgeInsets.all(12)),
         gridDelegate: policy.posterGridDelegate(
           fallbackMaxCrossAxisExtent: 300,
-          fallbackChildAspectRatio: 0.68,
+          fallbackChildAspectRatio: posterAspectRatio,
         ),
         itemCount: collection.groups.length,
         findChildIndexCallback: (key) {
@@ -382,36 +383,6 @@ class _CloudResourcePosterWallState extends State<CloudResourcePosterWall> {
       cacheWidth: decodeSize?.width,
       cacheHeight: decodeSize?.height,
       filterQuality: FilterQuality.medium,
-      placeholderBuilder: _mediaPlaceholder,
-    );
-  }
-
-  Widget _mediaPlaceholder(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return DecoratedBox(
-      key: const ValueKey<String>('cloud-media-placeholder'),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [colors.secondaryContainer, colors.surfaceContainer],
-        ),
-      ),
-      child: Center(
-        child: Container(
-          width: 82,
-          height: 82,
-          decoration: BoxDecoration(
-            color: colors.secondary.withValues(alpha: 0.16),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            Icons.movie_outlined,
-            size: 48,
-            color: colors.secondary,
-          ),
-        ),
-      ),
     );
   }
 

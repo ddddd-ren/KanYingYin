@@ -8,6 +8,7 @@ import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/widgets/poster_cover.dart';
 import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 typedef TmdbMatchSearchCallback = Future<TmdbPreparedSearchOutcome> Function(
@@ -484,19 +485,22 @@ class _TmdbMatchDialogState<TResult> extends State<TmdbMatchDialog<TResult>> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(
-                width: 58,
-                height: 82,
-                child: poster == null
-                    ? const Icon(Icons.movie_outlined, size: 36)
-                    : ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: TmdbNetworkImage(
-                          url: poster,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              const Icon(Icons.broken_image_outlined),
+                key: ValueKey<String>('tmdb-candidate-poster-${metadata.id}'),
+                width: 56,
+                height: 84,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: poster == null
+                      ? const PosterCover.placeholder()
+                      : PosterCover(
+                          child: TmdbNetworkImage(
+                            url: poster,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                const PosterCover.placeholder(),
+                          ),
                         ),
-                      ),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(

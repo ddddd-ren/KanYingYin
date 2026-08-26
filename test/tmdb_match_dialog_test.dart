@@ -61,6 +61,10 @@ void main() {
     expect(request?.queryTitle, '神探夏洛克');
     expect(request?.queryYear, 2012);
     expect(request?.mediaTypeMode, TmdbMediaTypeMode.tv);
+    final candidatePoster = find.byKey(
+      const ValueKey<String>('tmdb-candidate-poster-42'),
+    );
+    expect(tester.getSize(candidatePoster), const Size(56, 84));
 
     await tester.tap(find.text('神探夏洛克').last);
     await tester.pump();

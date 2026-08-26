@@ -19,6 +19,7 @@ import 'package:kanyingyin/features/library/presentation/library_path_bar.dart';
 import 'package:kanyingyin/features/library/presentation/library_source_menu.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_focus_surface.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:kanyingyin/widgets/poster_cover.dart';
 import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 void main() {
@@ -530,7 +531,7 @@ void main() {
   });
 
   group('ImmersiveMediaCard', () {
-    testWidgets('技术标签常驻海报左上且空列表不占位', (tester) async {
+    testWidgets('技术标签只在信息面板显示且空列表不占位', (tester) async {
       Future<void> pump(List<MediaTechnicalBadge> badges) => tester.pumpWidget(
             MaterialApp(
               home: SizedBox(
@@ -554,14 +555,44 @@ void main() {
         find.byKey(const ValueKey('media-technical-badges-poster')),
         findsOneWidget,
       );
+      expect(
+        tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,
+        0,
+      );
+      expect(
+        tester.widget<AnimatedSlide>(find.byType(AnimatedSlide)).offset,
+        const Offset(0, 0.08),
+      );
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(tester.getCenter(find.byType(ImmersiveMediaCard)));
+      await tester.pump(const Duration(milliseconds: 160));
+
       expect(find.text('4K'), findsOneWidget);
       expect(find.text('杜比视界'), findsOneWidget);
-      final card = tester.getRect(find.byType(ImmersiveMediaCard));
+      expect(
+        tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,
+        1,
+      );
+      expect(
+        tester.widget<AnimatedSlide>(find.byType(AnimatedSlide)).offset,
+        Offset.zero,
+      );
+      final glass = tester.getRect(find.byType(GlassSurface));
       final row = tester.getRect(
         find.byKey(const ValueKey('media-technical-badges-poster')),
       );
-      expect(row.left, greaterThanOrEqualTo(card.left + 8));
-      expect(row.top, greaterThanOrEqualTo(card.top + 8));
+      expect(row.top, greaterThanOrEqualTo(glass.top));
+      expect(row.bottom, lessThanOrEqualTo(glass.bottom));
+
+      await mouse.moveTo(const Offset(700, 700));
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,
+        0,
+      );
 
       await pump(const []);
       expect(
@@ -616,6 +647,10 @@ void main() {
       expect(opacity.opacity, 1);
       expect(opacity.duration, const Duration(milliseconds: 160));
       expect(opacity.curve, Curves.easeOut);
+      expect(
+        tester.widget<AnimatedSlide>(find.byType(AnimatedSlide)).offset,
+        Offset.zero,
+      );
       expect(find.text('中文片名'), findsOneWidget);
       expect(find.text('真实文件名.mkv'), findsOneWidget);
       expect(find.textContaining('2025'), findsOneWidget);
@@ -626,7 +661,7 @@ void main() {
       expect(glassRect.left, closeTo(cardRect.left, 0.1));
       expect(glassRect.right, closeTo(cardRect.right, 0.1));
       expect(glassRect.top, greaterThan(cardRect.top));
-      expect(glassRect.bottom, closeTo(cardRect.bottom - 10, 0.1));
+      expect(glassRect.bottom, closeTo(cardRect.bottom, 0.1));
       expect(glassRect.height, lessThan(cardRect.height));
       await tester.tap(find.byType(InkWell));
       expect(tapped, isTrue);
@@ -715,7 +750,7 @@ void main() {
         final delegate =
             grid.gridDelegate as SliverGridDelegateWithMaxCrossAxisExtent;
         expect(delegate.maxCrossAxisExtent, 300);
-        expect(delegate.childAspectRatio, 0.68);
+        expect(delegate.childAspectRatio, posterAspectRatio);
         expect(delegate.crossAxisSpacing, 12);
         expect(delegate.mainAxisSpacing, 12);
         final cards = find.byType(ImmersiveMediaCard);
@@ -778,7 +813,7 @@ void main() {
       expect(
           tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,
           0);
-      expect(find.byIcon(Icons.video_collection_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.movie_outlined), findsOneWidget);
 
       await tester.tap(find.byType(InkWell));
       await tester.pump();
@@ -1226,7 +1261,7 @@ void main() {
             ),
         isTrue,
       );
-      expect(find.byIcon(Icons.video_collection_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.movie_outlined), findsOneWidget);
     });
 
     testWidgets('空目录保留选择文件夹入口', (tester) async {

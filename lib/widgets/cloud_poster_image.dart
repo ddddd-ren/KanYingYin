@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/widgets/poster_cover.dart';
 import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 /// 统一展示网盘海报，优先复用已经落盘的缓存。
@@ -17,7 +18,6 @@ class CloudPosterImage extends StatefulWidget {
     this.cacheWidth,
     this.cacheHeight,
     this.filterQuality = FilterQuality.medium,
-    this.placeholderBuilder,
   });
 
   final String? cachePath;
@@ -29,7 +29,6 @@ class CloudPosterImage extends StatefulWidget {
   final int? cacheWidth;
   final int? cacheHeight;
   final FilterQuality filterQuality;
-  final WidgetBuilder? placeholderBuilder;
 
   @override
   State<CloudPosterImage> createState() => _CloudPosterImageState();
@@ -70,9 +69,11 @@ class _CloudPosterImageState extends State<CloudPosterImage>
         frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
           if (wasSynchronouslyLoaded || frame != null) {
             _hasDisplayedLocalFrame = true;
-            return child;
+            return PosterCover(child: child);
           }
-          return _hasDisplayedLocalFrame ? child : _placeholder(context);
+          return _hasDisplayedLocalFrame
+              ? PosterCover(child: child)
+              : _placeholder(context);
         },
         errorBuilder: (context, _, __) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -89,47 +90,27 @@ class _CloudPosterImageState extends State<CloudPosterImage>
   Widget _networkOrPlaceholder(BuildContext context) {
     final url = _normalized(widget.url);
     if (url == null) return _placeholder(context);
-    return TmdbNetworkImage(
-      url: url,
-      bytesLoader: widget.bytesLoader,
-      fit: widget.fit,
-      width: widget.width,
-      height: widget.height,
-      cacheWidth: widget.cacheWidth,
-      cacheHeight: widget.cacheHeight,
-      filterQuality: widget.filterQuality,
-      loadingBuilder: _placeholder,
-      errorBuilder: (context, _, __) => _placeholder(context),
+    return PosterCover(
+      child: TmdbNetworkImage(
+        url: url,
+        bytesLoader: widget.bytesLoader,
+        fit: widget.fit,
+        width: widget.width,
+        height: widget.height,
+        cacheWidth: widget.cacheWidth,
+        cacheHeight: widget.cacheHeight,
+        filterQuality: widget.filterQuality,
+        loadingBuilder: _placeholder,
+        errorBuilder: (context, _, __) => _placeholder(context),
+      ),
     );
   }
 
-  Widget _placeholder(BuildContext context) =>
-      widget.placeholderBuilder?.call(context) ??
-      const CloudPosterPlaceholder();
+  Widget _placeholder(BuildContext _) => const PosterCover.placeholder();
 
   static String? _normalized(String? value) {
     final normalized = value?.trim() ?? '';
     return normalized.isEmpty ? null : normalized;
-  }
-}
-
-class CloudPosterPlaceholder extends StatelessWidget {
-  const CloudPosterPlaceholder({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return ColoredBox(
-      key: const ValueKey<String>('cloud-poster-placeholder'),
-      color: colors.surfaceContainerHighest,
-      child: Center(
-        child: Icon(
-          Icons.movie_outlined,
-          size: 48,
-          color: colors.secondary,
-        ),
-      ),
-    );
   }
 }
 

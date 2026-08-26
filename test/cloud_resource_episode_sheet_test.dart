@@ -80,6 +80,12 @@ void main() {
       );
       final badges = tester.getRect(find.text('4K'));
       expect(badges.top, greaterThan(title.bottom));
+      expect(
+        tester.getSize(
+          find.byKey(const ValueKey<String>('cloud-season-poster-1')),
+        ),
+        const Size(92, 138),
+      );
       return tester.widget<CloudPosterImage>(find.byType(CloudPosterImage));
     }
 

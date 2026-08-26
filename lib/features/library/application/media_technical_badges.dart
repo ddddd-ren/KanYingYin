@@ -100,11 +100,7 @@ class MediaTechnicalBadgeResolver {
         r'(?<![A-Za-z0-9])(?:8|10|12)\s*bit(?![A-Za-z0-9])',
         MediaTechnicalBadgeKind.bitDepth,
       ),
-      ..._tokenBadges(
-        combined,
-        r'(?<![A-Za-z0-9])IMAX(?![A-Za-z0-9])',
-        MediaTechnicalBadgeKind.edition,
-      ),
+      ..._editionBadges(combined),
       ..._uniqueBadges(releaseGroups, MediaTechnicalBadgeKind.releaseGroup),
       if (hasDolbyVision)
         const MediaTechnicalBadge(
@@ -216,6 +212,42 @@ class MediaTechnicalBadgeResolver {
           .toSet()
           .map((label) => MediaTechnicalBadge(label, kind))
           .toList(growable: false);
+
+  List<MediaTechnicalBadge> _editionBadges(String value) {
+    final releaseStart = RegExp(
+      r'(?<![A-Za-z0-9])(?:360p|480p|576p|720p|1080p|1440p|2160p|4K|8K|WEB[\s._-]?DL|WEBRip|REMUX|BDMV|BDRip|BluRay|UHD|x264|x265|H264|H265|HEVC|AVC|AV1|VP9|DV|HDR|TrueHD|DTS|DDP|EAC3|Atmos)(?![A-Za-z0-9])',
+      caseSensitive: false,
+    ).firstMatch(value);
+    if (releaseStart == null) return const <MediaTechnicalBadge>[];
+    final labels = RegExp(
+      r"(?<![A-Za-z0-9])(?:IMAX|HYBRID|PROPER|REPACK|RERIP|REMASTERED|OPEN[\s._-]*MATTE|UNCUT|EXTENDED|DIRECTOR(?:'S)?[\s._-]*CUT|AI[\s._-]*UPSCALE)(?![A-Za-z0-9])",
+      caseSensitive: false,
+    ).allMatches(value.substring(releaseStart.start)).map((match) {
+      final normalized = match.group(0)!.replaceAll(RegExp(r'[\s._-]+'), ' ');
+      return switch (normalized.toLowerCase()) {
+        'open matte' => 'Open Matte',
+        'director cut' || "director's cut" => "Director's Cut",
+        'ai upscale' => 'AI Upscale',
+        'imax' => 'IMAX',
+        'hybrid' => 'Hybrid',
+        'proper' => 'Proper',
+        'repack' => 'Repack',
+        'rerip' => 'Rerip',
+        'remastered' => 'Remastered',
+        'uncut' => 'Uncut',
+        'extended' => 'Extended',
+        _ => normalized,
+      };
+    }).toSet();
+    return labels
+        .map(
+          (label) => MediaTechnicalBadge(
+            label,
+            MediaTechnicalBadgeKind.edition,
+          ),
+        )
+        .toList(growable: false);
+  }
 
   List<MediaTechnicalBadge> _posterAudioBadges(Iterable<String> values) {
     final labels = values

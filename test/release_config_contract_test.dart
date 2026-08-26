@@ -52,7 +52,7 @@ void main() {
     }
   });
 
-  test('Windows 二点一八一测试版构建版本面一致', () {
+  test('Windows 二点一八四测试版构建版本面一致', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
@@ -63,18 +63,18 @@ void main() {
     final androidScript =
         File('tool/android/build_signed_release.ps1').readAsStringSync();
 
-    expect(pubspec, contains('version: 2.1.181+20181'));
-    expect(pubspec, contains('msix_version: 2.1.181.0'));
-    expect(appVersion, contains("current = '2.1.181'"));
-    expect(releaseNotes, contains('## 2.1.181+20181'));
-    expect(releaseNotes, contains('Windows 测试版：2.1.181'));
-    expect(updateDialogCopy, contains('应用版本：2.1.181'));
-    expect(updateDialogCopy, contains('Windows EXE 安装器版本：2.1.181 测试版'));
-    expect(versionHistory, contains("version: '2.1.181'"));
-    expect(gradle, contains('windowsVersionName != "2.1.181"'));
-    expect(gradle, contains('windowsVersionCode != 20181'));
-    expect(androidScript, contains("pubspecVersion.Name -ne '2.1.181'"));
-    expect(androidScript, contains('pubspecVersion.Code -ne 20181'));
+    expect(pubspec, contains('version: 2.1.184+20184'));
+    expect(pubspec, contains('msix_version: 2.1.184.0'));
+    expect(appVersion, contains("current = '2.1.184'"));
+    expect(releaseNotes, contains('## 2.1.184+20184'));
+    expect(releaseNotes, contains('Windows 测试版：2.1.184'));
+    expect(updateDialogCopy, contains('应用版本：2.1.184'));
+    expect(updateDialogCopy, contains('Windows EXE 安装器版本：2.1.184 测试版'));
+    expect(versionHistory, contains("version: '2.1.184'"));
+    expect(gradle, contains('windowsVersionName != "2.1.184"'));
+    expect(gradle, contains('windowsVersionCode != 20184'));
+    expect(androidScript, contains("pubspecVersion.Name -ne '2.1.184'"));
+    expect(androidScript, contains('pubspecVersion.Code -ne 20184'));
   });
 
   test('直接依赖使用与锁文件兼容的明确约束', () {

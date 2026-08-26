@@ -4,9 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('一点零十 Windows 与一点零六 Android 正式版文案保持一致', () {
-    const expectedVersion = '1.0.10';
-    const expectedBuildNumber = '10010';
+  test('一点零十一 Windows 与一点零七 Android 正式版文案保持一致', () {
+    const expectedVersion = '1.0.11';
+    const expectedBuildNumber = '10011';
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final readme = File('README.md').readAsStringSync();
     final versionHistory =
@@ -20,8 +20,8 @@ void main() {
     expect(readmeIdentity, AppIdentity.windowsIdentity);
     expect(releaseNotes, contains('## $expectedVersion+$expectedBuildNumber'));
     expect(releaseNotes, contains('Windows EXE 安装器版本：$expectedVersion'));
-    expect(releaseNotes, contains('Android 正式版：1.0.6 (10006)'));
-    expect(readme, contains('| 当前版本 | 1.0.10 |'));
+    expect(releaseNotes, contains('Android 正式版：1.0.7 (10007)'));
+    expect(readme, contains('| 当前版本 | 1.0.11 |'));
     expect(
       readme,
       contains('| 支持平台 | Windows 10/11 x64；Android 7.0+（API 24+） |'),
@@ -74,8 +74,9 @@ void main() {
     ]) {
       for (final text in <String>[
         'Windows',
-        '码率',
-        '字幕轨道',
+        'Hami Video',
+        '2:3',
+        '深色模式',
         '海报',
         '不会修改、删除',
       ]) {
@@ -93,7 +94,11 @@ void main() {
     }
     expect(currentReleaseNotes, contains('正式版'));
     expect(currentReleaseNotes, contains('Android 正式版'));
-    for (final unsupportedClaim in <String>['已经扫描到', '保证匹配']) {
+    for (final unsupportedClaim in <String>[
+      '综合',
+      '首次正式发布',
+      '测试版',
+    ]) {
       expect(currentReleaseNotes, isNot(contains(unsupportedClaim)));
       expect(currentVersionHistory, isNot(contains(unsupportedClaim)));
     }

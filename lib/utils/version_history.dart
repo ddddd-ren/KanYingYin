@@ -111,6 +111,16 @@ const VersionHistory _androidSeventhRelease = VersionHistory(
   ],
 );
 
+const VersionHistory _androidEighthRelease = VersionHistory(
+  version: '1.0.7',
+  date: '2026-08-27',
+  changes: [
+    '手机和平板增强资源标签识别，新增 Hami Video、Max、TVING、KKTV 等流媒体来源，以及 Hybrid、Proper、Repack、Remastered、Open Matte 等版本标签',
+    '本地媒体库、个人网盘、播放历史和 TMDB 匹配等封面统一为 2:3，改善深色模式下原图白边，并统一无海报、加载中和加载失败时的占位显示',
+    '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
+  ],
+);
+
 const VersionHistory _androidAdaptiveQuarkSystemBarsPrerelease = VersionHistory(
   version: '2.1.103',
   date: '2026-08-03',
@@ -202,6 +212,17 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 );
 
 const List<VersionHistory> versionHistoryList = [
+  VersionHistory(
+    version: '1.0.11',
+    date: '2026-08-27',
+    changes: [
+      'Windows 增强资源标签识别，新增 Hami Video、Max、TVING、KKTV 等流媒体来源，以及 Hybrid、Proper、Repack、Remastered、Open Matte 等版本标签',
+      '本地媒体库、个人网盘、播放历史和 TMDB 匹配等封面统一为 2:3；改善深色模式下原图白边，并统一无海报、加载中和加载失败时的占位显示',
+      '技术标签不再常驻遮挡海报；鼠标悬停或键盘聚焦时会在贴齐海报底框的信息面板中显示标题、详情和标签',
+      '优化夸克网盘低速播放。首次响应较慢时会继续等待，分块与并发会根据首字节时间、实际吞吐和超时情况动态调整；拖动、切集、取消和重播保留有界重试',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
+    ],
+  ),
   VersionHistory(
     version: '1.0.10',
     date: '2026-08-25',
@@ -3112,6 +3133,9 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '1.0.11' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[_androidEighthRelease];
+  }
   if (currentVersion == '1.0.10' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[_androidSeventhRelease];
   }

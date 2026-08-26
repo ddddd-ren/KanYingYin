@@ -16,8 +16,8 @@ void main() {
       contains(
           'val windowsVersionCode = pubspecVersionMatch.groupValues[2].toInt()'),
     );
-    expect(gradle, contains('val androidVersionName = "1.0.6"'));
-    expect(gradle, contains('val androidVersionCode = 10006'));
+    expect(gradle, contains('val androidVersionName = "1.0.7"'));
+    expect(gradle, contains('val androidVersionCode = 10007'));
     expect(gradle, contains('versionName = androidVersionName'));
     expect(gradle, contains('versionCode = androidVersionCode'));
     expect(gradle, contains('create("tvTest")'));

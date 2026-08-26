@@ -2,7 +2,15 @@ import 'dart:io';
 
 import 'package:kanyingyin/services/cloud/range/cloud_range_relay_protocol.dart';
 
-enum CloudRangeReaderEvent { reconnecting, refreshing }
+enum CloudRangeReaderEvent { reconnecting, refreshing, healthy, slow }
+
+abstract interface class CloudRangeAdaptiveRemoteReader {
+  void configureAdaptiveReads({
+    required int minReadSize,
+    required int initialReadSize,
+    required int maxReadSize,
+  });
+}
 
 abstract interface class CloudRangeRemoteReader {
   int? get totalLength;

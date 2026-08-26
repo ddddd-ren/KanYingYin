@@ -18,6 +18,11 @@ void main() {
         'cache-pause-initial': 'yes',
         'cache-pause-wait': '5',
         'cache-secs': '30',
+        'network-timeout': '30',
+        'stream-lavf-o':
+            'reconnect=1,reconnect_on_network_error=1,reconnect_streamed=1,'
+                'reconnect_delay_max=2,reconnect_max_retries=2,'
+                'reconnect_delay_total_max=5',
         'demuxer-max-bytes': '256MiB',
         'demuxer-max-back-bytes': '32MiB',
       },

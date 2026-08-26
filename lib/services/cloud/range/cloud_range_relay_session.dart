@@ -19,6 +19,8 @@ class CloudRangeRelayAdaptivePolicy {
     required this.maxConcurrentReads,
     required this.maxConcurrentPrefetch,
     required this.prefetchAheadChunks,
+    this.boostOnForegroundPressure = true,
+    this.boostOnHealthyTransfer = false,
   })  : assert(maxConcurrentReads > 0),
         assert(maxConcurrentPrefetch > 0),
         assert(maxConcurrentPrefetch < maxConcurrentReads),
@@ -27,6 +29,8 @@ class CloudRangeRelayAdaptivePolicy {
   final int maxConcurrentReads;
   final int maxConcurrentPrefetch;
   final int prefetchAheadChunks;
+  final bool boostOnForegroundPressure;
+  final bool boostOnHealthyTransfer;
 }
 
 class CloudRangeRelayTuning {
@@ -37,13 +41,29 @@ class CloudRangeRelayTuning {
     required this.maxConcurrentPrefetch,
     required this.prefetchAheadChunks,
     this.prefetchTailOnStart = true,
+    this.minRemoteReadSize,
+    this.initialRemoteReadSize,
     this.adaptivePolicy,
   })  : assert(chunkSize > 0),
         assert(maxChunks > 0),
         assert(maxConcurrentReads > 0),
         assert(maxConcurrentPrefetch > 0),
         assert(maxConcurrentPrefetch < maxConcurrentReads),
-        assert(prefetchAheadChunks >= maxConcurrentPrefetch);
+        assert(prefetchAheadChunks >= maxConcurrentPrefetch),
+        assert(minRemoteReadSize == null || minRemoteReadSize > 0),
+        assert(minRemoteReadSize == null || minRemoteReadSize <= chunkSize),
+        assert(initialRemoteReadSize == null || initialRemoteReadSize > 0),
+        assert(
+          initialRemoteReadSize == null || minRemoteReadSize != null,
+        ),
+        assert(
+          initialRemoteReadSize == null ||
+              minRemoteReadSize == null ||
+              initialRemoteReadSize >= minRemoteReadSize,
+        ),
+        assert(
+          initialRemoteReadSize == null || initialRemoteReadSize <= chunkSize,
+        );
 
   static const windows = CloudRangeRelayTuning(
     chunkSize: 4 * 1024 * 1024,
@@ -51,6 +71,23 @@ class CloudRangeRelayTuning {
     maxConcurrentReads: 5,
     maxConcurrentPrefetch: 4,
     prefetchAheadChunks: 8,
+  );
+
+  static const windowsQuarkAdaptive = CloudRangeRelayTuning(
+    chunkSize: 4 * 1024 * 1024,
+    maxChunks: 64,
+    maxConcurrentReads: 2,
+    maxConcurrentPrefetch: 1,
+    prefetchAheadChunks: 2,
+    minRemoteReadSize: 512 * 1024,
+    initialRemoteReadSize: 1024 * 1024,
+    adaptivePolicy: CloudRangeRelayAdaptivePolicy(
+      maxConcurrentReads: 5,
+      maxConcurrentPrefetch: 4,
+      prefetchAheadChunks: 8,
+      boostOnForegroundPressure: false,
+      boostOnHealthyTransfer: true,
+    ),
   );
 
   static const android = CloudRangeRelayTuning(
@@ -110,6 +147,8 @@ class CloudRangeRelayTuning {
   final int maxConcurrentPrefetch;
   final int prefetchAheadChunks;
   final bool prefetchTailOnStart;
+  final int? minRemoteReadSize;
+  final int? initialRemoteReadSize;
   final CloudRangeRelayAdaptivePolicy? adaptivePolicy;
 
   static CloudRangeRelayTuning forPlatform(
@@ -208,14 +247,31 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
   Stream<CloudRangeRelayStatus> get statuses => _statuses.stream;
 
   Future<void> _start() async {
+    final minRemoteReadSize = tuning.minRemoteReadSize;
+    if (minRemoteReadSize != null &&
+        _reader is CloudRangeAdaptiveRemoteReader) {
+      final adaptiveReader = _reader as CloudRangeAdaptiveRemoteReader;
+      adaptiveReader.configureAdaptiveReads(
+        minReadSize: minRemoteReadSize,
+        initialReadSize: tuning.initialRemoteReadSize ?? chunkSize,
+        maxReadSize: chunkSize,
+      );
+    }
     _readerEvents = _reader.events.listen((event) {
-      if (event == CloudRangeReaderEvent.reconnecting ||
-          event == CloudRangeReaderEvent.refreshing) {
-        _returnToBase(event.name);
-        _publish(
-          phase: CloudRangeRelayPhase.reconnecting,
-          message: '$providerName正在重新连接',
-        );
+      switch (event) {
+        case CloudRangeReaderEvent.reconnecting:
+        case CloudRangeReaderEvent.refreshing:
+          _returnToBase(event.name);
+          _publish(
+            phase: CloudRangeRelayPhase.reconnecting,
+            message: '$providerName正在重新连接',
+          );
+        case CloudRangeReaderEvent.healthy:
+          if (tuning.adaptivePolicy?.boostOnHealthyTransfer ?? false) {
+            _boost('healthy_transfer');
+          }
+        case CloudRangeReaderEvent.slow:
+          _returnToBase('slow_transfer');
       }
     });
     final metadata = await _reader.probe();
@@ -278,6 +334,7 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
 
   Future<void> _handleRequest(HttpRequest request) async {
     final response = request.response..bufferOutput = false;
+    Socket? responseSocket;
     try {
       if (!_isAuthorizedLocalRequest(request)) {
         await _emptyResponse(response, HttpStatus.notFound);
@@ -321,9 +378,12 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
         }
         response
           ..statusCode = HttpStatus.ok
-          ..contentLength = totalLength;
-        await _reader.streamAll(response);
-        await response.close();
+          ..contentLength = totalLength
+          ..persistentConnection = false;
+        responseSocket = await response.detachSocket(writeHeaders: true);
+        await _reader.streamAll(responseSocket);
+        await responseSocket.close();
+        responseSocket = null;
         _publish(phase: CloudRangeRelayPhase.ready);
         return;
       }
@@ -352,9 +412,13 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
             range.contentRange(totalLength),
           );
       }
-      response.contentLength = range.length;
-      await _serveRange(response, range);
-      await response.close();
+      response
+        ..contentLength = range.length
+        ..persistentConnection = false;
+      responseSocket = await response.detachSocket(writeHeaders: true);
+      await _serveRange(responseSocket, range);
+      await responseSocket.close();
+      responseSocket = null;
     } on Object catch (error) {
       if (error is CloudRangeRemoteProtocolException ||
           error is CloudRangeRemoteAuthenticationException ||
@@ -373,6 +437,7 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
         // 响应已经开始时只能关闭连接，不能再修改状态码。
       }
       try {
+        await responseSocket?.close();
         await response.close();
       } on Object {
         // 客户端主动断开不影响中转会话继续服务其他请求。
@@ -406,7 +471,7 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
     await response.close();
   }
 
-  Future<void> _serveRange(HttpResponse response, ByteRange requested) async {
+  Future<void> _serveRange(IOSink response, ByteRange requested) async {
     final generation = _noteForegroundRequest(requested.start);
     var current = requested.start;
     while (current <= requested.endInclusive && !_closed) {
@@ -481,6 +546,17 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
     final policy = tuning.adaptivePolicy;
     if (_closed ||
         policy == null ||
+        !policy.boostOnForegroundPressure ||
+        _adaptiveMode == CloudRangeRelayAdaptiveMode.boosted) {
+      return;
+    }
+    _boost('foreground_cache_pressure');
+  }
+
+  void _boost(String reason) {
+    final policy = tuning.adaptivePolicy;
+    if (_closed ||
+        policy == null ||
         _adaptiveMode == CloudRangeRelayAdaptiveMode.boosted) {
       return;
     }
@@ -489,7 +565,7 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
       maxConcurrent: policy.maxConcurrentReads,
       maxConcurrentPrefetch: policy.maxConcurrentPrefetch,
     );
-    _logAdaptiveTransition('foreground_cache_pressure');
+    _logAdaptiveTransition(reason);
   }
 
   void _returnToBase(String reason) {

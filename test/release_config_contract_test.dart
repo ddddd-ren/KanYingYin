@@ -54,7 +54,7 @@ void main() {
     }
   });
 
-  test('Windows 一点零十一与 Android 一点零七正式版构建版本面一致', () {
+  test('Windows 二点一八七测试版构建版本面一致', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
@@ -65,20 +65,20 @@ void main() {
     final androidScript =
         File('tool/android/build_signed_release.ps1').readAsStringSync();
 
-    expect(pubspec, contains('version: 1.0.11+10011'));
-    expect(pubspec, contains('msix_version: 1.0.11.0'));
-    expect(appVersion, contains("current = '1.0.11'"));
-    expect(releaseNotes, contains('## 1.0.11+10011'));
-    expect(releaseNotes, contains('Windows EXE 安装器版本：1.0.11'));
-    expect(updateDialogCopy, contains('应用版本：1.0.11'));
-    expect(updateDialogCopy, contains('Windows EXE 安装器版本：1.0.11 正式版'));
-    expect(versionHistory, contains("version: '1.0.11'"));
-    expect(gradle, contains('windowsVersionName != "1.0.11"'));
-    expect(gradle, contains('windowsVersionCode != 10011'));
+    expect(pubspec, contains('version: 2.1.187+20187'));
+    expect(pubspec, contains('msix_version: 2.1.187.0'));
+    expect(appVersion, contains("current = '2.1.187'"));
+    expect(releaseNotes, contains('## 2.1.187+20187'));
+    expect(releaseNotes, contains('Windows 测试版：2.1.187'));
+    expect(updateDialogCopy, contains('应用版本：2.1.187'));
+    expect(updateDialogCopy, contains('Windows EXE 安装器版本：2.1.187 测试版'));
+    expect(versionHistory, contains("version: '2.1.187'"));
+    expect(gradle, contains('windowsVersionName != "2.1.187"'));
+    expect(gradle, contains('windowsVersionCode != 20187'));
     expect(gradle, contains('val androidVersionName = "1.0.7"'));
     expect(gradle, contains('val androidVersionCode = 10007'));
-    expect(androidScript, contains("pubspecVersion.Name -ne '1.0.11'"));
-    expect(androidScript, contains('pubspecVersion.Code -ne 10011'));
+    expect(androidScript, contains("pubspecVersion.Name -ne '2.1.187'"));
+    expect(androidScript, contains('pubspecVersion.Code -ne 20187'));
     expect(androidScript, contains("\$androidVersion = '1.0.7'"));
     expect(androidScript, contains(r'$androidVersionCode = 10007'));
   });

@@ -35,6 +35,47 @@ import 'package:kanyingyin/services/tmdb/tmdb_scraper.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
 void main() {
+  test('本地媒体库重载忽略已删除文件且无变化不替换列表', () async {
+    final dir = await Directory.systemTemp.createTemp('local_index_stale_');
+    addTearDown(() async {
+      if (await dir.exists()) await dir.delete(recursive: true);
+    });
+    final existing = File('${dir.path}${Platform.pathSeparator}exists.mkv');
+    await existing.writeAsString('video');
+    final existingStat = await existing.stat();
+    final repository = _MemoryMediaIndexRepository();
+    final existingItem = LocalMediaIndexItem.fromFile(
+      file: existing,
+      stat: existingStat,
+      sourcePath: dir.path,
+      indexedAt: DateTime(2026),
+    );
+    final missingItem = LocalMediaIndexItem(
+      path: '${dir.path}${Platform.pathSeparator}missing.mkv',
+      name: 'missing.mkv',
+      parentPath: dir.path,
+      sourcePath: dir.path,
+      size: 10,
+      modified: DateTime(2026),
+      seriesName: '已删除电影',
+      indexedAt: DateTime(2026),
+    );
+    await repository.saveForSource(dir.path, [existingItem, missingItem]);
+    final controller = LocalController(
+      mediaIndexRepository: repository,
+      mediaSourceRepository: _MemoryMediaSourceRepository(),
+      preferences: _preferences(),
+    );
+
+    controller.reloadAvailableLocalLibraryIndex();
+
+    expect(controller.localLibraryItems.map((item) => item.name), ['exists.mkv']);
+    final firstList = controller.localLibraryItems;
+    controller.reloadAvailableLocalLibraryIndex();
+
+    expect(identical(controller.localLibraryItems, firstList), isTrue);
+  });
+
   test('本地媒体库入口计数不包含网盘资源', () {
     final controller = LocalController();
     controller.cloudLibraryItems.add(
@@ -707,6 +748,66 @@ void main() {
     expect(sourceRepository.scanSummaries.last.videoCount, 1);
   });
 
+  test('本地扫描完成后即使无 API Key 也执行离线 TMDB 继承', () async {
+    final dir =
+        await Directory.systemTemp.createTemp('kanyingyin_offline_tmdb_');
+    addTearDown(() async {
+      if (await dir.exists()) await dir.delete(recursive: true);
+    });
+    await File('${dir.path}${Platform.pathSeparator}Show S01E02.mkv')
+        .writeAsString('video');
+    final indexRepository = _MemoryMediaIndexRepository();
+    final service = _RecordingLocalTmdbScrapeService(indexRepository);
+    final controller = LocalController(
+      scanner: _ImmediateScanner(const <LocalFileItem>[]),
+      mediaIndexer: _FakeMediaIndexer(indexRepository),
+      mediaIndexRepository: indexRepository,
+      mediaSourceRepository: _MemoryMediaSourceRepository(),
+      tmdbScrapeService: service,
+      tmdbApiKeyProvider: TmdbApiKeyProvider(userKeyReader: () => ''),
+      tmdbAutoScrapeProvider: () => false,
+      preferences: _preferences(),
+    );
+
+    await controller.setRootDirectory(dir.path);
+    await controller.refreshLocalLibraryIndex();
+
+    expect(service.offlineInheritanceCalls, 1);
+    expect(service.seriesNames, isEmpty);
+  });
+
+  test('离线 TMDB 继承失败不覆盖已成功的本地索引结果', () async {
+    final dir = await Directory.systemTemp
+        .createTemp('kanyingyin_offline_tmdb_failure_');
+    addTearDown(() async {
+      if (await dir.exists()) await dir.delete(recursive: true);
+    });
+    await File('${dir.path}${Platform.pathSeparator}Show S01E02.mkv')
+        .writeAsString('video');
+    final indexRepository = _MemoryMediaIndexRepository();
+    final service = _RecordingLocalTmdbScrapeService(
+      indexRepository,
+      throwOnOfflineInheritance: true,
+    );
+    final controller = LocalController(
+      scanner: _ImmediateScanner(const <LocalFileItem>[]),
+      mediaIndexer: _FakeMediaIndexer(indexRepository),
+      mediaIndexRepository: indexRepository,
+      mediaSourceRepository: _MemoryMediaSourceRepository(),
+      tmdbScrapeService: service,
+      tmdbAutoScrapeProvider: () => false,
+      preferences: _preferences(),
+    );
+
+    await controller.setRootDirectory(dir.path);
+    final result = await controller.refreshLocalLibraryIndex();
+
+    expect(service.offlineInheritanceCalls, 1);
+    expect(result['total'], 1);
+    expect(controller.localLibraryVideoCount, 1);
+    expect(controller.libraryIndexSummary, contains('媒体库已更新'));
+  });
+
   test('LocalController 使用强类型位置刷新 Android 文档来源', () async {
     final sourceRepository = _MemoryMediaSourceRepository();
     final location = MediaLocation.document(
@@ -1326,8 +1427,10 @@ class _ControlledGenreBackfillService extends LibraryGenreBackfillService {
 }
 
 class _RecordingLocalTmdbScrapeService extends LocalTmdbScrapeService {
-  _RecordingLocalTmdbScrapeService(_MemoryMediaIndexRepository repository)
-      : super(
+  _RecordingLocalTmdbScrapeService(
+    _MemoryMediaIndexRepository repository, {
+    this.throwOnOfflineInheritance = false,
+  }) : super(
           indexRepository: repository,
           metadataRepository: _MemoryTmdbMetadataRepository(),
           clientFactory: (_) => _NeverTmdbClient(),
@@ -1335,6 +1438,17 @@ class _RecordingLocalTmdbScrapeService extends LocalTmdbScrapeService {
 
   final Completer<void> started = Completer<void>();
   final List<String> seriesNames = <String>[];
+  final bool throwOnOfflineInheritance;
+  int offlineInheritanceCalls = 0;
+
+  @override
+  Future<int> inheritMatchedSeriesMetadata() async {
+    offlineInheritanceCalls++;
+    if (throwOnOfflineInheritance) {
+      throw StateError('离线继承写入失败');
+    }
+    return 0;
+  }
 
   @override
   Future<TmdbScrapeResult> scrapeSeries({

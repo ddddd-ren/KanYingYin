@@ -59,8 +59,8 @@ if ($VersionOnly) {
     Write-Output "$($pubspecVersion.Name)+$($pubspecVersion.Code)"
     return
 }
-if ($pubspecVersion.Name -ne '2.1.187' -or $pubspecVersion.Code -ne 20187) {
-    throw 'pubspec.yaml must use Windows test version 2.1.187+20187'
+if ($pubspecVersion.Name -ne '2.1.196' -or $pubspecVersion.Code -ne 20196) {
+    throw 'pubspec.yaml must use Windows test version 2.1.196+20196'
 }
 $androidVersion = '1.0.7'
 $androidVersionCode = 10007

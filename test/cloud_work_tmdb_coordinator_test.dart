@@ -466,6 +466,101 @@ void main() {
     expect(fixture.client.searchCalls, 1);
     expect(fixture.client.detailCalls, 1);
   });
+
+  test('无 API Key 时已有作品记录仍回写新增索引剧集', () async {
+    final fixture = _Fixture(apiKey: '');
+    final work = _work('work-id');
+    await fixture.repository.upsert(_workRecord(
+      work,
+      origin: TmdbMatchOrigin.manual,
+      ruleVersion: currentTmdbRuleVersion,
+    ));
+    await fixture.indexRepository.replaceSource(
+      work.sourceId,
+      <CloudMediaIndexItem>[_indexItem(work)],
+      const <String, String>{},
+      const <String, List<CloudFileEntry>>{},
+      <String>[work.root.id],
+    );
+
+    await fixture.coordinator.loadAndSchedule(_tree(<CloudWorkIdentity>[work]));
+
+    final updated =
+        (await fixture.indexRepository.getBySource(work.sourceId)).single;
+    expect(updated.tmdbId, 42);
+    expect(updated.tmdbTitle, work.displayTitle);
+    expect(fixture.client.searchCalls, 0);
+    expect(fixture.client.detailCalls, 0);
+  });
+
+  test('作品键和路径变化但根 ID 唯一时迁移匹配记录', () async {
+    final fixture = _Fixture(apiKey: '');
+    final work = _work(
+      'stable-root-id',
+      rootPath: '/影视/新目录',
+    );
+    await fixture.repository.upsert(
+      CloudWorkTmdbRecord.matched(
+        sourceId: work.sourceId,
+        workKey: 'quark-a|work|old-key',
+        workRootId: work.root.id,
+        workRootPath: '/影视/旧目录',
+        remoteName: '旧目录',
+        metadata: TmdbMetadata(
+          id: 42,
+          mediaType: TmdbMediaType.tv,
+          title: '规范剧名',
+          language: 'zh-CN',
+          matchedAt: DateTime.utc(2026, 8, 27),
+          matchConfidence: 1,
+        ),
+        checkedAt: DateTime.utc(2026, 8, 27),
+        tmdbMatchOrigin: TmdbMatchOrigin.manual,
+      ),
+    );
+
+    await fixture.coordinator.loadAndSchedule(_tree(<CloudWorkIdentity>[work]));
+
+    final migrated = fixture.coordinator.recordsByWorkKey[work.workKey]!;
+    expect(migrated.status, CloudWorkTmdbStatus.matched);
+    expect(migrated.metadata?.id, 42);
+    expect(migrated.workRootId, work.root.id);
+    expect(migrated.workRootPath, work.root.remotePath);
+    expect(migrated.tmdbMatchOrigin, TmdbMatchOrigin.manual);
+  });
+
+  test('相同根候选包含不同 TMDB 身份时生成冲突记录', () async {
+    final fixture = _Fixture(apiKey: '');
+    final work = _work('stable-root-id', rootPath: '/影视/新目录');
+    for (final id in <int>[42, 99]) {
+      await fixture.repository.upsert(
+        CloudWorkTmdbRecord.matched(
+          sourceId: work.sourceId,
+          workKey: 'quark-a|work|old-$id',
+          workRootId: work.root.id,
+          workRootPath: '/影视/旧目录-$id',
+          remoteName: '旧目录-$id',
+          metadata: TmdbMetadata(
+            id: id,
+            mediaType: TmdbMediaType.tv,
+            title: '规范剧名',
+            language: 'zh-CN',
+            matchedAt: DateTime.utc(2026, 8, 27),
+            matchConfidence: 1,
+          ),
+          checkedAt: DateTime.utc(2026, 8, 27),
+        ),
+      );
+    }
+
+    await fixture.coordinator.loadAndSchedule(_tree(<CloudWorkIdentity>[work]));
+
+    expect(
+      fixture.coordinator.recordsByWorkKey[work.workKey]!.status,
+      CloudWorkTmdbStatus.conflict,
+    );
+    expect(fixture.client.searchCalls, 0);
+  });
 }
 
 class _Fixture {
@@ -517,10 +612,14 @@ CloudMediaTree _tree(List<CloudWorkIdentity> works) => CloudMediaTree(
       conflicts: const <CloudMediaTreeConflict>[],
     );
 
-CloudWorkIdentity _work(String rootId, {String displayTitle = '规范剧名'}) {
+CloudWorkIdentity _work(
+  String rootId, {
+  String displayTitle = '规范剧名',
+  String? rootPath,
+}) {
   final root = CloudFileEntry(
     id: rootId,
-    remotePath: '/影视/$rootId',
+    remotePath: rootPath ?? '/影视/$rootId',
     name: displayTitle,
     size: 0,
     modifiedAt: null,
@@ -545,7 +644,7 @@ CloudWorkIdentity _work(String rootId, {String displayTitle = '规范剧名'}) {
             CloudEpisodeIdentity(
               entry: CloudFileEntry(
                 id: 's${season}e1',
-                remotePath: '/影视/$rootId/第$season季/s${season}e1.mkv',
+                remotePath: '${root.remotePath}/第$season季/s${season}e1.mkv',
                 name: 's${season}e1.mkv',
                 size: 200,
                 modifiedAt: null,

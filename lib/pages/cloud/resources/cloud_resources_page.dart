@@ -97,7 +97,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     _controller = widget.controller ?? Modular.get<CloudResourcesController>();
     _capabilities = widget.capabilities ?? detectAppPlatform();
     _controller.addListener(_refresh);
-    _controller.load(startScan: !_capabilities.isAndroidTv);
+    _controller.ensureLoaded(startScan: !_capabilities.isAndroidTv);
   }
 
   @override

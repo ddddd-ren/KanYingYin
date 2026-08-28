@@ -157,6 +157,9 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
         : seasonNumber == null
             ? '未识别季度'
             : '第 $seasonNumber 季';
+    final hideOnlySeasonTitle = group.isSeries &&
+        group.seasons.length == 1 &&
+        group.displayName == group.seriesName;
     final metadata = season.metadata;
     final year = _year(metadata?.airDate);
     final details = <String>[
@@ -197,11 +200,13 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        title,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 4),
+                      if (!hideOnlySeasonTitle) ...[
+                        Text(
+                          title,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 4),
+                      ],
                       Text(details),
                       if (metadata?.overview?.trim().isNotEmpty == true) ...[
                         const SizedBox(height: 10),

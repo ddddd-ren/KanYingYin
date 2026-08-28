@@ -418,10 +418,25 @@ class LocalMediaIndexer
     final previous = {
       for (final item in previousSourceItems) item.id: item,
     };
+    final currentMoveSignatureCounts = <String, int>{};
+    for (final located in files) {
+      final signature = _moveSignature(
+        located.entry.size,
+        located.entry.modified,
+      );
+      currentMoveSignatureCounts.update(
+        signature,
+        (count) => count + 1,
+        ifAbsent: () => 1,
+      );
+    }
     final indexed = <LocalMediaIndexItem>[];
     var addedCount = 0;
     var updatedCount = 0;
     var reusedCount = 0;
+    var inheritedCount = 0;
+    var migratedCount = 0;
+    var migrationConflictCount = 0;
 
     for (final dirId in reusedDirectoryIds) {
       final items = previousByDirectory[dirId] ?? const <LocalMediaIndexItem>[];
@@ -459,8 +474,9 @@ class LocalMediaIndexer
         ));
       }
 
+      LocalMediaIndexItem? oldItem;
       try {
-        final oldItem = previous.remove(_entryId(entry));
+        oldItem = previous.remove(_entryId(entry));
         if (oldItem != null && _isSameEntry(oldItem, entry)) {
           if (entry.location.isFile &&
               _metadataRefresher.needsRefresh(oldItem)) {
@@ -488,6 +504,13 @@ class LocalMediaIndexer
           }
           continue;
         }
+        final moveCandidate = oldItem == null
+            ? _uniqueMoveCandidate(
+                entry,
+                remaining: previous.values,
+                currentSignatureCounts: currentMoveSignatureCounts,
+              )
+            : null;
 
         final episodeInfo = _episodeParser.parse(located.logicalPath);
         final seriesTitleOverride = _seriesTitleOverrideRepository
@@ -573,13 +596,36 @@ class LocalMediaIndexer
           seriesName: seriesTitleOverride ?? item.seriesName,
           manualOverride: oldItem?.manualOverride ?? false,
         );
-        indexed.add(resolvedItem);
-        if (oldItem == null) {
-          addedCount++;
-        } else {
+        final canMigrate = moveCandidate != null &&
+            _mediaInfoCompatible(moveCandidate, resolvedItem);
+        if (canMigrate) previous.remove(moveCandidate.id);
+        final inheritedFrom = oldItem ?? (canMigrate ? moveCandidate : null);
+        final allowLogicalRename = inheritedFrom == moveCandidate;
+        final canInherit = inheritedFrom != null &&
+            (allowLogicalRename ||
+                _logicalIdentityMatches(resolvedItem, inheritedFrom));
+        indexed.add(canInherit
+            ? _inheritTrustedState(resolvedItem, inheritedFrom)
+            : resolvedItem);
+        if (oldItem != null || canMigrate) {
           updatedCount++;
+          if (canMigrate) {
+            migratedCount++;
+          } else if (canInherit) {
+            inheritedCount++;
+          }
+        } else {
+          addedCount++;
+          if (_hasMoveSignatureConflict(
+            entry,
+            remaining: previous.values,
+            currentSignatureCounts: currentMoveSignatureCounts,
+          )) {
+            migrationConflictCount++;
+          }
         }
       } catch (e) {
+        if (oldItem != null) indexed.add(oldItem);
         skippedCount++;
         failures.add(LocalMediaIndexFailure(
           path: entry.location.value,
@@ -630,6 +676,11 @@ class LocalMediaIndexer
     await _repository.saveDirectoryFingerprintsForLocation(
       sourceLocation,
       directoryFingerprints,
+    );
+    AppLogger().i(
+      'LocalMediaIndexer: source=${sourceLocation.stableId} '
+      'inherited=$inheritedCount migrated=$migratedCount '
+      'migrationConflicts=$migrationConflictCount',
     );
 
     onProgress?.call(LocalMediaIndexProgress(
@@ -763,6 +814,125 @@ class LocalMediaIndexer
         item.modified.millisecondsSinceEpoch ==
             entry.modified.millisecondsSinceEpoch &&
         item.pathFingerprint == _entryFingerprint(entry);
+  }
+
+  LocalMediaIndexItem? _uniqueMoveCandidate(
+    LocalMediaEntry entry, {
+    required Iterable<LocalMediaIndexItem> remaining,
+    required Map<String, int> currentSignatureCounts,
+  }) {
+    final signature = _moveSignature(entry.size, entry.modified);
+    if (currentSignatureCounts[signature] != 1) return null;
+    final matches = remaining
+        .where(
+          (item) => _moveSignature(item.size, item.modified) == signature,
+        )
+        .take(2)
+        .toList(growable: false);
+    return matches.length == 1 ? matches.single : null;
+  }
+
+  bool _hasMoveSignatureConflict(
+    LocalMediaEntry entry, {
+    required Iterable<LocalMediaIndexItem> remaining,
+    required Map<String, int> currentSignatureCounts,
+  }) {
+    final signature = _moveSignature(entry.size, entry.modified);
+    final oldMatches = remaining
+        .where(
+          (item) => _moveSignature(item.size, item.modified) == signature,
+        )
+        .take(2)
+        .length;
+    return oldMatches > 0 &&
+        (oldMatches > 1 || currentSignatureCounts[signature] != 1);
+  }
+
+  String _moveSignature(int size, DateTime modified) =>
+      '$size|${modified.millisecondsSinceEpoch}';
+
+  bool _mediaInfoCompatible(
+    LocalMediaIndexItem previous,
+    LocalMediaIndexItem current,
+  ) {
+    if (previous.durationMillis != null &&
+        current.durationMillis != null &&
+        previous.durationMillis != current.durationMillis) {
+      return false;
+    }
+    if (previous.videoWidth != null &&
+        current.videoWidth != null &&
+        previous.videoWidth != current.videoWidth) {
+      return false;
+    }
+    if (previous.videoHeight != null &&
+        current.videoHeight != null &&
+        previous.videoHeight != current.videoHeight) {
+      return false;
+    }
+    return true;
+  }
+
+  bool _logicalIdentityMatches(
+    LocalMediaIndexItem current,
+    LocalMediaIndexItem previous,
+  ) {
+    if (previous.manualOverride) return true;
+    final currentEpisode =
+        (current.seasonNumber ?? 0) > 0 && (current.episodeNumber ?? 0) > 0;
+    final previousEpisode =
+        (previous.seasonNumber ?? 0) > 0 && (previous.episodeNumber ?? 0) > 0;
+    if (currentEpisode != previousEpisode ||
+        _normalizeSeries(current.seriesName) !=
+            _normalizeSeries(previous.seriesName)) {
+      return false;
+    }
+    return !currentEpisode ||
+        (current.seasonNumber == previous.seasonNumber &&
+            current.episodeNumber == previous.episodeNumber);
+  }
+
+  String _normalizeSeries(String value) =>
+      value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+
+  LocalMediaIndexItem _inheritTrustedState(
+    LocalMediaIndexItem current,
+    LocalMediaIndexItem previous,
+  ) {
+    var inherited = current;
+    if (previous.manualOverride) {
+      inherited = inherited.withEpisodeMapping(
+        seriesName: previous.seriesName,
+        seasonNumber: previous.seasonNumber,
+        episodeNumber: previous.episodeNumber,
+        manualOverride: true,
+        metadata: previous.tmdb,
+        matchOrigin: previous.tmdbMatchOrigin,
+      );
+    }
+    return inherited.copyWith(
+      cover: current.cover ?? previous.cover,
+      subtitlePath: current.subtitlePath ?? previous.subtitlePath,
+      durationMillis: current.durationMillis ?? previous.durationMillis,
+      videoWidth: current.videoWidth ?? previous.videoWidth,
+      videoHeight: current.videoHeight ?? previous.videoHeight,
+      releaseGroup: previous.manualOverride
+          ? previous.releaseGroup
+          : current.releaseGroup,
+      resolution:
+          previous.manualOverride ? previous.resolution : current.resolution,
+      source: previous.manualOverride ? previous.source : current.source,
+      codec: previous.manualOverride ? previous.codec : current.codec,
+      tmdb: previous.tmdb,
+      tmdbIdentity: previous.tmdbIdentity,
+      titleLocked: previous.titleLocked,
+      posterLocked: previous.posterLocked,
+      overviewLocked: previous.overviewLocked,
+      scrapeStatus: previous.scrapeStatus,
+      tmdbMatchOrigin: previous.tmdbMatchOrigin,
+      tmdbRuleVersion: previous.tmdbRuleVersion,
+      manualOverride: previous.manualOverride,
+    );
   }
 
   String _entryFingerprint(LocalMediaEntry entry) {

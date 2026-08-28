@@ -221,6 +221,48 @@ void main() {
     expect(collection.groups.single.displayName, '规则标题 第 2 季');
   });
 
+  test('单季作品手动匹配后不显示 TMDB 第一季后缀', () {
+    final work = _workIdentity(seasonNumbers: const <int>[2]);
+    final record = CloudWorkTmdbRecord.matched(
+      sourceId: work.sourceId,
+      workKey: work.workKey,
+      workRootId: work.root.id,
+      workRootPath: work.root.remotePath,
+      remoteName: work.remoteName,
+      metadata: _workMetadata.copyWith(
+        title: '古灵精探B',
+        seasons: <TmdbSeasonMetadata>[_workMetadata.seasons.first],
+      ),
+      checkedAt: DateTime.utc(2026, 8, 28),
+      tmdbMatchOrigin: TmdbMatchOrigin.manual,
+    );
+    final item = CloudMediaIndexItem(
+      sourceId: work.sourceId,
+      remoteId: 'episode-1',
+      remotePath: '/影视/古灵精探B/古灵精探B.S01E01.mkv',
+      name: '古灵精探B.S01E01.mkv',
+      displayName: '古灵精探B S01E01.mkv',
+      workKey: work.workKey,
+      workRootId: work.root.id,
+      workRootPath: work.root.remotePath,
+      size: 200,
+      modifiedAt: null,
+      seriesName: '古灵精探B',
+      seasonNumber: 1,
+      episodeNumber: 1,
+      mediaType: CloudMediaType.episode,
+    );
+
+    final collection = CloudResourceCollectionGrouper().group(
+      items: <CloudMediaIndexItem>[item],
+      works: <CloudWorkIdentity>[work],
+      recordsByWorkKey: <String, CloudWorkTmdbRecord>{work.workKey: record},
+      query: '',
+    );
+
+    expect(collection.groups.single.displayName, '古灵精探B');
+  });
+
   test('电影作品多版本只产出一张卡并显示发布标签', () {
     const first = CloudFileEntry(
       id: 'a4k',

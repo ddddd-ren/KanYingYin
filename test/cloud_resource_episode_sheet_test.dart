@@ -13,6 +13,8 @@ import 'package:kanyingyin/widgets/cloud_poster_image.dart';
 CloudResourceMediaGroup _episodeGroup({
   TmdbSeasonMetadata? seasonMetadata,
   CloudResourceTmdbRecord? record,
+  String displayName = '示例 第 1 季',
+  String seriesName = '示例',
 }) {
   const videos = <CloudFileEntry>[
     CloudFileEntry(
@@ -34,8 +36,8 @@ CloudResourceMediaGroup _episodeGroup({
   ];
   return CloudResourceMediaGroup(
     stableKey: 'source|example',
-    seriesName: '示例',
-    displayName: '示例 第 1 季',
+    seriesName: seriesName,
+    displayName: displayName,
     isSeries: true,
     videos: videos,
     seasons: <CloudResourceSeasonGroup>[
@@ -51,6 +53,34 @@ CloudResourceMediaGroup _episodeGroup({
 }
 
 void main() {
+  testWidgets('单季作品选集页不显示第一季标题', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => FilledButton(
+              onPressed: () => showCloudResourceEpisodeSheet(
+                context: context,
+                sourceId: 'source',
+                group: _episodeGroup(
+                  displayName: '古灵精探B',
+                  seriesName: '古灵精探B',
+                ),
+              ),
+              child: const Text('打开选集'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('打开选集'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('古灵精探B'), findsOneWidget);
+    expect(find.text('第 1 季'), findsNothing);
+  });
+
   testWidgets('网盘选集优先使用季度缓存并回退到作品缓存', (tester) async {
     Future<CloudPosterImage> open(CloudResourceMediaGroup group) async {
       await tester.pumpWidget(

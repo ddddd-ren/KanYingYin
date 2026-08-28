@@ -917,6 +917,11 @@ abstract class _LocalController with Store {
     _reloadLocalLibraryIndexSafe();
   }
 
+  @action
+  void reloadAvailableLocalLibraryIndex() {
+    _reloadLocalLibraryIndexSafe(requireExistingFiles: true);
+  }
+
   Future<int> refreshLocalLibraryDerivedMetadata() async {
     final result = await _refreshLocalLibraryDerivedMetadataSafe();
     if (result.refreshedCount > 0) {
@@ -1035,6 +1040,23 @@ abstract class _LocalController with Store {
       _reloadMediaSourcesSafe();
       _reloadLocalLibraryIndexSafe();
       if (!scanCancelled) {
+        try {
+          final inherited =
+              await _tmdbScrapeService.inheritMatchedSeriesMetadata();
+          if (inherited > 0) {
+            _reloadLocalLibraryIndexSafe();
+            AppLogger().i(
+              'LocalController: inherited TMDB metadata for '
+              '$inherited index items',
+            );
+          }
+        } on Object catch (error, stackTrace) {
+          AppLogger().w(
+            'LocalController: failed to inherit local TMDB metadata',
+            error: error,
+            stackTrace: stackTrace,
+          );
+        }
         final failureText = libraryIndexFailures.isEmpty
             ? ''
             : '，${libraryIndexFailures.length} 项需要处理';
@@ -1794,9 +1816,27 @@ abstract class _LocalController with Store {
     }));
   }
 
-  void _reloadLocalLibraryIndexSafe() {
+  void _reloadLocalLibraryIndexSafe({bool requireExistingFiles = false}) {
     try {
-      localLibraryItems = ObservableList.of(_mediaIndexRepository.getAll());
+      final indexedItems = _mediaIndexRepository.getAll();
+      final nextItems = requireExistingFiles
+          ? indexedItems
+              .where(
+                (item) =>
+                    item.location.isDocument || File(item.path).existsSync(),
+              )
+              .toList(growable: false)
+          : indexedItems;
+      final currentItems = localLibraryItems;
+      var unchanged = currentItems.length == nextItems.length;
+      for (var index = 0; unchanged && index < currentItems.length; index++) {
+        unchanged = currentItems[index].id == nextItems[index].id &&
+            identical(currentItems[index], nextItems[index]);
+      }
+      if (unchanged) {
+        return;
+      }
+      localLibraryItems = ObservableList.of(nextItems);
     } catch (e) {
       AppLogger().w(
         'LocalController: failed to load local media index',

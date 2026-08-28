@@ -60,6 +60,7 @@ void main() {
           remotePath: '/古灵精探 S01E22.mkv',
           stableId: '22',
           title: '古灵精探 S01E22.mkv',
+          episodeNumber: 22,
           posterUrl: ' ',
           posterCachePath: '',
         ),
@@ -83,6 +84,7 @@ void main() {
 
     expect(entry?.posterUrl, '/poster.jpg');
     expect(entry?.posterCachePath, r'D:\海报\古灵精探.jpg');
+    expect(entry?.episodeIndex, 22);
   });
 
   test('点击解析时才创建客户端并透传实时地址与请求头', () async {

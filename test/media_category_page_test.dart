@@ -8,6 +8,51 @@ import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 import 'package:kanyingyin/widgets/cloud_poster_image.dart';
 
 void main() {
+  testWidgets('云媒体库快照通知后分类页立即刷新', (tester) async {
+    final notifier = ChangeNotifier();
+    addTearDown(notifier.dispose);
+    final cloudMovie = _series(
+      key: 'cloud|refresh',
+      title: '待刷新电影',
+      sourceKind: MediaSourceKind.cloud,
+      sourceId: 'quark',
+      sourceName: '夸克网盘',
+      mediaType: TmdbMediaType.movie,
+    );
+    var currentLibrary = CloudMediaLibrary(
+      series: <MediaLibrarySeries>[cloudMovie],
+      filters: const <MediaLibrarySourceFilter>[
+        MediaLibrarySourceFilter('all', '全部', null),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaCategoryPage(
+          category: MediaLibraryCategory.movie,
+          initialize: () async {},
+          libraryProvider: () => currentLibrary,
+          libraryListenable: notifier,
+          onPlayEpisode: (_, __) async {},
+          observeLibrary: false,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('待刷新电影'), findsOneWidget);
+
+    currentLibrary = const CloudMediaLibrary(
+      series: <MediaLibrarySeries>[],
+      filters: <MediaLibrarySourceFilter>[
+        MediaLibrarySourceFilter('all', '全部', null),
+      ],
+    );
+    notifier.notifyListeners();
+    await tester.pump();
+
+    expect(find.text('待刷新电影'), findsNothing);
+  });
+
   testWidgets('分类页仅网盘资源使用统一海报组件', (tester) async {
     final local = _series(
       key: 'local|tv',

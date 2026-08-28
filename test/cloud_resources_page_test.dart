@@ -339,6 +339,22 @@ void main() {
     await tester.pump();
 
     expect(windowsController.startScanValues, <bool>[true]);
+
+    await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CloudResourcesPage(
+          key: const ValueKey<String>('windows-cloud-resources-page-again'),
+          controller: windowsController,
+          capabilities: AppPlatformCapabilities.windows,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(windowsController.startScanValues, <bool>[true]);
+    await windowsController.load();
+    expect(windowsController.startScanValues, <bool>[true, true]);
     windowsController.dispose();
   });
 
@@ -1855,6 +1871,7 @@ void main() {
       size: 200,
       modifiedAt: null,
       isDirectory: false,
+      episodeNumber: 1,
     );
     final group = CloudResourceMediaGroup(
       stableKey: 'show-season-1',
@@ -1873,6 +1890,7 @@ void main() {
     );
 
     expect(request.targets.single.title, '异世界悠闲农家 S01E01 万能农具.mkv');
+    expect(request.targets.single.episodeNumber, 1);
   });
 
   testWidgets('移除来源先提示不删除远程文件', (tester) async {

@@ -16,14 +16,17 @@ import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resource_media_library_adapter.dart';
 import 'package:kanyingyin/repositories/cloud_hidden_video_repository.dart';
 import 'package:kanyingyin/repositories/cloud_episode_match_rule_repository.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_media_tag_repository.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
+import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_indexer.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_tree_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_provider_registry.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
@@ -106,11 +109,13 @@ class CloudResourcesController extends ChangeNotifier {
     int Function()? minRecognizedVideoSizeBytesProvider,
     CloudResourceCollectionGrouper? collectionGrouper,
     CloudMediaIndexRepository? mediaIndexRepository,
+    CloudWorkTmdbRepository? workTmdbRepository,
     ICloudMediaTagRepository? mediaTagRepository,
     ICloudHiddenVideoRepository? hiddenVideoRepository,
     CloudMediaIndexer? mediaIndexer,
     CloudMediaTreeResolver? mediaTreeResolver,
     CloudDirectoryScopeTreeBuilder? directoryScopeTreeBuilder,
+    CloudResourceMediaLibraryAdapter? mediaLibraryAdapter,
     CloudEpisodeMatchService? episodeMatchService,
     TmdbApiKeyProvider? tmdbApiKeyProvider,
     TmdbClientContextRegistry? tmdbClientContextRegistry,
@@ -118,6 +123,7 @@ class CloudResourcesController extends ChangeNotifier {
         _credentialStore = credentialStore,
         _mediaIndexRepository =
             mediaIndexRepository ?? CloudMediaIndexRepository(),
+        _workTmdbRepository = workTmdbRepository,
         _mediaTagRepository = mediaTagRepository ?? CloudMediaTagRepository(),
         _hiddenVideoRepository =
             hiddenVideoRepository ?? CloudHiddenVideoRepository(),
@@ -132,6 +138,8 @@ class CloudResourcesController extends ChangeNotifier {
             mediaTreeResolver ?? const CloudMediaTreeResolver(),
         _directoryScopeTreeBuilder =
             directoryScopeTreeBuilder ?? _buildDirectoryScopeTree,
+        _mediaLibraryAdapter =
+            mediaLibraryAdapter ?? const CloudResourceMediaLibraryAdapter(),
         _autoOrganizer = autoOrganizer ??
             CloudResourceAutoOrganizer(
               minRecognizedVideoSizeBytesProvider:
@@ -162,6 +170,7 @@ class CloudResourcesController extends ChangeNotifier {
   final CloudSourceRepository _repository;
   final CloudCredentialStore _credentialStore;
   final CloudMediaIndexRepository _mediaIndexRepository;
+  final CloudWorkTmdbRepository? _workTmdbRepository;
   final ICloudMediaTagRepository _mediaTagRepository;
   final ICloudHiddenVideoRepository _hiddenVideoRepository;
   late final CloudMediaIndexer _mediaIndexer;
@@ -173,6 +182,7 @@ class CloudResourcesController extends ChangeNotifier {
   final CloudResourceCollectionGrouper _collectionGrouper;
   final CloudMediaTreeResolver _mediaTreeResolver;
   final CloudDirectoryScopeTreeBuilder _directoryScopeTreeBuilder;
+  final CloudResourceMediaLibraryAdapter _mediaLibraryAdapter;
   final CloudResourceTmdbFacade _tmdbFacade = const CloudResourceTmdbFacade();
   late final CloudEpisodeMatchService _episodeMatchService;
   late final TmdbApiKeyProvider _tmdbApiKeyProvider;
@@ -186,6 +196,10 @@ class CloudResourcesController extends ChangeNotifier {
   List<CloudHiddenVideo> _hiddenVideos = <CloudHiddenVideo>[];
   List<CloudWorkIdentity> _works = <CloudWorkIdentity>[];
   CloudMediaTree? _mediaTree;
+  final Map<String, List<MediaLibrarySeries>> _mediaLibrarySeriesBySource =
+      <String, List<MediaLibrarySeries>>{};
+  List<CloudSource> _mediaLibrarySources = const <CloudSource>[];
+  final ChangeNotifier _mediaLibraryNotifier = ChangeNotifier();
 
   List<CloudSource> sources = <CloudSource>[];
   List<CloudFileEntry> entries = <CloudFileEntry>[];
@@ -212,6 +226,10 @@ class CloudResourcesController extends ChangeNotifier {
   int? _collectionMinSizeBytes;
   int _resourceTmdbRecordsRevision = 0;
   int _workTmdbRecordsRevision = 0;
+  bool _resourcesInitialized = false;
+  Future<void>? _resourcesLoadFuture;
+  bool _mediaLibrarySnapshotInitialized = false;
+  Future<void>? _mediaLibraryReloadFuture;
 
   bool get canGoBack => false;
   Future<void> get scanCompletion => _scanFuture ?? Future<void>.value();
@@ -222,6 +240,24 @@ class CloudResourcesController extends ChangeNotifier {
   Map<String, CloudWorkTmdbRecord> get workTmdbRecords =>
       _workTmdbCoordinator?.recordsByWorkKey ??
       const <String, CloudWorkTmdbRecord>{};
+
+  CloudMediaLibrary get mediaLibrarySnapshot => CloudMediaLibrary(
+        series: <MediaLibrarySeries>[
+          for (final source in _mediaLibrarySources)
+            ...?_mediaLibrarySeriesBySource[source.id],
+        ],
+        filters: <MediaLibrarySourceFilter>[
+          const MediaLibrarySourceFilter('all', '全部', null),
+          for (final source in _mediaLibrarySources)
+            MediaLibrarySourceFilter(
+              source.id,
+              source.name,
+              MediaSourceKind.cloud,
+            ),
+        ],
+      );
+
+  Listenable get mediaLibrarySnapshotListenable => _mediaLibraryNotifier;
 
   List<CloudWorkIdentity> get works =>
       List<CloudWorkIdentity>.unmodifiable(_works);
@@ -415,7 +451,49 @@ class CloudResourcesController extends ChangeNotifier {
     if (selectedSource?.id != source.id) return;
     _hiddenVideos = next;
     _invalidateCollection();
+    await reloadMediaLibrarySnapshot();
     _notify();
+  }
+
+  Future<void> hideMediaLibraryEpisodes(
+    Iterable<MediaLibraryEpisode> episodes,
+  ) async {
+    final bySource = <String, List<MediaLibraryEpisode>>{};
+    for (final episode in episodes) {
+      if (episode.sourceKind != MediaSourceKind.cloud ||
+          episode.remoteId == null ||
+          episode.remotePath == null) {
+        throw ArgumentError.value(
+          episode,
+          'episodes',
+          '隐藏项必须是有效的网盘视频',
+        );
+      }
+      bySource.putIfAbsent(episode.sourceId, () => <MediaLibraryEpisode>[]).add(
+            episode,
+          );
+    }
+    for (final entry in bySource.entries) {
+      final records = <String, CloudHiddenVideo>{
+        for (final record
+            in await _hiddenVideoRepository.getBySource(entry.key))
+          record.identityKey: record,
+      };
+      for (final episode in entry.value) {
+        final record = CloudHiddenVideo(
+          sourceId: entry.key,
+          remoteId: episode.remoteId!,
+          remotePath: normalizeCloudHiddenVideoPath(episode.remotePath!),
+          fileName: episode.name,
+        );
+        records[record.identityKey] = record;
+      }
+      await _hiddenVideoRepository.replaceSource(
+        entry.key,
+        records.values.toList(growable: false),
+      );
+    }
+    await reloadMediaLibrarySnapshot();
   }
 
   Future<void> restoreHiddenVideo(CloudHiddenVideo record) async {
@@ -432,6 +510,7 @@ class CloudResourcesController extends ChangeNotifier {
     if (selectedSource?.id != source.id) return;
     _hiddenVideos = next;
     _invalidateCollection();
+    await reloadMediaLibrarySnapshot();
     _notify();
   }
 
@@ -443,11 +522,114 @@ class CloudResourcesController extends ChangeNotifier {
     if (selectedSource?.id != source.id) return;
     _hiddenVideos = <CloudHiddenVideo>[];
     _invalidateCollection();
+    await reloadMediaLibrarySnapshot();
     _notify();
   }
 
   Future<void> load({bool startScan = true}) =>
       _loadSources(startScan: startScan);
+
+  Future<void> ensureLoaded({bool startScan = true}) {
+    if (_resourcesInitialized) return Future<void>.value();
+    final pending = _resourcesLoadFuture;
+    if (pending != null) return pending;
+    final future = load(startScan: startScan);
+    _resourcesLoadFuture = future;
+    return future.whenComplete(() {
+      if (identical(_resourcesLoadFuture, future)) {
+        _resourcesLoadFuture = null;
+        if (!_disposed && errorMessage != '网盘来源加载失败') {
+          _resourcesInitialized = true;
+        }
+      }
+    });
+  }
+
+  Future<void> ensureMediaLibrarySnapshot() {
+    if (_mediaLibrarySnapshotInitialized) return Future<void>.value();
+    return reloadMediaLibrarySnapshot();
+  }
+
+  Future<void> reloadMediaLibrarySnapshot() {
+    final pending = _mediaLibraryReloadFuture;
+    if (pending != null) return pending;
+    final future = _reloadMediaLibrarySnapshot();
+    _mediaLibraryReloadFuture = future;
+    return future.whenComplete(() {
+      if (identical(_mediaLibraryReloadFuture, future)) {
+        _mediaLibraryReloadFuture = null;
+      }
+    });
+  }
+
+  Future<void> _reloadMediaLibrarySnapshot() async {
+    final enabledSources = (await _repository.getAll())
+        .where((source) => source.enabled)
+        .toList(growable: false);
+    final records = await _workTmdbRepository?.getAll() ??
+        workTmdbRecords.values.toList(growable: false);
+    final nextSourceIds = enabledSources.map((source) => source.id).toSet();
+
+    for (final source in enabledSources) {
+      try {
+        final snapshot = await _mediaIndexRepository.snapshot(source.id);
+        final hidden = await _hiddenVideoRepository.getBySource(source.id);
+        final items = snapshot.items.where((item) {
+          final inScope = CloudSourcePathScope.containsSourcePath(
+            source,
+            item.remotePath,
+          );
+          final isHidden = hidden.any(
+            (record) => record.matches(
+              sourceId: item.sourceId,
+              remoteId: item.remoteId,
+              remotePath: item.remotePath,
+            ),
+          );
+          return inScope && !isHidden;
+        }).toList(growable: false);
+        final tree = _mediaTreeResolver.resolve(
+          sourceId: source.id,
+          configuredRoots: source.remoteRoots
+              .map((root) => root.path)
+              .toList(growable: false),
+          directoryEntries: snapshot.directoryEntries,
+          minSizeBytes: _minRecognizedVideoSizeBytesProvider(),
+        );
+        final sourceRecords = <String, CloudWorkTmdbRecord>{
+          for (final record in records)
+            if (record.sourceId == source.id) record.workKey: record,
+        };
+        final collection = _collectionGrouper.group(
+          items: items,
+          works: tree.works,
+          recordsByWorkKey: sourceRecords,
+          query: '',
+        );
+        _mediaLibrarySeriesBySource[source.id] = _mediaLibraryAdapter.convert(
+          source: source,
+          collection: collection,
+          indexedItems: items,
+        );
+      } on Object catch (error, stackTrace) {
+        AppLogger().w(
+          'CloudResourcesController: failed to load media library snapshot '
+          'sourceId=${source.id}',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+    }
+    _mediaLibrarySources = enabledSources;
+    _mediaLibrarySeriesBySource.removeWhere(
+      (sourceId, _) => !nextSourceIds.contains(sourceId),
+    );
+    _mediaLibrarySnapshotInitialized = true;
+    if (!_disposed) {
+      _mediaLibraryNotifier.notifyListeners();
+      _notify();
+    }
+  }
 
   Future<void> reloadSourcesAndSnapshot({String? preferredSourceId}) async {
     _scanToken?.cancel();
@@ -669,6 +851,7 @@ class CloudResourcesController extends ChangeNotifier {
         .toList(growable: false);
     _invalidateDirectoryScopeTree();
     _reconcileDirectoryScope();
+    await reloadMediaLibrarySnapshot();
   }
 
   void _startScan(CloudSource source, int generation) {
@@ -1546,13 +1729,15 @@ class CloudResourcesController extends ChangeNotifier {
   void _handleTmdbChange() {
     final resourceRevision = _tmdbCoordinator?.recordsRevision ?? 0;
     final workRevision = _workTmdbCoordinator?.recordsRevision ?? 0;
-    if (resourceRevision != _resourceTmdbRecordsRevision ||
-        workRevision != _workTmdbRecordsRevision) {
+    final recordsChanged = resourceRevision != _resourceTmdbRecordsRevision ||
+        workRevision != _workTmdbRecordsRevision;
+    if (recordsChanged) {
       _resourceTmdbRecordsRevision = resourceRevision;
       _workTmdbRecordsRevision = workRevision;
       _syncIndexedTmdbMetadata();
       _reconcileSelectedGenres();
       _invalidateCollection();
+      unawaited(reloadMediaLibrarySnapshot().catchError((_) {}));
     }
     _notify();
   }
@@ -1657,6 +1842,7 @@ class CloudResourcesController extends ChangeNotifier {
     _scanToken?.cancel();
     _tmdbCoordinator?.removeListener(_handleTmdbChange);
     _workTmdbCoordinator?.removeListener(_handleTmdbChange);
+    _mediaLibraryNotifier.dispose();
     super.dispose();
   }
 }

@@ -35,6 +35,32 @@ void main() {
     expect(params.isLocalPlayback, isTrue);
   });
 
+  test('本地观看历史保存媒体真实集数', () {
+    final controller = LocalVideoController();
+    controller.openSession(
+      LocalPlaybackSession(
+        seriesId: 'series-id',
+        seriesTitle: '测试动画',
+        episodes: const [
+          LocalEpisode(
+            id: 'e22',
+            path: 'Show.S01E22.mkv',
+            title: 'Show S01E22',
+            episodeNumber: 22,
+          ),
+        ],
+        currentEpisodeId: 'e22',
+      ),
+    );
+
+    final entry = controller.buildPlaybackHistoryEntry(
+      position: const Duration(minutes: 1),
+      duration: const Duration(minutes: 40),
+    );
+
+    expect(entry?.episodeIndex, 22);
+  });
+
   test('切换剧集后更新当前会话', () {
     final controller = LocalVideoController();
     controller.openSession(

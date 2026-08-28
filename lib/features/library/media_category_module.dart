@@ -5,8 +5,7 @@ import 'package:kanyingyin/features/library/presentation/media_category_page.dar
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
-import 'package:kanyingyin/repositories/cloud_hidden_video_repository.dart';
-import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 
 class MediaCategoryModule extends Module {
   MediaCategoryModule(this.category);
@@ -16,11 +15,14 @@ class MediaCategoryModule extends Module {
   @override
   void routes(r) {
     r.child('/', child: (_) {
+      final cloudController = Modular.get<CloudResourcesController>();
       final runtime = MediaCategoryRuntime(
         localController: Modular.get<LocalController>(),
         videoController: Modular.get<LocalVideoController>(),
-        workTmdbRepository: Modular.get<CloudWorkTmdbRepository>(),
-        hiddenVideoRepository: Modular.get<CloudHiddenVideoRepository>(),
+        refreshCloudLibrary: cloudController.reloadMediaLibrarySnapshot,
+        ensureCloudLibrary: cloudController.ensureMediaLibrarySnapshot,
+        cloudLibraryProvider: () => cloudController.mediaLibrarySnapshot,
+        hideCloudEpisodes: cloudController.hideMediaLibraryEpisodes,
         settings: Modular.get<TypedSettings>(),
         navigateToPlayer: () async {
           await Modular.to.pushNamed('/video/');
@@ -29,9 +31,11 @@ class MediaCategoryModule extends Module {
       return MediaCategoryPage(
         category: category,
         initialize: runtime.initialize,
+        refresh: runtime.refresh,
         libraryProvider: () => runtime.library,
         onPlayEpisode: runtime.playEpisode,
         onHideEpisodes: runtime.hideEpisodes,
+        libraryListenable: cloudController.mediaLibrarySnapshotListenable,
       );
     });
   }

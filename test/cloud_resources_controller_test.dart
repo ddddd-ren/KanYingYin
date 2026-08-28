@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
+import 'package:kanyingyin/modules/cloud/cloud_hidden_video.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
@@ -1741,6 +1742,263 @@ void main() {
       expect(client.listed, hasLength(listedBefore));
       fixture.controller.dispose();
     });
+
+    test('分类快照读取全部启用来源且不访问网盘客户端', () async {
+      const sourceA = CloudSource(
+        id: 'source-a',
+        type: CloudSourceType.quark,
+        name: '夸克网盘',
+        baseUrl: 'https://pan.quark.cn',
+        rootPaths: <String>['/影视'],
+      );
+      const sourceB = CloudSource(
+        id: 'source-b',
+        type: CloudSourceType.openList,
+        name: 'OpenList',
+        baseUrl: 'https://example.com',
+        rootPaths: <String>['/影视'],
+      );
+      final clientA = _FakeCloudClient();
+      final clientB = _FakeCloudClient();
+      final fixture = await _Fixture.create(
+        sources: const <CloudSource>[sourceA, sourceB],
+        clients: <String, _FakeCloudClient>{
+          sourceA.id: clientA,
+          sourceB.id: clientB,
+        },
+        indexedItems: <CloudMediaIndexItem>[
+          _scopedCloudEpisode(
+            sourceA.id,
+            'a1',
+            '/影视/A/S01E01.mkv',
+            '作品 A',
+          ),
+          _scopedCloudEpisode(
+            sourceB.id,
+            'b1',
+            '/影视/B/S01E01.mkv',
+            '作品 B',
+          ),
+        ],
+      );
+
+      await fixture.controller.reloadMediaLibrarySnapshot();
+
+      expect(
+        fixture.controller.mediaLibrarySnapshot.series
+            .map((series) => series.sourceId)
+            .toSet(),
+        <String>{sourceA.id, sourceB.id},
+      );
+      expect(clientA.listed, isEmpty);
+      expect(clientB.listed, isEmpty);
+      fixture.controller.dispose();
+    });
+
+    test('分类快照在分组前排除隐藏视频', () async {
+      const source = CloudSource(
+        id: 'source-hidden',
+        type: CloudSourceType.openList,
+        name: '隐藏测试',
+        baseUrl: 'https://example.com',
+        rootPaths: <String>['/影视'],
+      );
+      final fixture = await _Fixture.create(
+        sources: const <CloudSource>[source],
+        clients: <String, _FakeCloudClient>{
+          source.id: _FakeCloudClient(),
+        },
+        indexedItems: <CloudMediaIndexItem>[
+          _scopedCloudEpisode(
+            source.id,
+            'e1',
+            '/影视/作品/S01E01.mkv',
+            '作品',
+          ),
+          _scopedCloudEpisode(
+            source.id,
+            'e2',
+            '/影视/作品/S01E02.mkv',
+            '作品',
+          ),
+        ],
+      );
+      await fixture.hiddenVideoRepository.replaceSource(
+        source.id,
+        const <CloudHiddenVideo>[
+          CloudHiddenVideo(
+            sourceId: 'source-hidden',
+            remoteId: 'e2',
+            remotePath: '/影视/作品/S01E02.mkv',
+            fileName: 'S01E02.mkv',
+          ),
+        ],
+      );
+
+      await fixture.controller.reloadMediaLibrarySnapshot();
+
+      expect(
+        fixture.controller.mediaLibrarySnapshot.series.single.episodes
+            .map((episode) => episode.remoteId),
+        <String>['e1'],
+      );
+      fixture.controller.dispose();
+    });
+
+    test('分类快照清除已停用或删除来源', () async {
+      const sourceA = CloudSource(
+        id: 'source-a',
+        type: CloudSourceType.quark,
+        name: '夸克网盘',
+        baseUrl: 'https://pan.quark.cn',
+        rootPaths: <String>['/影视'],
+      );
+      const sourceB = CloudSource(
+        id: 'source-b',
+        type: CloudSourceType.openList,
+        name: 'OpenList',
+        baseUrl: 'https://example.com',
+        rootPaths: <String>['/影视'],
+      );
+      final fixture = await _Fixture.create(
+        sources: const <CloudSource>[sourceA, sourceB],
+        clients: <String, _FakeCloudClient>{
+          sourceA.id: _FakeCloudClient(),
+          sourceB.id: _FakeCloudClient(),
+        },
+        indexedItems: <CloudMediaIndexItem>[
+          _scopedCloudEpisode(
+            sourceA.id,
+            'a1',
+            '/影视/A/S01E01.mkv',
+            '作品 A',
+          ),
+          _scopedCloudEpisode(
+            sourceB.id,
+            'b1',
+            '/影视/B/S01E01.mkv',
+            '作品 B',
+          ),
+        ],
+      );
+      await fixture.controller.reloadMediaLibrarySnapshot();
+
+      await fixture.sourceRepository.updateSource(
+        sourceA.id,
+        (source) => source.copyWith(enabled: false),
+      );
+      await fixture.controller.reloadMediaLibrarySnapshot();
+      expect(
+        fixture.controller.mediaLibrarySnapshot.series
+            .map((series) => series.sourceId),
+        <String>[sourceB.id],
+      );
+      expect(
+        fixture.controller.mediaLibrarySnapshot.filters
+            .map((filter) => filter.id),
+        <String>['all', sourceB.id],
+      );
+
+      await fixture.sourceRepository.delete(sourceB.id);
+      await fixture.controller.reloadMediaLibrarySnapshot();
+      expect(fixture.controller.mediaLibrarySnapshot.series, isEmpty);
+      expect(
+        fixture.controller.mediaLibrarySnapshot.filters
+            .map((filter) => filter.id),
+        <String>['all'],
+      );
+      fixture.controller.dispose();
+    });
+
+    test('分类快照读取失败时保留该来源上次结果', () async {
+      final storage = _FailingCloudMediaIndexStorage();
+      const source = CloudSource(
+        id: 'source-failing',
+        type: CloudSourceType.openList,
+        name: '读取失败测试',
+        baseUrl: 'https://example.com',
+        rootPaths: <String>['/影视'],
+      );
+      final fixture = await _Fixture.create(
+        sources: const <CloudSource>[source],
+        clients: <String, _FakeCloudClient>{
+          source.id: _FakeCloudClient(),
+        },
+        indexedItems: <CloudMediaIndexItem>[
+          _scopedCloudEpisode(
+            source.id,
+            'e1',
+            '/影视/作品/S01E01.mkv',
+            '作品',
+          ),
+        ],
+        indexStorage: storage,
+      );
+      await fixture.controller.reloadMediaLibrarySnapshot();
+      final previous = fixture.controller.mediaLibrarySnapshot.series.single;
+      storage.failReads = true;
+
+      await fixture.controller.reloadMediaLibrarySnapshot();
+
+      expect(fixture.controller.mediaLibrarySnapshot.series.single.key,
+          previous.key);
+      fixture.controller.dispose();
+    });
+
+    test('当前网盘页与分类快照复用相同成品组', () async {
+      final fixture = await _HiddenVideoFixture.create();
+      await fixture.controller.load(startScan: false);
+      await fixture.controller.reloadMediaLibrarySnapshot();
+
+      final series = fixture.controller.mediaLibrarySnapshot.series.single;
+      final group = fixture.controller.collection.groups.single;
+      expect(series.key, group.stableKey);
+      expect(series.title, group.displayName);
+      expect(
+        series.episodes.map((episode) => episode.remoteId).whereType<String>(),
+        group.videos.map((video) => video.id),
+      );
+      fixture.controller.dispose();
+    });
+
+    test('分类页隐藏网盘剧集后刷新成品快照', () async {
+      final fixture = await _HiddenVideoFixture.create();
+      await fixture.controller.reloadMediaLibrarySnapshot();
+      final episode =
+          fixture.controller.mediaLibrarySnapshot.series.single.episodes.last;
+
+      await fixture.controller.hideMediaLibraryEpisodes([episode]);
+
+      expect(
+        fixture.controller.mediaLibrarySnapshot.series.single.episodes
+            .map((item) => item.remoteId),
+        <String>['video-b'],
+      );
+      expect(
+        await fixture.hiddenVideoRepository.getBySource(fixture.source.id),
+        hasLength(1),
+      );
+      fixture.controller.dispose();
+    });
+
+    test('分类快照可复用且不响应普通网盘状态通知', () async {
+      final fixture = await _HiddenVideoFixture.create();
+      var snapshotNotifications = 0;
+      fixture.controller.mediaLibrarySnapshotListenable.addListener(() {
+        snapshotNotifications++;
+      });
+
+      await fixture.controller.ensureMediaLibrarySnapshot();
+      await fixture.controller.ensureMediaLibrarySnapshot();
+      expect(snapshotNotifications, 1);
+
+      fixture.controller.setQuery('不会触发分类快照更新');
+      expect(snapshotNotifications, 1);
+
+      await fixture.controller.reloadMediaLibrarySnapshot();
+      expect(snapshotNotifications, 2);
+      fixture.controller.dispose();
+    });
   });
 }
 
@@ -1749,6 +2007,16 @@ class _SwitchableCloudSourceStorage extends MemoryCloudSourceStorage {
 
   @override
   Future<List<Map<String, dynamic>>> read() {
+    if (failReads) throw StateError('read failed');
+    return super.read();
+  }
+}
+
+class _FailingCloudMediaIndexStorage extends MemoryCloudMediaIndexStorage {
+  bool failReads = false;
+
+  @override
+  Future<Map<String, Object?>> read() {
     if (failReads) throw StateError('read failed');
     return super.read();
   }
@@ -1956,10 +2224,17 @@ class _NotifyingResourceTmdbCoordinator extends CloudResourceTmdbCoordinator {
 }
 
 class _Fixture {
-  const _Fixture({required this.controller, required this.clients});
+  const _Fixture({
+    required this.controller,
+    required this.clients,
+    required this.sourceRepository,
+    required this.hiddenVideoRepository,
+  });
 
   final CloudResourcesController controller;
   final Map<String, _FakeCloudClient> clients;
+  final CloudSourceRepository sourceRepository;
+  final ICloudHiddenVideoRepository hiddenVideoRepository;
 
   Future<void> load() async {
     await controller.load();
@@ -1974,6 +2249,7 @@ class _Fixture {
     CloudWorkTmdbCoordinator? workTmdbCoordinator,
     CloudResourceAutoOrganizer? autoOrganizer,
     int Function()? minRecognizedVideoSizeBytesProvider,
+    CloudMediaIndexStorage? indexStorage,
   }) async {
     final credentials = MemoryCloudCredentialStore();
     final repository = CloudSourceRepository(
@@ -1991,7 +2267,10 @@ class _Fixture {
     );
     final minSizeProvider = minRecognizedVideoSizeBytesProvider ?? (() => 0);
     final indexRepository = CloudMediaIndexRepository(
-      storage: MemoryCloudMediaIndexStorage(),
+      storage: indexStorage ?? MemoryCloudMediaIndexStorage(),
+    );
+    final hiddenVideoRepository = CloudHiddenVideoRepository(
+      storage: MemoryCloudHiddenVideoStorage(),
     );
     for (final source in sources) {
       final sourceItems = indexedItems
@@ -2012,6 +2291,7 @@ class _Fixture {
         credentialStore: credentials,
         providerRegistry: registry,
         mediaIndexRepository: indexRepository,
+        hiddenVideoRepository: hiddenVideoRepository,
         mediaIndexer: CloudMediaIndexer(
           repository: indexRepository,
           minRecognizedVideoSizeBytesProvider: minSizeProvider,
@@ -2025,6 +2305,8 @@ class _Fixture {
         minRecognizedVideoSizeBytesProvider: minSizeProvider,
       ),
       clients: clients,
+      sourceRepository: repository,
+      hiddenVideoRepository: hiddenVideoRepository,
     );
   }
 }

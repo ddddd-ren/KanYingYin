@@ -1,10 +1,116 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/features/version/presentation/version_changelog_dialog.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
+const _shortVersionHistory = VersionHistory(
+  version: '2.1.192',
+  date: '2026-08-28',
+  changes: <String>['修复更新日志弹窗布局和关闭按钮'],
+  isPrerelease: true,
+);
+
+Future<void> _openVersionChangelogDialog(WidgetTester tester) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Builder(
+        builder: (context) => FilledButton(
+          onPressed: () => showDialog<void>(
+            context: context,
+            builder: (_) => const VersionChangelogDialog(
+              versions: <VersionHistory>[_shortVersionHistory],
+            ),
+          ),
+          child: const Text('打开更新日志'),
+        ),
+      ),
+    ),
+  );
+  await tester.tap(find.text('打开更新日志'));
+  await tester.pumpAndSettle();
+}
+
 void main() {
+  testWidgets('短更新日志弹窗按内容高度显示', (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await _openVersionChangelogDialog(tester);
+
+    final surface = find.descendant(
+      of: find.byType(VersionChangelogDialog),
+      matching: find.byType(GlassSurface),
+    );
+    expect(tester.getSize(surface).height, lessThan(400));
+  });
+
+  testWidgets('知道了按钮关闭当前更新日志弹窗', (tester) async {
+    await _openVersionChangelogDialog(tester);
+
+    await tester.tap(find.text('知道了'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(VersionChangelogDialog), findsNothing);
+  });
+
+  test('二点一九四测试版修复分类页卡顿', () {
+    final entries = versionHistoryForCurrent('2.1.194');
+
+    expect(entries, hasLength(1));
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      '分类页',
+      '明显卡顿',
+      '媒体库快照',
+      '普通状态通知',
+      '不会修改',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
+  test('二点一九三测试版同步索引与 TMDB 资料', () {
+    final entries = versionHistoryForCurrent('2.1.193');
+
+    expect(entries, hasLength(1));
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      '本地视频',
+      '改名',
+      '手动匹配',
+      '个人网盘',
+      '无 API Key',
+      '同名电影',
+      '保留上次可用索引',
+      '不会修改',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
+  test('二点一九二测试版修复更新日志弹窗', () {
+    final entries = versionHistoryForCurrent('2.1.192');
+
+    expect(entries, hasLength(1));
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      '版本更新日志',
+      '大片空白',
+      '按内容高度',
+      '知道了',
+      '点击无反应',
+      '不会修改',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('一点零十一正式版展示当前 Windows 有效更新', () {
     final entries = versionHistoryForCurrent('1.0.11');
 
@@ -57,6 +163,73 @@ void main() {
       '综合',
     ]) {
       expect(changes, isNot(contains(text)));
+    }
+  });
+
+  test('二点一九一测试版修正独立单季作品标题', () {
+    final entries = versionHistoryForCurrent('2.1.191');
+
+    expect(entries, hasLength(1));
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      '古灵精探B',
+      '独立单季作品',
+      '第 1 季',
+      '海报和选集页',
+      '不会修改',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
+  test('二点一九零测试版修正观看历史集数和海报回填', () {
+    final entries = versionHistoryForCurrent('2.1.190');
+
+    expect(entries, hasLength(1));
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      '观看历史',
+      '真实集数',
+      '第 22 集',
+      '海报缓存',
+      '不会修改',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
+  test('二点一八九测试版补齐本地观看历史海报', () {
+    final entries = versionHistoryForCurrent('2.1.189');
+
+    expect(entries, hasLength(1));
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      '本地',
+      '观看历史',
+      '海报',
+      '不会修改',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
+  test('二点一八八测试版优化观看历史排版', () {
+    final entries = versionHistoryForCurrent('2.1.188');
+
+    expect(entries, hasLength(1));
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      '观看历史',
+      '紧凑',
+      '继续观看',
+      '全部历史',
+      '不会修改',
+    ]) {
+      expect(changes, contains(text));
     }
   });
 

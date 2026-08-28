@@ -44,6 +44,10 @@ void TestUtf8ConversionSupportsChinesePath() {
   Require(!ExternalPlayerUtils::Utf8ToUtf16("\xFF").has_value());
 }
 
+void TestTemporaryPlaylistUsesGenericM3uExtension() {
+  Require(ExternalPlayerUtils::kPlaylistExtension == L".m3u");
+}
+
 void TestSuccessfulLaunchSchedulesDelayedCleanup() {
   FakeOperationState state;
   const auto status = ExternalPlayerUtils::OpenWithPlayer(
@@ -81,6 +85,7 @@ void TestWriteFailureDeletesPlaylistImmediately() {
 
 int main() {
   TestUtf8ConversionSupportsChinesePath();
+  TestTemporaryPlaylistUsesGenericM3uExtension();
   TestSuccessfulLaunchSchedulesDelayedCleanup();
   TestLaunchFailureDeletesPlaylistImmediately();
   TestWriteFailureDeletesPlaylistImmediately();

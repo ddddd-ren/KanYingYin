@@ -30,6 +30,8 @@ struct ExternalPlayerOperations {
 
 class ExternalPlayerUtils {
  public:
+  static constexpr std::wstring_view kPlaylistExtension = L".m3u";
+
   static std::optional<std::wstring> Utf8ToUtf16(std::string_view value);
 
   static ExternalPlayerOpenStatus OpenWithPlayer(const std::string& url);

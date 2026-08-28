@@ -36,7 +36,7 @@ std::optional<std::wstring> CreatePlaylistPath() {
   if (StringFromGUID2(guid, guid_text, 39) == 0) return std::nullopt;
 
   return std::wstring(temporary_directory) + L"kanyingyin_stream_" +
-         guid_text + L".m3u8";
+         guid_text + ExternalPlayerUtils::kPlaylistExtension.data();
 }
 
 std::optional<std::string> Utf16ToUtf8(std::wstring_view value) {

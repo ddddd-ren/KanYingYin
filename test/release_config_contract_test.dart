@@ -2,14 +2,12 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-const _resourceLabelCopy =
-    '增强资源标签识别，新增 Hami Video、Max、TVING、KKTV 等流媒体来源，以及 Hybrid、Proper、Repack、Remastered、Open Matte 等版本标签。';
-const _androidDeliveryBoundaryCopy = 'Android 正式版：1.0.7 (10007)';
+const _androidDeliveryBoundaryCopy = 'Android 正式版：1.0.8 (10008)';
 
 void main() {
   test('当前正式版发布文案与版本说明一致', () {
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
-    final releaseNotesStart = releaseNotes.indexOf('## 1.0.11+10011');
+    final releaseNotesStart = releaseNotes.indexOf('## 1.0.12+10012');
     final releaseNotesEnd = releaseNotes.indexOf(
       '\n## ',
       releaseNotesStart + 1,
@@ -20,18 +18,16 @@ void main() {
             : '';
 
     expect(currentReleaseNotes, contains('Windows 正式版'));
-    expect(currentReleaseNotes, contains('1.0.11'));
+    expect(currentReleaseNotes, contains('1.0.12'));
     expect(currentReleaseNotes, contains(_androidDeliveryBoundaryCopy));
     expect(currentReleaseNotes, contains('Windows'));
     expect(currentReleaseNotes, contains('Android'));
     expect(currentReleaseNotes, contains('EXE'));
-    expect(currentReleaseNotes, contains(_resourceLabelCopy));
     expect(currentReleaseNotes, contains(_androidDeliveryBoundaryCopy));
     for (final text in <String>[
-      'Hami Video',
-      '2:3',
-      '深色模式',
-      '首字节时间',
+      '观看历史',
+      '媒体库快照',
+      '外部播放器',
       '海报',
       '不会修改、删除',
     ]) {
@@ -54,7 +50,7 @@ void main() {
     }
   });
 
-  test('Windows 二点一九六测试版构建版本面一致', () {
+  test('Windows 一点零一二正式版构建版本面一致', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
@@ -65,22 +61,22 @@ void main() {
     final androidScript =
         File('tool/android/build_signed_release.ps1').readAsStringSync();
 
-    expect(pubspec, contains('version: 2.1.196+20196'));
-    expect(pubspec, contains('msix_version: 2.1.196.0'));
-    expect(appVersion, contains("current = '2.1.196'"));
-    expect(releaseNotes, contains('## 2.1.196+20196'));
-    expect(releaseNotes, contains('Windows 测试版：2.1.196'));
-    expect(updateDialogCopy, contains('应用版本：2.1.196'));
-    expect(updateDialogCopy, contains('Windows EXE 安装器版本：2.1.196 测试版'));
-    expect(versionHistory, contains("version: '2.1.196'"));
-    expect(gradle, contains('windowsVersionName != "2.1.196"'));
-    expect(gradle, contains('windowsVersionCode != 20196'));
-    expect(gradle, contains('val androidVersionName = "1.0.7"'));
-    expect(gradle, contains('val androidVersionCode = 10007'));
-    expect(androidScript, contains("pubspecVersion.Name -ne '2.1.196'"));
-    expect(androidScript, contains('pubspecVersion.Code -ne 20196'));
-    expect(androidScript, contains("\$androidVersion = '1.0.7'"));
-    expect(androidScript, contains(r'$androidVersionCode = 10007'));
+    expect(pubspec, contains('version: 1.0.12+10012'));
+    expect(pubspec, contains('msix_version: 1.0.12.0'));
+    expect(appVersion, contains("current = '1.0.12'"));
+    expect(releaseNotes, contains('## 1.0.12+10012'));
+    expect(releaseNotes, contains('Windows EXE 安装器版本：1.0.12'));
+    expect(updateDialogCopy, contains('应用版本：1.0.12'));
+    expect(updateDialogCopy, contains('Windows EXE 安装器版本：1.0.12'));
+    expect(versionHistory, contains("version: '1.0.12'"));
+    expect(gradle, contains('windowsVersionName != "1.0.12"'));
+    expect(gradle, contains('windowsVersionCode != 10012'));
+    expect(gradle, contains('val androidVersionName = "1.0.8"'));
+    expect(gradle, contains('val androidVersionCode = 10008'));
+    expect(androidScript, contains("pubspecVersion.Name -ne '1.0.12'"));
+    expect(androidScript, contains('pubspecVersion.Code -ne 10012'));
+    expect(androidScript, contains("\$androidVersion = '1.0.8'"));
+    expect(androidScript, contains(r'$androidVersionCode = 10008'));
   });
 
   test('直接依赖使用与锁文件兼容的明确约束', () {

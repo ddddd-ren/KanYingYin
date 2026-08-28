@@ -111,21 +111,17 @@ void main() {
     }
   });
 
-  test('一点零十一正式版展示当前 Windows 有效更新', () {
-    final entries = versionHistoryForCurrent('1.0.11');
+  test('一点零十二正式版展示当前 Windows 有效更新', () {
+    final entries = versionHistoryForCurrent('1.0.12');
 
     expect(entries, hasLength(1));
-    expect(entries.single.version, '1.0.11');
+    expect(entries.single.version, '1.0.12');
     expect(entries.single.isPrerelease, isFalse);
     final changes = entries.single.changes.join('\n');
     for (final text in <String>[
-      'Windows',
-      'Hami Video',
-      '2:3',
-      '深色模式',
-      '技术标签',
-      '首字节时间',
-      '夸克网盘低速播放',
+      '观看历史',
+      '媒体库快照',
+      '外部播放器',
       '不会修改',
     ]) {
       expect(changes, contains(text));
@@ -135,14 +131,14 @@ void main() {
     }
   });
 
-  test('Android 一点零七正式版只展示手机适用更新', () {
+  test('Android 一点零八正式版展示当前移动端更新', () {
     final entries = versionHistoryForCurrent(
-      '1.0.11',
+      '1.0.12',
       platform: AppPlatformKind.android,
     );
 
     expect(entries, hasLength(1));
-    expect(entries.single.version, '1.0.7');
+    expect(entries.single.version, '1.0.8');
     expect(entries.single.isPrerelease, isFalse);
     final changes = entries.single.changes.join('\n');
     for (final text in <String>[
@@ -155,13 +151,7 @@ void main() {
     ]) {
       expect(changes, contains(text));
     }
-    for (final text in <String>[
-      'Windows',
-      '夸克网盘低速播放',
-      '鼠标悬停',
-      '测试版',
-      '综合',
-    ]) {
+    for (final text in <String>['测试版', '综合']) {
       expect(changes, isNot(contains(text)));
     }
   });

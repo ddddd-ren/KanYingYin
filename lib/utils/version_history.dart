@@ -121,6 +121,20 @@ const VersionHistory _androidEighthRelease = VersionHistory(
   ],
 );
 
+const VersionHistory _androidNinthRelease = VersionHistory(
+  version: '1.0.8',
+  date: '2026-08-28',
+  changes: [
+    '手机和平板增强资源标签识别，新增 Hami Video、Max、TVING、KKTV 等流媒体来源，以及 Hybrid、Proper、Repack、Remastered、Open Matte 等版本标签',
+    '本地媒体库、个人网盘、播放历史和 TMDB 匹配等封面统一为 2:3，改善深色模式下原图白边，并统一无海报、加载中和加载失败时的占位显示',
+    '观看历史支持“继续观看”和“全部历史”切换，按时间分组显示进度、集数和标题，并优化列表布局',
+    '修复本地和个人网盘观看历史海报缺失；已有媒体库海报会自动回填并减少重复加载',
+    '电影、动漫和电视剧分类页复用媒体库快照，媒体变化或 TMDB 更新时仍会及时同步，减少重复扫描造成的卡顿',
+    '修复 Windows 外部播放器把普通播放列表误判为 HLS 的问题',
+    '本次更新不会修改、删除、改名或移动本地及个人网盘原始视频、字幕和海报缓存',
+  ],
+);
+
 const VersionHistory _androidAdaptiveQuarkSystemBarsPrerelease = VersionHistory(
   version: '2.1.103',
   date: '2026-08-03',
@@ -212,6 +226,17 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 );
 
 const List<VersionHistory> versionHistoryList = [
+  VersionHistory(
+    version: '1.0.12',
+    date: '2026-08-28',
+    changes: [
+      '观看历史支持“继续观看”和“全部历史”切换，按时间分组显示进度、集数和标题，并优化列表布局',
+      '修复本地和个人网盘观看历史海报缺失；已有媒体库海报会自动回填并减少重复加载',
+      '电影、动漫和电视剧分类页复用媒体库快照，媒体变化或 TMDB 更新时仍会及时同步，减少重复扫描造成的卡顿',
+      '修复 Windows 外部播放器把普通播放列表误判为 HLS 的问题',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘原始视频、字幕和海报缓存',
+    ],
+  ),
   VersionHistory(
     version: '2.1.196',
     date: '2026-08-28',
@@ -3248,6 +3273,9 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '1.0.12' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[_androidNinthRelease];
+  }
   if (currentVersion == '1.0.11' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[_androidEighthRelease];
   }

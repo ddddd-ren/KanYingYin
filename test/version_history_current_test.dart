@@ -60,6 +60,29 @@ void main() {
     }
   });
 
+  test('二点一八七测试版优化观看历史并修复外部播放', () {
+    final entries = versionHistoryForCurrent('2.1.187');
+
+    expect(entries, hasLength(1));
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      '继续观看',
+      '全部历史',
+      '今天、昨天和更早',
+      '观看时间',
+      '原始视频文件名',
+      '海报缺失',
+      '10 秒',
+      '播放进度',
+      '外部播放器',
+      '视频解析异常',
+      '不会修改',
+    ]) {
+      expect(changes, contains(text));
+    }
+  });
+
   test('二点一八五测试版优化夸克低速播放', () {
     final entries = versionHistoryForCurrent('2.1.185');
 

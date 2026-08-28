@@ -10,6 +10,7 @@ class PlaybackHistoryController extends ChangeNotifier {
       : _repository = repository ?? PlaybackHistoryRepository();
 
   static const Duration persistInterval = Duration(seconds: 5);
+  static const int minimumInitialPositionSeconds = 10;
 
   final PlaybackHistoryRepository _repository;
   final List<PlaybackHistoryEntry> _entries = <PlaybackHistoryEntry>[];
@@ -33,6 +34,7 @@ class PlaybackHistoryController extends ChangeNotifier {
         _entries
           ..clear()
           ..addAll(await _repository.getAll());
+        _backfillPosters();
       } on Object {
         // 历史存储不可用时不阻断媒体库和播放器启动。
         _entries.clear();
@@ -57,48 +59,84 @@ class PlaybackHistoryController extends ChangeNotifier {
   Future<void> record(
     PlaybackHistoryEntry entry, {
     bool forcePersist = false,
-  }) {
-    final next = _operationQueue.then((_) async {
-      await ensureLoaded();
-      _entries.removeWhere((item) => item.stableKey == entry.stableKey);
-      _entries.insert(0, entry);
-      if (_entries.length > PlaybackHistoryRepository.maxEntries) {
-        _entries.removeRange(
-          PlaybackHistoryRepository.maxEntries,
-          _entries.length,
-        );
+  }) =>
+      _enqueue(() async {
+        await ensureLoaded();
+        final previousIndex =
+            _entries.indexWhere((item) => item.stableKey == entry.stableKey);
+        if (previousIndex < 0 &&
+            entry.positionSeconds < minimumInitialPositionSeconds &&
+            !entry.isCompleted) {
+          return;
+        }
+        final nextEntry = _withPosterFallback(entry);
+        _entries.removeWhere((item) => item.stableKey == entry.stableKey);
+        _entries.insert(0, nextEntry);
+        if (_entries.length > PlaybackHistoryRepository.maxEntries) {
+          _entries.removeRange(
+            PlaybackHistoryRepository.maxEntries,
+            _entries.length,
+          );
+        }
+        _persistPending = true;
+        if (previousIndex != 0 || forcePersist) notifyListeners();
+        if (forcePersist) {
+          await _flushNow();
+        } else {
+          _schedulePersist();
+        }
+      });
+
+  PlaybackHistoryEntry _withPosterFallback(PlaybackHistoryEntry entry) {
+    final series = entry.seriesTitle.trim().toLowerCase();
+    if (series.isEmpty) return entry;
+    PlaybackHistoryEntry? fallback;
+    for (final candidate in _entries) {
+      if (candidate.sourceId == entry.sourceId &&
+          candidate.seriesTitle.trim().toLowerCase() == series &&
+          (_hasText(candidate.posterUrl) ||
+              _hasText(candidate.posterCachePath))) {
+        fallback = candidate;
+        break;
       }
-      _persistPending = true;
-      notifyListeners();
-      if (forcePersist) {
-        await flush();
-      } else {
-        _schedulePersist();
-      }
-    });
-    _operationQueue = next.catchError((Object error, StackTrace stackTrace) {
-      Zone.current.handleUncaughtError(error, stackTrace);
-    });
-    return next;
+    }
+    return entry.copyWith(
+      posterUrl:
+          _hasText(entry.posterUrl) ? entry.posterUrl : fallback?.posterUrl,
+      posterCachePath: _hasText(entry.posterCachePath)
+          ? entry.posterCachePath
+          : fallback?.posterCachePath,
+    );
   }
 
-  Future<void> delete(String stableKey) async {
-    await ensureLoaded();
-    _entries.removeWhere((entry) => entry.stableKey == stableKey);
-    _persistPending = true;
-    notifyListeners();
-    await flush();
+  void _backfillPosters() {
+    // ponytail: 历史最多 100 条；超过上限再按剧集建立索引。
+    for (var index = 0; index < _entries.length; index++) {
+      _entries[index] = _withPosterFallback(_entries[index]);
+    }
   }
 
-  Future<void> clear() async {
-    await ensureLoaded();
-    _entries.clear();
-    _persistPending = true;
-    notifyListeners();
-    await flush();
-  }
+  static bool _hasText(String? value) => value?.trim().isNotEmpty == true;
 
-  Future<void> flush() async {
+  Future<void> delete(String stableKey) => _enqueue(() async {
+        await ensureLoaded();
+        _entries.removeWhere((entry) => entry.stableKey == stableKey);
+        _persistPending = true;
+        notifyListeners();
+        await _flushNow();
+      });
+
+  Future<void> clear() => _enqueue(() async {
+        await ensureLoaded();
+        _entries.clear();
+        _persistPending = true;
+        notifyListeners();
+        await _flushNow();
+      });
+
+  Future<void> flush() => _enqueue(_flushNow);
+
+  Future<void> _flushNow() async {
     _persistTimer?.cancel();
     _persistTimer = null;
     if (!_persistPending) return;
@@ -106,6 +144,14 @@ class PlaybackHistoryController extends ChangeNotifier {
     await _repository.replaceAll(_entries);
     _persistPending = false;
     _lastPersistAt = DateTime.now();
+  }
+
+  Future<void> _enqueue(Future<void> Function() operation) {
+    final next = _operationQueue.then((_) => operation());
+    _operationQueue = next.catchError((Object error, StackTrace stackTrace) {
+      Zone.current.handleUncaughtError(error, stackTrace);
+    });
+    return next;
   }
 
   void _schedulePersist() {

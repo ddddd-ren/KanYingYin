@@ -42,6 +42,49 @@ void main() {
     await repository.save(source);
   });
 
+  test('观看历史从同一播放列表补齐当前集缺失的海报', () async {
+    final controller = LocalVideoController(
+      resolveCloudPlayback: (target) async => CloudResolvedPlayback(
+        target: target,
+        videoUrl: 'https://cdn.example.com${target.remotePath}',
+        httpHeaders: const <String, String>{},
+      ),
+      initializePlayer: (_) async {},
+    );
+    await controller.openCloudPlayback(
+      seriesTitle: '古灵精探 S01',
+      targets: const <CloudPlaybackTarget>[
+        CloudPlaybackTarget(
+          sourceId: 'quark-home',
+          remoteId: '22',
+          remotePath: '/古灵精探 S01E22.mkv',
+          stableId: '22',
+          title: '古灵精探 S01E22.mkv',
+          posterUrl: ' ',
+          posterCachePath: '',
+        ),
+        CloudPlaybackTarget(
+          sourceId: 'quark-home',
+          remoteId: '21',
+          remotePath: '/古灵精探 S01E21.mkv',
+          stableId: '21',
+          title: '古灵精探 S01E21.mkv',
+          posterUrl: '/poster.jpg',
+          posterCachePath: r'D:\海报\古灵精探.jpg',
+        ),
+      ],
+      selectedStableId: '22',
+    );
+
+    final entry = controller.buildPlaybackHistoryEntry(
+      position: const Duration(minutes: 14),
+      duration: const Duration(minutes: 43),
+    );
+
+    expect(entry?.posterUrl, '/poster.jpg');
+    expect(entry?.posterCachePath, r'D:\海报\古灵精探.jpg');
+  });
+
   test('点击解析时才创建客户端并透传实时地址与请求头', () async {
     var factoryCalls = 0;
     var relayCalls = 0;

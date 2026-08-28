@@ -47,6 +47,7 @@ CloudResourcePlaybackRequest buildCloudResourcePlaybackRequest({
       remotePath: video.remotePath,
       stableId: '$sourceId:${video.id}:${video.remotePath}',
       title: video.name,
+      episodeNumber: video.episodeNumber,
       subtitleRemoteId: subtitle?.id,
       subtitleRemotePath: subtitle?.path,
       posterUrl: posterUrl,

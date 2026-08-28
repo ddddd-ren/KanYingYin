@@ -16,6 +16,7 @@ import 'package:kanyingyin/services/media_name_analyzer.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
+import 'package:kanyingyin/utils/logger.dart';
 
 typedef CloudWorkTmdbServiceFactory = FutureOr<CloudWorkTmdbService> Function(
   String apiKey,
@@ -116,6 +117,32 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
     _markRecordsChanged();
     notifyListeners();
 
+    var syncedIndexItems = 0;
+    for (final work in uniqueWorks.values) {
+      if (generation != _generation) return;
+      final record = _records[work.workKey];
+      if (record == null) continue;
+      try {
+        syncedIndexItems += await CloudWorkTmdbService.syncMatchedRecordToIndex(
+          indexRepository: _indexRepository,
+          work: work,
+          record: record,
+        );
+      } on Object catch (error, stackTrace) {
+        AppLogger().w(
+          'CloudWorkTmdbCoordinator: failed to sync matched record to index',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+    }
+    if (syncedIndexItems > 0) {
+      AppLogger().i(
+        'CloudWorkTmdbCoordinator: source=${tree.sourceId} '
+        'syncedIndexItems=$syncedIndexItems',
+      );
+    }
+
     final apiKey = _apiKeyProvider().trim();
     if (apiKey.isEmpty) return;
     final now = _now();
@@ -163,8 +190,7 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
     final migrations = <CloudWorkTmdbRecord>[];
     for (final work in works) {
       final existing = _records[work.workKey];
-      if (work.seasons.isEmpty ||
-          existing?.status == CloudWorkTmdbStatus.matched ||
+      if (existing?.status == CloudWorkTmdbStatus.matched ||
           existing?.status == CloudWorkTmdbStatus.conflict) {
         continue;
       }
@@ -172,15 +198,20 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
       final existingRoot =
           existing == null ? null : _normalizePath(existing.workRootPath);
       final prefix = workRoot == '/' ? '/' : '$workRoot/';
+      final expectedMediaType =
+          work.seasons.isEmpty ? TmdbMediaType.movie : TmdbMediaType.tv;
       final candidates = stored.where((record) {
         final metadata = record.metadata;
         if (record.workKey == work.workKey ||
             record.status != CloudWorkTmdbStatus.matched ||
-            metadata?.mediaType != TmdbMediaType.tv) {
+            metadata?.mediaType != expectedMediaType) {
           return false;
         }
         final recordRoot = _normalizePath(record.workRootPath);
-        if (recordRoot == workRoot) return true;
+        if (record.workRootId == work.root.id || recordRoot == workRoot) {
+          return true;
+        }
+        if (expectedMediaType != TmdbMediaType.tv) return false;
         if (existingRoot != null && recordRoot == existingRoot) return true;
         return recordRoot.startsWith(prefix) &&
             _workTitlesOverlap(work, record);

@@ -318,8 +318,20 @@ class CloudResourceCollectionGrouper {
           .expand((work) => work.seasons.map((season) => season.seasonNumber))
           .where((season) => season > 0)
           .toSet();
-      final displaySeasonNumbers =
-          declaredSeasonNumbers.isEmpty ? seasonNumbers : declaredSeasonNumbers;
+      final matchedSeasonNumbers = record?.metadata?.seasons
+              .map((season) => season.seasonNumber)
+              .where((season) => season > 0)
+              .toSet() ??
+          const <int>{};
+      final effectiveSeasonNumbers = seasonNumbers.toSet();
+      final declaredSeasonsMatch =
+          declaredSeasonNumbers.length == effectiveSeasonNumbers.length &&
+              declaredSeasonNumbers.containsAll(effectiveSeasonNumbers);
+      final displaySeasonNumbers = declaredSeasonNumbers.isEmpty
+          ? effectiveSeasonNumbers
+          : declaredSeasonsMatch || matchedSeasonNumbers.isEmpty
+              ? declaredSeasonNumbers
+              : matchedSeasonNumbers;
       final omitOnlyFirstSeasonSuffix =
           displaySeasonNumbers.length == 1 && displaySeasonNumbers.single == 1;
       for (final seasonNumber in seasonNumbers) {

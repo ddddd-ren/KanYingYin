@@ -26,6 +26,7 @@ class CloudPlaybackTarget {
     required this.remotePath,
     required this.stableId,
     required this.title,
+    this.episodeNumber,
     this.subtitleRemotePath,
     this.subtitleRemoteId,
     this.posterUrl,
@@ -37,6 +38,7 @@ class CloudPlaybackTarget {
   final String remotePath;
   final String stableId;
   final String title;
+  final int? episodeNumber;
   final String? subtitleRemotePath;
   final String? subtitleRemoteId;
   final String? posterUrl;

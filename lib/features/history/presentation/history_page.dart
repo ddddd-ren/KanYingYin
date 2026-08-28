@@ -26,17 +26,53 @@ String formatPlaybackHistoryTitle(PlaybackHistoryEntry entry) {
   final raw =
       entry.episodeTitle.trim().isEmpty ? entry.mediaPath : entry.episodeTitle;
   final parsed = _historyEpisodeParser.parse(raw);
+  final parsedPath = _historyEpisodeParser.parse(entry.mediaPath);
   final rawName = p.basenameWithoutExtension(raw).trim();
   final episodeName =
       parsed == null ? rawName : (parsed.episodeTitle?.trim() ?? '');
+  final episodeNumber =
+      parsed?.episodeNumber ?? parsedPath?.episodeNumber ?? entry.episodeIndex;
   final seriesTitle = entry.seriesTitle.trim();
   return <String>[
     if (seriesTitle.isNotEmpty) seriesTitle,
-    '第${entry.episodeIndex}集',
+    '第$episodeNumber集',
     if (episodeName.isNotEmpty &&
         episodeName.toLowerCase() != seriesTitle.toLowerCase())
       episodeName,
   ].join(' · ');
+}
+
+String formatPlaybackHistoryMeta(
+  PlaybackHistoryEntry entry,
+  String watchedAt,
+) {
+  final progress = entry.durationSeconds <= 0
+      ? 0.0
+      : (entry.positionSeconds / entry.durationSeconds).clamp(0.0, 1.0);
+  final status = entry.isCompleted ? '已看完' : '已看 ${(progress * 100).round()}%';
+  return '${entry.isCloud ? '网盘' : '本地'} · $status · $watchedAt';
+}
+
+PlaybackHistoryEntry resolveLocalPlaybackHistoryPoster(
+  PlaybackHistoryEntry entry,
+  Map<String, LocalMediaIndexItem> localItemsById,
+  String? Function(Iterable<String>) posterUrlForPaths,
+) {
+  if (entry.isCloud) return entry;
+  final indexed =
+      localItemsById[LocalMediaIndexItem.normalizePath(entry.mediaPath)];
+  if (indexed == null) return entry;
+  final cachedPoster = entry.posterCachePath?.trim();
+  return entry.copyWith(
+    posterUrl: entry.posterUrl?.trim().isNotEmpty == true
+        ? entry.posterUrl
+        : posterUrlForPaths(<String>[indexed.path]),
+    posterCachePath: cachedPoster != null &&
+            cachedPoster.isNotEmpty &&
+            File(cachedPoster).existsSync()
+        ? cachedPoster
+        : indexed.cover,
+  );
 }
 
 class HistoryPage extends StatefulWidget {
@@ -58,6 +94,7 @@ class _HistoryPageState extends State<HistoryPage> {
   @override
   void initState() {
     super.initState();
+    _local.reloadLocalLibraryIndex();
     unawaited(_history.ensureLoaded());
   }
 
@@ -67,7 +104,6 @@ class _HistoryPageState extends State<HistoryPage> {
       animation: _history,
       builder: (context, _) => KSettingsScaffold(
         title: '观看历史',
-        description: '本地媒体和网盘媒体的播放进度会统一保存在这里。',
         actions: [
           IconButton(
             tooltip: '清空历史',
@@ -91,6 +127,9 @@ class _HistoryPageState extends State<HistoryPage> {
     final entries = _showAllHistory
         ? allEntries
         : allEntries.where((entry) => !entry.isCompleted).toList();
+    final localItemsById = <String, LocalMediaIndexItem>{
+      for (final item in _local.localLibraryItems) item.id: item,
+    };
     final rows = <Object>[];
     String? previousSection;
     for (final entry in entries) {
@@ -104,21 +143,32 @@ class _HistoryPageState extends State<HistoryPage> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: Row(
             children: [
-              ChoiceChip(
-                label: const Text('继续观看'),
-                selected: !_showAllHistory,
-                showCheckmark: false,
-                onSelected: (_) => setState(() => _showAllHistory = false),
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment<bool>(
+                    value: false,
+                    label: Text('继续观看'),
+                  ),
+                  ButtonSegment<bool>(
+                    value: true,
+                    label: Text('全部历史'),
+                  ),
+                ],
+                selected: <bool>{_showAllHistory},
+                showSelectedIcon: false,
+                onSelectionChanged: (selection) {
+                  setState(() => _showAllHistory = selection.single);
+                },
               ),
-              const SizedBox(width: 8),
-              ChoiceChip(
-                label: const Text('全部历史'),
-                selected: _showAllHistory,
-                showCheckmark: false,
-                onSelected: (_) => setState(() => _showAllHistory = true),
+              const Spacer(),
+              Text(
+                '${entries.length} 条',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
               ),
             ],
           ),
@@ -139,7 +189,15 @@ class _HistoryPageState extends State<HistoryPage> {
                         row.stableKey == stableKey);
                     return index < 0 ? null : index;
                   },
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, index) {
+                    final current = rows[index];
+                    final next = rows[index + 1];
+                    if (current is! PlaybackHistoryEntry ||
+                        next is! PlaybackHistoryEntry) {
+                      return const SizedBox.shrink();
+                    }
+                    return const Divider(height: 1, indent: 56);
+                  },
                   itemBuilder: (context, index) {
                     final row = rows[index];
                     if (row is String) {
@@ -151,7 +209,11 @@ class _HistoryPageState extends State<HistoryPage> {
                         ),
                       );
                     }
-                    final entry = row as PlaybackHistoryEntry;
+                    final entry = resolveLocalPlaybackHistoryPoster(
+                      row as PlaybackHistoryEntry,
+                      localItemsById,
+                      _local.tmdbPosterUrlForPaths,
+                    );
                     return _HistoryTile(
                       key: ValueKey<String>(
                         'history-entry-${entry.stableKey}',
@@ -281,6 +343,7 @@ class _HistoryPageState extends State<HistoryPage> {
         stableId:
             '${candidate.sourceId}:${candidate.remoteId}:${candidate.remotePath}',
         title: candidate.displayName,
+        episodeNumber: candidate.episodeNumber,
         subtitleRemoteId: subtitle?.id,
         subtitleRemotePath: subtitle?.path,
         posterUrl: candidate.tmdbPosterUrl,
@@ -330,6 +393,8 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 }
 
+enum _HistoryMenuAction { delete }
+
 class _HistoryTile extends StatelessWidget {
   const _HistoryTile({
     super.key,
@@ -351,47 +416,40 @@ class _HistoryTile extends StatelessWidget {
         : (entry.positionSeconds / entry.durationSeconds)
             .clamp(0.0, 1.0)
             .toDouble();
-    final status = entry.isCompleted ? '已看完' : '${(progress * 100).round()}%';
     final watchedAt = TimeUtils.formatTimestampToRelativeTime(
       entry.updatedAt.millisecondsSinceEpoch ~/ 1000,
     );
     final theme = Theme.of(context);
     return ListTile(
       enabled: enabled,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       leading: SizedBox(
-        width: 60,
-        height: 90,
+        width: 44,
+        height: 66,
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(4),
           child: _Poster(entry: entry),
         ),
       ),
       title: Text(
         formatPlaybackHistoryTitle(entry),
-        maxLines: 2,
+        maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: Padding(
-        padding: const EdgeInsets.only(top: 6),
+        padding: const EdgeInsets.only(top: 5),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${entry.isCloud ? '网盘' : '本地'} · 第${entry.episodeIndex}集 · '
-              '$status · $watchedAt',
+              formatPlaybackHistoryMeta(entry, watchedAt),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 3),
-            Text(
-              '${_formatDuration(entry.position)} / '
-              '${_formatDuration(entry.duration)}',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 7),
             LinearProgressIndicator(
               value: progress,
               minHeight: 3,
@@ -400,20 +458,28 @@ class _HistoryTile extends StatelessWidget {
           ],
         ),
       ),
-      trailing: IconButton(
-        tooltip: '删除记录',
-        onPressed: onDelete,
-        icon: Icon(Icons.close, color: theme.colorScheme.outline),
+      trailing: PopupMenuButton<_HistoryMenuAction>(
+        enabled: enabled,
+        tooltip: '更多操作',
+        onSelected: (action) {
+          if (action == _HistoryMenuAction.delete) onDelete();
+        },
+        itemBuilder: (_) => const [
+          PopupMenuItem<_HistoryMenuAction>(
+            value: _HistoryMenuAction.delete,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.delete_outline),
+                SizedBox(width: 10),
+                Text('删除记录'),
+              ],
+            ),
+          ),
+        ],
       ),
       onTap: onTap,
     );
-  }
-
-  static String _formatDuration(Duration value) {
-    final hours = value.inHours;
-    final minutes = value.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = value.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return hours > 0 ? '$hours:$minutes:$seconds' : '$minutes:$seconds';
   }
 }
 

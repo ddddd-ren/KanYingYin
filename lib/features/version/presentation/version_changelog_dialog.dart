@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/bean/widget/glass_surface.dart';
-import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/utils/version_history.dart';
 
 class VersionChangelogDialog extends StatelessWidget {
@@ -27,14 +26,14 @@ class VersionChangelogDialog extends StatelessWidget {
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
               const SizedBox(height: 16),
-              Expanded(
+              Flexible(
                 child: VersionChangelogContent(versions: versions),
               ),
               const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () => AppDialog.dismiss<void>(),
+                  onPressed: () => Navigator.of(context).pop(),
                   child: const Text('知道了'),
                 ),
               ),

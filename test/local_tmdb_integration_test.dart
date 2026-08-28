@@ -623,6 +623,98 @@ void main() {
     expect(result.posterDownloadFailures, 1);
     expect(index.getAll().map((item) => item.tmdb?.id), everyElement(1));
   });
+
+  test('无 API Key 时新增剧集继承同系列唯一 TMDB 身份', () async {
+    final metadata = TmdbMetadata(
+      id: 42,
+      mediaType: TmdbMediaType.tv,
+      title: '流浪地球',
+      language: 'zh-CN',
+      matchedAt: DateTime.utc(2026, 8, 28),
+      matchConfidence: 1,
+    );
+    final anchor = _item('Show S01E01.mkv', seasonNumber: 1).copyWith(
+      tmdb: metadata,
+      tmdbIdentity: 'tv:42',
+      scrapeStatus: TmdbScrapeStatus.matched,
+      tmdbMatchOrigin: TmdbMatchOrigin.manual,
+      tmdbRuleVersion: currentTmdbRuleVersion,
+      titleLocked: true,
+    );
+    final pending = _item('Show S01E02.mkv', seasonNumber: 1);
+    final index =
+        _MemoryIndexRepository(<LocalMediaIndexItem>[anchor, pending]);
+    final service = LocalTmdbScrapeService(
+      indexRepository: index,
+      metadataRepository: _MemoryMetadataRepository(),
+      clientFactory: (_) => _NeverCalledClient(),
+    );
+
+    final inherited = await service.inheritMatchedSeriesMetadata();
+
+    final updated = index.getByPath(pending.path)!;
+    expect(inherited, 1);
+    expect(updated.tmdb, same(metadata));
+    expect(updated.effectiveTmdbIdentity, 'tv:42');
+    expect(updated.seasonNumber, pending.seasonNumber);
+    expect(updated.tmdbMatchOrigin, TmdbMatchOrigin.manual);
+    expect(updated.titleLocked, isTrue);
+  });
+
+  test('同系列存在多个 TMDB 身份时不执行离线继承', () async {
+    LocalMediaIndexItem matched(String name, int id) =>
+        _item(name, seasonNumber: 1).copyWith(
+          tmdb: TmdbMetadata(
+            id: id,
+            mediaType: TmdbMediaType.tv,
+            title: '流浪地球',
+            language: 'zh-CN',
+            matchedAt: DateTime.utc(2026, 8, 28),
+            matchConfidence: 1,
+          ),
+          tmdbIdentity: 'tv:$id',
+          scrapeStatus: TmdbScrapeStatus.matched,
+        );
+    final pending = _item('Show S01E03.mkv', seasonNumber: 1);
+    final index = _MemoryIndexRepository(<LocalMediaIndexItem>[
+      matched('Show S01E01.mkv', 42),
+      matched('Show S01E02.mkv', 99),
+      pending,
+    ]);
+    final service = LocalTmdbScrapeService(
+      indexRepository: index,
+      metadataRepository: _MemoryMetadataRepository(),
+      clientFactory: (_) => _NeverCalledClient(),
+    );
+
+    expect(await service.inheritMatchedSeriesMetadata(), 0);
+    expect(index.getByPath(pending.path)!.tmdb, isNull);
+  });
+
+  test('同名电影不继承剧集 TMDB 身份', () async {
+    final anchor = _item('Show S01E01.mkv', seasonNumber: 1).copyWith(
+      tmdb: TmdbMetadata(
+        id: 42,
+        mediaType: TmdbMediaType.tv,
+        title: '同名作品',
+        language: 'zh-CN',
+        matchedAt: DateTime.utc(2026, 8, 28),
+        matchConfidence: 1,
+      ),
+      tmdbIdentity: 'tv:42',
+      scrapeStatus: TmdbScrapeStatus.matched,
+    );
+    final movie = _item('同名作品.mkv');
+    final index = _MemoryIndexRepository(<LocalMediaIndexItem>[anchor, movie]);
+    final service = LocalTmdbScrapeService(
+      indexRepository: index,
+      metadataRepository: _MemoryMetadataRepository(),
+      clientFactory: (_) => _NeverCalledClient(),
+    );
+
+    expect(await service.inheritMatchedSeriesMetadata(), 0);
+    expect(index.getByPath(movie.path)!.tmdb, isNull);
+  });
 }
 
 Future<String?> _successfulDownload(String url, String path) async => path;
@@ -792,6 +884,24 @@ class _EmptyClient implements ITmdbClient {
   }) async {
     return const <TmdbMetadata>[];
   }
+}
+
+class _NeverCalledClient implements ITmdbClient {
+  @override
+  Future<TmdbMetadata> details(
+    int id,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) =>
+      throw StateError('离线继承不应调用 TMDB');
+
+  @override
+  Future<List<TmdbMetadata>> search(
+    String query,
+    TmdbMediaType mediaType, {
+    String language = 'zh-CN',
+  }) =>
+      throw StateError('离线继承不应调用 TMDB');
 }
 
 class _MemoryMetadataRepository implements ITmdbMetadataRepository {

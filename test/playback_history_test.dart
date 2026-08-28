@@ -6,11 +6,13 @@ import 'package:kanyingyin/features/history/application/playback_history_control
 import 'package:kanyingyin/features/history/application/playback_history_repository.dart';
 import 'package:kanyingyin/features/history/domain/playback_history_entry.dart';
 import 'package:kanyingyin/features/history/presentation/history_page.dart';
+import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 
 PlaybackHistoryEntry _entry({
   String key = 'local|file:/media/a.mp4',
   String seriesTitle = '测试剧集',
   String episodeTitle = '第 1 集',
+  String? mediaPath,
   int episodeIndex = 1,
   int position = 20,
   int duration = 100,
@@ -25,7 +27,8 @@ PlaybackHistoryEntry _entry({
     sourceId: key.startsWith('cloud|') ? 'source-a' : 'local',
     seriesTitle: seriesTitle,
     episodeTitle: episodeTitle,
-    mediaPath: key.startsWith('cloud|') ? '/anime/a.mp4' : '/media/a.mp4',
+    mediaPath: mediaPath ??
+        (key.startsWith('cloud|') ? '/anime/a.mp4' : '/media/a.mp4'),
     remoteId: key.startsWith('cloud|') ? 'remote-a' : null,
     episodeIndex: episodeIndex,
     positionSeconds: position,
@@ -148,6 +151,75 @@ void main() {
     controller.dispose();
   });
 
+  test('本地历史从媒体索引补齐已有海报', () {
+    final item = LocalMediaIndexItem(
+      path: '/media/a.mp4',
+      name: 'a.mp4',
+      parentPath: '/media',
+      sourcePath: '/media',
+      size: 100,
+      modified: DateTime(2026, 8, 5),
+      seriesName: '测试剧集',
+      indexedAt: DateTime(2026, 8, 5),
+      cover: '/covers/a.jpg',
+    );
+
+    final resolved = resolveLocalPlaybackHistoryPoster(
+      _entry(),
+      <String, LocalMediaIndexItem>{item.id: item},
+      (_) => 'https://image.tmdb.org/t/p/w780/poster.jpg',
+    );
+
+    expect(resolved.posterCachePath, '/covers/a.jpg');
+    expect(
+      resolved.posterUrl,
+      'https://image.tmdb.org/t/p/w780/poster.jpg',
+    );
+  });
+
+  test('本地历史仅保留实际存在的旧海报缓存', () {
+    final directory = Directory.systemTemp.createTempSync('history-poster-');
+    final existing = File('${directory.path}${Platform.pathSeparator}old.jpg')
+      ..writeAsBytesSync(const <int>[1]);
+    final item = LocalMediaIndexItem(
+      path: '/media/a.mp4',
+      name: 'a.mp4',
+      parentPath: '/media',
+      sourcePath: '/media',
+      size: 100,
+      modified: DateTime(2026, 8, 5),
+      seriesName: '测试剧集',
+      indexedAt: DateTime(2026, 8, 5),
+      cover: '/covers/new.jpg',
+    );
+
+    try {
+      final valid = resolveLocalPlaybackHistoryPoster(
+        _entry(posterCachePath: existing.path),
+        <String, LocalMediaIndexItem>{item.id: item},
+        (_) => null,
+      );
+      final invalid = resolveLocalPlaybackHistoryPoster(
+        _entry(posterCachePath: '${directory.path}/missing.jpg'),
+        <String, LocalMediaIndexItem>{item.id: item},
+        (_) => null,
+      );
+
+      expect(valid.posterCachePath, existing.path);
+      expect(invalid.posterCachePath, '/covers/new.jpg');
+    } finally {
+      existing.deleteSync();
+      directory.deleteSync();
+    }
+  });
+
+  test('观看历史进入页面先加载本地媒体索引', () {
+    final source = File('lib/features/history/presentation/history_page.dart')
+        .readAsStringSync();
+
+    expect(source, contains('_local.reloadLocalLibraryIndex();'));
+  });
+
   test('新视频播放不足 10 秒不进入历史，已有记录仍可更新', () async {
     final storage = MemoryPlaybackHistoryStorage();
     final controller = PlaybackHistoryController(
@@ -213,13 +285,45 @@ void main() {
     final source = File('lib/features/history/presentation/history_page.dart')
         .readAsStringSync();
 
-    expect(source, contains("label: const Text('继续观看')"));
-    expect(source, contains("label: const Text('全部历史')"));
+    expect(source, contains("label: Text('继续观看')"));
+    expect(source, contains("label: Text('全部历史')"));
     expect(source, contains("return '今天';"));
     expect(source, contains("return '昨天';"));
     expect(source, contains("return '更早';"));
     expect(source, contains('TimeUtils.formatTimestampToRelativeTime'));
     expect(source, contains("entry.isCompleted ? '已看完'"));
+  });
+
+  test('观看历史紧凑显示来源进度和观看时间', () {
+    final entry = _entry(position: 27, duration: 100);
+
+    expect(
+      formatPlaybackHistoryMeta(entry, '1 天前'),
+      '本地 · 已看 27% · 1 天前',
+    );
+    expect(
+      formatPlaybackHistoryMeta(
+        _entry(position: 100, duration: 100),
+        '刚刚',
+      ),
+      '本地 · 已看完 · 刚刚',
+    );
+  });
+
+  test('观看历史页面使用紧凑时间线和单条菜单', () {
+    final source = File('lib/features/history/presentation/history_page.dart')
+        .readAsStringSync();
+
+    expect(source, contains('SegmentedButton<bool>'));
+    expect(source, contains(r"'${entries.length} 条'"));
+    expect(source, contains('PopupMenuButton<_HistoryMenuAction>'));
+    expect(source, contains('width: 44'));
+    expect(source, contains('height: 66'));
+    expect(source, isNot(contains('_formatDuration(')));
+    expect(
+      source,
+      isNot(contains('本地媒体和网盘媒体的播放进度会统一保存在这里。')),
+    );
   });
 
   test('观看历史标题隐藏扩展名并保留剧名集号和集名', () {
@@ -232,6 +336,20 @@ void main() {
     expect(
       formatPlaybackHistoryTitle(entry),
       '古灵精探 S01 · 第22集 · 儿子被绑 国富大惊',
+    );
+  });
+
+  test('旧观看历史优先从文件名恢复真实集数', () {
+    final entry = _entry(
+      seriesTitle: '古灵精探 S01',
+      episodeTitle: '儿子被绑',
+      mediaPath: '/media/古灵精探 S01E22 儿子被绑.mkv',
+      episodeIndex: 1,
+    );
+
+    expect(
+      formatPlaybackHistoryTitle(entry),
+      '古灵精探 S01 · 第22集 · 儿子被绑',
     );
   });
 }

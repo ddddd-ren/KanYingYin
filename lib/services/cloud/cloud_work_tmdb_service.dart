@@ -334,12 +334,32 @@ class CloudWorkTmdbService {
   Future<int> syncRecordToIndex(
     CloudWorkIdentity work,
     CloudWorkTmdbRecord record,
-  ) async {
+  ) {
+    return syncMatchedRecordToIndex(
+      indexRepository: _indexRepository,
+      work: work,
+      record: record,
+    );
+  }
+
+  static Future<int> syncMatchedRecordToIndex({
+    required CloudMediaIndexRepository indexRepository,
+    required CloudWorkIdentity work,
+    required CloudWorkTmdbRecord record,
+  }) {
     final metadata = record.metadata;
     if (record.status != CloudWorkTmdbStatus.matched || metadata == null) {
-      return 0;
+      return Future<int>.value(0);
     }
-    return _syncIndex(work, metadata, record.posterCachePath);
+    return indexRepository.updateMatching(
+      work.sourceId,
+      (item) => item.workKey == work.workKey,
+      (item) => _replaceMetadata(
+        item.withEffectiveWorkTitle(metadata.title),
+        metadata,
+        record.posterCachePath,
+      ),
+    );
   }
 
   Future<int> _syncIndex(
@@ -358,7 +378,7 @@ class CloudWorkTmdbService {
     );
   }
 
-  CloudMediaIndexItem _replaceMetadata(
+  static CloudMediaIndexItem _replaceMetadata(
     CloudMediaIndexItem item,
     TmdbMetadata metadata,
     String? posterCachePath,

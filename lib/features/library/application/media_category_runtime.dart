@@ -1,12 +1,10 @@
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/modules/cloud/cloud_hidden_video.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
-import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/repositories/cloud_hidden_video_repository.dart';
-import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/local_playback_request_builder.dart';
@@ -28,54 +26,62 @@ typedef MediaCategoryHideEpisodesAction = Future<void> Function(
   MediaLibrarySeries series,
   List<MediaLibraryEpisode> episodes,
 );
+typedef MediaCategoryCloudLibraryRefresh = Future<void> Function();
+typedef MediaCategoryCloudLibraryProvider = CloudMediaLibrary Function();
+typedef MediaCategoryCloudHideAction = Future<void> Function(
+  Iterable<MediaLibraryEpisode> episodes,
+);
 
 class MediaCategoryRuntime {
   MediaCategoryRuntime({
     required LocalController localController,
     required LocalVideoController videoController,
-    required CloudWorkTmdbRepository workTmdbRepository,
-    required ICloudHiddenVideoRepository hiddenVideoRepository,
+    required MediaCategoryCloudLibraryRefresh refreshCloudLibrary,
+    MediaCategoryCloudLibraryRefresh? ensureCloudLibrary,
+    required MediaCategoryCloudLibraryProvider cloudLibraryProvider,
+    required MediaCategoryCloudHideAction hideCloudEpisodes,
     required TypedSettings settings,
     required Future<void> Function() navigateToPlayer,
   })  : _localController = localController,
         _videoController = videoController,
-        _workTmdbRepository = workTmdbRepository,
-        _hiddenVideos = MediaCategoryHiddenVideoState(
-          repository: hiddenVideoRepository,
-        ),
+        _refreshCloudLibrary = refreshCloudLibrary,
+        _ensureCloudLibrary = ensureCloudLibrary ?? refreshCloudLibrary,
+        _cloudLibraryProvider = cloudLibraryProvider,
+        _hideCloudEpisodes = hideCloudEpisodes,
         _settings = settings,
         _navigateToPlayer = navigateToPlayer;
 
   final LocalController _localController;
   final LocalVideoController _videoController;
-  final CloudWorkTmdbRepository _workTmdbRepository;
-  final MediaCategoryHiddenVideoState _hiddenVideos;
+  final MediaCategoryCloudLibraryRefresh _refreshCloudLibrary;
+  final MediaCategoryCloudLibraryRefresh _ensureCloudLibrary;
+  final MediaCategoryCloudLibraryProvider _cloudLibraryProvider;
+  final MediaCategoryCloudHideAction _hideCloudEpisodes;
   final TypedSettings _settings;
   final Future<void> Function() _navigateToPlayer;
 
-  Map<String, CloudWorkTmdbRecord> _workRecords =
-      const <String, CloudWorkTmdbRecord>{};
-
   Future<void> initialize() async {
-    _localController.reloadLocalLibraryIndex();
-    await _localController.reloadCloudLibraryIndex();
-    await _hiddenVideos.load(
-      _localController.cloudLibrarySources.map((source) => source.id),
-    );
-    final records = await _workTmdbRepository.getAll();
-    _workRecords = <String, CloudWorkTmdbRecord>{
-      for (final record in records) record.workKey: record,
-    };
+    _localController.reloadAvailableLocalLibraryIndex();
+    await _ensureCloudLibrary();
   }
 
-  CloudMediaLibrary get library => const CloudMediaLibraryAggregator().build(
-        localItems: _localController.localLibraryItems,
-        cloudItems: _hiddenVideos.visibleCloudItems(
-          _localController.cloudLibraryItems,
-        ),
-        cloudSources: _localController.cloudLibrarySources,
-        workRecordsByKey: _workRecords,
-      );
+  Future<void> refresh() async {
+    _localController.reloadAvailableLocalLibraryIndex();
+    await _refreshCloudLibrary();
+  }
+
+  CloudMediaLibrary get library {
+    final local = _localController.localMediaLibrary;
+    final cloud = _cloudLibraryProvider();
+    return CloudMediaLibrary(
+      series: <MediaLibrarySeries>[...local.series, ...cloud.series],
+      filters: <MediaLibrarySourceFilter>[
+        const MediaLibrarySourceFilter('all', '全部', null),
+        const MediaLibrarySourceFilter('local', '本地', MediaSourceKind.local),
+        ...cloud.filters.where((item) => item.id != 'all'),
+      ],
+    );
+  }
 
   Future<void> hideEpisodes(
     MediaLibrarySeries series,
@@ -84,7 +90,7 @@ class MediaCategoryRuntime {
     if (series.sourceKind != MediaSourceKind.cloud) {
       throw ArgumentError.value(series.sourceKind, 'series', '只能隐藏网盘视频');
     }
-    await _hiddenVideos.hideEpisodes(episodes);
+    await _hideCloudEpisodes(episodes);
   }
 
   Future<void> playEpisode(
@@ -150,6 +156,7 @@ class MediaCategoryRuntime {
             remotePath: item.remotePath!,
             stableId: item.stableId,
             title: item.name,
+            episodeNumber: item.episodeNumber,
             subtitleRemoteId: item.subtitleRemoteRefs.isEmpty
                 ? null
                 : item.subtitleRemoteRefs.first.id,

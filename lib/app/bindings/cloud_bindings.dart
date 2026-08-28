@@ -158,6 +158,7 @@ void registerCloudBindings(Injector i) {
       tmdbCoordinator: Modular.get<CloudResourceTmdbCoordinator>(),
       workTmdbCoordinator: Modular.get<CloudWorkTmdbCoordinator>(),
       mediaIndexRepository: Modular.get<CloudMediaIndexRepository>(),
+      workTmdbRepository: Modular.get<CloudWorkTmdbRepository>(),
       mediaTagRepository: Modular.get<CloudMediaTagRepository>(),
       hiddenVideoRepository: Modular.get<CloudHiddenVideoRepository>(),
       mediaIndexer: Modular.get<CloudMediaIndexer>(),

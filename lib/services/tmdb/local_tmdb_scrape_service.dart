@@ -51,6 +51,64 @@ class LocalTmdbScrapeService {
   final Map<String, TmdbScrapeCache> _fallbackCaches =
       <String, TmdbScrapeCache>{};
 
+  Future<int> inheritMatchedSeriesMetadata() async {
+    final groups = <String, List<LocalMediaIndexItem>>{};
+    for (final item in indexRepository.getAll()) {
+      final key =
+          item.seriesName.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+      if (key.isEmpty) continue;
+      (groups[key] ??= <LocalMediaIndexItem>[]).add(item);
+    }
+
+    final updates = <String, LocalMediaIndexItem>{};
+    for (final items in groups.values) {
+      final matched = items
+          .where(
+            (item) =>
+                item.scrapeStatus == TmdbScrapeStatus.matched &&
+                item.tmdb != null &&
+                item.tmdb!.mediaType == TmdbMediaType.tv &&
+                item.effectiveTmdbIdentity != null,
+          )
+          .toList(growable: false);
+      if (matched.isEmpty) continue;
+      final identities =
+          matched.map((item) => item.effectiveTmdbIdentity!).toSet();
+      final policies = matched
+          .map(
+            (item) => '${item.tmdbMatchOrigin.name}|'
+                '${item.titleLocked}|${item.posterLocked}|'
+                '${item.overviewLocked}',
+          )
+          .toSet();
+      if (identities.length != 1 || policies.length != 1) continue;
+      final anchor = matched.reduce(
+        (first, second) =>
+            first.indexedAt.isAfter(second.indexedAt) ? first : second,
+      );
+      for (final item in items) {
+        if (((item.seasonNumber ?? 0) <= 0 && (item.episodeNumber ?? 0) <= 0) ||
+            item.tmdb != null ||
+            item.manualOverride ||
+            _hasProtectedMatch(item)) {
+          continue;
+        }
+        updates[item.id] = item.copyWith(
+          tmdb: anchor.tmdb,
+          tmdbIdentity: anchor.effectiveTmdbIdentity,
+          scrapeStatus: TmdbScrapeStatus.matched,
+          tmdbMatchOrigin: anchor.tmdbMatchOrigin,
+          tmdbRuleVersion: anchor.tmdbRuleVersion,
+          titleLocked: anchor.titleLocked,
+          posterLocked: anchor.posterLocked,
+          overviewLocked: anchor.overviewLocked,
+        );
+      }
+    }
+    await indexRepository.updateItems(updates);
+    return updates.length;
+  }
+
   TmdbScrapeEngine _engineFor(ITmdbClient client, String apiKey) {
     final custom = engineFactory;
     if (custom != null) return custom(client);

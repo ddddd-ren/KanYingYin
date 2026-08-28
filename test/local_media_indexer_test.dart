@@ -2,11 +2,13 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
+import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/repositories/local_media_index_repository.dart';
 import 'package:kanyingyin/repositories/local_series_title_override_repository.dart';
 import 'package:kanyingyin/services/local_media_indexer.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/services/local_media_probe.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
@@ -566,6 +568,269 @@ void main() {
     expect(indexing.length, lessThan(20));
     expect(indexing.last.current, 120);
   });
+
+  test('同路径文件更新且逻辑身份不变时保留可信 TMDB 状态', () async {
+    final tempDir =
+        await Directory.systemTemp.createTemp('kanyingyin_same_path_');
+    addTearDown(() async {
+      if (await tempDir.exists()) await tempDir.delete(recursive: true);
+    });
+    final video = File(p.join(tempDir.path, 'Show S01E01.mkv'));
+    await video.writeAsString('first');
+    final repository = _MemoryMediaIndexRepository();
+    final indexer = _testIndexer(
+      repository: repository,
+      mediaProbe: const _FakeMediaProbe({}),
+    );
+    await indexer.indexSource(tempDir.path);
+    final metadata = TmdbMetadata(
+      id: 42,
+      mediaType: TmdbMediaType.tv,
+      title: '剧名',
+      language: 'zh-CN',
+      matchedAt: DateTime.utc(2026, 8, 28),
+      matchConfidence: 1,
+    );
+    await repository.updateItem(repository.getAll().single.copyWith(
+          tmdb: metadata,
+          tmdbIdentity: 'tv:42',
+          cover: 'cached-poster.jpg',
+          scrapeStatus: TmdbScrapeStatus.matched,
+          tmdbMatchOrigin: TmdbMatchOrigin.manual,
+          tmdbRuleVersion: currentTmdbRuleVersion,
+          titleLocked: true,
+          posterLocked: true,
+          overviewLocked: true,
+        ));
+
+    await video.writeAsString('second-version');
+    final result = await indexer.indexSource(tempDir.path);
+
+    final updated = repository.getAll().single;
+    expect(result.updatedCount, 1);
+    expect(updated.tmdb, same(metadata));
+    expect(updated.effectiveTmdbIdentity, 'tv:42');
+    expect(updated.tmdbMatchOrigin, TmdbMatchOrigin.manual);
+    expect(updated.titleLocked, isTrue);
+    expect(updated.posterLocked, isTrue);
+    expect(updated.overviewLocked, isTrue);
+    expect(updated.cover, 'cached-poster.jpg');
+  });
+
+  test('同路径重新解析为其他作品时不继承旧 TMDB', () async {
+    final tempDir =
+        await Directory.systemTemp.createTemp('kanyingyin_identity_');
+    addTearDown(() async {
+      if (await tempDir.exists()) await tempDir.delete(recursive: true);
+    });
+    final showDir = Directory(p.join(tempDir.path, 'Show'));
+    await showDir.create();
+    final video = File(p.join(showDir.path, 'Show S01E01.mkv'));
+    await video.writeAsString('first');
+    final repository = _MemoryMediaIndexRepository();
+    final overrides = <String, String>{showDir.path.toLowerCase(): '旧作品'};
+    final indexer = LocalMediaIndexer(
+      repository: repository,
+      mediaProbe: const _FakeMediaProbe({}),
+      minRecognizedVideoSizeBytes: 0,
+      seriesTitleOverrideRepository: _FixedTitleOverrideRepository(overrides),
+    );
+    await indexer.indexSource(tempDir.path);
+    await repository.updateItem(repository.getAll().single.copyWith(
+          tmdb: TmdbMetadata(
+            id: 42,
+            mediaType: TmdbMediaType.tv,
+            title: '旧作品',
+            language: 'zh-CN',
+            matchedAt: DateTime.utc(2026, 8, 28),
+            matchConfidence: 1,
+          ),
+          tmdbIdentity: 'tv:42',
+          scrapeStatus: TmdbScrapeStatus.matched,
+        ));
+    overrides[showDir.path.toLowerCase()] = '新作品';
+    await video.writeAsString('second-version');
+
+    await indexer.indexSource(tempDir.path);
+
+    final updated = repository.getAll().single;
+    expect(updated.seriesName, '新作品');
+    expect(updated.tmdb, isNull);
+    expect(updated.effectiveTmdbIdentity, isNull);
+    expect(updated.scrapeStatus, TmdbScrapeStatus.none);
+  });
+
+  test('同路径文件更新探测失败时保留旧索引', () async {
+    final tempDir =
+        await Directory.systemTemp.createTemp('kanyingyin_probe_failure_');
+    addTearDown(() async {
+      if (await tempDir.exists()) await tempDir.delete(recursive: true);
+    });
+    final video = File(p.join(tempDir.path, 'Show S01E01.mkv'));
+    await video.writeAsString('first');
+    final repository = _MemoryMediaIndexRepository();
+    await _testIndexer(
+      repository: repository,
+      mediaProbe: const _FakeMediaProbe({}),
+    ).indexSource(tempDir.path);
+    final previous = repository.getAll().single.copyWith(
+          tmdb: TmdbMetadata(
+            id: 42,
+            mediaType: TmdbMediaType.tv,
+            title: '剧名',
+            language: 'zh-CN',
+            matchedAt: DateTime.utc(2026, 8, 28),
+            matchConfidence: 1,
+          ),
+          tmdbIdentity: 'tv:42',
+          scrapeStatus: TmdbScrapeStatus.matched,
+        );
+    await repository.updateItem(previous);
+    await video.writeAsString('second-version');
+
+    final result = await _testIndexer(
+      repository: repository,
+      mediaProbe: const _ThrowingMediaProbe(),
+    ).indexSource(tempDir.path, enrichMediaInfo: true);
+
+    expect(result.skippedCount, 1);
+    expect(repository.getAll(), hasLength(1));
+    expect(repository.getAll().single.size, previous.size);
+    expect(repository.getAll().single.effectiveTmdbIdentity, 'tv:42');
+  });
+
+  test('唯一大小和修改时间候选在改名后继承 TMDB 状态', () async {
+    final tempDir = await Directory.systemTemp.createTemp('kanyingyin_move_');
+    addTearDown(() async {
+      if (await tempDir.exists()) await tempDir.delete(recursive: true);
+    });
+    final oldFile = File(p.join(tempDir.path, 'Show S01E01.mkv'));
+    await oldFile.writeAsString('same-bytes');
+    final repository = _MemoryMediaIndexRepository();
+    final indexer = _testIndexer(
+      repository: repository,
+      mediaProbe: const _FakeMediaProbe({}),
+    );
+    await indexer.indexSource(tempDir.path);
+    final original = repository.getAll().single;
+    await repository.updateItem(original.copyWith(
+      tmdb: TmdbMetadata(
+        id: 42,
+        mediaType: TmdbMediaType.tv,
+        title: '剧名',
+        language: 'zh-CN',
+        matchedAt: DateTime.utc(2026, 8, 28),
+        matchConfidence: 1,
+      ),
+      tmdbIdentity: 'tv:42',
+      scrapeStatus: TmdbScrapeStatus.matched,
+    ));
+    final renamed =
+        await oldFile.rename(p.join(tempDir.path, 'Renamed S01E01.mkv'));
+    await renamed.setLastModified(original.modified);
+
+    final result = await indexer.indexSource(tempDir.path);
+
+    expect(result.addedCount, 0);
+    expect(result.removedCount, 0);
+    expect(repository.getAll().single.path, renamed.path);
+    expect(repository.getAll().single.effectiveTmdbIdentity, 'tv:42');
+  });
+
+  test('唯一文件签名但媒体时长冲突时不迁移 TMDB', () async {
+    final tempDir =
+        await Directory.systemTemp.createTemp('kanyingyin_media_conflict_');
+    addTearDown(() async {
+      if (await tempDir.exists()) await tempDir.delete(recursive: true);
+    });
+    final oldFile = File(p.join(tempDir.path, 'Show S01E01.mkv'));
+    final newPath = p.join(tempDir.path, 'Renamed S01E01.mkv');
+    await oldFile.writeAsString('same-bytes');
+    final repository = _MemoryMediaIndexRepository();
+    final indexer = _testIndexer(
+      repository: repository,
+      mediaProbe: _FakeMediaProbe(<String, LocalMediaInfo>{
+        oldFile.path: const LocalMediaInfo(duration: Duration(minutes: 20)),
+        newPath: const LocalMediaInfo(duration: Duration(minutes: 40)),
+      }),
+    );
+    await indexer.indexSource(tempDir.path, enrichMediaInfo: true);
+    final original = repository.getAll().single;
+    await repository.updateItem(original.copyWith(
+      tmdb: TmdbMetadata(
+        id: 42,
+        mediaType: TmdbMediaType.tv,
+        title: '剧名',
+        language: 'zh-CN',
+        matchedAt: DateTime.utc(2026, 8, 28),
+        matchConfidence: 1,
+      ),
+      tmdbIdentity: 'tv:42',
+      scrapeStatus: TmdbScrapeStatus.matched,
+    ));
+    final renamed = await oldFile.rename(newPath);
+    await renamed.setLastModified(original.modified);
+
+    final result = await indexer.indexSource(
+      tempDir.path,
+      enrichMediaInfo: true,
+    );
+
+    expect(result.addedCount, 1);
+    expect(result.removedCount, 1);
+    expect(repository.getAll().single.tmdb, isNull);
+    expect(
+      repository.getAll().single.durationMillis,
+      const Duration(minutes: 40).inMilliseconds,
+    );
+  });
+
+  test('重复大小和修改时间候选存在歧义时不迁移 TMDB', () async {
+    final tempDir =
+        await Directory.systemTemp.createTemp('kanyingyin_ambiguous_');
+    addTearDown(() async {
+      if (await tempDir.exists()) await tempDir.delete(recursive: true);
+    });
+    final modified = DateTime.utc(2026, 8, 28, 8);
+    final first = File(p.join(tempDir.path, 'Show S01E01.mkv'));
+    final second = File(p.join(tempDir.path, 'Show S01E02.mkv'));
+    await first.writeAsString('same-size');
+    await second.writeAsString('same-size');
+    await first.setLastModified(modified);
+    await second.setLastModified(modified);
+    final repository = _MemoryMediaIndexRepository();
+    final indexer = _testIndexer(
+      repository: repository,
+      mediaProbe: const _FakeMediaProbe({}),
+    );
+    await indexer.indexSource(tempDir.path);
+    for (final item in repository.getAll()) {
+      await repository.updateItem(item.copyWith(
+        tmdb: TmdbMetadata(
+          id: item.episodeNumber!,
+          mediaType: TmdbMediaType.tv,
+          title: '剧名',
+          language: 'zh-CN',
+          matchedAt: modified,
+          matchConfidence: 1,
+        ),
+        tmdbIdentity: 'tv:${item.episodeNumber}',
+        scrapeStatus: TmdbScrapeStatus.matched,
+      ));
+    }
+    final renamedFirst =
+        await first.rename(p.join(tempDir.path, 'A S01E03.mkv'));
+    final renamedSecond =
+        await second.rename(p.join(tempDir.path, 'B S01E04.mkv'));
+    await renamedFirst.setLastModified(modified);
+    await renamedSecond.setLastModified(modified);
+
+    final result = await indexer.indexSource(tempDir.path);
+
+    expect(result.addedCount, 2);
+    expect(result.removedCount, 2);
+    expect(repository.getAll().map((item) => item.tmdb), everyElement(isNull));
+  });
 }
 
 LocalMediaIndexer _testIndexer({
@@ -608,6 +873,17 @@ class _FakeMediaProbe implements ILocalMediaProbe {
   Future<String?> captureThumbnail(String filePath, String outputPath) async {
     return null;
   }
+}
+
+class _ThrowingMediaProbe implements ILocalMediaProbe {
+  const _ThrowingMediaProbe();
+
+  @override
+  Future<LocalMediaInfo> probe(String filePath) => throw StateError('媒体探测失败');
+
+  @override
+  Future<String?> captureThumbnail(String filePath, String outputPath) async =>
+      null;
 }
 
 class _MemoryMediaIndexRepository extends ILocalMediaIndexRepository {

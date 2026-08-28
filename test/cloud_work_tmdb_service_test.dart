@@ -486,6 +486,61 @@ void main() {
     expect(outcome.selected?.tmdbMatchOrigin, TmdbMatchOrigin.automatic);
     expect(outcome.selected?.tmdbRuleVersion, currentTmdbRuleVersion);
   });
+
+  test('已有作品记录可在不请求 TMDB 时回写当前索引项', () async {
+    final indexRepository = CloudMediaIndexRepository(
+      storage: MemoryCloudMediaIndexStorage(),
+    );
+    final work = _work(seasonNumbers: const <int>[1]);
+    await indexRepository.replaceSource(
+      work.sourceId,
+      <CloudMediaIndexItem>[
+        _item(work, id: 's1e1', seasonNumber: 1),
+      ],
+      const <String, String>{},
+      const <String, List<CloudFileEntry>>{},
+      <String>[work.root.id],
+    );
+    final record = CloudWorkTmdbRecord.matched(
+      sourceId: work.sourceId,
+      workKey: work.workKey,
+      workRootId: work.root.id,
+      workRootPath: work.root.remotePath,
+      remoteName: work.remoteName,
+      metadata: TmdbMetadata(
+        id: 42,
+        mediaType: TmdbMediaType.tv,
+        title: 'TMDB 中文标题',
+        overview: '简介',
+        rating: 8.8,
+        posterUrl: '/poster.jpg',
+        genres: const <String>['剧情'],
+        language: 'zh-CN',
+        matchedAt: DateTime.utc(2026, 8, 28),
+        matchConfidence: 1,
+      ),
+      checkedAt: DateTime.utc(2026, 8, 28),
+      posterCachePath: 'cached-poster.jpg',
+    );
+
+    final count = await CloudWorkTmdbService.syncMatchedRecordToIndex(
+      indexRepository: indexRepository,
+      work: work,
+      record: record,
+    );
+
+    final updated = (await indexRepository.getBySource(work.sourceId)).single;
+    expect(count, 1);
+    expect(updated.tmdbId, 42);
+    expect(updated.tmdbTitle, 'TMDB 中文标题');
+    expect(updated.tmdbOverview, '简介');
+    expect(updated.tmdbRating, 8.8);
+    expect(updated.posterCachePath, 'cached-poster.jpg');
+    expect(updated.tmdbGenres, contains('剧情'));
+    expect(updated.size, 200);
+    expect(updated.seasonNumber, 1);
+    expect(updated.episodeNumber, 1);
+  });
 }
 
 CloudWorkIdentity _work({

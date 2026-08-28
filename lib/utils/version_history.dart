@@ -213,6 +213,39 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.196',
+    date: '2026-08-28',
+    isPrerelease: true,
+    changes: [
+      '修复从其他标签页切换到网盘资源页时重复读取全部来源、清空海报墙并重新扫描导致的明显卡顿',
+      '网盘资源页再次进入时复用已加载的媒体库和海报状态；只有首次进入或主动刷新才执行完整加载',
+      '本轮只构建 Windows 测试版；不构建 Android 手机或 Android TV',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.195',
+    date: '2026-08-28',
+    isPrerelease: true,
+    changes: [
+      '修复本地文件删除后电影分类仍显示旧资源的问题；分类页只显示仍可访问的本地文件',
+      '修复海报已经加载后再次进入分类页重复加载的问题；没有数据变化时复用现有媒体库列表',
+      '本轮只构建 Windows 测试版；不构建 Android 手机或 Android TV',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.194',
+    date: '2026-08-28',
+    isPrerelease: true,
+    changes: [
+      '修复进入电影、动漫和电视剧分类页时明显卡顿的问题；分类页会复用已构建的媒体库快照',
+      '网盘扫描、TMDB 资料更新和隐藏视频变化仍会及时更新分类页，普通状态通知不再触发无效重算',
+      '本轮只构建 Windows 测试版；不构建 Android 手机或 Android TV',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
+    ],
+  ),
+  VersionHistory(
     version: '1.0.11',
     date: '2026-08-27',
     changes: [
@@ -232,6 +265,72 @@ const List<VersionHistory> versionHistoryList = [
       '本地扫描、媒体库浏览和播放不再等待 TMDB 网络检查；断网或代理不可用时仍可正常进入应用',
       '修复个人网盘海报滑出界面后，再次滑回时重新显示占位图的问题。已经加载的海报会保持显示',
       '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频和字幕',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.193',
+    date: '2026-08-28',
+    isPrerelease: true,
+    changes: [
+      '本地视频内容更新或唯一改名、移动后，会在身份无冲突时保留已有 TMDB 资料、手动匹配和缓存海报',
+      '本地与个人网盘新增剧集可直接继承同作品已确认的 TMDB 资料；无 API Key 或断网时仍可完成离线同步',
+      '遇到同名电影、重复文件或多个 TMDB 身份冲突时不会强行迁移；媒体探测失败时保留上次可用索引',
+      '本轮只构建 Windows 测试版；不构建 Android 手机或 Android TV',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.192',
+    date: '2026-08-28',
+    isPrerelease: true,
+    changes: [
+      '修复版本更新日志内容较少时仍占据大部分窗口、产生大片空白的问题；现在会按内容高度显示，较长内容仍可滚动',
+      '修复“知道了”按钮点击无反应的问题，点击后会立即关闭当前更新日志弹窗',
+      '本轮只构建 Windows 测试版；不构建 Android 手机或 Android TV',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.191',
+    date: '2026-08-28',
+    isPrerelease: true,
+    changes: [
+      '修复《古灵精探B》等独立单季作品在个人网盘媒体库中误显示“第 1 季”的问题；海报和选集页现在直接显示作品名',
+      '本轮只构建 Windows 测试版；不构建 Android 手机或 Android TV',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.190',
+    date: '2026-08-28',
+    isPrerelease: true,
+    changes: [
+      '修复观看历史把播放列表序号当成真实集数的问题；播放列表缺集或只包含单集时，第 22 集不再显示成第 1 集',
+      '修复已清理的旧海报缓存路径阻止本地媒体库海报回填的问题；仍然存在的有效缓存会继续保留',
+      '本轮只构建 Windows 测试版；不构建 Android 手机或 Android TV',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.189',
+    date: '2026-08-28',
+    isPrerelease: true,
+    changes: [
+      '修复本地资源的观看历史缺少海报的问题，已有记录会按媒体路径从本地媒体库补回海报',
+      'Android 手机本轮不打包；Android TV 继续暂停',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.188',
+    date: '2026-08-28',
+    isPrerelease: true,
+    changes: [
+      '观看历史改为更紧凑的时间线排版，缩小单条海报和留白，一屏可以查看更多记录',
+      '“继续观看 / 全部历史”改为统一分段切换；每条记录只保留剧集标题、来源、观看进度和上次观看时间',
+      '单条删除收进右侧更多菜单，清空全部历史仍保留在页面标题栏',
+      'Android 手机本轮不打包；Android TV 继续暂停',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
     ],
   ),
   VersionHistory(

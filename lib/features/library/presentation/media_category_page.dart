@@ -25,8 +25,10 @@ class MediaCategoryPage extends StatefulWidget {
     required this.initialize,
     required this.libraryProvider,
     required this.onPlayEpisode,
+    this.refresh,
     this.onHideEpisodes,
     this.observeLibrary = true,
+    this.libraryListenable,
     this.capabilities,
   });
 
@@ -34,8 +36,10 @@ class MediaCategoryPage extends StatefulWidget {
   final Future<void> Function() initialize;
   final MediaCategoryLibraryProvider libraryProvider;
   final MediaCategoryEpisodeAction onPlayEpisode;
+  final Future<void> Function()? refresh;
   final MediaCategoryHideEpisodesAction? onHideEpisodes;
   final bool observeLibrary;
+  final Listenable? libraryListenable;
   final AppPlatformCapabilities? capabilities;
 
   @override
@@ -58,7 +62,7 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
     _initialize();
   }
 
-  Future<void> _initialize() async {
+  Future<void> _initialize({bool refresh = false}) async {
     if (mounted) {
       setState(() {
         _loading = true;
@@ -66,7 +70,9 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
       });
     }
     try {
-      await widget.initialize();
+      await (refresh
+          ? (widget.refresh ?? widget.initialize)
+          : widget.initialize)();
     } on Object {
       _errorMessage = '媒体分类加载失败，请稍后重试';
     } finally {
@@ -80,11 +86,18 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    final content = widget.observeLibrary
+    Widget content() => widget.observeLibrary
         ? Observer(builder: (_) => _buildContent())
         : Builder(builder: (_) => _buildContent());
+    final listenable = widget.libraryListenable;
+    final body = listenable == null
+        ? content()
+        : ListenableBuilder(
+            listenable: listenable,
+            builder: (_, __) => content(),
+          );
     return Scaffold(
-      body: SafeArea(child: content),
+      body: SafeArea(child: body),
     );
   }
 
@@ -172,7 +185,7 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
           ),
           IconButton(
             tooltip: '刷新分类',
-            onPressed: _loading ? null : _initialize,
+            onPressed: _loading ? null : () => _initialize(refresh: true),
             icon: _loading
                 ? const SizedBox(
                     width: 18,

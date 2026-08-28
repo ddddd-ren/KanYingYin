@@ -39,8 +39,8 @@ void main() {
       'lib/pages/cloud/resources/cloud_resource_episode_sheet.dart',
     );
 
-    expect(history, contains('width: 60,'));
-    expect(history, contains('height: 90,'));
+    expect(history, contains('width: 44,'));
+    expect(history, contains('height: 66,'));
     expect(tmdb, contains('width: 56,'));
     expect(tmdb, contains('height: 84,'));
     expect(local, contains('width: 40,'));

@@ -949,6 +949,17 @@ mixin _$LocalController on _LocalController, Store {
   }
 
   @override
+  void reloadAvailableLocalLibraryIndex() {
+    final _$actionInfo = _$_LocalControllerActionController.startAction(
+        name: '_LocalController.reloadAvailableLocalLibraryIndex');
+    try {
+      return super.reloadAvailableLocalLibraryIndex();
+    } finally {
+      _$_LocalControllerActionController.endAction(_$actionInfo);
+    }
+  }
+
+  @override
   void cancelLocalLibraryIndex() {
     final _$actionInfo = _$_LocalControllerActionController.startAction(
         name: '_LocalController.cancelLocalLibraryIndex');

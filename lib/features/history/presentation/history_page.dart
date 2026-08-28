@@ -11,11 +11,33 @@ import 'package:kanyingyin/pages/local/local_controller.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
+import 'package:kanyingyin/services/local_episode_parser.dart';
 import 'package:kanyingyin/services/local_playback_request_builder.dart';
 import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
 import 'package:kanyingyin/widgets/cloud_poster_image.dart';
 import 'package:kanyingyin/widgets/poster_cover.dart';
 import 'package:kanyingyin/widgets/tmdb_network_image.dart';
+import 'package:kanyingyin/utils/time_utils.dart';
+import 'package:path/path.dart' as p;
+
+final _historyEpisodeParser = LocalEpisodeParser();
+
+String formatPlaybackHistoryTitle(PlaybackHistoryEntry entry) {
+  final raw =
+      entry.episodeTitle.trim().isEmpty ? entry.mediaPath : entry.episodeTitle;
+  final parsed = _historyEpisodeParser.parse(raw);
+  final rawName = p.basenameWithoutExtension(raw).trim();
+  final episodeName =
+      parsed == null ? rawName : (parsed.episodeTitle?.trim() ?? '');
+  final seriesTitle = entry.seriesTitle.trim();
+  return <String>[
+    if (seriesTitle.isNotEmpty) seriesTitle,
+    '第${entry.episodeIndex}集',
+    if (episodeName.isNotEmpty &&
+        episodeName.toLowerCase() != seriesTitle.toLowerCase())
+      episodeName,
+  ].join(' · ');
+}
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -31,6 +53,7 @@ class _HistoryPageState extends State<HistoryPage> {
   final LocalVideoController _video = Modular.get<LocalVideoController>();
   final CloudPlaybackResolver _cloudResolver = CloudPlaybackResolver();
   bool _opening = false;
+  bool _showAllHistory = false;
 
   @override
   void initState() {
@@ -61,31 +84,98 @@ class _HistoryPageState extends State<HistoryPage> {
     if (!_history.isLoaded) {
       return const Center(child: CircularProgressIndicator());
     }
-    final entries = _history.entries;
-    if (entries.isEmpty) {
+    final allEntries = _history.entries;
+    if (allEntries.isEmpty) {
       return const Center(child: Text('暂无观看记录'));
     }
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      itemCount: entries.length,
-      findItemIndexCallback: (key) {
-        if (key is! ValueKey<String>) return null;
-        const prefix = 'history-entry-';
-        if (!key.value.startsWith(prefix)) return null;
-        final stableKey = key.value.substring(prefix.length);
-        final index =
-            entries.indexWhere((entry) => entry.stableKey == stableKey);
-        return index < 0 ? null : index;
-      },
-      separatorBuilder: (_, __) => const Divider(height: 1),
-      itemBuilder: (context, index) => _HistoryTile(
-        key: ValueKey<String>('history-entry-${entries[index].stableKey}'),
-        entry: entries[index],
-        enabled: !_opening,
-        onTap: () => _open(entries[index]),
-        onDelete: () => _delete(entries[index]),
-      ),
+    final entries = _showAllHistory
+        ? allEntries
+        : allEntries.where((entry) => !entry.isCompleted).toList();
+    final rows = <Object>[];
+    String? previousSection;
+    for (final entry in entries) {
+      final section = _dateSection(entry.updatedAt);
+      if (section != previousSection) {
+        rows.add(section);
+        previousSection = section;
+      }
+      rows.add(entry);
+    }
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+          child: Row(
+            children: [
+              ChoiceChip(
+                label: const Text('继续观看'),
+                selected: !_showAllHistory,
+                showCheckmark: false,
+                onSelected: (_) => setState(() => _showAllHistory = false),
+              ),
+              const SizedBox(width: 8),
+              ChoiceChip(
+                label: const Text('全部历史'),
+                selected: _showAllHistory,
+                showCheckmark: false,
+                onSelected: (_) => setState(() => _showAllHistory = true),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: rows.isEmpty
+              ? const Center(child: Text('暂无未看完的记录'))
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  itemCount: rows.length,
+                  findItemIndexCallback: (key) {
+                    if (key is! ValueKey<String>) return null;
+                    const prefix = 'history-entry-';
+                    if (!key.value.startsWith(prefix)) return null;
+                    final stableKey = key.value.substring(prefix.length);
+                    final index = rows.indexWhere((row) =>
+                        row is PlaybackHistoryEntry &&
+                        row.stableKey == stableKey);
+                    return index < 0 ? null : index;
+                  },
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final row = rows[index];
+                    if (row is String) {
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
+                        child: Text(
+                          row,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      );
+                    }
+                    final entry = row as PlaybackHistoryEntry;
+                    return _HistoryTile(
+                      key: ValueKey<String>(
+                        'history-entry-${entry.stableKey}',
+                      ),
+                      entry: entry,
+                      enabled: !_opening,
+                      onTap: () => _open(entry),
+                      onDelete: () => _delete(entry),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
+  }
+
+  String _dateSection(DateTime value) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final date = DateTime(value.year, value.month, value.day);
+    final days = today.difference(date).inDays;
+    if (days <= 0) return '今天';
+    if (days == 1) return '昨天';
+    return '更早';
   }
 
   Future<void> _open(PlaybackHistoryEntry entry) async {
@@ -261,6 +351,10 @@ class _HistoryTile extends StatelessWidget {
         : (entry.positionSeconds / entry.durationSeconds)
             .clamp(0.0, 1.0)
             .toDouble();
+    final status = entry.isCompleted ? '已看完' : '${(progress * 100).round()}%';
+    final watchedAt = TimeUtils.formatTimestampToRelativeTime(
+      entry.updatedAt.millisecondsSinceEpoch ~/ 1000,
+    );
     final theme = Theme.of(context);
     return ListTile(
       enabled: enabled,
@@ -274,7 +368,7 @@ class _HistoryTile extends StatelessWidget {
         ),
       ),
       title: Text(
-        entry.displayTitle,
+        formatPlaybackHistoryTitle(entry),
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
       ),
@@ -285,11 +379,19 @@ class _HistoryTile extends StatelessWidget {
           children: [
             Text(
               '${entry.isCloud ? '网盘' : '本地'} · 第${entry.episodeIndex}集 · '
-              '${_formatDuration(entry.position)} / ${_formatDuration(entry.duration)}',
+              '$status · $watchedAt',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 3),
+            Text(
+              '${_formatDuration(entry.position)} / '
+              '${_formatDuration(entry.duration)}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 4),
             LinearProgressIndicator(
               value: progress,
               minHeight: 3,

@@ -111,6 +111,8 @@ class PlaybackHistoryEntry {
     int? positionSeconds,
     int? durationSeconds,
     DateTime? updatedAt,
+    String? posterUrl,
+    String? posterCachePath,
   }) {
     return PlaybackHistoryEntry(
       stableKey: stableKey,
@@ -124,8 +126,8 @@ class PlaybackHistoryEntry {
       positionSeconds: positionSeconds ?? this.positionSeconds,
       durationSeconds: durationSeconds ?? this.durationSeconds,
       updatedAt: updatedAt ?? this.updatedAt,
-      posterUrl: posterUrl,
-      posterCachePath: posterCachePath,
+      posterUrl: posterUrl ?? this.posterUrl,
+      posterCachePath: posterCachePath ?? this.posterCachePath,
     );
   }
 

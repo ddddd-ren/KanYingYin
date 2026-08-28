@@ -155,6 +155,14 @@ class LocalVideoController implements IVideoPageController {
         currentEpisode >= 1 &&
         currentEpisode <= cloudTargets.length) {
       final target = cloudTargets[currentEpisode - 1];
+      CloudPlaybackTarget? posterFallback;
+      for (final candidate in cloudTargets) {
+        if (candidate.posterUrl?.trim().isNotEmpty == true ||
+            candidate.posterCachePath?.trim().isNotEmpty == true) {
+          posterFallback = candidate;
+          break;
+        }
+      }
       return PlaybackHistoryEntry(
         stableKey: _cloudHistoryKey(target),
         source: PlaybackHistorySource.cloud,
@@ -167,8 +175,12 @@ class LocalVideoController implements IVideoPageController {
         positionSeconds: _seconds(position),
         durationSeconds: _seconds(duration),
         updatedAt: DateTime.now(),
-        posterUrl: target.posterUrl,
-        posterCachePath: target.posterCachePath,
+        posterUrl: target.posterUrl?.trim().isNotEmpty == true
+            ? target.posterUrl
+            : posterFallback?.posterUrl,
+        posterCachePath: target.posterCachePath?.trim().isNotEmpty == true
+            ? target.posterCachePath
+            : posterFallback?.posterCachePath,
       );
     }
     return null;

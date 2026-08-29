@@ -4,13 +4,32 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('一点零十一 Windows 与一点零七 Android 正式版文案保持一致', () {
-    const expectedVersion = '1.0.11';
-    const expectedBuildNumber = '10011';
+  test('当前 Windows 与 Android 手机测试版文案保持一致', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    final gradle = File('android/app/build.gradle.kts').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final readme = File('README.md').readAsStringSync();
     final versionHistory =
         File('lib/utils/version_history.dart').readAsStringSync();
+    final packageVersion = RegExp(
+      r'^version:\s*(\d+\.\d+\.\d+)\+(\d+)$',
+      multiLine: true,
+    ).firstMatch(pubspec);
+    final androidVersion = RegExp(
+      r'val androidVersionName = "([^"]+)"',
+    ).firstMatch(gradle);
+    final androidVersionCode = RegExp(
+      r'val androidVersionCode = (\d+)',
+    ).firstMatch(gradle);
+
+    expect(packageVersion, isNotNull);
+    expect(androidVersion, isNotNull);
+    expect(androidVersionCode, isNotNull);
+    final expectedVersion = packageVersion!.group(1)!;
+    final expectedBuildNumber = packageVersion.group(2)!;
+    expect(expectedVersion, startsWith('2.1.'));
+    expect(androidVersion!.group(1), expectedVersion);
+    expect(androidVersionCode!.group(1), expectedBuildNumber);
 
     final readmeIdentity = RegExp(
       r'^\|\s*Windows 包标识\s*\|\s*`([^`]+)`\s*\|$',
@@ -19,9 +38,11 @@ void main() {
 
     expect(readmeIdentity, AppIdentity.windowsIdentity);
     expect(releaseNotes, contains('## $expectedVersion+$expectedBuildNumber'));
-    expect(releaseNotes, contains('Windows EXE 安装器版本：$expectedVersion'));
-    expect(releaseNotes, contains('Android 正式版：1.0.7 (10007)'));
-    expect(readme, contains('| 当前版本 | 1.0.11 |'));
+    expect(releaseNotes, contains('Windows 测试版：$expectedVersion'));
+    expect(
+      releaseNotes,
+      contains('Android 手机测试版：$expectedVersion ($expectedBuildNumber)'),
+    );
     expect(
       readme,
       contains('| 支持平台 | Windows 10/11 x64；Android 7.0+（API 24+） |'),
@@ -33,19 +54,10 @@ void main() {
       'const List<VersionHistory> versionHistoryList',
     );
     expect(versionHistoryListStart, isNonNegative);
-    expect(
-      versionHistory.indexOf(
-        "version: '$expectedVersion'",
-        versionHistoryListStart,
-      ),
-      lessThan(
-        versionHistory.indexOf("version: '2.1.177'", versionHistoryListStart),
-      ),
-    );
-    expect(versionHistory, contains("version: '1.0.2'"));
 
     final releaseNotesStart =
         releaseNotes.indexOf('## $expectedVersion+$expectedBuildNumber');
+    expect(releaseNotesStart, isNonNegative);
     final releaseNotesEnd = releaseNotes.indexOf(
       '\n## ',
       releaseNotesStart + 1,
@@ -58,6 +70,7 @@ void main() {
       "version: '$expectedVersion'",
       versionHistoryListStart,
     );
+    expect(versionHistoryStart, isNonNegative);
     final versionHistoryEnd = versionHistory.indexOf(
       '  VersionHistory(',
       versionHistoryStart + 1,
@@ -66,42 +79,22 @@ void main() {
       versionHistoryStart,
       versionHistoryEnd == -1 ? versionHistory.length : versionHistoryEnd,
     );
-    expect(currentReleaseNotes, contains('Windows'));
-    expect(currentVersionHistory, contains('Windows'));
     for (final currentCopy in <String>[
       currentReleaseNotes,
       currentVersionHistory
     ]) {
       for (final text in <String>[
+        '版本',
+        '网盘资源页',
         'Windows',
-        'Hami Video',
-        '2:3',
-        '深色模式',
-        '海报',
-        '不会修改、删除',
+        'Android 手机',
+        '不会修改',
       ]) {
         expect(currentCopy, contains(text));
       }
-      for (final tvOnlyText in <String>[
-        'Android TV',
-        'tvTest',
-        '遥控器',
-        '手机扫码配置',
-        '海信',
-      ]) {
-        expect(currentCopy, isNot(contains(tvOnlyText)));
-      }
+      expect(currentCopy, contains('不构建 AAB 或 Android TV 安装包'));
     }
-    expect(currentReleaseNotes, contains('正式版'));
-    expect(currentReleaseNotes, contains('Android 正式版'));
-    for (final unsupportedClaim in <String>[
-      '综合',
-      '首次正式发布',
-      '测试版',
-    ]) {
-      expect(currentReleaseNotes, isNot(contains(unsupportedClaim)));
-      expect(currentVersionHistory, isNot(contains(unsupportedClaim)));
-    }
-    expect(currentVersionHistory, isNot(contains('isPrerelease: true')));
+    expect(currentReleaseNotes, contains('测试版'));
+    expect(currentVersionHistory, contains('isPrerelease: true'));
   });
 }

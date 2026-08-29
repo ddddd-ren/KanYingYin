@@ -3,6 +3,12 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+String _requiredCapture(String source, RegExp pattern, String label) {
+  final match = pattern.firstMatch(source);
+  expect(match, isNotNull, reason: label);
+  return match!.group(1)!;
+}
+
 void main() {
   test('Android Gradle 构建门禁校验 Windows 版本并使用独立 Android 版本', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
@@ -21,8 +27,20 @@ void main() {
         gradle,
         contains(
             'val windowsVersionCode = pubspecVersionMatch.groupValues[2].toInt()'));
-    expect(gradle, contains('val androidVersionName = "1.0.7"'));
-    expect(gradle, contains('val androidVersionCode = 10007'));
+    final androidVersion = _requiredCapture(
+      gradle,
+      RegExp(r'val androidVersionName = "([^"]+)"'),
+      'Android versionName',
+    );
+    final androidVersionCode = _requiredCapture(
+      gradle,
+      RegExp(r'val androidVersionCode = (\d+)'),
+      'Android versionCode',
+    );
+    if (packageVersion!.group(1)!.startsWith('2.')) {
+      expect(androidVersion, packageVersion.group(1));
+      expect(androidVersionCode, packageVersion.group(2));
+    }
   });
 
   test('Android mobile Release 使用当前版本契约并使用本机环境签名', () {
@@ -48,8 +66,11 @@ void main() {
         gradle,
         contains(
             'val windowsVersionCode = pubspecVersionMatch.groupValues[2].toInt()'));
-    expect(gradle, contains('val androidVersionName = "1.0.7"'));
-    expect(gradle, contains('val androidVersionCode = 10007'));
+    expect(
+      gradle,
+      matches(RegExp(r'val androidVersionName = "\d+\.\d+\.\d+"')),
+    );
+    expect(gradle, matches(RegExp(r'val androidVersionCode = [1-9]\d*')));
     expect(gradle, contains('create("mobile")'));
     expect(gradle, contains('create("tvTest")'));
     expect(gradle, contains('versionCode = androidVersionCode'));
@@ -68,6 +89,17 @@ void main() {
     final script = File(
       'tool/android/build_signed_release.ps1',
     ).readAsStringSync();
+    final gradle = File('android/app/build.gradle.kts').readAsStringSync();
+    final androidVersion = _requiredCapture(
+      gradle,
+      RegExp(r'val androidVersionName = "([^"]+)"'),
+      'Android versionName',
+    );
+    final androidVersionCode = _requiredCapture(
+      gradle,
+      RegExp(r'val androidVersionCode = (\d+)'),
+      'Android versionCode',
+    );
 
     expect(script, contains(r"$flutter = 'D:\flutter\bin\flutter.bat'"));
     expect(
@@ -91,8 +123,15 @@ void main() {
     );
     expect(script, contains(r'$apkTarget = Join-Path $desktop'));
     expect(script, contains(r'$aabTarget = Join-Path $desktop'));
-    expect(script, contains("\$androidVersion = '1.0.7'"));
-    expect(script, contains(r'$androidVersionCode = 10007'));
+    expect(script, contains("\$androidVersion = '$androidVersion'"));
+    expect(script, contains('\$androidVersionCode = $androidVersionCode'));
+    expect(script, contains(r'$isTestVersion = $androidVersion.StartsWith('));
+    expect(
+      script,
+      contains(
+        '-join ([char]0x2D, [char]0x6D4B, [char]0x8BD5, [char]0x7248)',
+      ),
+    );
     expect(script, contains("[ValidateSet('mobile', 'tvTest')]"));
     expect(script, contains(r"[string]$Flavor = 'mobile'"));
     expect(script, contains(r'[switch]$ApkOnly'));

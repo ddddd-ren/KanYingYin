@@ -59,11 +59,11 @@ if ($VersionOnly) {
     Write-Output "$($pubspecVersion.Name)+$($pubspecVersion.Code)"
     return
 }
-if ($pubspecVersion.Name -ne '1.0.12' -or $pubspecVersion.Code -ne 10012) {
-    throw 'pubspec.yaml must use Windows formal version 1.0.12+10012'
+if ($pubspecVersion.Name -ne '2.1.199' -or $pubspecVersion.Code -ne 20199) {
+    throw 'pubspec.yaml must use Windows test version 2.1.199+20199'
 }
-$androidVersion = '1.0.8'
-$androidVersionCode = 10008
+$androidVersion = '2.1.199'
+$androidVersionCode = 20199
 $requiredVariables = @(
     'KANYINGYIN_ANDROID_KEYSTORE',
     'KANYINGYIN_ANDROID_STORE_PASSWORD',
@@ -196,8 +196,14 @@ try {
 
     $desktop = [Environment]::GetFolderPath('Desktop')
     $appName = -join ([char]0x770B, [char]0x5F71, [char]0x97F3)
+    $isTestVersion = $androidVersion.StartsWith(
+        '2.',
+        [System.StringComparison]::Ordinal
+    )
     $artifactSuffix = if ($Flavor -eq 'tvTest') {
         -join ([char]0x2D, [char]0x54, [char]0x56, [char]0x6D4B, [char]0x8BD5, [char]0x7248)
+    } elseif ($isTestVersion) {
+        -join ([char]0x2D, [char]0x6D4B, [char]0x8BD5, [char]0x7248)
     } else {
         ''
     }

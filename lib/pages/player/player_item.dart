@@ -111,6 +111,7 @@ class PlayerItemState extends State<PlayerItem>
   late mobx.ReactionDisposer _fullscreenListener;
   late mobx.ReactionDisposer _anime4kStateReaction;
   bool _anime4kFailureShown = false;
+  bool _fullscreenTransitionActive = false;
 
   bool get _isAndroidTv => _capabilities.isAndroidTv;
 
@@ -353,8 +354,7 @@ class PlayerItemState extends State<PlayerItem>
   void handleShortcutExitFullscreen() {
     if (!_acceptingInput) return;
     if (videoPageController.isFullscreen && !Utils.isTablet()) {
-      Utils.exitFullScreen();
-      videoPageController.isFullscreen = !videoPageController.isFullscreen;
+      handleFullscreen();
     } else {
       playerController.pause();
       if (Utils.isDesktop()) {
@@ -589,10 +589,6 @@ class PlayerItemState extends State<PlayerItem>
     );
   }
 
-  void _handleFullscreenChange(BuildContext context) async {
-    playerController.lockPanel = false;
-  }
-
   void _handleGestureDragStart() {
     playerTimer?.cancel();
     playerController.pause(enableSync: false);
@@ -720,19 +716,36 @@ class PlayerItemState extends State<PlayerItem>
   }
 
   void handleFullscreen() {
-    if (!_acceptingInput) return;
-    _handleFullscreenChange(context);
-    if (videoPageController.isFullscreen) {
-      Utils.exitFullScreen();
-      if (!Utils.isDesktop()) {
+    if (!_acceptingInput || _fullscreenTransitionActive) return;
+    unawaited(_toggleFullscreen());
+  }
+
+  Future<void> _toggleFullscreen() async {
+    _fullscreenTransitionActive = true;
+    final entering = !videoPageController.isFullscreen;
+    try {
+      if (entering) {
+        await Utils.enterFullScreen();
+      } else {
+        await Utils.exitFullScreen();
+      }
+      if (!_acceptingInput || !mounted) return;
+      videoPageController.isFullscreen = entering;
+      if (entering) {
+        videoPageController.showTabBody = false;
+      } else if (!Utils.isDesktop()) {
         widget.locateEpisode();
         videoPageController.showTabBody = true;
       }
-    } else {
-      Utils.enterFullScreen();
-      videoPageController.showTabBody = false;
+    } catch (error, stackTrace) {
+      AppLogger().e(
+        '${entering ? '进入' : '退出'}全屏失败',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    } finally {
+      _fullscreenTransitionActive = false;
     }
-    videoPageController.isFullscreen = !videoPageController.isFullscreen;
   }
 
   void displayVideoController() {
@@ -1209,7 +1222,8 @@ class PlayerItemState extends State<PlayerItem>
     _fullscreenListener = mobx.reaction<bool>(
       (_) => videoPageController.isFullscreen,
       (_) {
-        _handleFullscreenChange(context);
+        playerController.lockPanel = false;
+        displayVideoController();
       },
     );
     _playerSizeListener = mobx.reaction<String>(

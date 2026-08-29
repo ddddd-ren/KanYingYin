@@ -23,6 +23,7 @@ class PlayerPlatformPolicy {
     final decoder = normalizeDecoder(value);
     if (!capabilities.isWindows) return decoder;
     return switch (decoder) {
+      'auto' => 'auto-copy',
       'd3d11va' => 'd3d11va,d3d11va-copy',
       'dxva2' => 'dxva2,dxva2-copy',
       _ => decoder,

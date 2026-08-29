@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:kanyingyin/platform/android/android_system_service.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/utils/logger.dart';
-import 'package:window_manager/window_manager.dart';
 
 class WindowUtils {
   static const AndroidSystemService _androidSystem = AndroidSystemService();
@@ -28,7 +27,7 @@ class WindowUtils {
 
   static Future<void> enterFullScreen({bool lockOrientation = true}) async {
     if (detectAppPlatform().desktopShell) {
-      await windowManager.setFullScreen(true);
+      await enterWindowsFullscreen();
       return;
     }
     if (lockOrientation) {
@@ -42,7 +41,7 @@ class WindowUtils {
 
   static Future<void> exitFullScreen({bool lockOrientation = true}) async {
     if (detectAppPlatform().desktopShell) {
-      await windowManager.setFullScreen(false);
+      await exitWindowsFullscreen();
       return;
     }
     await _androidSystem.setImmersive(false);

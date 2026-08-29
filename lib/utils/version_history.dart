@@ -225,7 +225,36 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
   ],
 );
 
+const VersionHistory _androidCurrentPrerelease = VersionHistory(
+  version: '2.1.199',
+  date: '2026-08-30',
+  isPrerelease: true,
+  changes: [
+    'Android 2.1.199 测试版汇总近期手机版更新，继续支持本地媒体库、个人网盘、字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+    '优化夸克网盘低速播放：首次响应较慢时继续等待，读取分块和并发会根据首字节时间、实际吞吐和超时情况动态调整，拖动、切集和重播保留有界重试',
+    '观看历史会显示真实集数、进度和海报；新播放不足 10 秒不再产生记录，并修复新进度可能被旧写入覆盖的问题',
+    '本地视频改名、移动或新增剧集后，可在身份明确时保留或继承已有 TMDB 资料与手动匹配；无 API Key 或断网时仍可完成离线同步',
+    '电影、动漫和电视剧分类页会复用媒体库快照并过滤已删除的本地文件；再次进入网盘资源页会保留已加载的海报墙和媒体状态，减少重复扫描',
+    '更新说明弹窗会按内容高度显示，“知道了”按钮可正常关闭；关于页可随时重新查看当前版本内容',
+    '播放网盘视频时不再在画面顶部显示常态读取速度；底部控制栏网速、预缓冲和低速或失败提示继续保留',
+    '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
+  ],
+);
+
 const List<VersionHistory> versionHistoryList = [
+  VersionHistory(
+    version: '2.1.199',
+    date: '2026-08-30',
+    isPrerelease: true,
+    changes: [
+      '窗口进入和退出全屏使用原生 180 毫秒缓动过渡，窗口边界逐帧变化，减少瞬移和尺寸重排造成的跳变',
+      '修复版本更新后部分发布契约测试仍读取旧版本号的问题，当前版本会从真实构建声明交叉校验',
+      '清理网盘资源页已停用的旧目录浏览兼容入口，不影响现有来源级海报墙、扫描、刮削和播放',
+      '播放网盘视频时不再在画面顶部显示常态读取速度；底部控制栏网速、预缓冲和低速或失败提示继续保留',
+      '本轮交付 Windows 测试版 EXE 和 Android 手机测试版 APK；不构建 AAB 或 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
+    ],
+  ),
   VersionHistory(
     version: '1.0.12',
     date: '2026-08-28',
@@ -3273,6 +3302,9 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '2.1.199' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[_androidCurrentPrerelease];
+  }
   if (currentVersion == '1.0.12' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[_androidNinthRelease];
   }

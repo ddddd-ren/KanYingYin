@@ -127,6 +127,25 @@ void main() {
     );
   });
 
+  test('网盘资源页不再保留旧目录浏览兼容入口和临时版本补丁', () {
+    final source = File(
+      'lib/pages/cloud/resources/cloud_resources_controller.dart',
+    ).readAsStringSync();
+
+    for (final text in <String>[
+      'currentDirectory;',
+      'currentDirectoryTmdbRecord',
+      'isVirtualRoot',
+      'canGoBack',
+      'tmdbEntriesForCurrentDirectory',
+      'openDirectory(',
+      'goBack()',
+    ]) {
+      expect(source, isNot(contains(text)), reason: text);
+    }
+    expect(File('update_version.patch').existsSync(), isFalse);
+  });
+
   test('界面设置和版本配置不再包含旧在线项目选项', () {
     final interfaceSource =
         File('lib/pages/settings/interface_settings.dart').readAsStringSync();

@@ -58,7 +58,7 @@ void main() {
     expect(presentation.dismissible, isTrue);
   });
 
-  test('总时长未知时只显示速度且就绪状态可自动隐藏', () {
+  test('总时长未知时格式化速度并标记为稳定状态', () {
     final presentation = CloudRelayStatusPresenter.present(
       const CloudRangeRelayStatus(
         providerName: '夸克',
@@ -190,6 +190,34 @@ void main() {
         },
       );
     }
+
+    testWidgets('读取就绪状态不在画面顶部显示且保留底部网速', (tester) async {
+      installAppPlatformCapabilities(AppPlatformCapabilities.android);
+      addTearDown(
+        () => installAppPlatformCapabilities(AppPlatformCapabilities.windows),
+      );
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(480, 720);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      playerController.loading = false;
+      videoController.loading = false;
+      videoController.updateStatus(const CloudRangeRelayStatus(
+        providerName: '夸克网盘',
+        phase: CloudRangeRelayPhase.ready,
+        bytesPerSecond: 3.3 * 1024 * 1024,
+      ));
+
+      await tester.pumpWidget(const MaterialApp(home: VideoPage()));
+      await tester.pump();
+
+      expect(find.text('夸克网盘读取 3.3 MB/s'), findsNothing);
+      expect(find.text('网速 3.3 MB/s'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 21));
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      expect(tester.takeException(), isNull);
+    });
 
     testWidgets('低速提示具备语义且关闭只影响当前视频', (tester) async {
       var semanticsDisposed = false;

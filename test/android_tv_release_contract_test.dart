@@ -3,9 +3,14 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Android mobile 使用独立正式版并仅保留 tvTest 源码 flavor', () {
+  test('Android mobile 与 pubspec 版本一致并仅保留 tvTest 源码 flavor', () {
     final gradle = File('android/app/build.gradle.kts').readAsStringSync();
     final agents = File('AGENTS.md').readAsStringSync();
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    final version = RegExp(
+      r'^version:\s*(\d+\.\d+\.\d+)\+([1-9]\d*)\s*$',
+      multiLine: true,
+    ).firstMatch(pubspec)!;
 
     expect(
       gradle,
@@ -16,8 +21,14 @@ void main() {
       contains(
           'val windowsVersionCode = pubspecVersionMatch.groupValues[2].toInt()'),
     );
-    expect(gradle, contains('val androidVersionName = "1.0.7"'));
-    expect(gradle, contains('val androidVersionCode = 10007'));
+    expect(
+      gradle,
+      contains('val androidVersionName = "${version.group(1)}"'),
+    );
+    expect(
+      gradle,
+      contains('val androidVersionCode = ${version.group(2)}'),
+    );
     expect(gradle, contains('versionName = androidVersionName'));
     expect(gradle, contains('versionCode = androidVersionCode'));
     expect(gradle, contains('create("tvTest")'));

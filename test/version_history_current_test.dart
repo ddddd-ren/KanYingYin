@@ -33,6 +33,54 @@ Future<void> _openVersionChangelogDialog(WidgetTester tester) async {
 }
 
 void main() {
+  test('二点一九八 Windows 测试版记录全屏体验和双端交付', () {
+    final entries = versionHistoryForCurrent('2.1.199');
+
+    expect(entries, hasLength(1));
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      '全屏',
+      '网盘资源页',
+      'Windows',
+      'Android 手机',
+      '不会修改',
+    ]) {
+      expect(changes, contains(text));
+    }
+    expect(changes, contains('不构建 AAB 或 Android TV 安装包'));
+  });
+
+  test('二点一九八 Android 测试版展示累计移动端功能', () {
+    final entries = versionHistoryForCurrent(
+      '2.1.199',
+      platform: AppPlatformKind.android,
+    );
+
+    expect(entries, hasLength(1));
+    expect(entries.single.version, '2.1.199');
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      'Android 2.1.199 测试版',
+      '夸克网盘低速播放',
+      '首字节时间',
+      '观看历史',
+      '真实集数',
+      'TMDB',
+      '无 API Key',
+      '分类页',
+      '网盘资源页',
+      '更新说明弹窗',
+      '不会修改',
+    ]) {
+      expect(changes, contains(text));
+    }
+    for (final windowsOnlyText in <String>['Windows', 'AAB', 'Android TV']) {
+      expect(changes, isNot(contains(windowsOnlyText)));
+    }
+  });
+
   testWidgets('短更新日志弹窗按内容高度显示', (tester) async {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1;

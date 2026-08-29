@@ -262,6 +262,26 @@ void main() {
     expect(dialog, contains('稍后确认'));
   });
 
+  test('播放器全屏切换等待原生完成并避免重复触发', () {
+    final item = File('lib/pages/player/player_item.dart').readAsStringSync();
+    final fullPanel =
+        File('lib/pages/player/player_item_panel.dart').readAsStringSync();
+    final compactPanel = File(
+      'lib/pages/player/smallest_player_item_panel.dart',
+    ).readAsStringSync();
+
+    expect(item, contains('bool _fullscreenTransitionActive = false;'));
+    expect(
+        item,
+        contains(
+            'if (!_acceptingInput || _fullscreenTransitionActive) return;'));
+    expect(item, contains('await Utils.enterFullScreen();'));
+    expect(item, contains('await Utils.exitFullScreen();'));
+    expect(item, contains('displayVideoController();'));
+    expect(fullPanel, isNot(contains('AnimatedPositioned')));
+    expect(compactPanel, isNot(contains('AnimatedPositioned')));
+  });
+
   test('TMDB 海报部分下载失败时显示明确提示', () {
     final page = File('lib/pages/local/local_page.dart').readAsStringSync();
     final library =

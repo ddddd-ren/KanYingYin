@@ -232,8 +232,7 @@ class _SmallestPlayerItemPanelState extends State<SmallestPlayerItemPanel> {
         alignment: Alignment.center,
         children: [
           //顶部渐变区域
-          AnimatedPositioned(
-            duration: const Duration(seconds: 1),
+          Positioned(
             top: 0,
             left: 0,
             right: 0,
@@ -276,8 +275,7 @@ class _SmallestPlayerItemPanelState extends State<SmallestPlayerItemPanel> {
           ),
 
           //底部渐变区域
-          AnimatedPositioned(
-            duration: const Duration(seconds: 1),
+          Positioned(
             bottom: 0,
             left: 0,
             right: 0,

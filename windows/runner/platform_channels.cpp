@@ -2,6 +2,7 @@
 
 #include <flutter/method_channel.h>
 #include <flutter/standard_method_codec.h>
+#include <memory>
 #include <windows.h>
 
 #include "external_player_utils.h"
@@ -17,11 +18,17 @@ void FlutterWindow::RegisterIntentChannel() {
 
   window_channel->SetMethodCallHandler([this](const auto& call, auto result) {
     if (call.method_name().compare("enterFullscreen") == 0) {
-      FullscreenUtils::EnterNativeFullscreen(GetHandle());
-      result->Success();
+      auto pending_result = std::make_shared<
+          std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>>(
+          std::move(result));
+      FullscreenUtils::EnterNativeFullscreen(
+          GetHandle(), [pending_result]() { (*pending_result)->Success(); });
     } else if (call.method_name().compare("exitFullscreen") == 0) {
-      FullscreenUtils::ExitNativeFullscreen(GetHandle());
-      result->Success();
+      auto pending_result = std::make_shared<
+          std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>>(
+          std::move(result));
+      FullscreenUtils::ExitNativeFullscreen(
+          GetHandle(), [pending_result]() { (*pending_result)->Success(); });
     } else if (call.method_name().compare("openWithMime") == 0) {
       const auto* arguments =
           std::get_if<flutter::EncodableMap>(call.arguments());

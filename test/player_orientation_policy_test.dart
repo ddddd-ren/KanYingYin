@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/window_utils.dart';
@@ -31,5 +33,14 @@ void main() {
       ),
       const [DeviceOrientation.portraitUp],
     );
+  });
+
+  test('Windows 全屏使用单次原生窗口定位通道', () {
+    final source = File('lib/utils/window_utils.dart').readAsStringSync();
+
+    expect(source, contains('await enterWindowsFullscreen();'));
+    expect(source, contains('await exitWindowsFullscreen();'));
+    expect(source, isNot(contains('windowManager.setFullScreen(true)')));
+    expect(source, isNot(contains('windowManager.setFullScreen(false)')));
   });
 }

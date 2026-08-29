@@ -791,7 +791,6 @@ void main() {
         fixture.clients['quark-enabled']!.listed.map((item) => item.id),
         <String>['root-fid', 'child-fid'],
       );
-      expect(fixture.controller.currentDirectory, isNull);
       expect(fixture.controller.entries, isEmpty);
       fixture.controller.dispose();
     });
@@ -857,7 +856,6 @@ void main() {
 
       await fixture.load();
 
-      expect(fixture.controller.isVirtualRoot, isFalse);
       expect(fixture.controller.entries, isEmpty);
       expect(
         client.listed.map((item) => item.id),
@@ -931,8 +929,6 @@ void main() {
       fixture.controller.setQuery('剧场版');
       expect(fixture.controller.visibleEntries.single.name, '剧场版.mkv');
       fixture.controller.setQuery('');
-      expect(fixture.controller.currentDirectory, isNull);
-      expect(fixture.controller.canGoBack, isFalse);
       final movie = fixture.controller.entries.singleWhere(
         (entry) => entry.id == 'movie-fid',
       );

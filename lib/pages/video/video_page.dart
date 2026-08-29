@@ -45,9 +45,6 @@ class _VideoPageState extends State<VideoPage>
   final PlaybackHistoryController historyController =
       Modular.get<PlaybackHistoryController>();
   bool showDebugLog = false;
-  bool _relayStatusHidden = false;
-  bool _relayVisibilityResetScheduled = false;
-  Timer? _relayStableTimer;
   final CloudRelayStatusDismissal _relayStatusDismissal =
       CloudRelayStatusDismissal();
   final FocusNode keyboardFocus = FocusNode();
@@ -143,7 +140,6 @@ class _VideoPageState extends State<VideoPage>
 
   @override
   void dispose() {
-    _relayStableTimer?.cancel();
     _historyDisposer?.call();
     unawaited(_recordPlaybackHistory(forcePersist: true));
     _exitCoordinator.beginExit();
@@ -220,7 +216,6 @@ class _VideoPageState extends State<VideoPage>
       {int currentRoad = 0, int offset = 0}) async {
     final previousPlaybackIdentity = _relayPlaybackIdentity;
     await _recordPlaybackHistory(forcePersist: true);
-    _resetRelayVisibility();
     clearPlayerLog();
     hideDebugConsole();
     localVideoController.loading = true;
@@ -293,37 +288,6 @@ class _VideoPageState extends State<VideoPage>
           ? playerController.duration
           : null,
     );
-  }
-
-  void _syncRelayVisibility(CloudRelayStatusPresentation? presentation) {
-    final stable = presentation?.stable == true && !playerController.loading;
-    if (!stable) {
-      _relayStableTimer?.cancel();
-      _relayStableTimer = null;
-      if (_relayStatusHidden && !_relayVisibilityResetScheduled) {
-        _relayVisibilityResetScheduled = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _relayVisibilityResetScheduled = false;
-          if (mounted && _relayStatusHidden) {
-            setState(() => _relayStatusHidden = false);
-          }
-        });
-      }
-      return;
-    }
-    if (_relayStatusHidden || _relayStableTimer != null) return;
-    _relayStableTimer = Timer(const Duration(seconds: 5), () {
-      _relayStableTimer = null;
-      if (mounted) setState(() => _relayStatusHidden = true);
-    });
-  }
-
-  void _resetRelayVisibility() {
-    _relayStableTimer?.cancel();
-    _relayStableTimer = null;
-    if (_relayStatusHidden && mounted) {
-      setState(() => _relayStatusHidden = false);
-    }
   }
 
   void menuJumpToCurrentEpisode() {
@@ -714,12 +678,13 @@ class _VideoPageState extends State<VideoPage>
           right: 32,
           child: Observer(builder: (context) {
             final presentation = _relayPresentation();
+            if (presentation?.stable == true) {
+              return const SizedBox.shrink();
+            }
             final playbackIdentity = _relayPlaybackIdentity;
             final dismissed = presentation != null &&
                 _relayStatusDismissal.hides(presentation, playbackIdentity);
-            _syncRelayVisibility(presentation);
             final visible = presentation != null &&
-                !_relayStatusHidden &&
                 !dismissed &&
                 !localVideoController.loading &&
                 !playerController.loading;

@@ -38,6 +38,7 @@ void main() {
       policy.resolvePlaybackDecoder('d3d11va-copy'),
       'd3d11va-copy',
     );
+    expect(policy.resolvePlaybackDecoder('auto'), 'auto-copy');
     expect(policy.normalizeRenderer('gpu'), isNull);
     expect(policy.supportsAnime4k(null), isTrue);
   });

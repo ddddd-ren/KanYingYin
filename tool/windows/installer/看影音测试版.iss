@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "2.1.169"
+  #define MyAppVersion "2.1.199"
 #endif
 #ifndef BuildDir
   #define BuildDir "..\..\..\build\windows\x64\runner\Release"
@@ -26,7 +26,7 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir={#OutputDir}
-OutputBaseFilename=看影音-{#MyAppVersion}-安装程序
+OutputBaseFilename=看影音-{#MyAppVersion}-测试版-安装程序
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

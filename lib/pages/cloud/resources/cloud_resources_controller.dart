@@ -204,10 +204,6 @@ class CloudResourcesController extends ChangeNotifier {
   List<CloudSource> sources = <CloudSource>[];
   List<CloudFileEntry> entries = <CloudFileEntry>[];
   CloudSource? selectedSource;
-  @Deprecated('网盘资源页已改为来源级海报墙')
-  CloudRemoteRef? currentDirectory;
-  @Deprecated('网盘资源页已改为来源级海报墙')
-  bool isVirtualRoot = false;
   bool loading = false;
   bool scanning = false;
   int scannedDirectories = 0;
@@ -231,7 +227,6 @@ class CloudResourcesController extends ChangeNotifier {
   bool _mediaLibrarySnapshotInitialized = false;
   Future<void>? _mediaLibraryReloadFuture;
 
-  bool get canGoBack => false;
   Future<void> get scanCompletion => _scanFuture ?? Future<void>.value();
 
   Map<String, CloudResourceTmdbRecord> get tmdbRecords =>
@@ -303,8 +298,6 @@ class CloudResourcesController extends ChangeNotifier {
       const TmdbScrapeOptions.defaults();
 
   bool get isCurrentDirectoryConfiguredRoot => false;
-
-  CloudResourceTmdbRecord? get currentDirectoryTmdbRecord => null;
 
   CloudDirectoryScopeTree get _directoryScopeTree =>
       _directoryScopeTreeCache ??= _directoryScopeTreeBuilder(
@@ -421,10 +414,6 @@ class CloudResourcesController extends ChangeNotifier {
         )
         .toList(growable: false);
   }
-
-  @Deprecated('请使用 tmdbEntriesForSelectedSource')
-  List<CloudFileEntry> get tmdbEntriesForCurrentDirectory =>
-      tmdbEntriesForSelectedSource;
 
   CloudRemoteRef? subtitleFor(CloudFileEntry video) =>
       _indexedItemFor(video)?.subtitleRefs.firstOrNull;
@@ -637,8 +626,6 @@ class CloudResourcesController extends ChangeNotifier {
     final previousSources = List<CloudSource>.from(sources);
     final previousEntries = List<CloudFileEntry>.from(entries);
     final previousSelectedSource = selectedSource;
-    final previousCurrentDirectory = currentDirectory;
-    final previousIsVirtualRoot = isVirtualRoot;
     final previousIndexedItems = Map<String, CloudMediaIndexItem>.from(
       _indexedItems,
     );
@@ -660,8 +647,6 @@ class CloudResourcesController extends ChangeNotifier {
     sources = previousSources;
     entries = previousEntries;
     selectedSource = previousSelectedSource;
-    currentDirectory = previousCurrentDirectory;
-    isVirtualRoot = previousIsVirtualRoot;
     _indexedItems
       ..clear()
       ..addAll(previousIndexedItems);
@@ -715,7 +700,6 @@ class CloudResourcesController extends ChangeNotifier {
       if (!_isCurrent(generation)) return;
       sources = <CloudSource>[];
       selectedSource = null;
-      currentDirectory = null;
       entries = <CloudFileEntry>[];
       _indexedItems.clear();
       _customTagsByResourceKey.clear();
@@ -755,8 +739,6 @@ class CloudResourcesController extends ChangeNotifier {
     _works = <CloudWorkIdentity>[];
     _mediaTree = null;
     currentDirectoryScope = null;
-    currentDirectory = null;
-    isVirtualRoot = false;
     errorMessage = null;
     selectedSource = sourceId == null
         ? null
@@ -916,12 +898,6 @@ class CloudResourcesController extends ChangeNotifier {
       }
     }
   }
-
-  @Deprecated('网盘资源页已改为来源级海报墙')
-  Future<void> openDirectory(CloudRemoteRef directory) async {}
-
-  @Deprecated('网盘资源页已改为来源级海报墙')
-  Future<void> goBack() async {}
 
   void selectDirectoryScope(String path) {
     final normalized = CloudDirectoryScopeTree.normalize(path);

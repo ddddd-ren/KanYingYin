@@ -667,7 +667,8 @@ void main() {
       expect(tapped, isTrue);
     });
 
-    testWidgets('Android 手机无悬停时默认显示信息面板', (tester) async {
+    testWidgets('Android 手机默认隐藏信息浮窗并保留点击播放', (tester) async {
+      var taps = 0;
       await tester.pumpWidget(
         MaterialApp(
           home: SizedBox(
@@ -678,18 +679,46 @@ void main() {
               overlayMode: ImmersiveMediaCardOverlayMode.hover,
               cover: const ColoredBox(color: Colors.blue),
               title: '安卓电影',
+              subtitle: '原文件名.mkv',
               details: '8.5 ★  ·  电影  ·  2026',
+              badges: const [
+                ImmersiveMediaCardBadge(
+                  icon: Icons.closed_caption_outlined,
+                  label: '有字幕',
+                ),
+              ],
+              technicalBadges: const [
+                MediaTechnicalBadge('4K', MediaTechnicalBadgeKind.resolution),
+              ],
+              onTap: () => taps += 1,
             ),
           ),
         ),
       );
 
       expect(
+        find.byKey(const ValueKey('media-technical-badges-poster')),
+        findsOneWidget,
+      );
+      expect(
         tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,
-        1,
+        0,
       );
       expect(find.text('安卓电影'), findsOneWidget);
+      expect(find.text('原文件名.mkv'), findsOneWidget);
       expect(find.textContaining('8.5 ★'), findsOneWidget);
+      expect(find.text('有字幕'), findsOneWidget);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(tester.getCenter(find.byType(ImmersiveMediaCard)));
+      await tester.pump(const Duration(milliseconds: 160));
+      expect(
+        tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,
+        0,
+      );
+      await tester.tap(find.byType(InkWell));
+      expect(taps, 1);
     });
 
     testWidgets('键盘焦点使用 Enter 和 Space 触发主操作', (tester) async {

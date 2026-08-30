@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>看影音 Android 资源详情 Demo</title>
+  <style>
+    :root { color-scheme: dark; --bg: #0d1215; --surface: #182126; --surface-2: #222d34; --line: #34434b; --text: #f4f7f7; --muted: #aab8bd; --accent: #f2a25b; --teal: #6bd3c1; --blue: #7fb6d9; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; background: var(--bg); color: var(--text); font: 15px/1.45 Inter, "Microsoft YaHei", sans-serif; }
+    button { font: inherit; }
+    .page { width: min(1280px, calc(100% - 32px)); margin: 0 auto; padding: 24px 0 42px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 34px; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-mark { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; background: var(--accent); color: #211810; font-weight: 800; }
+    .brand h1 { margin: 0; font-size: 20px; letter-spacing: 0; }
+    .eyebrow { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+    .status { display: inline-flex; align-items: center; gap: 8px; color: var(--teal); font-size: 13px; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 4px rgba(107,211,193,.12); }
+    .toolbar { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
+    .toolbar h2 { margin: 0; font-size: 28px; letter-spacing: 0; }
+    .toolbar p { margin: 5px 0 0; color: var(--muted); }
+    .filters { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+    .filter { padding: 7px 11px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; }
+    .filter.active, .filter:hover { border-color: var(--blue); color: var(--text); background: rgba(127,182,217,.14); }
+    .library { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+    .media-card { position: relative; overflow: hidden; min-width: 0; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease; }
+    .media-card:hover, .media-card:focus-within { transform: translateY(-3px); border-color: var(--accent); box-shadow: 0 14px 30px rgba(0,0,0,.28); }
+    .poster-wrap { position: relative; aspect-ratio: 2 / 3; background: #0a0e10; }
+    .poster { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .poster-hit { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; border: 0; background: transparent; cursor: pointer; }
+    .more { position: absolute; z-index: 4; top: 9px; right: 9px; display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 50%; background: rgba(12,17,20,.74); color: #fff; cursor: pointer; }
+    .more:hover, .more:focus-visible { background: var(--accent); color: #211810; }
+    .scrim { position: fixed; z-index: 5; inset: 0; background: rgba(4,8,10,.64); opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+    .scrim.open { opacity: 1; pointer-events: auto; }
+    .detail-sheet { position: fixed; z-index: 6; right: 0; bottom: 0; left: 0; width: min(820px, calc(100% - 40px)); max-height: min(90dvh, 820px); margin: 0 auto; overflow: hidden; border: 1px solid var(--line); border-bottom: 0; border-radius: 18px 18px 0 0; background: #172026; box-shadow: 0 -18px 46px rgba(0,0,0,.38); transform: translateY(105%); transition: transform .24s ease; }
+    .detail-sheet.open { transform: translateY(0); }
+    .sheet-handle { width: 54px; height: 5px; margin: 12px auto 0; border-radius: 99px; background: #6c7a80; }
+    .detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 12px 22px 15px; border-bottom: 1px solid var(--line); }
+    .detail-kicker { margin: 0 0 2px; color: var(--teal); font-size: 12px; }
+    .detail-head h2 { margin: 0; font-size: 25px; line-height: 1.2; }
+    .detail-count { margin: 4px 0 0; color: var(--muted); }
+    .close { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 50%; background: transparent; color: var(--text); cursor: pointer; }
+    .close:hover, .close:focus-visible { border-color: var(--accent); color: var(--accent); }
+    .detail-body { max-height: calc(min(90dvh, 820px) - 110px); overflow: auto; padding: 18px 22px 26px; }
+    .overview { display: grid; grid-template-columns: 118px minmax(0, 1fr); gap: 18px; align-items: start; }
+    .detail-poster { display: block; width: 118px; aspect-ratio: 2 / 3; border-radius: 8px; object-fit: cover; }
+    .overview h3 { margin: 0; font-size: 22px; }
+    .overview-meta { margin: 6px 0 0; color: var(--muted); }
+    .overview-copy { margin: 12px 0 0; color: #d7e0e2; }
+    .tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+    .tag { padding: 4px 8px; border: 1px solid rgba(255,255,255,.18); border-radius: 6px; color: #fff; font-size: 10px; font-weight: 700; line-height: 1; }
+    .tag.resolution { background: #4338ca; } .tag.source { background: #475569; } .tag.codec { background: #6d28d9; } .tag.hdr { background: #9a3412; } .tag.audio { background: #036991; } .tag.subtitle { background: #654a1f; } .tag.scraped { background: #16766e; }
+    .resource-title { margin: 22px 0 10px; font-size: 17px; }
+    .resource-list { border-top: 1px solid var(--line); }
+    .resource { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 12px; align-items: center; width: 100%; min-height: 70px; padding: 10px 4px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: inherit; text-align: left; cursor: pointer; }
+    .resource:hover, .resource:focus-visible { background: rgba(127,182,217,.1); outline: none; }
+    .resource-label { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .resource-name { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .resource-meta { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+    .caption { margin: 14px 2px 0; color: var(--muted); font-size: 12px; }
+    .toast { position: fixed; z-index: 8; right: 20px; bottom: max(20px, env(safe-area-inset-bottom)); max-width: calc(100% - 40px); padding: 11px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); box-shadow: 0 10px 28px rgba(0,0,0,.35); opacity: 0; transform: translateY(8px); pointer-events: none; transition: .18s ease; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    @media (min-width: 1280px) { .library { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 18px; } }
+    @media (min-width: 768px) and (max-width: 1280px) and (orientation: landscape) { .page { width: min(1240px, calc(100% - 48px)); padding-top: 20px; } .topbar { margin-bottom: 25px; } .toolbar { margin-bottom: 16px; } .toolbar h2 { font-size: 25px; } .library { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; } .detail-sheet { width: min(900px, calc(100% - 80px)); } }
+    @media (max-width: 900px) and (orientation: portrait) { .library { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @media (max-width: 620px) { .page { width: min(390px, calc(100% - 24px)); padding-top: 18px; } .topbar, .toolbar { align-items: flex-start; flex-direction: column; } .topbar { gap: 14px; margin-bottom: 26px; } .toolbar h2 { font-size: 24px; } .filters { justify-content: flex-start; } .library { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } .media-card:hover, .media-card:focus-within { transform: none; } .detail-sheet { width: 100%; max-height: min(92dvh, 760px); border-right: 0; border-left: 0; } .detail-body { max-height: calc(min(92dvh, 760px) - 110px); padding: 15px 16px 24px; } .detail-head { padding-right: 16px; padding-left: 16px; } .overview { grid-template-columns: 88px minmax(0, 1fr); gap: 12px; } .detail-poster { width: 88px; } .overview h3 { font-size: 19px; } .overview-copy { margin-top: 8px; font-size: 13px; } .resource { grid-template-columns: 62px minmax(0, 1fr); } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="topbar">
+      <div class="brand"><div class="brand-mark" aria-hidden="true">看</div><div><h1>看影音</h1><p class="eyebrow">Android 资源详情 Demo</p></div></div>
+      <div class="status"><span class="status-dot" aria-hidden="true"></span>Android · 点击资源查看详情</div>
+    </header>
+    <section class="toolbar"><div><h2>网盘媒体库</h2><p>海报保持清爽，资源信息在详情页集中呈现</p></div><nav class="filters" aria-label="媒体筛选"><button class="filter active" type="button">全部</button><button class="filter" type="button">电影</button><button class="filter" type="button">电视剧</button></nav></section>
+    <section class="library" aria-label="媒体海报">
+      <article class="media-card" data-title="Spider-Man: No Way Home" data-count="电影 · 1 个版本" data-year="2021 · 电影" data-overview="蜘蛛侠回到熟悉的生活，却因一次意外让多元宇宙的访客闯入。" data-image="https://images.unsplash.com/photo-1535016120720-40c646be5580?auto=format&fit=crop&w=700&q=86"><div class="poster-wrap"><img class="poster" src="https://images.unsplash.com/photo-1535016120720-40c646be5580?auto=format&fit=crop&w=700&q=86" alt="Spider-Man: No Way Home 海报"><button class="poster-hit" type="button" aria-label="查看 Spider-Man: No Way Home 详情"></button><button class="more" type="button" aria-label="Spider-Man: No Way Home 更多操作">⋯</button></div></article>
+      <article class="media-card" data-title="中华小当家" data-count="52 集" data-year="1997 · 电视剧" data-overview="少年厨师踏上寻找传说厨具的旅程，在一场场料理对决中成长。" data-image="https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=700&q=86"><div class="poster-wrap"><img class="poster" src="https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=700&q=86" alt="中华小当家海报"><button class="poster-hit" type="button" aria-label="查看 中华小当家 详情"></button><button class="more" type="button" aria-label="中华小当家 更多操作">⋯</button></div></article>
+      <article class="media-card" data-title="亮剑" data-count="30 集" data-year="2005 · 电视剧" data-overview="在李云龙独特的战术指挥下，骄横的日军山崎大队全军覆灭。" data-image="https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=700&q=86"><div class="poster-wrap"><img class="poster" src="https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=700&q=86" alt="亮剑海报"><button class="poster-hit" type="button" aria-label="查看 亮剑 详情"></button><button class="more" type="button" aria-label="亮剑 更多操作">⋯</button></div></article>
+      <article class="media-card" data-title="假如…？" data-count="9 集" data-year="2021 · 电视剧" data-overview="观察者探索平行宇宙，见证熟悉英雄在另一条时间线上的选择。" data-image="https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=700&q=86"><div class="poster-wrap"><img class="poster" src="https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=700&q=86" alt="假如…？海报"><button class="poster-hit" type="button" aria-label="查看 假如…？详情"></button><button class="more" type="button" aria-label="假如…？更多操作">⋯</button></div></article>
+      <article class="media-card" data-title="古灵精探" data-count="25 集" data-year="2008 · 电视剧" data-overview="重案组警员以特殊能力协助破案，也在案件中面对自己的心结。" data-image="https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&w=700&q=86"><div class="poster-wrap"><img class="poster" src="https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&w=700&q=86" alt="古灵精探海报"><button class="poster-hit" type="button" aria-label="查看 古灵精探 详情"></button><button class="more" type="button" aria-label="古灵精探 更多操作">⋯</button></div></article>
+    </section>
+    <p class="caption">主界面不显示信息浮窗；点击任一资源打开统一详情界面。</p>
+  </main>
+  <div class="scrim" id="scrim"></div>
+  <aside class="detail-sheet" id="detailSheet" role="dialog" aria-modal="true" aria-labelledby="detailTitle" aria-hidden="true">
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <header class="detail-head"><div><p class="detail-kicker">媒体详情</p><h2 id="detailTitle">资源</h2><p class="detail-count" id="detailCount"></p></div><button class="close" id="closeDetail" type="button" aria-label="关闭详情">×</button></header>
+    <div class="detail-body"><div class="overview"><img class="detail-poster" id="detailPoster" alt=""><div><h3 id="detailOverviewTitle"></h3><p class="overview-meta" id="detailYear"></p><p class="overview-copy" id="detailOverview"></p><div class="tag-row"><span class="tag resolution">4K</span><span class="tag source">Web-DL</span><span class="tag codec">H265</span><span class="tag hdr">HDR</span><span class="tag audio">杜比全景声</span><span class="tag subtitle">有字幕</span><span class="tag scraped">已刮削</span></div></div></div><h3 class="resource-title">资源明细</h3><div class="resource-list" id="resourceList"></div></div>
+  </aside>
+  <div class="toast" id="toast" role="status"></div>
+  <script>
+    const sheet = document.querySelector('#detailSheet');
+    const scrim = document.querySelector('#scrim');
+    const toast = document.querySelector('#toast');
+    let activeCard;
+    let toastTimer;
+    const showToast = (message) => { toast.textContent = message; toast.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 1600); };
+    const closeDetail = () => { sheet.classList.remove('open'); scrim.classList.remove('open'); sheet.setAttribute('aria-hidden', 'true'); activeCard = undefined; };
+    const openDetail = (card) => {
+      activeCard = card;
+      const data = card.dataset;
+      document.querySelector('#detailTitle').textContent = data.title;
+      document.querySelector('#detailCount').textContent = data.count;
+      document.querySelector('#detailOverviewTitle').textContent = data.title;
+      document.querySelector('#detailYear').textContent = data.year;
+      document.querySelector('#detailOverview').textContent = data.overview;
+      const poster = document.querySelector('#detailPoster');
+      poster.src = data.image;
+      poster.alt = `${data.title} 海报`;
+      const count = Number.parseInt(data.count, 10) || 1;
+      document.querySelector('#resourceList').innerHTML = Array.from({ length: Math.min(count, 8) }, (_, index) => `<button class="resource" type="button" data-index="${index + 1}"><span class="resource-label">${data.count.includes('电影') ? '版本 ' + (index + 1) : 'S01E' + String(index + 1).padStart(2, '0')}</span><span><span class="resource-name">${data.title} ${data.count.includes('电影') ? '2160p.mkv' : 'S01E' + String(index + 1).padStart(2, '0') + '.mp4'}</span><span class="resource-meta">${data.count.includes('电影') ? '58.8 GB · MKV' : '1.2 GB · MP4'}</span></span></button>`).join('');
+      document.querySelectorAll('.resource').forEach((resource) => resource.addEventListener('click', () => showToast(`正在播放：${data.title} ${resource.dataset.index}`)));
+      sheet.classList.add('open'); scrim.classList.add('open'); sheet.setAttribute('aria-hidden', 'false');
+    };
+    document.querySelectorAll('.poster-hit').forEach((button) => button.addEventListener('click', () => openDetail(button.closest('.media-card'))));
+    document.querySelectorAll('.more').forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); showToast(`已打开：${button.closest('.media-card').dataset.title} 的媒体操作`); }));
+    document.querySelector('#closeDetail').addEventListener('click', closeDetail);
+    scrim.addEventListener('click', closeDetail);
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && sheet.classList.contains('open')) closeDetail(); });
+    document.querySelectorAll('.filter').forEach((button) => button.addEventListener('click', () => { document.querySelector('.filter.active')?.classList.remove('active'); button.classList.add('active'); }));
+  </script>
+</body>
+</html>

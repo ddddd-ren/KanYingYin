@@ -299,8 +299,25 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
       badges: info.badges,
       technicalBadges: info.technicalBadges,
       trailing: _seriesMenu(series),
-      onTap: !series.isAvailable || _playing ? null : () => _openSeries(series),
+      onTap: !series.isAvailable || _playing
+          ? null
+          : () => _openSeriesFromCard(series),
     );
+  }
+
+  Future<void> _openSeriesFromCard(MediaLibrarySeries series) {
+    final platform = widget.capabilities ?? detectAppPlatform();
+    if (platform.isAndroid && !platform.isAndroidTv) {
+      return showMediaLibraryDetailsDialog(
+        context: context,
+        series: series,
+        capabilities: platform,
+        onPlay: series.isAvailable && !_playing
+            ? () => _openSeries(series)
+            : null,
+      );
+    }
+    return _openSeries(series);
   }
 
   Widget _seriesMenu(MediaLibrarySeries series) {
@@ -358,6 +375,10 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
         await showMediaLibraryDetailsDialog(
           context: context,
           series: series,
+          capabilities: widget.capabilities,
+          onPlay: series.isAvailable && !_playing
+              ? () => _openSeries(series)
+              : null,
         );
         return;
       case _MediaCategoryAction.copyPath:

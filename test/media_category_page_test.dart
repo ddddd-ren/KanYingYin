@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/features/library/application/media_library_category.dart';
+import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/features/library/presentation/media_category_page.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 import 'package:kanyingyin/widgets/cloud_poster_image.dart';
 
@@ -347,6 +350,83 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('Android 手机海报默认隐藏信息浮窗并先打开详情', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final cloudMovie = _series(
+      key: 'quark|android-details',
+      title: '安卓详情电影',
+      sourceKind: MediaSourceKind.cloud,
+      sourceId: 'quark',
+      sourceName: '夸克网盘',
+      mediaType: TmdbMediaType.movie,
+    );
+    var played = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaCategoryPage(
+          category: MediaLibraryCategory.movie,
+          initialize: () async {},
+          libraryProvider: () => CloudMediaLibrary(
+            series: <MediaLibrarySeries>[cloudMovie],
+            filters: const <MediaLibrarySourceFilter>[
+              MediaLibrarySourceFilter('all', '全部', null),
+            ],
+          ),
+          capabilities: AppPlatformCapabilities.android,
+          onPlayEpisode: (_, __) async => played = true,
+          observeLibrary: false,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<ImmersiveMediaCard>(find.byType(ImmersiveMediaCard))
+          .overlayMode,
+      ImmersiveMediaCardOverlayMode.hover,
+    );
+    expect(
+      tester
+          .widget<AnimatedOpacity>(
+            find.descendant(
+              of: find.byType(ImmersiveMediaCard),
+              matching: find.byType(AnimatedOpacity),
+            ),
+          )
+          .opacity,
+      0,
+    );
+    expect(find.text('夸克网盘'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(ImmersiveMediaCard),
+        matching: find.byType(GlassSurface),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.byKey(
+        const ValueKey<String>('media-category-card-quark|android-details'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey<String>('media-details-dialog')),
+      findsOneWidget,
+    );
+    expect(find.text('媒体详情'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, '播放'));
+    await tester.pumpAndSettle();
+    expect(played, isTrue);
   });
 
   testWidgets('网盘分类菜单隐藏视频后立即移除海报', (tester) async {

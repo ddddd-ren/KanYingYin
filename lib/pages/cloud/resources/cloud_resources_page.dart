@@ -194,7 +194,9 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
   }
 
   Future<void> _openGroup(CloudResourceMediaGroup group) async {
-    if (!group.isSeries && group.videos.length == 1) {
+    final isAndroidMobile =
+        _capabilities.isAndroid && !_capabilities.isAndroidTv;
+    if (!isAndroidMobile && !group.isSeries && group.videos.length == 1) {
       await _play(group, group.anchor);
       return;
     }
@@ -205,6 +207,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       sourceId: source.id,
       group: group,
       subtitleVideoKeys: _subtitleVideoKeys(source.id),
+      sourceName: source.name,
       capabilities: _capabilities,
     );
     if (selected != null && mounted) await _play(group, selected);
@@ -582,6 +585,8 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     return showCloudMediaDetailsDialog(
       context: context,
       item: _controller.detailsFor(group.anchor),
+      capabilities: _capabilities,
+      onPlay: () => _openGroup(group),
     );
   }
 

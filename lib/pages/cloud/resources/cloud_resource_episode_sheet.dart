@@ -5,6 +5,7 @@ import 'package:kanyingyin/features/tv/presentation/tv_episode_tile_surface.dart
 import 'package:kanyingyin/features/tv/presentation/tv_image_decode_policy.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resource_card_view_data.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
@@ -17,6 +18,7 @@ Future<CloudFileEntry?> showCloudResourceEpisodeSheet({
   required String sourceId,
   required CloudResourceMediaGroup group,
   Set<String> subtitleVideoKeys = const <String>{},
+  String sourceName = '',
   AppPlatformCapabilities? capabilities,
 }) {
   return showModalBottomSheet<CloudFileEntry>(
@@ -27,6 +29,7 @@ Future<CloudFileEntry?> showCloudResourceEpisodeSheet({
       sourceId: sourceId,
       group: group,
       subtitleVideoKeys: subtitleVideoKeys,
+      sourceName: sourceName,
       capabilities: capabilities,
     ),
   );
@@ -37,12 +40,14 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
     required this.sourceId,
     required this.group,
     required this.subtitleVideoKeys,
+    required this.sourceName,
     required this.capabilities,
   });
 
   final String sourceId;
   final CloudResourceMediaGroup group;
   final Set<String> subtitleVideoKeys;
+  final String sourceName;
   final AppPlatformCapabilities? capabilities;
 
   @override
@@ -62,6 +67,20 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
             ),
           ]
         : group.seasons;
+    final cardData = group.isWorkScoped
+        ? CloudResourceCardViewData.fromGroup(
+            group: group,
+            scraping: false,
+            hasSubtitle: _hasSubtitle(group),
+            sourceName: sourceName,
+          )
+        : CloudResourceCardViewData.fromEntry(
+            entry: group.anchor,
+            record: group.record,
+            scraping: false,
+            hasSubtitle: _hasSubtitle(group),
+            sourceName: sourceName,
+          );
     return SafeArea(
       child: SizedBox(
         key: const ValueKey<String>('cloud-resource-episode-sheet'),
@@ -112,12 +131,14 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
                         visibleSeasons,
                         decodeSize: decodeSize,
                         isTv: true,
+                        cardData: cardData,
                       ),
                     )
                   : _episodeList(
                       visibleSeasons,
                       decodeSize: decodeSize,
                       isTv: false,
+                      cardData: cardData,
                     ),
             ),
           ],
@@ -130,6 +151,7 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
     List<CloudResourceSeasonGroup> visibleSeasons, {
     required TvImageDecodeSize? decodeSize,
     required bool isTv,
+    required CloudResourceCardViewData cardData,
   }) {
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -140,6 +162,7 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
         decodeSize,
         isTv: isTv,
         autofocusFirstEpisode: index == 0,
+        cardData: cardData,
       ),
     );
   }
@@ -150,6 +173,7 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
     TvImageDecodeSize? decodeSize, {
     required bool isTv,
     required bool autofocusFirstEpisode,
+    required CloudResourceCardViewData cardData,
   }) {
     final seasonNumber = season.seasonNumber;
     final title = !group.isSeries
@@ -216,6 +240,28 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
+                      if (cardData.unifiedDetails.isNotEmpty ||
+                          cardData.details.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          cardData.unifiedDetails.isNotEmpty
+                              ? cardData.unifiedDetails
+                              : cardData.details,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                      if (cardData.unifiedBadges.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: cardData.unifiedBadges
+                              .map((badge) => _infoBadge(context, badge))
+                              .toList(growable: false),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -237,6 +283,39 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
       ),
     );
   }
+
+  Widget _infoBadge(
+    BuildContext context,
+    ImmersiveMediaCardBadge badge,
+  ) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(badge.icon, size: 14),
+            const SizedBox(width: 4),
+            Text(badge.label),
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _hasSubtitle(CloudResourceMediaGroup group) => group.videos.any(
+        (video) => subtitleVideoKeys.contains(
+          cloudResourceTmdbKey(
+            sourceId: sourceId,
+            remoteId: video.id,
+            remotePath: video.remotePath,
+          ),
+        ),
+      );
 
   Widget _episodeTile(
     BuildContext context,

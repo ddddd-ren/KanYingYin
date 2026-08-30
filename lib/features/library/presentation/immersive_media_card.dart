@@ -67,11 +67,11 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final platform = widget.capabilities ?? detectAppPlatform();
-    final overlayVisible =
-        widget.overlayMode == ImmersiveMediaCardOverlayMode.always ||
+    final mobileAndroid = platform.isAndroid && !platform.isAndroidTv;
+    final overlayVisible = !mobileAndroid &&
+        (widget.overlayMode == ImmersiveMediaCardOverlayMode.always ||
             _hovered ||
-            _focused ||
-            (platform.isAndroid && !platform.isAndroidTv);
+            _focused);
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
@@ -107,9 +107,12 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
                       opacity: overlayVisible ? 1 : 0,
                       duration: const Duration(milliseconds: 160),
                       curve: Curves.easeOut,
-                      child: _buildOverlay(
-                        context,
-                        overlayVisible: overlayVisible,
+                      child: IgnorePointer(
+                        ignoring: !overlayVisible,
+                        child: _buildOverlay(
+                          context,
+                          overlayVisible: overlayVisible,
+                        ),
                       ),
                     ),
                     if (_hovered)

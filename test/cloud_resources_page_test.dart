@@ -1075,6 +1075,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(manualMatchCalls, 1);
 
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(find.byType(ImmersiveMediaCard)));
+    await tester.pump(const Duration(milliseconds: 160));
     await tester.tap(
       find.byKey(const ValueKey<String>('cloud-manual-match-badge')),
     );
@@ -1676,6 +1681,51 @@ void main() {
     expect(target?.subtitleRemoteId, 'subtitle-fid');
     expect(target?.subtitleRemotePath, '/影视/第01集.ass');
     expect(playbackRequest?.selectedStableId, target?.stableId);
+    fixture.controller.dispose();
+  });
+
+  testWidgets('Android 手机点击任一资源先显示图二选集详情', (tester) async {
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      entries: const <CloudFileEntry>[
+        CloudFileEntry(
+          id: 'android-video',
+          remotePath: '/影视/安卓电影.mkv',
+          name: '安卓电影.mkv',
+          size: 1024 * 1024 * 700,
+          modifiedAt: null,
+          isDirectory: false,
+        ),
+      ],
+    );
+    CloudResourcePlaybackRequest? playbackRequest;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CloudResourcesPage(
+          controller: fixture.controller,
+          capabilities: AppPlatformCapabilities.android,
+          onPlayRequest: (request) async => playbackRequest = request,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(ImmersiveMediaCard));
+    await tester.pumpAndSettle();
+
+    final sheet = find.byKey(
+      const ValueKey<String>('cloud-resource-episode-sheet'),
+    );
+    expect(sheet, findsOneWidget);
+    expect(find.text('安卓电影.mkv'), findsNWidgets(2));
+    expect(playbackRequest, isNull);
+
+    await tester.tap(
+      find.descendant(of: sheet, matching: find.byType(ListTile)),
+    );
+    await tester.pumpAndSettle();
+    expect(playbackRequest?.targets.single.remoteId, 'android-video');
     fixture.controller.dispose();
   });
 

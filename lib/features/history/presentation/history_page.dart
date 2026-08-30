@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:kanyingyin/bean/dialog/async_confirmation_dialog.dart';
+import 'package:kanyingyin/bean/widget/skeleton_loader.dart';
 import 'package:kanyingyin/features/history/application/playback_history_controller.dart';
 import 'package:kanyingyin/features/history/domain/playback_history_entry.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
@@ -118,7 +120,11 @@ class _HistoryPageState extends State<HistoryPage> {
 
   Widget _historyBody() {
     if (!_history.isLoaded) {
-      return const Center(child: CircularProgressIndicator());
+      return ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        itemCount: 6,
+        itemBuilder: (_, __) => const ListTileSkeleton(),
+      );
     }
     final allEntries = _history.entries;
     if (allEntries.isEmpty) {
@@ -372,24 +378,17 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   Future<void> _clearHistory() async {
-    final confirmed = await showDialog<bool>(
+    await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('清空观看历史'),
+      barrierDismissible: false,
+      builder: (context) => AsyncConfirmationDialog(
+        title: '清空观看历史',
         content: const Text('确定删除全部观看记录吗？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('清空'),
-          ),
-        ],
+        confirmLabel: '清空',
+        errorMessage: '清空观看历史失败，请重试',
+        onConfirm: _history.clear,
       ),
     );
-    if (confirmed == true) await _history.clear();
   }
 }
 

@@ -44,7 +44,6 @@ class _VideoPageState extends State<VideoPage>
       Modular.get<LocalVideoController>();
   final PlaybackHistoryController historyController =
       Modular.get<PlaybackHistoryController>();
-  bool showDebugLog = false;
   final CloudRelayStatusDismissal _relayStatusDismissal =
       CloudRelayStatusDismissal();
   final FocusNode keyboardFocus = FocusNode();
@@ -115,6 +114,7 @@ class _VideoPageState extends State<VideoPage>
       (_) => unawaited(_recordPlaybackHistory()),
     );
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      openTabBodyAnimated();
       try {
         await historyController.ensureLoaded();
         final key = localVideoController.currentPlaybackHistoryKey;
@@ -180,36 +180,10 @@ class _VideoPageState extends State<VideoPage>
     localVideoController.isFullscreen = false;
   }
 
-  void showDebugConsole() {
-    setState(() {
-      showDebugLog = true;
-    });
-  }
-
-  void hideDebugConsole() {
-    setState(() {
-      showDebugLog = false;
-    });
-  }
-
-  void switchDebugConsole() {
-    setState(() {
-      showDebugLog = !showDebugLog;
-    });
-  }
-
   void clearPlayerLog() {
     setState(() {
       playerController.playerLog.clear();
     });
-  }
-
-  List<String> get _debugLogLines {
-    final lines = <String>[
-      if (playerController.playerLog.isNotEmpty) '== 播放器日志 ==',
-      ...playerController.playerLog,
-    ];
-    return lines.isEmpty ? ['暂无调试日志'] : lines;
   }
 
   Future<void> changeEpisode(int episode,
@@ -217,7 +191,6 @@ class _VideoPageState extends State<VideoPage>
     final previousPlaybackIdentity = _relayPlaybackIdentity;
     await _recordPlaybackHistory(forcePersist: true);
     clearPlayerLog();
-    hideDebugConsole();
     localVideoController.loading = true;
     localVideoController.errorMessage = null;
     await playerController.stop();
@@ -385,9 +358,6 @@ class _VideoPageState extends State<VideoPage>
   Widget build(BuildContext context) {
     final bool islandScape =
         MediaQuery.sizeOf(context).width > MediaQuery.sizeOf(context).height;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      openTabBodyAnimated();
-    });
     return AndroidPlaybackSystemUiSurface(
       capabilities: detectAppPlatform(),
       child: PopScope(
@@ -544,6 +514,20 @@ class _VideoPageState extends State<VideoPage>
                                     textAlign: TextAlign.center,
                                   ),
                                 ),
+                                const SizedBox(height: 20),
+                                FilledButton.icon(
+                                  key: const ValueKey<String>(
+                                      'video-playback-retry'),
+                                  onPressed: () => unawaited(
+                                    changeEpisode(
+                                      localVideoController.currentEpisode,
+                                      currentRoad:
+                                          localVideoController.currentRoad,
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.refresh_rounded),
+                                  label: const Text('重试播放'),
+                                ),
                               ],
                             )
                           : Column(
@@ -566,33 +550,6 @@ class _VideoPageState extends State<VideoPage>
                     );
                   }),
                 ),
-              Visibility(
-                visible: (localVideoController.loading ||
-                        playerController.loading) &&
-                    showDebugLog,
-                child: Container(
-                  color: Colors.black,
-                  child: Align(
-                    alignment: Alignment.center,
-                    child: Observer(builder: (context) {
-                      final lines = _debugLogLines;
-                      return ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: lines.length,
-                        itemBuilder: (context, index) {
-                          return Text(
-                            lines[index],
-                            style: const TextStyle(
-                              color: Colors.white,
-                            ),
-                            textAlign: TextAlign.center,
-                          );
-                        },
-                      );
-                    }),
-                  ),
-                ),
-              ),
               Stack(
                 children: [
                   Positioned(
@@ -604,6 +561,7 @@ class _VideoPageState extends State<VideoPage>
                       child: Row(
                         children: [
                           IconButton(
+                            tooltip: '返回',
                             icon: const Icon(Icons.arrow_back,
                                 color: Colors.white),
                             onPressed: () => onBackPressed(context),
@@ -612,6 +570,7 @@ class _VideoPageState extends State<VideoPage>
                               child: dtb.DragToMoveArea(
                                   child: SizedBox(height: 40))),
                           IconButton(
+                            tooltip: '重新加载',
                             icon: const Icon(Icons.refresh_outlined,
                                 color: Colors.white),
                             onPressed: () {
@@ -624,10 +583,14 @@ class _VideoPageState extends State<VideoPage>
                             visible: MediaQuery.sizeOf(context).width >
                                 MediaQuery.sizeOf(context).height,
                             child: IconButton(
+                              tooltip: '选集',
                               onPressed: () {
-                                localVideoController.showTabBody =
-                                    !localVideoController.showTabBody;
-                                openTabBodyAnimated();
+                                if (localVideoController.showTabBody) {
+                                  closeTabBodyAnimated();
+                                } else {
+                                  localVideoController.showTabBody = true;
+                                  openTabBodyAnimated();
+                                }
                               },
                               icon: Icon(
                                 localVideoController.showTabBody
@@ -636,16 +599,6 @@ class _VideoPageState extends State<VideoPage>
                                 color: Colors.white,
                               ),
                             ),
-                          ),
-                          IconButton(
-                            icon: Icon(
-                                showDebugLog
-                                    ? Icons.bug_report
-                                    : Icons.bug_report_outlined,
-                                color: Colors.white),
-                            onPressed: () {
-                              switchDebugConsole();
-                            },
                           ),
                         ],
                       ),

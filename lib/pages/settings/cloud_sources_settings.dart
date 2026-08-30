@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:kanyingyin/bean/widget/skeleton_loader.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
@@ -101,7 +102,11 @@ class _CloudSourcesSettingsPageState extends State<CloudSourcesSettingsPage> {
       title: '网盘数据源',
       description: '管理个人夸克、百度、迅雷与 OpenList 网盘媒体来源；OpenList 功能仍在调试。',
       body: _controller.loading
-          ? const Center(child: CircularProgressIndicator())
+          ? ListView.builder(
+              padding: const EdgeInsets.all(24),
+              itemCount: 6,
+              itemBuilder: (_, __) => const ListTileSkeleton(),
+            )
           : ListView(
               padding: const EdgeInsets.all(24),
               children: [

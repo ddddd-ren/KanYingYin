@@ -193,6 +193,36 @@ class LibraryMediaCoverFallback {
   }
 }
 
+class MediaCardSkeletonGrid extends StatelessWidget {
+  const MediaCardSkeletonGrid({
+    super.key,
+    this.capabilities,
+    this.fallbackMaxCrossAxisExtent = 300,
+  });
+
+  final AppPlatformCapabilities? capabilities;
+  final double fallbackMaxCrossAxisExtent;
+
+  @override
+  Widget build(BuildContext context) {
+    final policy = TvLayoutPolicy.forCapabilities(
+      capabilities ?? detectAppPlatform(),
+    );
+    return FocusTraversalGroup(
+      key: const ValueKey<String>('media-card-skeleton-grid'),
+      child: GridView.builder(
+        padding: policy.gridPadding(const EdgeInsets.all(12)),
+        gridDelegate: policy.posterGridDelegate(
+          fallbackMaxCrossAxisExtent: fallbackMaxCrossAxisExtent,
+          fallbackChildAspectRatio: posterAspectRatio,
+        ),
+        itemCount: policy.isAndroidTv ? 10 : 8,
+        itemBuilder: (context, index) => const MediaCardSkeleton(),
+      ),
+    );
+  }
+}
+
 class LibraryMediaGrid extends StatelessWidget {
   const LibraryMediaGrid({
     super.key,
@@ -225,17 +255,8 @@ class LibraryMediaGrid extends StatelessWidget {
       capabilities ?? detectAppPlatform(),
     );
     if (data.isLoading && data.items.isEmpty) {
-      return FocusTraversalGroup(
-        key: const ValueKey<String>('library-media-grid-focus-group'),
-        child: GridView.builder(
-          padding: policy.gridPadding(const EdgeInsets.all(12)),
-          gridDelegate: policy.posterGridDelegate(
-            fallbackMaxCrossAxisExtent: 300,
-            fallbackChildAspectRatio: posterAspectRatio,
-          ),
-          itemCount: policy.isAndroidTv ? 10 : 8, // 电视首屏保持两行五列占位
-          itemBuilder: (context, index) => const MediaCardSkeleton(),
-        ),
+      return MediaCardSkeletonGrid(
+        capabilities: capabilities,
       );
     }
     if (data.errorMessage != null && data.items.isEmpty) {
@@ -306,6 +327,7 @@ class LibraryMediaGrid extends StatelessWidget {
           return _LibraryMediaTile(
             key: ValueKey<String>(item.id),
             item: item,
+            capabilities: capabilities ?? detectAppPlatform(),
             decodeSize: decodeSize,
             onPlay: onPlay,
             onShowActions: onShowActions,
@@ -322,6 +344,7 @@ class _LibraryMediaTile extends StatefulWidget {
   const _LibraryMediaTile({
     super.key,
     required this.item,
+    required this.capabilities,
     this.decodeSize,
     this.onPlay,
     this.onShowActions,
@@ -329,6 +352,7 @@ class _LibraryMediaTile extends StatefulWidget {
     this.networkImageLoader,
   });
   final LibraryMediaItemViewData item;
+  final AppPlatformCapabilities capabilities;
   final TvImageDecodeSize? decodeSize;
   final LibraryMediaAction? onPlay;
   final LibraryMediaAction? onShowActions;
@@ -373,6 +397,7 @@ class _LibraryMediaTileState extends State<_LibraryMediaTile> {
       title: item.title,
       subtitle: displaySubtitle,
       details: displayDetails,
+      capabilities: widget.capabilities,
       overlayMode: ImmersiveMediaCardOverlayMode.hover,
       trailing: widget.trailingBuilder?.call(context, item),
       badges: badges,

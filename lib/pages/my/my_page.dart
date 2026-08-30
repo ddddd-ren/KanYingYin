@@ -4,6 +4,7 @@ import 'package:kanyingyin/bean/appbar/sys_app_bar.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/pages/menu/menu.dart';
+import 'package:kanyingyin/pages/navigation/navigation_config.dart';
 import 'package:provider/provider.dart';
 
 class MyPage extends StatefulWidget {
@@ -21,7 +22,9 @@ class _MyPageState extends State<MyPage> {
       AppDialog.dismiss<void>();
       return;
     }
-    navigationBarState.updateSelectedIndex(0);
+    navigationBarState.updateSelectedIndex(
+      resolveNavigationIndex(defaultStartupPage),
+    );
     Modular.to.navigate('/tab/local/');
   }
 

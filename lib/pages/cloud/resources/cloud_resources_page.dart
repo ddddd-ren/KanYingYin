@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:kanyingyin/bean/dialog/async_confirmation_dialog.dart';
 import 'package:kanyingyin/features/cloud/application/cloud_resources_toolbar.dart';
 import 'package:kanyingyin/features/episode_matching/application/cloud_episode_match_service.dart';
 import 'package:kanyingyin/features/episode_matching/presentation/manual_episode_match_dialog.dart';
+import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
@@ -751,42 +753,29 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
   Future<void> _confirmRemoveSource() async {
     final source = _controller.selectedSource;
     if (source == null) return;
-    final confirmed = await showDialog<bool>(
+    await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('移除网盘来源'),
+      barrierDismissible: false,
+      builder: (context) => AsyncConfirmationDialog(
+        title: '移除网盘来源',
         content: Text(
           '确定移除“${source.name}”吗？\n\n'
           '只会删除看影音中的来源、凭据、索引和缓存，'
           '不会删除网盘中的任何文件。',
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('移除'),
-          ),
-        ],
+        confirmLabel: '移除',
+        errorMessage: '网盘来源移除失败，请重试',
+        onConfirm: () async {
+          final callback = widget.onDeleteSource;
+          if (callback != null) {
+            await callback(source.id);
+          } else {
+            await Modular.get<CloudLibraryController>().delete(source.id);
+          }
+          await _controller.load();
+        },
       ),
     );
-    if (confirmed != true || !mounted) return;
-    try {
-      final callback = widget.onDeleteSource;
-      if (callback != null) {
-        await callback(source.id);
-      } else {
-        await Modular.get<CloudLibraryController>().delete(source.id);
-      }
-      await _controller.load();
-    } on Object {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('网盘来源移除失败')),
-      );
-    }
   }
 
   @override
@@ -797,7 +786,8 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
         child: Column(
           children: [
             _toolbar(sources),
-            if (_controller.loading) const LinearProgressIndicator(),
+            if (_controller.loading && _controller.selectedSource != null)
+              const LinearProgressIndicator(),
             if (_controller.errorMessage != null)
               MaterialBanner(
                 content: Text(_controller.errorMessage!),
@@ -812,7 +802,9 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
               child: _controller.selectedSource == null
                   ? sources.isEmpty && !_controller.loading
                       ? _emptyState()
-                      : const Center(child: CircularProgressIndicator())
+                      : MediaCardSkeletonGrid(
+                          capabilities: widget.capabilities,
+                        )
                   : _directoryContent(),
             ),
           ],

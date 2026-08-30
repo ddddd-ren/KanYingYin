@@ -225,7 +225,7 @@ const VersionHistory _androidNetworkRelease = VersionHistory(
   ],
 );
 
-const VersionHistory _androidCurrentPrerelease = VersionHistory(
+const VersionHistory _android2199Prerelease = VersionHistory(
   version: '2.1.199',
   date: '2026-08-30',
   isPrerelease: true,
@@ -241,7 +241,31 @@ const VersionHistory _androidCurrentPrerelease = VersionHistory(
   ],
 );
 
+const VersionHistory _androidCurrentPrerelease = VersionHistory(
+  version: '2.1.200',
+  date: '2026-08-30',
+  isPrerelease: true,
+  changes: [
+    'Android 2.1.200 测试版同步版本契约，继续支持本地媒体库、个人网盘、字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+    '本轮主要更新集中在 Windows 体验：加载状态、异步确认和播放器失败重试；Android 手机沿用已有移动端能力',
+    '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
+  ],
+);
+
 const List<VersionHistory> versionHistoryList = [
+  VersionHistory(
+    version: '2.1.200',
+    date: '2026-08-30',
+    isPrerelease: true,
+    changes: [
+      '首次加载媒体库、分类、网盘资源页、历史和网盘设置时显示与最终布局对应的海报或列表骨架，减少空白等待',
+      '刷新已有内容时保留当前内容，并在局部显示刷新进度，避免页面被空状态或全屏加载遮挡',
+      '本地和网盘来源移除、清理失效来源、清空观看历史都在确认弹窗内完成；处理中防止重复提交，失败时保留对象并支持重试',
+      '设置页返回媒体库时遵循启动页配置；播放器失败状态提供重试播放，顶部操作补充语义提示并移除常驻调试入口',
+      '本轮交付 Windows 测试版 EXE；Android 手机测试版 APK 仅同步版本契约，不构建 AAB 或 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
+    ],
+  ),
   VersionHistory(
     version: '2.1.199',
     date: '2026-08-30',
@@ -3302,8 +3326,11 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
-  if (currentVersion == '2.1.199' && platform == AppPlatformKind.android) {
+  if (currentVersion == '2.1.200' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[_androidCurrentPrerelease];
+  }
+  if (currentVersion == '2.1.199' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[_android2199Prerelease];
   }
   if (currentVersion == '1.0.12' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[_androidNinthRelease];

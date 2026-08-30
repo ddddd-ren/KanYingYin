@@ -203,6 +203,7 @@ class _CloudResourcePosterWallState extends State<CloudResourcePosterWall> {
                 : group.record?.effectiveTitle ?? group.seriesName,
             subtitle: displaySubtitle,
             details: displayDetails,
+            capabilities: capabilities ?? detectAppPlatform(),
             badges: _badges(group, data),
             technicalBadges: data.technicalBadges,
             loading: data.isScraping,

@@ -10,6 +10,7 @@ import 'package:kanyingyin/features/library/application/media_library_query.dart
 import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/features/library/application/media_card_info.dart';
+import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
 import 'package:kanyingyin/features/library/presentation/media_library_details_dialog.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_layout_policy.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
@@ -130,6 +131,7 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
     String sourceId,
   ) {
     final colors = Theme.of(context).colorScheme;
+    final showRefreshProgress = _loading && library.series.isNotEmpty;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 10, 8),
       child: Row(
@@ -186,7 +188,7 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
           IconButton(
             tooltip: '刷新分类',
             onPressed: _loading ? null : () => _initialize(refresh: true),
-            icon: _loading
+            icon: showRefreshProgress
                 ? const SizedBox(
                     width: 18,
                     height: 18,
@@ -219,7 +221,10 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
     List<MediaLibrarySeries> series,
   ) {
     if (_loading && series.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return MediaCardSkeletonGrid(
+        capabilities: widget.capabilities,
+        fallbackMaxCrossAxisExtent: 280,
+      );
     }
     final errorMessage = _errorMessage;
     if (errorMessage != null && series.isEmpty) {
@@ -289,6 +294,7 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
       title: info.title,
       subtitle: info.subtitle,
       details: info.details,
+      capabilities: widget.capabilities ?? detectAppPlatform(),
       overlayMode: ImmersiveMediaCardOverlayMode.hover,
       badges: info.badges,
       technicalBadges: info.technicalBadges,

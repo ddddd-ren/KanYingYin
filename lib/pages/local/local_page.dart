@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:flutter/services.dart';
+import 'package:kanyingyin/bean/dialog/async_confirmation_dialog.dart';
 import 'package:kanyingyin/features/library/application/library_media_view_data_builder.dart';
 import 'package:kanyingyin/features/library/presentation/directory_address_dropdown.dart';
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
@@ -211,33 +212,26 @@ class _LocalPageState extends State<LocalPage>
 
   Future<void> _confirmRemoveMediaSource(LocalMediaSource source) async {
     if (localController.isLoading || localController.isIndexingLibrary) return;
+    var removed = false;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('移除媒体源'),
-          content: Text(
-            '确定要从媒体源列表移除“${source.name}”吗？\n\n这只会移除记录，不会删除本地文件。',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('移除'),
-            ),
-          ],
-        );
-      },
+      barrierDismissible: false,
+      builder: (context) => AsyncConfirmationDialog(
+        title: '移除媒体源',
+        content: Text(
+          '确定要从媒体源列表移除“${source.name}”吗？\n\n这只会移除记录，不会删除本地文件。',
+        ),
+        confirmLabel: '移除',
+        errorMessage: '移除媒体源失败，请重试',
+        onConfirm: () async {
+          removed = await localController.removeMediaSource(source.path);
+        },
+      ),
     );
     if (confirmed != true) return;
     if (!mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
-    final removed = await localController.removeMediaSource(source.path);
-    if (!mounted) return;
     messenger.showSnackBar(
       SnackBar(
         content: Text(removed ? '已移除媒体源' : '媒体源已不存在'),
@@ -251,34 +245,27 @@ class _LocalPageState extends State<LocalPage>
     final count = localController.unavailableMediaSourceCount();
     if (count <= 0) return;
 
+    var removedCount = 0;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('清理失效媒体源'),
-          content: Text(
-            '发现 $count 个目录已经无法访问，确定要从媒体源列表中清理吗？\n\n'
-            '这只会移除应用内记录，不会删除本地文件。',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('清理'),
-            ),
-          ],
-        );
-      },
+      barrierDismissible: false,
+      builder: (context) => AsyncConfirmationDialog(
+        title: '清理失效媒体源',
+        content: Text(
+          '发现 $count 个目录已经无法访问，确定要从媒体源列表中清理吗？\n\n'
+          '这只会移除应用内记录，不会删除本地文件。',
+        ),
+        confirmLabel: '清理',
+        errorMessage: '清理失效媒体源失败，请重试',
+        onConfirm: () async {
+          removedCount = await localController.removeUnavailableMediaSources();
+        },
+      ),
     );
     if (confirmed != true) return;
     if (!mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
-    final removedCount = await localController.removeUnavailableMediaSources();
-    if (!mounted) return;
     messenger.showSnackBar(
       SnackBar(
         content: Text(

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_focus_surface.dart';
+import 'package:kanyingyin/platform/app_platform.dart';
+import 'package:kanyingyin/platform/app_platform_io.dart';
 
 enum ImmersiveMediaCardOverlayMode { hover, always }
 
@@ -27,6 +29,7 @@ class ImmersiveMediaCard extends StatefulWidget {
     required this.cover,
     required this.title,
     required this.overlayMode,
+    this.capabilities,
     this.subtitle = '',
     this.details = '',
     this.badges = const <ImmersiveMediaCardBadge>[],
@@ -47,6 +50,7 @@ class ImmersiveMediaCard extends StatefulWidget {
   final Widget? trailing;
   final bool loading;
   final ImmersiveMediaCardOverlayMode overlayMode;
+  final AppPlatformCapabilities? capabilities;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final VoidCallback? onSecondaryTap;
@@ -62,10 +66,12 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final platform = widget.capabilities ?? detectAppPlatform();
     final overlayVisible =
         widget.overlayMode == ImmersiveMediaCardOverlayMode.always ||
             _hovered ||
-            _focused;
+            _focused ||
+            (platform.isAndroid && !platform.isAndroidTv);
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),

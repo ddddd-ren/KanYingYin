@@ -667,6 +667,31 @@ void main() {
       expect(tapped, isTrue);
     });
 
+    testWidgets('Android 手机无悬停时默认显示信息面板', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SizedBox(
+            width: 260,
+            height: 380,
+            child: ImmersiveMediaCard(
+              capabilities: AppPlatformCapabilities.android,
+              overlayMode: ImmersiveMediaCardOverlayMode.hover,
+              cover: const ColoredBox(color: Colors.blue),
+              title: '安卓电影',
+              details: '8.5 ★  ·  电影  ·  2026',
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,
+        1,
+      );
+      expect(find.text('安卓电影'), findsOneWidget);
+      expect(find.textContaining('8.5 ★'), findsOneWidget);
+    });
+
     testWidgets('键盘焦点使用 Enter 和 Space 触发主操作', (tester) async {
       var taps = 0;
       await tester.pumpWidget(

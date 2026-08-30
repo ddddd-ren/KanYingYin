@@ -5,6 +5,7 @@ import 'package:kanyingyin/features/library/application/media_library_category.d
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/features/library/presentation/media_category_page.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
+import 'package:kanyingyin/modules/media/media_name_analysis.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
@@ -364,6 +365,11 @@ void main() {
       sourceId: 'quark',
       sourceName: '夸克网盘',
       mediaType: TmdbMediaType.movie,
+      releaseTags: const MediaReleaseTags(
+        resolution: '2160p',
+        source: 'Netflix',
+        codec: 'H265',
+      ),
     );
     var played = false;
 
@@ -424,6 +430,21 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('媒体详情'), findsOneWidget);
+    final detailsDialog = find.byKey(
+      const ValueKey<String>('media-details-dialog'),
+    );
+    expect(
+      find.descendant(of: detailsDialog, matching: find.text('4K')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: detailsDialog, matching: find.text('Netflix')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: detailsDialog, matching: find.text('H265')),
+      findsOneWidget,
+    );
     await tester.tap(find.widgetWithText(FilledButton, '播放'));
     await tester.pumpAndSettle();
     expect(played, isTrue);
@@ -491,6 +512,7 @@ MediaLibrarySeries _series({
   List<String> genres = const <String>[],
   String? posterCachePath,
   String? posterUrl,
+  MediaReleaseTags releaseTags = const MediaReleaseTags(),
 }) {
   final episode = sourceKind == MediaSourceKind.local
       ? MediaLibraryEpisode.local(
@@ -523,6 +545,7 @@ MediaLibrarySeries _series({
           isAvailable: true,
           remoteId: '$key-episode',
           remotePath: '/$title.mkv',
+          releaseTags: releaseTags,
         );
   return MediaLibrarySeries(
     key: key,

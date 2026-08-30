@@ -274,7 +274,29 @@ const VersionHistory _androidCurrentPrerelease = VersionHistory(
   ],
 );
 
+const VersionHistory _android203Prerelease = VersionHistory(
+  version: '2.1.203',
+  date: '2026-08-31',
+  isPrerelease: true,
+  changes: [
+    'Android 2.1.203 测试版修复部分资源在分类详情和网盘选集面板中不显示 4K、来源、编码等技术规格标签的问题；优先使用资源已保存的结构化标签',
+    '继续支持本地媒体库、个人网盘、字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+    '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
+  ],
+);
+
 const List<VersionHistory> versionHistoryList = [
+  VersionHistory(
+    version: '2.1.203',
+    date: '2026-08-31',
+    isPrerelease: true,
+    changes: [
+      '修复 Android 部分资源在分类详情和网盘选集面板中不显示 4K、来源、编码等技术规格标签的问题，并复用已保存的结构化标签',
+      'Windows 继续保留媒体库、分类和网盘资源页的悬浮信息、加载状态和播放入口',
+      '本轮交付 Windows 测试版 EXE 和 Android 手机测试版 APK，版本契约与构建版本一致；不构建 AAB 或 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
+    ],
+  ),
   VersionHistory(
     version: '2.1.202',
     date: '2026-08-31',
@@ -3370,6 +3392,9 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '2.1.203' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[_android203Prerelease];
+  }
   if (currentVersion == '2.1.202' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[_androidCurrentPrerelease];
   }

@@ -209,6 +209,7 @@ class MediaLibraryDetailsDialog extends StatelessWidget {
         if (local != null) local.path,
         if (episode.remotePath != null) episode.remotePath!,
       ],
+      releaseTags: [episode.releaseTags],
       resolution: local?.resolution,
       videoWidth: local?.videoWidth,
       videoHeight: local?.videoHeight,

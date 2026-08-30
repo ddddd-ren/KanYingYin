@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_episode_tile_surface.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
+import 'package:kanyingyin/modules/media/media_name_analysis.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_episode_sheet.dart';
@@ -153,6 +154,61 @@ void main() {
     );
     expect(seriesPoster.cachePath, r'C:\cache\series.jpg');
     expect(seriesPoster.url, contains('/w500/series.jpg'));
+  });
+
+  testWidgets('选集面板显示已保存的结构化技术标签', (tester) async {
+    const video = CloudFileEntry(
+      id: 'structured-tags-episode',
+      remotePath: '/影视/示例/S01E01.mkv',
+      name: '示例 S01E01.mkv',
+      size: 1024,
+      modifiedAt: null,
+      isDirectory: false,
+      releaseTags: MediaReleaseTags(
+        resolution: '2160p',
+        source: 'Netflix',
+        codec: 'H265',
+      ),
+    );
+    final group = CloudResourceMediaGroup(
+      stableKey: 'source|structured-tags',
+      seriesName: '示例',
+      displayName: '示例',
+      isSeries: true,
+      videos: const [video],
+      seasons: [
+        CloudResourceSeasonGroup(
+          seasonNumber: 1,
+          videos: [video],
+        ),
+      ],
+      record: null,
+      seasonNumber: 1,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => FilledButton(
+              onPressed: () => showCloudResourceEpisodeSheet(
+                context: context,
+                sourceId: 'source',
+                group: group,
+              ),
+              child: const Text('打开选集'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('打开选集'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('4K'), findsOneWidget);
+    expect(find.text('Netflix'), findsOneWidget);
+    expect(find.text('H265'), findsOneWidget);
   });
 
   testWidgets('Android TV 选集下键移动并确认只返回一次', (tester) async {

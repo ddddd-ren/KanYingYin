@@ -346,6 +346,7 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
     );
     final technicalBadges = const MediaTechnicalBadgeResolver().resolve(
       names: [video.name, video.remotePath],
+      releaseTags: [video.releaseTags],
     );
     final tile = ListTile(
       leading: SizedBox(

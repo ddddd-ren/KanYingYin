@@ -287,6 +287,18 @@ const VersionHistory _android203Prerelease = VersionHistory(
 
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '1.0.13',
+    date: '2026-09-01',
+    changes: [
+      'Windows 和 Android 首次加载、刷新时显示与最终布局对应的海报或列表骨架，并保留已有内容，减少空白等待',
+      '本地和网盘来源移除、失效来源清理、清空观看历史都需要确认；失败时保留对象并支持重试',
+      '全屏切换过渡更平滑，网盘视频不再显示顶部常态读取速度；底部网速、预缓冲和低速提示继续保留',
+      '手机和平板取消海报墙常驻信息浮窗，点击资源进入媒体详情和选集界面',
+      '修复分类详情和网盘选集面板中 4K、来源、编码等技术规格标签缺失的问题，优先使用资源已保存的结构化标签',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.203',
     date: '2026-08-31',
     isPrerelease: true,
@@ -3392,6 +3404,21 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '1.0.13' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[
+      VersionHistory(
+        version: '1.0.9',
+        date: '2026-09-01',
+        changes: [
+          '手机和平板取消海报墙常驻信息浮窗，点击资源进入媒体详情和选集界面，再从详情查看简介、技术规格和资源信息后播放',
+          '修复分类详情和网盘选集面板中 4K、来源、编码等技术规格标签缺失的问题，优先使用资源已保存的结构化标签',
+          '首次加载和刷新时保留已有内容并显示局部加载状态；来源移除、失效来源清理和清空历史需要确认，失败时支持重试',
+          '继续支持本地媒体库、个人网盘、字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
+        ],
+      ),
+    ];
+  }
   if (currentVersion == '2.1.203' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[_android203Prerelease];
   }

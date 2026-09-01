@@ -16,7 +16,7 @@ void main() {
     expect(source, contains('AppendDefaultDirName=no'));
     expect(
       source,
-      contains('OutputBaseFilename=看影音-{#MyAppVersion}-测试版-安装程序'),
+      contains('OutputBaseFilename=看影音-{#MyAppVersion}-安装程序'),
     );
     expect(source, contains('Excludes: "*.msix,msix_verify_*\\*"'));
     expect(source, isNot(contains('Get-AppxPackage')));

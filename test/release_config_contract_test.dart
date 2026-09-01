@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('当前测试版发布文案与版本说明一致', () {
+  test('当前正式版发布文案与版本说明一致', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
     final packageVersion = RegExp(
@@ -24,17 +24,17 @@ void main() {
             ? releaseNotes.substring(releaseNotesStart, releaseNotesEnd)
             : '';
 
-    expect(currentReleaseNotes, contains('Windows 测试版：$version'));
+    expect(currentReleaseNotes, contains('Windows EXE 安装器版本：$version'));
     expect(
       currentReleaseNotes,
-      contains('Android 手机测试版：$version ($buildNumber)'),
+      contains('Android 正式版：1.0.9 (10009)'),
     );
     for (final text in <String>[
       '版本',
       '网盘资源页',
-      'Windows 测试版 EXE',
-      'Android 手机测试版 APK',
-      '不构建 AAB 或 Android TV 安装包',
+      'Windows 正式版',
+      'Android 正式版',
+      '观看历史',
       '不会修改',
     ]) {
       expect(currentReleaseNotes, contains(text));
@@ -42,7 +42,7 @@ void main() {
     expect(currentReleaseNotes, isNot(contains('首次正式发布')));
   });
 
-  test('当前测试版构建版本面一致', () {
+  test('当前正式版构建版本面一致', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final appVersion = File('lib/core/app_version.dart').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
@@ -60,28 +60,28 @@ void main() {
     final version = packageVersion!.group(1)!;
     final buildNumber = packageVersion.group(2)!;
 
-    expect(version, startsWith('2.1.'));
+    expect(version, equals('1.0.13'));
     expect(pubspec, contains('msix_version: $version.0'));
     expect(appVersion, contains("current = '$version'"));
     expect(releaseNotes, contains('## $version+$buildNumber'));
     expect(updateDialogCopy, contains('应用版本：$version'));
     expect(
       updateDialogCopy,
-      contains('Windows EXE 安装器版本：$version 测试版'),
+      contains('Windows EXE 安装器版本：$version'),
     );
     expect(
       updateDialogCopy,
-      contains('Android 手机测试版：$version ($buildNumber)'),
+      contains('Android 手机正式版：1.0.9 (10009)'),
     );
     expect(versionHistory, contains("version: '$version'"));
     expect(gradle, contains('windowsVersionName != "$version"'));
     expect(gradle, contains('windowsVersionCode != $buildNumber'));
-    expect(gradle, contains('val androidVersionName = "$version"'));
-    expect(gradle, contains('val androidVersionCode = $buildNumber'));
+    expect(gradle, contains('val androidVersionName = "1.0.9"'));
+    expect(gradle, contains('val androidVersionCode = 10009'));
     expect(androidScript, contains("pubspecVersion.Name -ne '$version'"));
     expect(androidScript, contains('pubspecVersion.Code -ne $buildNumber'));
-    expect(androidScript, contains("\$androidVersion = '$version'"));
-    expect(androidScript, contains('\$androidVersionCode = $buildNumber'));
+    expect(androidScript, contains("\$androidVersion = '1.0.9'"));
+    expect(androidScript, contains('\$androidVersionCode = 10009'));
   });
 
   test('直接依赖使用与锁文件兼容的明确约束', () {

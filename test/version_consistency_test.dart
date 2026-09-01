@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
-  test('当前 Windows 与 Android 手机测试版文案保持一致', () {
+  test('当前 Windows 与 Android 手机正式版文案保持一致', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final gradle = File('android/app/build.gradle.kts').readAsStringSync();
     final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
@@ -27,9 +27,9 @@ void main() {
     expect(androidVersionCode, isNotNull);
     final expectedVersion = packageVersion!.group(1)!;
     final expectedBuildNumber = packageVersion.group(2)!;
-    expect(expectedVersion, startsWith('2.1.'));
-    expect(androidVersion!.group(1), expectedVersion);
-    expect(androidVersionCode!.group(1), expectedBuildNumber);
+    expect(expectedVersion, '1.0.13');
+    expect(androidVersion!.group(1), '1.0.9');
+    expect(androidVersionCode!.group(1), '10009');
 
     final readmeIdentity = RegExp(
       r'^\|\s*Windows 包标识\s*\|\s*`([^`]+)`\s*\|$',
@@ -38,10 +38,10 @@ void main() {
 
     expect(readmeIdentity, AppIdentity.windowsIdentity);
     expect(releaseNotes, contains('## $expectedVersion+$expectedBuildNumber'));
-    expect(releaseNotes, contains('Windows 测试版：$expectedVersion'));
+    expect(releaseNotes, contains('Windows EXE 安装器版本：$expectedVersion'));
     expect(
       releaseNotes,
-      contains('Android 手机测试版：$expectedVersion ($expectedBuildNumber)'),
+      contains('Android 正式版：1.0.9 (10009)'),
     );
     expect(
       readme,
@@ -84,17 +84,21 @@ void main() {
       currentVersionHistory
     ]) {
       for (final text in <String>[
-        '版本',
-        '网盘资源页',
+        '网盘',
         'Windows',
-        'Android 手机',
+        'Android',
         '不会修改',
       ]) {
         expect(currentCopy, contains(text));
       }
-      expect(currentCopy, contains('不构建 AAB 或 Android TV 安装包'));
+      if (currentCopy == currentReleaseNotes) {
+        expect(currentCopy, contains('版本'));
+      } else {
+        expect(currentCopy, contains('手机和平板'));
+      }
+      expect(currentCopy, isNot(contains('不构建 AAB 或 Android TV 安装包')));
     }
-    expect(currentReleaseNotes, contains('测试版'));
-    expect(currentVersionHistory, contains('isPrerelease: true'));
+    expect(currentReleaseNotes, isNot(contains('测试版')));
+    expect(currentVersionHistory, isNot(contains('isPrerelease: true')));
   });
 }

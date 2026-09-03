@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/utils/constants.dart';
+import 'package:kanyingyin/utils/logger.dart';
 
 // A simple dialog helper class to show dialogs and toasts based on flutter native implementation (replace flutter_smart_dialog)
 // flutter_smart_dialog use overlays and self-managed route stack to show dialogs.
@@ -379,7 +380,9 @@ class AppDialogObserver extends NavigatorObserver {
       try {
         ScaffoldMessenger.maybeOf(route!.navigator!.context)
             ?.removeCurrentSnackBar();
-      } catch (_) {}
+      } catch (e) {
+        AppLogger().d('移除当前 SnackBar 失败', error: e);
+      }
     }
   }
 }

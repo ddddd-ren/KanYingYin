@@ -146,13 +146,17 @@ class _VideoPageState extends State<VideoPage>
     if (Utils.isDesktop()) {
       try {
         windowManager.removeListener(this);
-      } catch (_) {}
+      } catch (e) {
+        AppLogger().d('移除窗口监听失败', error: e);
+      }
     } else {
       unawaited(Utils.exitFullScreen());
     }
     try {
       animation.dispose();
-    } catch (_) {}
+    } catch (e) {
+      AppLogger().d('释放动画失败', error: e);
+    }
     try {
       localVideoController.invalidatePlaybackOperations();
       unawaited(playerController.dispose());

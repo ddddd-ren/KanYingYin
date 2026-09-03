@@ -72,6 +72,8 @@ const List<VersionHistory> versionHistoryList = [
 3. `subtitle_file_picker.dart`：字幕文件选择/导入 helper（1029–1072，约 45 行）。
 硬约束：控件层级、动画时长/曲线、交互行为零变更。
 
+**B-5 交接核查（新会话可直接开工）**：anime4k 确认对话框单元（player_item.dart 656–704 的 AlertDialog 构建，闭包变量 confirmed/dontAskAgain，`setting` 为 State 依赖）经核查**无源码文本契约障碍**——6 个文本测试对 player_item 的正向断言覆盖全屏/快捷键/TV 焦点/浮层协调/退出生命周期/定时器轮询，均不触碰对话框文案；`handleSuperResolutionChange`（642–718）仅被 quark_relay_status_ui_test 以构造参数回调方式引用。提取方式：将 656–704 改为独立顶层函数返回 `Future<bool>`（是否确认），"下次不再询问"写入逻辑随 setting 参数传入，确认分支保留在 State 方法内；其余两个候选单元（videoInfoBody 897–1027、日志面板 1116–1181）与 State 私有字段强耦合，须参数化后逐个独立提交。
+
 ## 6. 执行顺序与状态
 
 | 序 | 单元 | 状态 |

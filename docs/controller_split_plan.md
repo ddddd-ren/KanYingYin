@@ -79,8 +79,28 @@ const List<VersionHistory> versionHistoryList = [
 | 0 | 方案文档（本文件） | 已完成 |
 | 1 | version_history 拆分 | 已完成（974765b） |
 | 2 | cloud_resources_controller 拆分（9 个 mixin part） | 已完成（1e2ddef） |
-| 3 | player_controller：3a params 提取 ✅（ea5d580）；3b+ 状态/控制/字幕/Anime4K mixin（MobX codegen，高风险，待续） | 部分完成 |
-| 4 | local_controller 拆分 | 待执行 |
-| 5 | player_item 最小拆分集 | 待执行 |
+| 3 | player_controller：3a params 提取 ✅（ea5d580） | 部分完成（3b+ 见第 7 节回退记录） |
+| 4 | local_controller 拆分 | 回退（见第 7 节） |
+| 5 | player_item 最小拆分集 | 回退（见第 7 节） |
+
+## 7. MobX Store「职责 mixin」拆分工具链结论（回退记录）
+
+对 player_controller（2068 行，49 处 @observable + 16 处 @action）与 local_controller（1884 行，43 处 @observable + 23 处 @action + 4 处 @computed）实测 mobx_codegen 2.7.7 源码后确认：**按职责把 @observable/@action 成员拆进手写 mixin 在工具链层面不可行，本单元回退并记录原因。**
+
+依据（`pub.dev/mobx_codegen-2.7.7/lib/src/`）：
+
+1. `store_generator.dart`：生成器只遍历 `library.classes` 中 `classElement.mixins` 含 `Store` 的类（`isMixinStoreClass`，见 `store_class_visitor.dart:287`），在其中找该类的 **subtype**（`typeSystem.isSubtypeOf`），用 subtype 名生成 `mixin _$X on <with-Store 基类>, Store`。
+2. `store.dart:16`：生成模板硬编码 `mixin $typeName on $parentTypeName, Store`，`parentTypeName` = 带注解成员的那个类。
+3. `store.dart:41/45` 与 `observable.dart:83`、`action.dart:24-25`：生成的 getter/setter 用 `super.<field>` 引用基类字段、为每个 @action 方法生成 `ActionController.startAction/endAction` 包裹——**全部依赖注解成员直接声明在 with-Store 的基类内**。
+4. Dart 语言层面：类的成员无法跨 part 文件拆分；把注解成员移入 `mixin on Store` 后 codegen 的 visitor（`store_class_visitor.dart` 的 `userStoreClass.accept/visitChildren`）不再收集它们 → 生成代码缺失对应 Atom/ActionController → observable 读写失去响应性、action 丢失事务语义，即**行为被破坏**。若拆无注解方法，则手写 mixin 要么 `on <Store 类>`（与该类 with 它构成循环依赖），要么拆出一个无注解中间 mixin，但中间层仍需基类承载全部共享字段/注解成员，实际减行有限却引入 codegen subtype 查找歧义（`firstWhere` 取顺序首个）与 .g.dart 全量重生成，风险远超收益。
+
+**cloud_resources_controller（ChangeNotifier，无 MobX）拆分成功，恰因无 codegen 约束**；version_history 与 player_controller params 区（B-3a）不含注解成员，part 方案成立。
+
+**player_item（1518 行，UI State）回退原因**：6 个测试对源文件做正向文本断言，且目标面板（videoInfoBody/anime4k 确认框/字幕选择器）与 State 私有字段、动画控制器、定时器强耦合，参数化提取需数百处引用改写，不满足"低风险、保行为"前提。
+
+**结论**：player_controller/local_controller 的进一步瘦身只有两条出路，均需单独排期：
+- (a) 升级/替换 MobX 或接受把 store 拆为多个**独立 Store 对象**组合（改变公开 API 面，需改全部 UI 调用方）；
+- (b) 手写 Atom/ActionController 替代 codegen（放弃 .g.dart 生成，49+16 / 43+23+4 处逐个改写，回归风险大）。
+在现状约束下，判定为"保持原结构"是正确选择，已完成的 params 提取（B-3a）与无 MobX 文件拆分（B-1/B-2）不受影响。
 
 每单元提交前核对：`git status --short` 只含本单元文件；analyze 无错误；全量 test 全绿（偶发超时类失败需单独复跑确认非本次改动引入）；diff 不触碰全屏/字幕/选集/硬解/Anime4K 行为与文本契约保护段。

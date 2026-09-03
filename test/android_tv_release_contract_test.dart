@@ -3,14 +3,10 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Android mobile 与 pubspec 版本一致并仅保留 tvTest 源码 flavor', () {
+  test('Android mobile 使用独立版本并仅保留 tvTest 源码 flavor', () {
     final gradle = File('android/app/build.gradle.kts').readAsStringSync();
     final agents = File('AGENTS.md').readAsStringSync();
-    final pubspec = File('pubspec.yaml').readAsStringSync();
-    final version = RegExp(
-      r'^version:\s*(\d+\.\d+\.\d+)\+([1-9]\d*)\s*$',
-      multiLine: true,
-    ).firstMatch(pubspec)!;
+    final releaseNotes = File('RELEASE_NOTES.md').readAsStringSync();
 
     expect(
       gradle,
@@ -21,14 +17,22 @@ void main() {
       contains(
           'val windowsVersionCode = pubspecVersionMatch.groupValues[2].toInt()'),
     );
+
+    // Android 手机采用独立版本号，与 RELEASE_NOTES.md 的 "Android 正式版" 行对齐，
+    // 不再要求与 pubspec 的 Windows 版本一致。
+    final androidRelease = RegExp(
+      r'Android 正式版：(\d+\.\d+\.\d+) \((\d+)\)',
+    ).firstMatch(releaseNotes);
     expect(
-      gradle,
-      contains('val androidVersionName = "${version.group(1)}"'),
+      androidRelease,
+      isNotNull,
+      reason: 'RELEASE_NOTES.md 缺少 "Android 正式版：X.Y.Z (code)" 行',
     );
-    expect(
-      gradle,
-      contains('val androidVersionCode = ${version.group(2)}'),
-    );
+    final androidVersionName = androidRelease!.group(1)!;
+    final androidVersionCode = androidRelease.group(2)!;
+
+    expect(gradle, contains('val androidVersionName = "$androidVersionName"'));
+    expect(gradle, contains('val androidVersionCode = $androidVersionCode'));
     expect(gradle, contains('versionName = androidVersionName'));
     expect(gradle, contains('versionCode = androidVersionCode'));
     expect(gradle, contains('create("tvTest")'));

@@ -78,8 +78,8 @@ const List<VersionHistory> versionHistoryList = [
 |---|---|---|
 | 0 | 方案文档（本文件） | 已完成 |
 | 1 | version_history 拆分 | 已完成（974765b） |
-| 2 | cloud_resources_controller 拆分（9 个 mixin part，可按 2–3 个 commit 分批） | 下一个执行 |
-| 3 | player_controller params 提取 → 状态 → 低风险组 → 高风险组 | 待执行 |
+| 2 | cloud_resources_controller 拆分（9 个 mixin part） | 已完成（1e2ddef） |
+| 3 | player_controller params 提取 → 状态 → 低风险组 → 高风险组 | 下一个执行 |
 | 4 | local_controller 拆分 | 待执行 |
 | 5 | player_item 最小拆分集 | 待执行 |
 

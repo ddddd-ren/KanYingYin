@@ -34,6 +34,7 @@ migrate_working_dir/
 .pub/
 /build/
 /msix_pack/
+/output/
 *.pfx
 *.private-build.json
 /tool/windows/private-output/

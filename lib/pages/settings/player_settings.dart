@@ -10,7 +10,7 @@ import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/platform/android/android_system_service.dart';
 import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/utils/diagnostic_log_exporter.dart';
-// ignore_for_file: avoid_print
+import 'package:kanyingyin/utils/logger.dart';
 
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 
@@ -141,7 +141,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
   Future<void> updateButtonSkipTime() async {
     final int? newButtonSkipTime = await _showSkipTimeChangeDialog(
         title: '顶部按钮快进时长', initialValue: playerButtonSkipTime.toString());
-    print('新设置的顶部按钮快进时长: $newButtonSkipTime');
+    AppLogger().d('新设置的顶部按钮快进时长: $newButtonSkipTime');
 
     if (newButtonSkipTime != null &&
         newButtonSkipTime != playerButtonSkipTime) {
@@ -520,7 +520,8 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                     label: '$playerArrowKeySkipTime秒',
                     onChanged: (value) {
                       final newArrowKeySkipTime = value.toInt();
-                      print('新设置的方向键快进/快退时长: $newArrowKeySkipTime');
+                      AppLogger()
+                          .d('新设置的方向键快进/快退时长: $newArrowKeySkipTime');
 
                       if (value != playerArrowKeySkipTime) {
                         setting.put(SettingBoxKey.arrowKeySkipTime,

@@ -188,7 +188,9 @@ class PlayerItemState extends State<PlayerItem>
         playerController.playerPlaying) {
       try {
         await playerController.pause(enableSync: false);
-      } catch (_) {}
+      } catch (e) {
+        AppLogger().d('暂停播放失败', error: e);
+      }
       return;
     }
   }
@@ -883,7 +885,9 @@ class PlayerItemState extends State<PlayerItem>
                 '正在加载${videoPageController.roadList[videoPageController.currentRoad].identifier[videoPageController.currentEpisode]}');
         try {
           playerTimer!.cancel();
-        } catch (_) {}
+        } catch (e) {
+          AppLogger().d('取消播放定时器失败', error: e);
+        }
         widget.changeEpisode(videoPageController.currentEpisode + 1,
             currentRoad: videoPageController.currentRoad);
       }

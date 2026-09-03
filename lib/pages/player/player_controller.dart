@@ -1901,7 +1901,9 @@ abstract class _PlayerController with Store {
       final player = mediaPlayer;
       if (_disposeRequested || player == null) return;
       await player.setVolume(value);
-    } catch (_) {}
+    } catch (e) {
+      AppLogger().d('设置音量失败', error: e);
+    }
   }
 
   Future<void> playOrPause() async {
@@ -2034,7 +2036,9 @@ abstract class _PlayerController with Store {
     try {
       await mediaPlayer?.stop();
       loading = true;
-    } catch (_) {}
+    } catch (e) {
+      AppLogger().d('停止播放失败', error: e);
+    }
   }
 
   Future<Uint8List?> screenshot({String format = 'image/jpeg'}) async {

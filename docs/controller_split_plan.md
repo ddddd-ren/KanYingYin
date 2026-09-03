@@ -51,6 +51,8 @@ const List<VersionHistory> versionHistoryList = [
 
 单类 `CloudResourcesController extends ChangeNotifier`（101–1824），无 UI 依赖。主文件保留 imports、顶层 enum/值类（67–99）、类声明、构造函数与**全部字段**（final 字段不能由 mixin 构造器初始化）、通用工具/dispose；9 个 part mixin 按职责拆分（sources/scan/directory_scope/filter_tags/hidden_videos/tmdb_entry/tmdb_work/episode_match/auto_organize）。测试以子类覆写方式使用公开方法，签名不可变；dead_online_code_test 只做反向断言，不受影响。TMDB 降级分支（_scheduleTmdb 的 catchError、扫描失败保留上次索引、coordinator==null 抛 StateError 但浏览不受影响）需逐行原样迁移。
 
+**mixin 架构注意（执行前必读）**：part 文件中的 mixin 声明为 `mixin _XxxMixin on _CloudResourcesControllerBase`，主类为 `class CloudResourcesController extends _CloudResourcesControllerBase with _XxxMixin, ...`。**跨组互调的私有成员（字段或方法）必须在 `_CloudResourcesControllerBase` 中声明**（字段直接声明，方法声明为抽象签名），否则 mixin 之间互相看不到对方成员（`on` 约束只暴露 Base 的成员；"同库 part 私有可见"仅解决跨文件可见性，不解决跨 mixin 类型可见性）。动手前先通读全文，列出跨组调用清单再切分。
+
 ## 3. player_controller.dart（2072 行，MobX，第三优先）
 
 先用「数据类提取」降体量，再按 mixin part 拆分：
@@ -75,8 +77,8 @@ const List<VersionHistory> versionHistoryList = [
 | 序 | 单元 | 状态 |
 |---|---|---|
 | 0 | 方案文档（本文件） | 已完成 |
-| 1 | version_history 拆分 | 待执行 |
-| 2 | cloud_resources_controller 拆分（9 个 mixin part，可按 2–3 个 commit 分批） | 待执行 |
+| 1 | version_history 拆分 | 已完成（974765b） |
+| 2 | cloud_resources_controller 拆分（9 个 mixin part，可按 2–3 个 commit 分批） | 下一个执行 |
 | 3 | player_controller params 提取 → 状态 → 低风险组 → 高风险组 | 待执行 |
 | 4 | local_controller 拆分 | 待执行 |
 | 5 | player_item 最小拆分集 | 待执行 |

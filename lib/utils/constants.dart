@@ -14,21 +14,26 @@ class StyleString {
 
 const String customAppFontFamily = "MI_Sans_Regular";
 
-/// `year2023` flag is deprecated since 3.29 but not default to false yet. Keep
-/// it to false so we have the latest M3 style process indicator.
+/// Flutter 3.41.9 中 `year2023` 已废弃但有效默认值仍为 true（2023 样式），
+/// 必须显式置为 false 才能保持 2024 版 M3 进度指示器外观。
+/// 停止指示器与轨道间隙在 Flutter 源码中被 `!year2023` 门控，
+/// 无非废弃 API 可复现，故保留参数与 ignore；待官方将默认值翻转为
+/// false 后可一并删除。
 // ignore: deprecated_member_use
 const ProgressIndicatorThemeData progressIndicatorTheme2024 =
     // ignore: deprecated_member_use
     ProgressIndicatorThemeData(year2023: false);
 
-/// `year2023` flag is deprecated since 3.29 but not default to false yet. Keep
-/// it to false so we have the latest M3 style slider.
+/// Flutter 3.41.9 中 `year2023` 已废弃但有效默认值仍为 true（2023 样式），
+/// 必须显式置为 false 才能保持 2024 版 M3 滑块外观。
+/// 待官方将默认值翻转为 false 后可删除此参数与对应 ignore。
+/// 值指示器使用非废弃的 `ShowValueIndicator.onDrag`，与原 `always`
+/// 语义一致（均为拖动时显示）。
 // ignore: deprecated_member_use
 const SliderThemeData sliderTheme2024 = SliderThemeData(
   // ignore: deprecated_member_use
   year2023: false,
-  // ignore: deprecated_member_use
-  showValueIndicator: ShowValueIndicator.always,
+  showValueIndicator: ShowValueIndicator.onDrag,
 );
 
 /// The page transition method defined here is managed by flutter, and the native transition method of flutter is set here.

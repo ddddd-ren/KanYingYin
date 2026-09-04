@@ -22,10 +22,21 @@ class VersionHistory {
 }
 
 /// 应用内更新历史列表（最新在前）。
-/// 当前正式版条目保留在本文件内：test/version_consistency_test.dart
+/// 当前版本条目保留在本文件内：test/version_consistency_test.dart
 /// 以文本方式断言本声明与当前版本条目的位置；其余条目按发布时间连续
 /// 区段拆分到 part 文件，展开顺序与原列表完全一致，不得重排。
 const List<VersionHistory> versionHistoryList = [
+  VersionHistory(
+    version: '2.1.204',
+    date: '2026-09-04',
+    isPrerelease: true,
+    changes: [
+      '抽取超分辨率确认弹窗，保持确认、取消和下次不再询问行为一致',
+      'Windows 媒体库、分类和网盘资源页继续保留加载状态与播放入口；Android 手机和平板版本配置保持一致',
+      '本轮仅交付 Windows 测试版 EXE，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
+    ],
+  ),
   VersionHistory(
     version: '1.0.13',
     date: '2026-09-01',
@@ -61,6 +72,20 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '2.1.204' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[
+      VersionHistory(
+        version: '2.1.204',
+        date: '2026-09-04',
+        isPrerelease: true,
+        changes: [
+          '抽取超分辨率确认弹窗，保持确认、取消和下次不再询问行为一致',
+          '本轮仅交付 Windows 测试版 EXE，不构建 Android TV 安装包',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
+        ],
+      ),
+    ];
+  }
   if (currentVersion == '1.0.13' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[
       VersionHistory(

@@ -21,12 +21,12 @@ void main() {
     // Android 手机采用独立版本号，与 RELEASE_NOTES.md 的 "Android 正式版" 行对齐，
     // 不再要求与 pubspec 的 Windows 版本一致。
     final androidRelease = RegExp(
-      r'Android 正式版：(\d+\.\d+\.\d+) \((\d+)\)',
+      r'Android (?:正式版|手机测试版)：(\d+\.\d+\.\d+) \((\d+)\)',
     ).firstMatch(releaseNotes);
     expect(
       androidRelease,
       isNotNull,
-      reason: 'RELEASE_NOTES.md 缺少 "Android 正式版：X.Y.Z (code)" 行',
+      reason: 'RELEASE_NOTES.md 缺少 Android 版本记录行',
     );
     final androidVersionName = androidRelease!.group(1)!;
     final androidVersionCode = androidRelease.group(2)!;

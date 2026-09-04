@@ -25,16 +25,19 @@ void main() {
             : '';
 
     expect(currentReleaseNotes, contains('Windows EXE 安装器版本：$version'));
+    final isPrerelease = version.startsWith('2.1.');
     expect(
       currentReleaseNotes,
-      contains('Android 正式版：1.0.9 (10009)'),
+      contains(isPrerelease
+          ? 'Android 手机测试版：$version ($buildNumber)'
+          : 'Android 正式版：1.0.9 (10009)'),
     );
     for (final text in <String>[
       '版本',
-      '网盘资源页',
-      'Windows 正式版',
-      'Android 正式版',
-      '观看历史',
+      if (!isPrerelease) '网盘资源页',
+      isPrerelease ? 'Windows 测试版' : 'Windows 正式版',
+      isPrerelease ? 'Android 手机测试版' : 'Android 正式版',
+      if (!isPrerelease) '观看历史',
       '不会修改',
     ]) {
       expect(currentReleaseNotes, contains(text));
@@ -60,7 +63,7 @@ void main() {
     final version = packageVersion!.group(1)!;
     final buildNumber = packageVersion.group(2)!;
 
-    expect(version, equals('1.0.13'));
+    final isPrerelease = version.startsWith('2.1.');
     expect(pubspec, contains('msix_version: $version.0'));
     expect(appVersion, contains("current = '$version'"));
     expect(releaseNotes, contains('## $version+$buildNumber'));
@@ -71,17 +74,21 @@ void main() {
     );
     expect(
       updateDialogCopy,
-      contains('Android 手机正式版：1.0.9 (10009)'),
+      contains(isPrerelease
+          ? 'Android 手机测试版：$version ($buildNumber)'
+          : 'Android 手机正式版：1.0.9 (10009)'),
     );
     expect(versionHistory, contains("version: '$version'"));
     expect(gradle, contains('windowsVersionName != "$version"'));
     expect(gradle, contains('windowsVersionCode != $buildNumber'));
-    expect(gradle, contains('val androidVersionName = "1.0.9"'));
-    expect(gradle, contains('val androidVersionCode = 10009'));
+    final androidVersion = isPrerelease ? version : '1.0.9';
+    final androidCode = isPrerelease ? buildNumber : '10009';
+    expect(gradle, contains('val androidVersionName = "$androidVersion"'));
+    expect(gradle, contains('val androidVersionCode = $androidCode'));
     expect(androidScript, contains("pubspecVersion.Name -ne '$version'"));
     expect(androidScript, contains('pubspecVersion.Code -ne $buildNumber'));
-    expect(androidScript, contains("\$androidVersion = '1.0.9'"));
-    expect(androidScript, contains('\$androidVersionCode = 10009'));
+    expect(androidScript, contains("\$androidVersion = '$androidVersion'"));
+    expect(androidScript, contains('\$androidVersionCode = $androidCode'));
   });
 
   test('直接依赖使用与锁文件兼容的明确约束', () {

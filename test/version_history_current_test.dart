@@ -34,21 +34,45 @@ Future<void> _openVersionChangelogDialog(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('2.1.205 测试版更新弹窗展示四项边界修复', (tester) async {
-    expect(AppVersion.current, '2.1.205');
+  testWidgets('1.0.14 正式版更新弹窗展示当前有效更新', (tester) async {
+    expect(AppVersion.current, '1.0.14');
     final entries = versionHistoryForCurrent(AppVersion.current);
     expect(entries, hasLength(1));
-    expect(entries.single.isPrerelease, isTrue);
-    expect(entries.single.date, '2026-09-05');
+    expect(entries.single.isPrerelease, isFalse);
+    expect(entries.single.date, '2026-09-06');
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(body: VersionChangelogContent(versions: entries)),
     ));
 
-    expect(find.text('v2.1.205  测试版  2026-09-05'), findsOneWidget);
-    for (final text in ['数据目录', '隐藏或恢复', '最后一个网盘来源', '重试']) {
+    expect(find.text('v1.0.14  正式版  2026-09-06'), findsOneWidget);
+    for (final text in ['重新刮削本季', '缓存', '隐藏', '重试']) {
       expect(find.textContaining(text), findsWidgets);
     }
     expect(tester.takeException(), isNull);
+  });
+
+  test('Android 1.0.10 正式版只展示手机和平板实际功能', () {
+    final entries = versionHistoryForCurrent(
+      AppVersion.current,
+      platform: AppPlatformKind.android,
+    );
+
+    expect(entries, hasLength(1));
+    expect(entries.single.version, '1.0.10');
+    expect(entries.single.isPrerelease, isFalse);
+    final changes = entries.single.changes.join('\n');
+    for (final text in <String>[
+      '手机和平板',
+      '重新刮削本季',
+      '网盘视频隐藏',
+      'MediaCodec',
+      '不会修改',
+    ]) {
+      expect(changes, contains(text));
+    }
+    expect(changes, isNot(contains('测试版')));
+    expect(changes, isNot(contains('Android TV')));
+    expect(changes, isNot(contains('首次正式发布')));
   });
 
   test('二点一九八 Windows 测试版记录全屏体验和双端交付', () {

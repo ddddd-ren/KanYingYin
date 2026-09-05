@@ -27,6 +27,32 @@ class VersionHistory {
 /// 区段拆分到 part 文件，展开顺序与原列表完全一致，不得重排。
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '1.0.14',
+    date: '2026-09-06',
+    changes: [
+      'Windows 网盘季度卡片新增“重新刮削本季”，只更新当前季资料和封面；整剧更新或更换 TMDB 剧目时会确认影响范围',
+      '修复跨目录归并和多季同时更新时季度海报互相覆盖的问题；失败时保留原资料和旧封面',
+      'Windows 清理缓存会拒绝数据目录重合、危险目录以及混入视频或数据库的目录，避免误删重要数据',
+      'Windows 和 Android 的网盘视频隐藏、恢复和来源移除后，分类页、网盘页与隐藏管理列表保持同步',
+      '修复首次网盘加载失败后点击“重试”无效的问题，并避免重复请求和返回页面后重复加载',
+      'Android 手机和平板继续支持本地媒体库、个人网盘、字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.206',
+    date: '2026-09-06',
+    isPrerelease: true,
+    changes: [
+      '网盘季度卡片新增“重新刮削本季”，只更新当前季资料和封面，不再连带更新其他季',
+      '整部剧重新刮削与更换 TMDB 剧目需要确认影响范围，避免单季操作意外覆盖整剧',
+      '修复跨目录归并时季度海报互相覆盖的问题；多个季度同时更新时分别保留结果',
+      '季度资料或海报请求失败时保留原资料和旧封面，加载提示只作用于当前季',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机仅同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.205',
     date: '2026-09-05',
     isPrerelease: true,
@@ -85,6 +111,21 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '1.0.14' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[
+      VersionHistory(
+        version: '1.0.10',
+        date: '2026-09-06',
+        changes: [
+          '手机和平板的网盘季度卡片新增“重新刮削本季”，只更新当前季资料和封面；整剧更新或更换 TMDB 剧目时会确认影响范围',
+          '修复跨目录归并和多季同时更新时季度海报互相覆盖的问题；资料或海报请求失败时保留原内容',
+          '网盘视频隐藏、恢复和来源移除后，分类页、网盘页与隐藏管理列表保持同步；首次加载失败后可以正常重试',
+          '继续支持本地媒体库、个人网盘、字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和海报缓存',
+        ],
+      ),
+    ];
+  }
   if (currentVersion == '2.1.204' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[
       VersionHistory(

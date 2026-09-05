@@ -520,8 +520,7 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
                     label: '$playerArrowKeySkipTime秒',
                     onChanged: (value) {
                       final newArrowKeySkipTime = value.toInt();
-                      AppLogger()
-                          .d('新设置的方向键快进/快退时长: $newArrowKeySkipTime');
+                      AppLogger().d('新设置的方向键快进/快退时长: $newArrowKeySkipTime');
 
                       if (value != playerArrowKeySkipTime) {
                         setting.put(SettingBoxKey.arrowKeySkipTime,

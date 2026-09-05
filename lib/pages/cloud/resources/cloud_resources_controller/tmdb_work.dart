@@ -47,22 +47,43 @@ mixin _CloudTmdbWorkMixin on _CloudResourcesControllerBase {
   ) {
     final coordinator = _workTmdbCoordinator;
     if (coordinator == null) throw StateError('作品级 TMDB 刮削服务不可用');
-    return coordinator.searchPrepared(workForGroup(group), request);
+    return coordinator.searchPrepared(workForGroup(group), request,
+        seasonNumber: group.seasonNumber);
   }
 
   Future<CloudWorkTmdbSelectionOutcome> applyWorkTmdbCandidate(
     CloudResourceMediaGroup group,
     TmdbRankedCandidate candidate, {
     required TmdbScrapeOptions options,
+    bool wholeWork = false,
   }) async {
     final coordinator = _workTmdbCoordinator;
     if (coordinator == null) throw StateError('作品级 TMDB 刮削服务不可用');
+    final seasonNumber = wholeWork ? null : group.seasonNumber;
+    final works = worksForGroup(group);
+    if (seasonNumber != null) {
+      final metadata = group.workRecord?.metadata;
+      if (metadata != null &&
+          (metadata.id != candidate.metadata.id ||
+              metadata.mediaType != candidate.metadata.mediaType)) {
+        throw CloudWorkTmdbIdentityChangeException();
+      }
+    }
+    final selectedWorkKeys = group.videos
+        .map(_indexedItemFor)
+        .whereType<CloudMediaIndexItem>()
+        .map((item) => item.workKey)
+        .toSet();
     CloudWorkTmdbSelectionOutcome? first;
-    for (final work in worksForGroup(group)) {
+    for (final work in works) {
+      if (seasonNumber != null && !selectedWorkKeys.contains(work.workKey)) {
+        continue;
+      }
       final outcome = await coordinator.selectPrepared(
         work,
         candidate,
         options: options,
+        seasonNumber: seasonNumber,
       );
       first ??= outcome;
     }

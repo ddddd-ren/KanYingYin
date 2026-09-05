@@ -13,12 +13,16 @@ void main() {
     final root = await Directory.systemTemp.createTemp('kyy-startup-safety-');
     addTearDown(() => root.delete(recursive: true));
     const channel = MethodChannel('plugins.flutter.io/path_provider');
-    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(channel, (call) async => switch (call.method) {
-      'getApplicationSupportDirectory' => root.path,
-      'getApplicationCacheDirectory' => p.join(root.path, 'system-cache'),
-      _ => null,
-    });
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(
+        channel,
+        (call) async => switch (call.method) {
+              'getApplicationSupportDirectory' => root.path,
+              'getApplicationCacheDirectory' =>
+                p.join(root.path, 'system-cache'),
+              _ => null,
+            });
     addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
     final config = File(p.join(root.path, 'storage-startup.json'));
     final original = jsonEncode(StorageStartupConfig(
@@ -30,13 +34,21 @@ void main() {
     ).toJson());
     await config.writeAsString(original);
 
-    await expectLater(StoragePathResolver.load(), throwsA(isA<FileSystemException>()));
+    await expectLater(
+        StoragePathResolver.load(), throwsA(isA<FileSystemException>()));
 
     expect(await config.readAsString(), original);
     expect(await Directory(p.join(root.path, 'data')).exists(), isFalse);
   });
 
-  for (final relation in ['相同', '缓存包含数据', '数据包含缓存', '大小写与规范化', '符号链接', '目录联接']) {
+  for (final relation in [
+    '相同',
+    '缓存包含数据',
+    '数据包含缓存',
+    '大小写与规范化',
+    '符号链接',
+    '目录联接'
+  ]) {
     test('拒绝保存危险目录：$relation，保留已有配置和文件', () async {
       final root = await Directory.systemTemp.createTemp('kyy-path-safety-');
       addTearDown(() => root.delete(recursive: true));
@@ -55,7 +67,8 @@ void main() {
       }
       if (relation == '目录联接') {
         final linkPath = p.join(root.path, 'junction');
-        final result = await Process.run('cmd.exe', ['/c', 'mklink', '/J', linkPath, data.path]);
+        final result = await Process.run(
+            'cmd.exe', ['/c', 'mklink', '/J', linkPath, data.path]);
         expect(result.exitCode, 0, reason: '${result.stderr}');
         cache = Directory(p.join(linkPath, 'not-created'));
       }

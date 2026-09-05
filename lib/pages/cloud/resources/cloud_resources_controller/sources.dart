@@ -202,7 +202,8 @@ mixin _CloudSourcesMixin on _CloudResourcesControllerBase {
       _mediaLibraryReloadGeneration++;
       _mediaLibrarySources = loadedSources;
       final sourceIds = loadedSources.map((source) => source.id).toSet();
-      _mediaLibrarySeriesBySource.removeWhere((id, _) => !sourceIds.contains(id));
+      _mediaLibrarySeriesBySource
+          .removeWhere((id, _) => !sourceIds.contains(id));
       if (loadedSources.isEmpty) _mediaLibrarySnapshotInitialized = true;
       _mediaLibraryNotifier.notifyListeners();
       final currentId = selectedSource?.id;

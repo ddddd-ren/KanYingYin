@@ -99,6 +99,20 @@ void main() {
       expect(workflow, contains('flutter build windows --release --no-pub'),
           reason: workflowPath);
       expect(workflow, isNot(contains('assets/linux/')), reason: workflowPath);
+      if (workflowPath.endsWith('release.yaml')) {
+        expect(
+          workflow,
+          contains('"KanYingYin-\$env:APP_VERSION.exe"'),
+          reason: '正式版流水线必须生成不含测试版字样的 GitHub 资产名',
+        );
+        expect(
+          workflow,
+          contains(
+            'files: build/windows/exe_output/KanYingYin-\${{ env.APP_VERSION }}.exe',
+          ),
+          reason: '正式版流水线必须上传 ASCII 文件名',
+        );
+      }
     }
   });
 }

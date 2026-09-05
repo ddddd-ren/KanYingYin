@@ -59,11 +59,11 @@ if ($VersionOnly) {
     Write-Output "$($pubspecVersion.Name)+$($pubspecVersion.Code)"
     return
 }
-if ($pubspecVersion.Name -ne '2.1.205' -or $pubspecVersion.Code -ne 20205) {
-  throw 'pubspec.yaml must use Windows test version 2.1.205+20205'
+if ($pubspecVersion.Name -ne '1.0.14' -or $pubspecVersion.Code -ne 10014) {
+  throw 'pubspec.yaml must use Windows release version 1.0.14+10014'
 }
-$androidVersion = '2.1.205'
-$androidVersionCode = 20205
+$androidVersion = '1.0.10'
+$androidVersionCode = 10010
 $requiredVariables = @(
     'KANYINGYIN_ANDROID_KEYSTORE',
     'KANYINGYIN_ANDROID_STORE_PASSWORD',

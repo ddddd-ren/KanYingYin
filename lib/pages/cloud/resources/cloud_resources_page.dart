@@ -27,6 +27,7 @@ import 'package:kanyingyin/repositories/cloud_media_tag_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
+import 'package:kanyingyin/services/cloud/cloud_work_tmdb_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/utils/logger.dart';
@@ -249,6 +250,42 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     await _openTmdbDialog(group, rematch: true);
   }
 
+  Future<void> _rescrapeWork(CloudResourceMediaGroup group) async {
+    if (!await _confirmWholeWork(group) || !mounted) return;
+    await _openTmdbDialog(group, rematch: true, wholeWork: true);
+  }
+
+  Future<bool> _confirmWholeWork(CloudResourceMediaGroup group,
+      {String? newTitle}) async {
+    final seasons = _controller
+        .worksForGroup(group)
+        .expand((work) => work.seasons.map((season) => season.seasonNumber))
+        .where((number) => number > 0)
+        .toSet()
+        .toList()
+      ..sort();
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            key: const ValueKey<String>('cloud-whole-work-confirmation'),
+            title: Text(newTitle == null ? '重新刮削整部剧' : '更换整部剧匹配'),
+            content: Text(
+              '${newTitle == null ? '将更新“${group.seriesName}”' : '将“${group.seriesName}”匹配为“$newTitle”'}'
+              '，影响本地现有的 ${seasons.length} 季资料与海报。网盘原文件不会修改。',
+            ),
+            actions: <Widget>[
+              TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('取消')),
+              FilledButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('继续整剧更新')),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
   Future<void> _manualMatchEntry(CloudResourceMediaGroup group) async {
     await _openTmdbDialog(group, rematch: true);
   }
@@ -341,19 +378,34 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
   Future<void> _openTmdbDialog(
     CloudResourceMediaGroup group, {
     required bool rematch,
+    bool wholeWork = false,
   }) async {
     try {
       final entry = group.anchor;
       final workGroup = _isWorkGroup(group);
+      final seasonScoped =
+          workGroup && group.seasonNumber != null && !wholeWork;
       final outcome = await showDialog<CloudResourceTmdbSelectionOutcome>(
         context: context,
         builder: (context) => CloudTmdbMatchDialog(
-          title: rematch ? '重新匹配 TMDB' : 'TMDB 刮削',
+          title: seasonScoped
+              ? '第 ${group.seasonNumber} 季 TMDB 刮削'
+              : wholeWork
+                  ? '整部剧 TMDB 刮削'
+                  : rematch
+                      ? '重新匹配 TMDB'
+                      : 'TMDB 刮削',
           safetyText: '仅更新看影音中的资料，不会修改网盘文件',
           draft: workGroup
               ? _controller.tmdbDraftForGroup(group)
               : _controller.tmdbDraftFor(entry),
           initialOptions: _controller.tmdbScrapeOptions,
+          errorMessageBuilder: (error) {
+            if (error is StateError && error.message == '整剧更新已取消') {
+              return '整剧更新已取消，原资料未修改';
+            }
+            return _tmdbErrorMessage(error);
+          },
           onSearch: (request) async {
             if (workGroup) {
               return CloudResourceTmdbSearchOutcome(
@@ -370,11 +422,28 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
                 options: options,
               );
             }
-            final selected = await _controller.applyWorkTmdbCandidate(
-              group,
-              candidate,
-              options: options,
-            );
+            CloudWorkTmdbSelectionOutcome selected;
+            try {
+              selected = await _controller.applyWorkTmdbCandidate(
+                group,
+                candidate,
+                options: options,
+                wholeWork: wholeWork,
+              );
+            } on CloudWorkTmdbIdentityChangeException {
+              if (!mounted ||
+                  !await _confirmWholeWork(group,
+                      newTitle: candidate.metadata.title)) {
+                throw StateError('整剧更新已取消');
+              }
+              if (!mounted) throw StateError('整剧更新已取消');
+              selected = await _controller.applyWorkTmdbCandidate(
+                group,
+                candidate,
+                options: options,
+                wholeWork: true,
+              );
+            }
             final metadata = selected.record.metadata!;
             return CloudResourceTmdbSelectionOutcome(
               record: CloudResourceTmdbRecord.matched(
@@ -832,145 +901,188 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       autoOrganizing: _autoOrganizing,
       tmdbBusy: _controller.tmdbScrapingKeys.isNotEmpty,
     );
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: Row(
-        children: [
-          const Text(
-            '网盘媒体库',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(width: 16),
-          if (sources.isNotEmpty)
-            DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                key: const ValueKey<String>('cloud-source-selector'),
-                value: selected?.id,
-                items: [
-                  for (final source in sources)
-                    DropdownMenuItem<String>(
-                      value: source.id,
-                      child: Text(source.name),
-                    ),
-                ],
-                onChanged: !toolbarState.canChangeSource
-                    ? null
-                    : (sourceId) => _controller.selectSource(sourceId),
-              ),
+    const title = Text(
+      '网盘媒体库',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+    );
+    final sourceSelector = DropdownButtonHideUnderline(
+      child: DropdownButton<String>(
+        key: const ValueKey<String>('cloud-source-selector'),
+        value: selected?.id,
+        isExpanded: true,
+        itemHeight: null,
+        selectedItemBuilder: (_) => [
+          for (final source in sources)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(source.name,
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
             ),
-          if (sources.isNotEmpty) ...[
-            const SizedBox(width: 4),
-            PopupMenuButton<String>(
-              key: const ValueKey<String>('cloud-genre-filter'),
-              tooltip: '筛选 TMDB 类型',
-              enabled: selected != null,
-              constraints: _cloudFilterMenuConstraints(context),
-              onSelected: _handleCloudFilterSelection,
-              itemBuilder: (_) => _cloudGenreMenuEntries(
-                canScrape: toolbarState.canScrape,
-              ),
-              icon: _cloudFilterIcon(
-                icon: Icons.movie_outlined,
-                availableTags: _controller.availableGenres,
-              ),
+        ],
+        items: [
+          for (final source in sources)
+            DropdownMenuItem<String>(
+              value: source.id,
+              child: Text(source.name),
             ),
-            const SizedBox(width: 2),
-            PopupMenuButton<String>(
-              key: const ValueKey<String>('cloud-custom-tag-filter'),
-              tooltip: '筛选自定义标签',
-              enabled: selected != null,
-              constraints: _cloudFilterMenuConstraints(context),
-              onSelected: _handleCloudFilterSelection,
-              itemBuilder: (_) => _cloudCustomTagMenuEntries(),
-              icon: _cloudFilterIcon(
-                icon: Icons.label_outline,
-                availableTags: _controller.availableCustomTags,
-              ),
+        ],
+        onChanged: !toolbarState.canChangeSource
+            ? null
+            : (sourceId) => _controller.selectSource(sourceId),
+      ),
+    );
+    final filters = <Widget>[
+      const SizedBox(width: 4),
+      PopupMenuButton<String>(
+        key: const ValueKey<String>('cloud-genre-filter'),
+        tooltip: '筛选 TMDB 类型',
+        enabled: selected != null,
+        constraints: _cloudFilterMenuConstraints(context),
+        onSelected: _handleCloudFilterSelection,
+        itemBuilder: (_) => _cloudGenreMenuEntries(
+          canScrape: toolbarState.canScrape,
+        ),
+        icon: _cloudFilterIcon(
+          icon: Icons.movie_outlined,
+          availableTags: _controller.availableGenres,
+        ),
+      ),
+      const SizedBox(width: 2),
+      PopupMenuButton<String>(
+        key: const ValueKey<String>('cloud-custom-tag-filter'),
+        tooltip: '筛选自定义标签',
+        enabled: selected != null,
+        constraints: _cloudFilterMenuConstraints(context),
+        onSelected: _handleCloudFilterSelection,
+        itemBuilder: (_) => _cloudCustomTagMenuEntries(),
+        icon: _cloudFilterIcon(
+          icon: Icons.label_outline,
+          availableTags: _controller.availableCustomTags,
+        ),
+      ),
+    ];
+    final actions = <Widget>[
+      PopupMenuButton<_CloudAddAction>(
+        tooltip: '添加网盘',
+        icon: const Icon(Icons.add_circle_outline),
+        onSelected: (action) => unawaited(_addCloudSource(action)),
+        itemBuilder: (_) => const [
+          PopupMenuItem(
+            value: _CloudAddAction.quark,
+            child: Text('添加夸克网盘'),
+          ),
+          PopupMenuItem(
+            value: _CloudAddAction.baidu,
+            child: Text('添加百度网盘'),
+          ),
+          PopupMenuItem(
+            value: _CloudAddAction.xunlei,
+            child: Text('添加迅雷网盘'),
+          ),
+          PopupMenuItem(
+            value: _CloudAddAction.openList,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('添加 OpenList'),
+                SizedBox(width: 8),
+                Text('调试中'),
+              ],
             ),
-          ],
-          const Spacer(),
-          PopupMenuButton<_CloudAddAction>(
-            tooltip: '添加网盘',
-            icon: const Icon(Icons.add_circle_outline),
-            onSelected: (action) => unawaited(_addCloudSource(action)),
-            itemBuilder: (_) => const [
-              PopupMenuItem(
-                value: _CloudAddAction.quark,
-                child: Text('添加夸克网盘'),
-              ),
-              PopupMenuItem(
-                value: _CloudAddAction.baidu,
-                child: Text('添加百度网盘'),
-              ),
-              PopupMenuItem(
-                value: _CloudAddAction.xunlei,
-                child: Text('添加迅雷网盘'),
-              ),
-              PopupMenuItem(
-                value: _CloudAddAction.openList,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('添加 OpenList'),
-                    SizedBox(width: 8),
-                    Text('调试中'),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          IconButton(
-            tooltip: '管理网盘来源',
-            onPressed: _manageSources,
-            icon: const Icon(Icons.settings_outlined),
-          ),
-          IconButton(
-            tooltip: '刷新当前来源',
-            onPressed: toolbarState.canRefresh ? _controller.refresh : null,
-            icon: const Icon(Icons.refresh),
-          ),
-          PopupMenuButton<CloudToolbarAction>(
-            tooltip: '更多网盘操作',
-            icon: const Icon(Icons.more_horiz_rounded),
-            onSelected: _handleToolbarAction,
-            itemBuilder: (context) => [
-              _cloudToolbarMenuItem(
-                context: context,
-                action: CloudToolbarAction.manageHiddenVideos,
-                icon: Icons.visibility_outlined,
-                label: '管理已隐藏视频',
-                enabled: toolbarState.canManageHiddenVideos,
-              ),
-              const PopupMenuDivider(),
-              _cloudToolbarMenuItem(
-                context: context,
-                action: CloudToolbarAction.autoOrganize,
-                icon: Icons.auto_awesome_motion,
-                label: '自动整理当前来源',
-                busy: _autoOrganizing,
-                enabled: toolbarState.canAutoOrganize,
-              ),
-              _cloudToolbarMenuItem(
-                context: context,
-                action: CloudToolbarAction.scrape,
-                icon: Icons.auto_awesome_outlined,
-                label: '刮削当前来源',
-                busy: _batchScraping,
-                enabled: toolbarState.canScrape,
-              ),
-              const PopupMenuDivider(),
-              _cloudToolbarMenuItem(
-                context: context,
-                action: CloudToolbarAction.removeSource,
-                icon: Icons.delete_outline,
-                label: '移除当前来源',
-                enabled: toolbarState.canRemoveSource,
-                destructive: true,
-              ),
-            ],
           ),
         ],
       ),
+      IconButton(
+        tooltip: '管理网盘来源',
+        onPressed: _manageSources,
+        icon: const Icon(Icons.settings_outlined),
+      ),
+      IconButton(
+        tooltip: '刷新当前来源',
+        onPressed: toolbarState.canRefresh ? _controller.refresh : null,
+        icon: const Icon(Icons.refresh),
+      ),
+      PopupMenuButton<CloudToolbarAction>(
+        tooltip: '更多网盘操作',
+        icon: const Icon(Icons.more_horiz_rounded),
+        onSelected: _handleToolbarAction,
+        itemBuilder: (context) => [
+          _cloudToolbarMenuItem(
+            context: context,
+            action: CloudToolbarAction.manageHiddenVideos,
+            icon: Icons.visibility_outlined,
+            label: '管理已隐藏视频',
+            enabled: toolbarState.canManageHiddenVideos,
+          ),
+          const PopupMenuDivider(),
+          _cloudToolbarMenuItem(
+            context: context,
+            action: CloudToolbarAction.autoOrganize,
+            icon: Icons.auto_awesome_motion,
+            label: '自动整理当前来源',
+            busy: _autoOrganizing,
+            enabled: toolbarState.canAutoOrganize,
+          ),
+          _cloudToolbarMenuItem(
+            context: context,
+            action: CloudToolbarAction.scrape,
+            icon: Icons.auto_awesome_outlined,
+            label: '刮削当前来源',
+            busy: _batchScraping,
+            enabled: toolbarState.canScrape,
+          ),
+          const PopupMenuDivider(),
+          _cloudToolbarMenuItem(
+            context: context,
+            action: CloudToolbarAction.removeSource,
+            icon: Icons.delete_outline,
+            label: '移除当前来源',
+            enabled: toolbarState.canRemoveSource,
+            destructive: true,
+          ),
+        ],
+      ),
+    ];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: LayoutBuilder(builder: (context, constraints) {
+        final actionRow =
+            Row(mainAxisSize: MainAxisSize.min, children: actions);
+        if (constraints.maxWidth < 600) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(children: [Expanded(child: title), actionRow]),
+              if (sources.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Row(children: [Expanded(child: sourceSelector), ...filters]),
+              ],
+            ],
+          );
+        }
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Flexible(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  title,
+                  if (sources.isNotEmpty) ...[
+                    const SizedBox(width: 16),
+                    Flexible(child: IntrinsicWidth(child: sourceSelector)),
+                    ...filters,
+                  ],
+                ],
+              ),
+            ),
+            actionRow,
+          ],
+        );
+      }),
     );
   }
 
@@ -1266,6 +1378,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
               onEditTags: _editTags,
               onScrape: _scrapeEntry,
               onRematch: _rematchEntry,
+              onRescrapeWork: _rescrapeWork,
               onManualMatch: _manualMatchEntry,
               onMatchEpisodes: _matchEpisodes,
               onDetails: _showMediaDetails,

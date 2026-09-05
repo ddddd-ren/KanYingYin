@@ -57,6 +57,7 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
   final Map<String, CloudWorkTmdbRecord> _records =
       <String, CloudWorkTmdbRecord>{};
   final Set<String> _scrapingWorkKeys = <String>{};
+  final Set<String> _manualScrapingKeys = <String>{};
 
   int _generation = 0;
   int _completedCount = 0;
@@ -89,7 +90,9 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
     _records
       ..clear()
       ..addEntries(stored.map((record) => MapEntry(record.workKey, record)));
-    _scrapingWorkKeys.clear();
+    _scrapingWorkKeys
+      ..clear()
+      ..addAll(_manualScrapingKeys);
     _completedCount = 0;
     _totalCount = 0;
 
@@ -147,6 +150,10 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
     if (apiKey.isEmpty) return;
     final now = _now();
     final works = uniqueWorks.values.where((work) {
+      if (_manualScrapingKeys.any((key) =>
+          key == work.workKey || key.startsWith('${work.workKey}|season:'))) {
+        return false;
+      }
       final cached = _records[work.workKey];
       if (cached == null || cached.status == CloudWorkTmdbStatus.unchecked) {
         return true;
@@ -376,20 +383,33 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
 
   Future<TmdbRankedResult> searchPrepared(
     CloudWorkIdentity work,
-    CloudResourceTmdbSearchRequest request,
-  ) async {
+    CloudResourceTmdbSearchRequest request, {
+    int? seasonNumber,
+  }) async {
     final apiKey = _requiredApiKey();
     return _tracked(work, () async {
       final service = await _serviceFor(apiKey);
       return service.searchPrepared(work, request);
-    });
+    }, seasonNumber: seasonNumber);
   }
 
   Future<CloudWorkTmdbSelectionOutcome> selectPrepared(
     CloudWorkIdentity work,
     TmdbRankedCandidate candidate, {
     required TmdbScrapeOptions options,
+    int? seasonNumber,
   }) {
+    if (seasonNumber != null) {
+      final apiKey = _requiredApiKey();
+      return _tracked(work, () async {
+        final service = await _serviceFor(apiKey);
+        final outcome = await service.selectSeason(work, candidate.metadata,
+            seasonNumber: seasonNumber, options: options);
+        await _refreshRecord(work.workKey);
+        notifyListeners();
+        return outcome;
+      }, seasonNumber: seasonNumber);
+    }
     return selectCandidate(work, candidate.metadata, options: options);
   }
 
@@ -570,14 +590,28 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
 
   Future<T> _tracked<T>(
     CloudWorkIdentity work,
-    Future<T> Function() operation,
-  ) async {
-    _scrapingWorkKeys.add(work.workKey);
+    Future<T> Function() operation, {
+    int? seasonNumber,
+  }) async {
+    final key = seasonNumber == null
+        ? work.workKey
+        : '${work.workKey}|season:$seasonNumber';
+    if (_scrapingWorkKeys.contains(key) ||
+        _scrapingWorkKeys.contains(work.workKey) ||
+        (seasonNumber == null &&
+            _scrapingWorkKeys.any(
+              (key) => key.startsWith('${work.workKey}|season:'),
+            ))) {
+      throw StateError('该作品正在刮削，请稍后重试');
+    }
+    _scrapingWorkKeys.add(key);
+    _manualScrapingKeys.add(key);
     notifyListeners();
     try {
       return await operation();
     } finally {
-      _scrapingWorkKeys.remove(work.workKey);
+      _scrapingWorkKeys.remove(key);
+      _manualScrapingKeys.remove(key);
       notifyListeners();
     }
   }

@@ -704,6 +704,70 @@ void main() {
         find.byKey(const ValueKey<String>('cloud-season-3')), findsOneWidget);
   });
 
+  testWidgets('单季刮削状态只标记目标季并保留另一季海报 State', (tester) async {
+    final first = _seasonMediaGroup();
+    final second = CloudResourceMediaGroup(
+      stableKey: '${first.workKey}|season:4',
+      workKey: first.workKey,
+      seriesName: first.seriesName,
+      displayName: '中文剧名 第 4 季',
+      isSeries: true,
+      seasonNumber: 4,
+      videos: first.videos,
+      seasons: first.seasons,
+      record: null,
+      workRecord: first.workRecord,
+      isWorkScoped: true,
+    );
+    Widget app(Set<String> keys) => MaterialApp(
+          home: Scaffold(
+            body: CloudResourcePosterWall(
+              sourceId: 'source',
+              collection: CloudResourceCollection(
+                  groups: <CloudResourceMediaGroup>[first, second]),
+              scrapingKeys: keys,
+              onOpenGroup: (_) {},
+              onEditTitle: (_) {},
+              onScrape: (_) {},
+              onRematch: (_) {},
+            ),
+          ),
+        );
+    await tester.pumpWidget(app(<String>{}));
+    await tester.pump();
+    final poster =
+        find.byKey(ValueKey<String>('cloud-poster-${second.stableKey}'));
+    final state = tester.state(poster);
+    await tester.pumpWidget(app(<String>{'${first.workKey}|season:3'}));
+    final cards = tester
+        .widgetList<ImmersiveMediaCard>(find.byType(ImmersiveMediaCard))
+        .toList();
+    expect(cards.first.loading, isTrue);
+    expect(cards.last.loading, isFalse);
+    expect(identical(tester.state(poster), state), isTrue);
+    await tester.pumpWidget(app(<String>{}));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('季度卡片重新刮削明确标注本季', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+      body: CloudResourcePosterWall(
+        sourceId: 'source',
+        collection: CloudResourceCollection(
+            groups: <CloudResourceMediaGroup>[_seasonMediaGroup()]),
+        scrapingKeys: const <String>{},
+        onOpenGroup: (_) {},
+        onEditTitle: (_) {},
+        onScrape: (_) {},
+        onRematch: (_) {},
+      ),
+    )));
+    await tester.tap(find.byTooltip('资源操作'));
+    await tester.pumpAndSettle();
+    expect(find.text('重新刮削本季'), findsOneWidget);
+  });
+
   testWidgets('TV 网盘海报和季度缩略图限制解码尺寸', (tester) async {
     tester.view.devicePixelRatio = 2;
     tester.view.physicalSize = const Size(1280, 720);
@@ -1262,7 +1326,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(fixture.controller.selectedSource?.id, _quarkSource.id);
-    expect(fixture.controller.entries.map((entry) => entry.id), ['retry-video']);
+    expect(
+        fixture.controller.entries.map((entry) => entry.id), ['retry-video']);
     expect(find.text('网盘来源加载失败'), findsNothing);
     expect(find.textContaining('重试电影'), findsWidgets);
     fixture.controller.setQuery('重试电影');
@@ -1286,7 +1351,8 @@ void main() {
       client: client,
     );
     addTearDown(fixture.controller.dispose);
-    await tester.pumpWidget(MaterialApp(home: CloudResourcesPage(controller: fixture.controller)));
+    await tester.pumpWidget(
+        MaterialApp(home: CloudResourcesPage(controller: fixture.controller)));
     await tester.pumpAndSettle();
     expect(fixture.controller.selectedSource?.id, _quarkSource.id);
     expect(find.widgetWithText(TextButton, '重试'), findsOneWidget);
@@ -1333,7 +1399,9 @@ void main() {
 
     expect(find.text('还没有可用的网盘来源'), findsOneWidget);
     expect(fixture.controller.mediaLibrarySnapshot.series, isEmpty);
-    expect(fixture.controller.mediaLibrarySnapshot.filters.map((filter) => filter.id),
+    expect(
+        fixture.controller.mediaLibrarySnapshot.filters
+            .map((filter) => filter.id),
         ['all']);
   });
 

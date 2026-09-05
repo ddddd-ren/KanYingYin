@@ -8,6 +8,7 @@ import 'package:kanyingyin/services/cloud/cloud_poster_cache.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_tmdb_subject_builder.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_client_capabilities.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_metadata_merge_policy.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_engine.dart';
@@ -37,6 +38,10 @@ class CloudWorkTmdbSelectionOutcome {
   final bool indexSynced;
 }
 
+class CloudWorkTmdbIdentityChangeException extends StateError {
+  CloudWorkTmdbIdentityChangeException() : super('更换 TMDB 剧目会影响整部剧，请确认整剧更新');
+}
+
 class CloudWorkTmdbService {
   CloudWorkTmdbService({
     required CloudWorkTmdbRepository repository,
@@ -48,12 +53,14 @@ class CloudWorkTmdbService {
     TmdbScrapeCache? cache,
   })  : _repository = repository,
         _indexRepository = indexRepository,
+        _client = client,
         _engine = engine ?? TmdbScrapeEngine(client: client, cache: cache),
         _posterCache = posterCache,
         _now = now ?? DateTime.now;
 
   final CloudWorkTmdbRepository _repository;
   final CloudMediaIndexRepository _indexRepository;
+  final ITmdbClient _client;
   final TmdbScrapeEngine _engine;
   final CloudPosterCache? _posterCache;
   final DateTime Function() _now;
@@ -194,6 +201,133 @@ class CloudWorkTmdbService {
       existingSeasons: existingSeasons,
       options: options,
       origin: TmdbMatchOrigin.manual,
+    );
+  }
+
+  Future<CloudWorkTmdbSelectionOutcome> selectSeason(
+    CloudWorkIdentity work,
+    TmdbMetadata candidate, {
+    required int seasonNumber,
+    required TmdbScrapeOptions options,
+  }) async {
+    if (seasonNumber <= 0 || candidate.mediaType != TmdbMediaType.tv) {
+      throw CloudWorkTmdbIdentityChangeException();
+    }
+    final previous = await _repository.get(work.workKey);
+    if (previous?.metadata == null && work.seasons.length > 1) {
+      throw CloudWorkTmdbIdentityChangeException();
+    }
+    void checkIdentity(CloudWorkTmdbRecord? record) {
+      final metadata = record?.metadata;
+      if (metadata != null &&
+          (metadata.id != candidate.id ||
+              metadata.mediaType != candidate.mediaType)) {
+        throw CloudWorkTmdbIdentityChangeException();
+      }
+    }
+
+    checkIdentity(previous);
+
+    // 手动重刮直接读取最新目标季；不复用自动刮削的摘要兜底或整剧缓存。
+    final fetched = await _client.details(candidate.id, candidate.mediaType,
+        language: options.language);
+    if (fetched.id != candidate.id ||
+        fetched.mediaType != candidate.mediaType) {
+      throw StateError('TMDB 返回的剧目与当前选择不一致');
+    }
+    final mapping = _singleSeasonNumberMapping(work, fetched);
+    final tmdbSeasonNumber = mapping?.localSeasonNumber == seasonNumber
+        ? mapping!.tmdbSeasonNumber
+        : seasonNumber;
+    final client = _client;
+    final fetchedSeason = client is ITmdbClientCapabilities
+        ? await (client as ITmdbClientCapabilities).seasonDetails(
+            candidate.id, tmdbSeasonNumber,
+            language: options.language)
+        : fetched.seasons.firstWhere(
+            (season) => season.seasonNumber == tmdbSeasonNumber,
+            orElse: () => throw StateError('TMDB 未返回当前季度资料'),
+          );
+    if (fetchedSeason.seasonNumber != tmdbSeasonNumber) {
+      throw StateError('TMDB 返回的季度与当前选择不一致');
+    }
+    final normalized =
+        fetched.copyWith(seasons: <TmdbSeasonMetadata>[fetchedSeason]);
+    final seasonal = mapping?.localSeasonNumber == seasonNumber
+        ? _remapSeasonNumber(normalized, mapping!)
+        : normalized;
+    var season = const TmdbMetadataMergePolicy()
+        .merge(
+          existing: previous?.metadata,
+          fetched: seasonal,
+          options: options,
+          matchConfidence: candidate.matchConfidence,
+          existingSeasons: <int>{seasonNumber},
+        )
+        .seasons
+        .singleWhere((season) => season.seasonNumber == seasonNumber);
+    final posterUrl = season.posterUrl;
+    if (_posterCache != null && options.fetchPoster && posterUrl != null) {
+      final imageUrl = _imageUrl(posterUrl);
+      // 新地址写入独立缓存文件，保存成功前保留旧图及其解码缓存。
+      final resolved = await _posterCache.resolve(
+        sourceId: work.sourceId,
+        stableId: '${work.workKey}|season:$seasonNumber|$posterUrl',
+        url: imageUrl,
+      );
+      if (resolved == imageUrl) throw StateError('本季海报下载失败，已保留原资料');
+      season = season.copyWith(posterCachePath: resolved);
+    }
+
+    final record = await _repository.update(work.workKey, (current) {
+      if (previous != null && current == null) {
+        throw StateError('作品已被移除，请重新加载媒体库');
+      }
+      checkIdentity(current);
+      final base = current?.metadata ??
+          fetched.copyWith(seasons: const <TmdbSeasonMetadata>[]);
+      final seasons = <TmdbSeasonMetadata>[
+        for (final existing in base.seasons)
+          if (existing.seasonNumber != seasonNumber) existing,
+        season,
+      ]..sort(
+          (first, second) => first.seasonNumber.compareTo(second.seasonNumber));
+      final metadata = base.copyWith(seasons: seasons);
+      return CloudWorkTmdbRecord.matched(
+        sourceId: work.sourceId,
+        workKey: work.workKey,
+        workRootId: work.root.id,
+        workRootPath: work.root.remotePath,
+        remoteName: work.remoteName,
+        metadata: metadata,
+        checkedAt: _now(),
+        scrapeTitleOverride: current?.scrapeTitleOverride,
+        posterCachePath: current?.posterCachePath,
+        tmdbMatchOrigin: TmdbMatchOrigin.manual,
+        tmdbRuleVersion: currentTmdbRuleVersion,
+      );
+    });
+    var updatedIndexItems = 0;
+    var indexSynced = true;
+    try {
+      updatedIndexItems = await _indexRepository.updateMatching(
+        work.sourceId,
+        (item) =>
+            item.workKey == work.workKey && item.seasonNumber == seasonNumber,
+        (item) => _replaceMetadata(
+          item.withEffectiveWorkTitle(record.metadata!.title),
+          record.metadata!,
+          record.posterCachePath,
+        ),
+      );
+    } on Object {
+      indexSynced = false;
+    }
+    return CloudWorkTmdbSelectionOutcome(
+      record: record,
+      updatedIndexItems: updatedIndexItems,
+      posterCached: true,
+      indexSynced: indexSynced,
     );
   }
 

@@ -28,9 +28,9 @@ void main() {
     final expectedVersion = packageVersion!.group(1)!;
     final expectedBuildNumber = packageVersion.group(2)!;
     final isPrerelease = expectedVersion.startsWith('2.1.');
-    expect(androidVersion!.group(1), isPrerelease ? expectedVersion : '1.0.9');
+    expect(androidVersion!.group(1), isPrerelease ? expectedVersion : '1.0.10');
     expect(androidVersionCode!.group(1),
-        isPrerelease ? expectedBuildNumber : '10009');
+        isPrerelease ? expectedBuildNumber : '10010');
 
     final readmeIdentity = RegExp(
       r'^\|\s*Windows 包标识\s*\|\s*`([^`]+)`\s*\|$',
@@ -48,7 +48,7 @@ void main() {
       releaseNotes,
       contains(isPrerelease
           ? 'Android 手机测试版：$expectedVersion ($expectedBuildNumber)'
-          : 'Android 正式版：1.0.9 (10009)'),
+          : 'Android 正式版：1.0.10 (10010)'),
     );
     expect(
       readme,

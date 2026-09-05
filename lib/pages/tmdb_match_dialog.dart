@@ -28,6 +28,7 @@ class TmdbMatchDialog<TResult> extends StatefulWidget {
     required this.initialOptions,
     required this.onSearch,
     required this.onApply,
+    this.errorMessageBuilder,
   });
 
   final String title;
@@ -36,6 +37,7 @@ class TmdbMatchDialog<TResult> extends StatefulWidget {
   final TmdbScrapeOptions initialOptions;
   final TmdbMatchSearchCallback onSearch;
   final TmdbMatchApplyCallback<TResult> onApply;
+  final String Function(Object error)? errorMessageBuilder;
 
   @override
   State<TmdbMatchDialog<TResult>> createState() =>
@@ -113,7 +115,8 @@ class _TmdbMatchDialogState<TResult> extends State<TmdbMatchDialog<TResult>> {
       setState(() => _outcome = outcome);
     } on Object catch (error) {
       if (!mounted || generation != _requestGeneration) return;
-      setState(() => _operationError = _errorMessage(error));
+      setState(() => _operationError =
+          widget.errorMessageBuilder?.call(error) ?? _errorMessage(error));
     } finally {
       if (mounted && generation == _requestGeneration) {
         setState(() => _searching = false);
@@ -139,7 +142,8 @@ class _TmdbMatchDialogState<TResult> extends State<TmdbMatchDialog<TResult>> {
       if (!mounted) return;
       setState(() {
         _saving = false;
-        _operationError = _errorMessage(error);
+        _operationError =
+            widget.errorMessageBuilder?.call(error) ?? _errorMessage(error);
       });
     }
   }

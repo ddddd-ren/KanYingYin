@@ -13,9 +13,12 @@ import 'package:path/path.dart' as p;
 void main() {
   testWidgets('启动目录冲突显示具体原因而不是建议删除应用数据', (tester) async {
     const channel = MethodChannel('plugins.flutter.io/path_provider');
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (_) async => null);
-    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, null));
-    await tester.pumpWidget(const MaterialApp(home: StorageErrorPage(
+    tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (_) async => null);
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, null));
+    await tester.pumpWidget(const MaterialApp(
+        home: StorageErrorPage(
       message: '应用数据目录和缓存目录不能相同或互相包含，请选择独立目录',
     )));
     await tester.pumpAndSettle();
@@ -46,7 +49,8 @@ void main() {
         if (relation == '目录联接') {
           final linkPath = p.join(root.path, 'junction');
           final result = await Process.run(
-            'cmd.exe', ['/c', 'mklink', '/J', linkPath, data.path],
+            'cmd.exe',
+            ['/c', 'mklink', '/J', linkPath, data.path],
           );
           expect(result.exitCode, 0, reason: '${result.stderr}');
           cache = Directory(linkPath);

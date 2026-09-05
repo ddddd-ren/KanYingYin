@@ -45,11 +45,15 @@ void main() {
       await controller.hideMediaLibraryEpisodes([episodeA]);
       await controller.ensureLoaded(startScan: false);
 
-      expect(controller.hiddenVideos.map((record) => record.remoteId), ['video-a']);
-      expect(controller.collection.groups.single.videos.map((entry) => entry.id),
+      expect(controller.hiddenVideos.map((record) => record.remoteId),
+          ['video-a']);
+      expect(
+          controller.collection.groups.single.videos.map((entry) => entry.id),
           ['video-b']);
-      expect(controller.visibleIndexedItems.map((item) => item.remoteId), ['video-b']);
-      await controller.hideVideos(videos.where((video) => video.id == 'video-b'));
+      expect(controller.visibleIndexedItems.map((item) => item.remoteId),
+          ['video-b']);
+      await controller
+          .hideVideos(videos.where((video) => video.id == 'video-b'));
       expect(
         (await fixture.hiddenVideoRepository.getBySource(fixture.source.id))
             .map((record) => record.remoteId),
@@ -58,14 +62,18 @@ void main() {
       expect(controller.collection.groups, isEmpty);
       expect(controller.mediaLibrarySnapshot.series, isEmpty);
       await controller.restoreHiddenVideo(
-        controller.hiddenVideos.singleWhere((record) => record.remoteId == 'video-a'),
+        controller.hiddenVideos
+            .singleWhere((record) => record.remoteId == 'video-a'),
       );
       expect(controller.collection.groups.single.videos.single.id, 'video-a');
-      expect(controller.mediaLibrarySnapshot.series.single.episodes.single.remoteId,
+      expect(
+          controller
+              .mediaLibrarySnapshot.series.single.episodes.single.remoteId,
           'video-a');
       await controller.restoreAllHiddenVideos();
       expect(controller.collection.groups.single.videos, hasLength(2));
-      expect(controller.mediaLibrarySnapshot.series.single.episodes, hasLength(2));
+      expect(
+          controller.mediaLibrarySnapshot.series.single.episodes, hasLength(2));
     });
 
     test('隐藏和恢复读取最新持久化记录，不用旧内存覆盖其他隐藏项', () async {
@@ -78,9 +86,11 @@ void main() {
         sourceId: fixture.source.id,
         entry: videos.singleWhere((video) => video.id == 'video-a'),
       );
-      await fixture.hiddenVideoRepository.replaceSource(fixture.source.id, [recordA]);
+      await fixture.hiddenVideoRepository
+          .replaceSource(fixture.source.id, [recordA]);
 
-      await controller.hideVideos(videos.where((video) => video.id == 'video-b'));
+      await controller
+          .hideVideos(videos.where((video) => video.id == 'video-b'));
 
       expect(
         (await fixture.hiddenVideoRepository.getBySource(fixture.source.id))
@@ -124,22 +134,27 @@ void main() {
       final collection = controller.collection;
       storage.failNextWrite = true;
 
-      await expectLater(controller.hideMediaLibraryEpisodes(
-        controller.mediaLibrarySnapshot.series.single.episodes,
-      ), throwsStateError);
+      await expectLater(
+          controller.hideMediaLibraryEpisodes(
+            controller.mediaLibrarySnapshot.series.single.episodes,
+          ),
+          throwsStateError);
 
       expect(controller.hiddenVideos, isEmpty);
       expect(controller.collection, same(collection));
-      expect(controller.mediaLibrarySnapshot.series.single.episodes, hasLength(2));
+      expect(
+          controller.mediaLibrarySnapshot.series.single.episodes, hasLength(2));
     });
 
     test('隐藏提交后不会复用尚未完成的旧分类快照', () async {
       final repository = _DelayedHiddenVideoRepository();
-      final fixture = await _HiddenVideoFixture.create(hiddenVideoRepository: repository);
+      final fixture =
+          await _HiddenVideoFixture.create(hiddenVideoRepository: repository);
       final controller = fixture.controller;
       addTearDown(controller.dispose);
       await controller.ensureLoaded(startScan: false);
-      final episode = controller.mediaLibrarySnapshot.series.single.episodes.first;
+      final episode =
+          controller.mediaLibrarySnapshot.series.single.episodes.first;
       repository.delayNextRead = true;
       final oldReload = controller.reloadMediaLibrarySnapshot();
       await repository.readStarted.future;
@@ -149,17 +164,20 @@ void main() {
       repository.releaseRead.complete();
       await Future.wait([oldReload, hide]);
 
-      expect(controller.mediaLibrarySnapshot.series.single.episodes, hasLength(1));
+      expect(
+          controller.mediaLibrarySnapshot.series.single.episodes, hasLength(1));
       expect(controller.hiddenVideos.single.remoteId, episode.remoteId);
     });
 
     test('来源切换后旧隐藏写入结果不回写当前来源', () async {
       final repository = _DelayedHiddenVideoRepository()..delayWrite = true;
-      final fixture = await _HiddenVideoFixture.create(hiddenVideoRepository: repository);
+      final fixture =
+          await _HiddenVideoFixture.create(hiddenVideoRepository: repository);
       final controller = fixture.controller;
       addTearDown(controller.dispose);
       await controller.ensureLoaded(startScan: false);
-      final hide = controller.hideVideos(controller.collection.groups.single.videos);
+      final hide =
+          controller.hideVideos(controller.collection.groups.single.videos);
       await repository.writeStarted.future;
       const other = CloudSource(
         id: 'other-source',
@@ -181,11 +199,13 @@ void main() {
 
     test('同来源刷新期间隐藏写入完成后两页仍保持一致', () async {
       final repository = _DelayedHiddenVideoRepository()..delayWrite = true;
-      final fixture = await _HiddenVideoFixture.create(hiddenVideoRepository: repository);
+      final fixture =
+          await _HiddenVideoFixture.create(hiddenVideoRepository: repository);
       final controller = fixture.controller;
       addTearDown(controller.dispose);
       await controller.ensureLoaded(startScan: false);
-      final hide = controller.hideVideos(controller.collection.groups.single.videos);
+      final hide =
+          controller.hideVideos(controller.collection.groups.single.videos);
       await repository.writeStarted.future;
 
       await controller.refresh();
@@ -199,7 +219,8 @@ void main() {
 
     test('来源加载中迟到的隐藏记录读取不能覆盖已成功隐藏的状态', () async {
       final repository = _DelayedHiddenVideoRepository();
-      final fixture = await _HiddenVideoFixture.create(hiddenVideoRepository: repository);
+      final fixture =
+          await _HiddenVideoFixture.create(hiddenVideoRepository: repository);
       final controller = fixture.controller;
       addTearDown(controller.dispose);
       await controller.ensureLoaded(startScan: false);
@@ -250,7 +271,8 @@ void main() {
         storage.failNextWrite = true;
 
         await expectLater(
-          restoreAll ? controller.restoreAllHiddenVideos()
+          restoreAll
+              ? controller.restoreAllHiddenVideos()
               : controller.restoreHiddenVideo(controller.hiddenVideos.first),
           throwsStateError,
         );
@@ -258,13 +280,16 @@ void main() {
         expect(controller.hiddenVideos, hasLength(2));
         expect(controller.collection.groups, isEmpty);
         expect(controller.mediaLibrarySnapshot.series, isEmpty);
-        expect(await fixture.hiddenVideoRepository.getBySource(fixture.source.id), hasLength(2));
+        expect(
+            await fixture.hiddenVideoRepository.getBySource(fixture.source.id),
+            hasLength(2));
       });
     }
 
     test('旧分类快照读取完成后不能复活已经移除的来源', () async {
       final repository = _DelayedHiddenVideoRepository();
-      final fixture = await _HiddenVideoFixture.create(hiddenVideoRepository: repository);
+      final fixture =
+          await _HiddenVideoFixture.create(hiddenVideoRepository: repository);
       final controller = fixture.controller;
       addTearDown(controller.dispose);
       await controller.ensureLoaded(startScan: false);
@@ -277,7 +302,8 @@ void main() {
       await reload;
 
       expect(controller.mediaLibrarySnapshot.series, isEmpty);
-      expect(controller.mediaLibrarySnapshot.filters.map((filter) => filter.id), ['all']);
+      expect(controller.mediaLibrarySnapshot.filters.map((filter) => filter.id),
+          ['all']);
     });
 
     test('真实移除后 load 清空最后来源分类快照并通知', () async {
@@ -287,14 +313,16 @@ void main() {
       await controller.ensureLoaded(startScan: false);
       expect(controller.mediaLibrarySnapshot.series, isNotEmpty);
       var notifications = 0;
-      controller.mediaLibrarySnapshotListenable.addListener(() => notifications++);
+      controller.mediaLibrarySnapshotListenable
+          .addListener(() => notifications++);
 
       await fixture.sourceRepository.delete(fixture.source.id);
       await controller.load();
 
       expect(controller.sources, isEmpty);
       expect(controller.mediaLibrarySnapshot.series, isEmpty);
-      expect(controller.mediaLibrarySnapshot.filters.map((filter) => filter.id), ['all']);
+      expect(controller.mediaLibrarySnapshot.filters.map((filter) => filter.id),
+          ['all']);
       expect(notifications, greaterThan(0));
     });
 
@@ -805,7 +833,9 @@ void main() {
       await controller.reloadSourcesAndSnapshot();
       expect(controller.entries.single.id, 'video-id');
       final previousSeries = controller.mediaLibrarySnapshot.series;
-      final previousFilters = controller.mediaLibrarySnapshot.filters.map((filter) => filter.id).toList();
+      final previousFilters = controller.mediaLibrarySnapshot.filters
+          .map((filter) => filter.id)
+          .toList();
       storage.failReads = true;
 
       await controller.reloadSourcesAndSnapshot(
@@ -816,10 +846,12 @@ void main() {
       expect(controller.entries.single.id, 'video-id');
       expect(controller.errorMessage, '网盘来源加载失败，请重试');
       expect(controller.mediaLibrarySnapshot.series, previousSeries);
-      expect(controller.mediaLibrarySnapshot.filters.map((filter) => filter.id), previousFilters);
+      expect(controller.mediaLibrarySnapshot.filters.map((filter) => filter.id),
+          previousFilters);
       await controller.load();
       expect(controller.mediaLibrarySnapshot.series, previousSeries);
-      expect(controller.mediaLibrarySnapshot.filters.map((filter) => filter.id), previousFilters);
+      expect(controller.mediaLibrarySnapshot.filters.map((filter) => filter.id),
+          previousFilters);
       controller.dispose();
     });
 
@@ -2290,7 +2322,8 @@ class _SwitchableCloudSourceStorage extends MemoryCloudSourceStorage {
 }
 
 class _DelayedHiddenVideoRepository extends CloudHiddenVideoRepository {
-  _DelayedHiddenVideoRepository() : super(storage: MemoryCloudHiddenVideoStorage());
+  _DelayedHiddenVideoRepository()
+      : super(storage: MemoryCloudHiddenVideoStorage());
 
   bool delayNextRead = false;
   bool delayWrite = false;
@@ -2312,7 +2345,8 @@ class _DelayedHiddenVideoRepository extends CloudHiddenVideoRepository {
   }
 
   @override
-  Future<void> replaceSource(String sourceId, List<CloudHiddenVideo> records) async {
+  Future<void> replaceSource(
+      String sourceId, List<CloudHiddenVideo> records) async {
     if (!writeStarted.isCompleted) writeStarted.complete();
     if (delayWrite) await releaseWrite.future;
     await super.replaceSource(sourceId, records);
@@ -2466,7 +2500,8 @@ class _HiddenVideoFixture {
       mediaIndexRepository: indexRepository,
       hiddenVideoRepository: effectiveHiddenRepository,
       providerRegistry: CloudProviderRegistry(clientFactories: {
-        CloudSourceType.openList: (_, __, ___) => _FakeCloudClient(entriesById: directoryEntries),
+        CloudSourceType.openList: (_, __, ___) =>
+            _FakeCloudClient(entriesById: directoryEntries),
       }),
       workTmdbCoordinator: _RecordingWorkTmdbCoordinator(),
       minRecognizedVideoSizeBytesProvider: () => 0,

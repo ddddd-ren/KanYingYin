@@ -96,6 +96,28 @@ class CloudWorkTmdbRepository {
     });
   }
 
+  /// 在同一写锁内读取并合并最新记录，避免不同季度并发保存互相覆盖。
+  Future<CloudWorkTmdbRecord> update(
+    String workKey,
+    CloudWorkTmdbRecord Function(CloudWorkTmdbRecord? current) transform,
+  ) {
+    return _mutationLock.synchronized(() async {
+      final records = await _getAll();
+      final index = records.indexWhere((record) => record.workKey == workKey);
+      final updated = transform(index < 0 ? null : records[index]);
+      if (updated.workKey != workKey) {
+        throw ArgumentError('更新不能改变作品标识');
+      }
+      if (index < 0) {
+        records.add(updated);
+      } else {
+        records[index] = updated;
+      }
+      await _write(records);
+      return updated;
+    });
+  }
+
   Future<void> upsertAll(Iterable<CloudWorkTmdbRecord> updates) {
     return _mutationLock.synchronized(() async {
       final records = await _getAll();

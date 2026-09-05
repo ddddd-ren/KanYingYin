@@ -69,7 +69,8 @@ void main() {
 
     controller.reloadAvailableLocalLibraryIndex();
 
-    expect(controller.localLibraryItems.map((item) => item.name), ['exists.mkv']);
+    expect(
+        controller.localLibraryItems.map((item) => item.name), ['exists.mkv']);
     final firstList = controller.localLibraryItems;
     controller.reloadAvailableLocalLibraryIndex();
 

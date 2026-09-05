@@ -141,6 +141,8 @@ jobs:
           }
           $hash = Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256
           $signature = Get-AuthenticodeSignature -LiteralPath $installer.FullName
+          $releaseAsset = Join-Path $installer.DirectoryName "KanYingYin-$env:APP_VERSION.exe"
+          Copy-Item -LiteralPath $installer.FullName -Destination $releaseAsset -Force
           "EXE=$($installer.FullName)"
           "SHA256=$($hash.Hash)"
           "Authenticode=$($signature.Status)"
@@ -149,4 +151,4 @@ jobs:
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          files: build/windows/exe_output/看影音-${{ env.APP_VERSION }}-测试版-安装程序.exe
+          files: build/windows/exe_output/KanYingYin-${{ env.APP_VERSION }}.exe

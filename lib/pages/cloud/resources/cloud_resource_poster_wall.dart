@@ -34,6 +34,7 @@ class CloudResourcePosterWall extends StatefulWidget {
     this.onEditTags,
     required this.onScrape,
     required this.onRematch,
+    this.onRescrapeWork,
     this.onManualMatch,
     this.onMatchEpisodes,
     this.onDetails,
@@ -53,6 +54,7 @@ class CloudResourcePosterWall extends StatefulWidget {
   final CloudResourceGroupAction? onEditTags;
   final CloudResourceGroupAction onScrape;
   final CloudResourceGroupAction onRematch;
+  final CloudResourceGroupAction? onRescrapeWork;
   final CloudResourceGroupAction? onManualMatch;
   final CloudResourceGroupAction? onMatchEpisodes;
   final CloudResourceGroupAction? onDetails;
@@ -79,6 +81,7 @@ class _CloudResourcePosterWallState extends State<CloudResourcePosterWall> {
   CloudResourceGroupAction? get onEditTags => widget.onEditTags;
   CloudResourceGroupAction get onScrape => widget.onScrape;
   CloudResourceGroupAction get onRematch => widget.onRematch;
+  CloudResourceGroupAction? get onRescrapeWork => widget.onRescrapeWork;
   CloudResourceGroupAction? get onManualMatch => widget.onManualMatch;
   CloudResourceGroupAction? get onMatchEpisodes => widget.onMatchEpisodes;
   CloudResourceGroupAction? get onDetails => widget.onDetails;
@@ -218,7 +221,10 @@ class _CloudResourcePosterWallState extends State<CloudResourcePosterWall> {
 
   CloudResourceCardViewData _cardData(CloudResourceMediaGroup group) {
     final scraping = group.isWorkScoped
-        ? scrapingKeys.contains(group.workKey)
+        ? group.workKeys.any((key) =>
+            scrapingKeys.contains(key) ||
+            (group.seasonNumber != null &&
+                scrapingKeys.contains('$key|season:${group.seasonNumber}')))
         : group.videos.any(
             (video) => scrapingKeys.contains(_resourceKey(video)),
           );
@@ -271,6 +277,9 @@ class _CloudResourcePosterWallState extends State<CloudResourcePosterWall> {
             case _ResourceAction.rematch:
               onRematch(group);
               return;
+            case _ResourceAction.rescrapeWork:
+              onRescrapeWork?.call(group);
+              return;
             case _ResourceAction.manualMatch:
               onManualMatch?.call(group);
               return;
@@ -308,10 +317,19 @@ class _CloudResourcePosterWallState extends State<CloudResourcePosterWall> {
             value: _ResourceAction.scrape,
             child: Text('TMDB 刮削'),
           ),
-          const PopupMenuItem(
+          PopupMenuItem(
             value: _ResourceAction.rematch,
-            child: Text('重新匹配'),
+            child: Text(group.isWorkScoped && group.seasonNumber != null
+                ? '重新刮削本季'
+                : '重新匹配'),
           ),
+          if (group.isWorkScoped &&
+              group.seasonNumber != null &&
+              onRescrapeWork != null)
+            const PopupMenuItem(
+              value: _ResourceAction.rescrapeWork,
+              child: Text('重新刮削整部剧'),
+            ),
           if (_needsManualConfirmation(group))
             const PopupMenuItem(
               value: _ResourceAction.manualMatch,
@@ -399,6 +417,7 @@ enum _ResourceAction {
   editTags,
   scrape,
   rematch,
+  rescrapeWork,
   manualMatch,
   matchEpisodes,
   details,

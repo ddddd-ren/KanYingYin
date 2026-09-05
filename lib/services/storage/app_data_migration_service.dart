@@ -77,7 +77,8 @@ class AppDataMigrationService {
   ) async {
     await resolver.validateDirectorySeparation();
     await _validateMigrationTarget(resolver.legacyDataRoot, resolver.dataRoot);
-    await _validateMigrationTarget(resolver.legacyCacheRoot, resolver.cacheRoot);
+    await _validateMigrationTarget(
+        resolver.legacyCacheRoot, resolver.cacheRoot);
     final data = await migrateDirectory(
       source: resolver.legacyDataRoot,
       target: resolver.dataRoot,
@@ -99,7 +100,8 @@ class AppDataMigrationService {
     final cacheRoot = resolver.cacheRoot;
     if (!await cacheRoot.exists()) return;
     // 先检查完整目录再删除，不能在发现混入视频或数据库前已经清掉部分文件。
-    await for (final entity in cacheRoot.list(recursive: true, followLinks: false)) {
+    await for (final entity
+        in cacheRoot.list(recursive: true, followLinks: false)) {
       if (entity is File &&
           (LocalVideoFileTypes.isVideoPath(entity.path) ||
               p.extension(entity.path).toLowerCase() == '.hive')) {
@@ -109,7 +111,8 @@ class AppDataMigrationService {
     await cacheRoot.delete(recursive: true);
   }
 
-  Future<void> _validateMigrationTarget(Directory source, Directory target) async {
+  Future<void> _validateMigrationTarget(
+      Directory source, Directory target) async {
     if (p.equals(source.absolute.path, target.absolute.path)) return;
     for (final suffix in ['migrating', 'backup']) {
       final reserved = '${target.path}.$suffix';

@@ -145,7 +145,8 @@ class StoragePathResolver {
     );
     final resolvedCache = await _resolvedDirectoryPath(cacheRoot);
     check(await _resolvedDirectoryPath(dataRoot), resolvedCache);
-    final resolvedConfig = await _resolvedDirectoryPath(Directory(configFile.path));
+    final resolvedConfig =
+        await _resolvedDirectoryPath(Directory(configFile.path));
     if (p.equals(cacheRoot.path, configFile.path) ||
         p.isWithin(cacheRoot.path, configFile.path) ||
         p.equals(resolvedCache, resolvedConfig) ||

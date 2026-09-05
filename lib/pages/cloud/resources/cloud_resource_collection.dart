@@ -274,6 +274,7 @@ class CloudResourceCollectionGrouper {
       final record = _mergeWorkRecords(
         representative,
         aggregate.records,
+        aggregate.items,
       );
       final title = record?.effectiveTitle(representative.displayTitle) ??
           representative.displayTitle;
@@ -686,6 +687,7 @@ class CloudResourceCollectionGrouper {
   CloudWorkTmdbRecord? _mergeWorkRecords(
     CloudWorkIdentity representative,
     List<CloudWorkTmdbRecord> records,
+    List<CloudMediaIndexItem> items,
   ) {
     if (records.isEmpty) return null;
     final matched = records
@@ -705,6 +707,15 @@ class CloudResourceCollectionGrouper {
     final metadata = base.metadata!;
     final genres = <String>[];
     final seasonsByNumber = <int, TmdbSeasonMetadata>{};
+    final seasonOwners = <int, Set<String>>{};
+    for (final item in items) {
+      final number = CloudMediaGroupingMetadata.seasonNumber(item);
+      final key = item.workKey;
+      if (number != null && key != null) {
+        seasonOwners.putIfAbsent(number, () => <String>{}).add(key);
+      }
+    }
+    final ownedSeasons = <int>{};
     for (final record in matched) {
       final current = record.metadata!;
       for (final genre in current.genres) {
@@ -715,8 +726,14 @@ class CloudResourceCollectionGrouper {
       }
       for (final season in current.seasons) {
         final previous = seasonsByNumber[season.seasonNumber];
-        seasonsByNumber[season.seasonNumber] =
-            previous == null ? season : _mergeSeasonMetadata(previous, season);
+        final owned =
+            seasonOwners[season.seasonNumber]?.contains(record.workKey) == true;
+        seasonsByNumber[season.seasonNumber] = previous == null
+            ? season
+            : owned && !ownedSeasons.contains(season.seasonNumber)
+                ? _mergeSeasonMetadata(season, previous)
+                : _mergeSeasonMetadata(previous, season);
+        if (owned) ownedSeasons.add(season.seasonNumber);
       }
     }
     final seasons = seasonsByNumber.values.toList(growable: false)

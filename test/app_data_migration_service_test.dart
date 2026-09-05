@@ -8,7 +8,8 @@ import 'package:path/path.dart' as p;
 void main() {
   for (final suffix in ['migrating', 'backup']) {
     test('迁移保留名称碰撞不得删除原数据库：$suffix', () async {
-      final root = await Directory.systemTemp.createTemp('kyy-migrate-collision-');
+      final root =
+          await Directory.systemTemp.createTemp('kyy-migrate-collision-');
       addTearDown(() => root.delete(recursive: true));
       final target = await Directory(p.join(root.path, 'data')).create();
       final source = await Directory('${target.path}.$suffix').create();
@@ -16,7 +17,8 @@ void main() {
       await database.writeAsString('原数据库');
 
       await expectLater(
-        const AppDataMigrationService().migrateDirectory(source: source, target: target),
+        const AppDataMigrationService()
+            .migrateDirectory(source: source, target: target),
         throwsA(isA<StorageMigrationException>()),
       );
 
@@ -27,7 +29,8 @@ void main() {
 
   for (final protectedFile in ['video.MKV', 'database.hive', 'startup.json']) {
     test('独立缓存混有受保护文件时拒绝清理：$protectedFile', () async {
-      final root = await Directory.systemTemp.createTemp('kyy-cache-ownership-');
+      final root =
+          await Directory.systemTemp.createTemp('kyy-cache-ownership-');
       addTearDown(() => root.delete(recursive: true));
       final cache = await Directory(p.join(root.path, 'cache')).create();
       final protected = File(p.join(cache.path, protectedFile));
@@ -39,7 +42,8 @@ void main() {
         dataRoot: data,
         cacheRoot: cache,
         configFile: protectedFile == 'startup.json'
-            ? protected : File(p.join(root.path, 'startup.json')),
+            ? protected
+            : File(p.join(root.path, 'startup.json')),
         legacyDataRoot: data,
         legacyCacheRoot: cache,
       );

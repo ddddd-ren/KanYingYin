@@ -312,9 +312,8 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
         context: context,
         series: series,
         capabilities: platform,
-        onPlay: series.isAvailable && !_playing
-            ? () => _openSeries(series)
-            : null,
+        onPlay:
+            series.isAvailable && !_playing ? () => _openSeries(series) : null,
       );
     }
     return _openSeries(series);

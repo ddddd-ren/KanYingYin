@@ -126,7 +126,9 @@ Future<void> _startApplication() async {
         locale: const Locale.fromSubtags(
             languageCode: 'zh', scriptCode: 'Hans', countryCode: "CN"),
         builder: (context, child) {
-          return const StorageErrorPage();
+          return StorageErrorPage(
+            message: e is FileSystemException ? e.message : null,
+          );
         }));
     return;
   }

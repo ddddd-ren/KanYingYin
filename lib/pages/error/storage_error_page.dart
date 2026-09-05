@@ -4,7 +4,9 @@ import 'package:kanyingyin/bean/widget/error_widget.dart';
 import 'package:path_provider/path_provider.dart';
 
 class StorageErrorPage extends StatelessWidget {
-  const StorageErrorPage({super.key});
+  const StorageErrorPage({super.key, this.message});
+
+  final String? message;
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +22,8 @@ class StorageErrorPage extends StatelessWidget {
               final supportDir = snapshot.data;
               final path = supportDir != null ? '$supportDir' : '未知路径';
               return GeneralErrorWidget(
-                errMsg: '存储初始化错误 \n 当前储存位置 $path \n 尝试删除该目录以重置本地存储',
+                errMsg: message ??
+                    '存储初始化错误 \n 当前储存位置 $path \n 尝试删除该目录以重置本地存储',
                 actions: [
                   GeneralErrorButton(
                     onPressed: () {

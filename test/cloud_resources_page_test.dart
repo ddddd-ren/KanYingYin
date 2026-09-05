@@ -23,6 +23,7 @@ import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_page.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
+import 'package:kanyingyin/repositories/cloud_hidden_video_repository.dart';
 import 'package:kanyingyin/repositories/cloud_media_tag_repository.dart';
 import 'package:kanyingyin/repositories/cloud_episode_match_rule_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
@@ -1230,6 +1231,110 @@ void main() {
     expect(find.text('没有找到匹配的视频'), findsOneWidget);
     expect(find.text('视频已隐藏，可从更多网盘操作中恢复'), findsNothing);
     controller.dispose();
+  });
+
+  testWidgets('首次来源读取失败后点击真实重试按钮恢复来源与内容', (tester) async {
+    final storage = _RetryCloudSourceStorage();
+    final video = _pageVideo('retry-video', '/影视/重试电影.mkv', '重试电影.mkv');
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      sourceStorage: storage,
+      entries: [video],
+    );
+    addTearDown(fixture.controller.dispose);
+    storage.failReads = true;
+    await tester.pumpWidget(MaterialApp(
+      home: CloudResourcesPage(controller: fixture.controller),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('网盘来源加载失败'), findsOneWidget);
+    expect(fixture.controller.selectedSource, isNull);
+
+    storage.failReads = false;
+    final readGate = Completer<void>();
+    storage.readGate = readGate;
+    final readsBeforeRetry = storage.reads;
+    await tester.tap(find.widgetWithText(TextButton, '重试'));
+    await tester.tap(find.widgetWithText(TextButton, '重试'));
+    expect(storage.reads, readsBeforeRetry + 1);
+    storage.readGate = null;
+    readGate.complete();
+    await tester.pumpAndSettle();
+
+    expect(fixture.controller.selectedSource?.id, _quarkSource.id);
+    expect(fixture.controller.entries.map((entry) => entry.id), ['retry-video']);
+    expect(find.text('网盘来源加载失败'), findsNothing);
+    expect(find.textContaining('重试电影'), findsWidgets);
+    fixture.controller.setQuery('重试电影');
+    final readsAfterRetry = storage.reads;
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    await tester.pumpWidget(MaterialApp(
+      home: CloudResourcesPage(controller: fixture.controller),
+    ));
+    await tester.pumpAndSettle();
+    expect(storage.reads, readsAfterRetry);
+    expect(fixture.controller.query, '重试电影');
+  });
+
+  testWidgets('扫描失败后的真实重试按钮重新扫描且阻止重复请求', (tester) async {
+    final storage = _RetryCloudSourceStorage();
+    final video = _pageVideo('scan-retry', '/影视/扫描恢复.mkv', '扫描恢复.mkv');
+    final client = _RetryPageCloudClient([video]);
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      sourceStorage: storage,
+      client: client,
+    );
+    addTearDown(fixture.controller.dispose);
+    await tester.pumpWidget(MaterialApp(home: CloudResourcesPage(controller: fixture.controller)));
+    await tester.pumpAndSettle();
+    expect(fixture.controller.selectedSource?.id, _quarkSource.id);
+    expect(find.widgetWithText(TextButton, '重试'), findsOneWidget);
+    final gate = Completer<void>();
+    client.fail = false;
+    client.scanGate = gate;
+    final scans = client.scans;
+    final reads = storage.reads;
+
+    await tester.tap(find.widgetWithText(TextButton, '重试'));
+    await tester.tap(find.widgetWithText(TextButton, '重试'));
+    await tester.pump();
+    expect(client.scans, scans + 1);
+    expect(storage.reads, reads);
+    client.scanGate = null;
+    gate.complete();
+    await tester.pumpAndSettle();
+
+    expect(fixture.controller.entries.single.id, video.id);
+    expect(fixture.controller.errorMessage, isNull);
+    expect(find.textContaining('扫描恢复'), findsWidgets);
+  });
+
+  testWidgets('真实移除最后来源按钮同步清空分类快照', (tester) async {
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      entries: [_pageVideo('removed-video', '/影视/旧电影.mkv', '旧电影.mkv')],
+    );
+    addTearDown(fixture.controller.dispose);
+    await tester.pumpWidget(MaterialApp(
+      home: CloudResourcesPage(
+        controller: fixture.controller,
+        onDeleteSource: fixture.repository.delete,
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(fixture.controller.mediaLibrarySnapshot.series, isNotEmpty);
+
+    await _openCloudMoreActions(tester);
+    await tester.tap(find.text('移除当前来源'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '移除'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('还没有可用的网盘来源'), findsOneWidget);
+    expect(fixture.controller.mediaLibrarySnapshot.series, isEmpty);
+    expect(fixture.controller.mediaLibrarySnapshot.filters.map((filter) => filter.id),
+        ['all']);
   });
 
   testWidgets('无来源时显示四种网盘添加入口', (tester) async {
@@ -2807,6 +2912,7 @@ class _PageFixture {
 
   static Future<_PageFixture> create({
     CloudSource? source,
+    CloudSourceStorage? sourceStorage,
     List<CloudFileEntry> entries = const <CloudFileEntry>[],
     List<CloudMediaIndexItem> indexedItems = const <CloudMediaIndexItem>[],
     bool snapshotOnly = false,
@@ -2819,7 +2925,7 @@ class _PageFixture {
   }) async {
     final credentials = MemoryCloudCredentialStore();
     final repository = CloudSourceRepository(
-      storage: MemoryCloudSourceStorage(),
+      storage: sourceStorage ?? MemoryCloudSourceStorage(),
       credentialStore: credentials,
     );
     if (source != null) await repository.save(source);
@@ -2868,6 +2974,9 @@ class _PageFixture {
             repository: repository,
             credentialStore: credentials,
             providerRegistry: registry,
+            hiddenVideoRepository: CloudHiddenVideoRepository(
+              storage: MemoryCloudHiddenVideoStorage(),
+            ),
             mediaIndexRepository: indexRepository,
             mediaTagRepository: mediaTagRepository,
             mediaIndexer: CloudMediaIndexer(
@@ -2878,6 +2987,36 @@ class _PageFixture {
             minRecognizedVideoSizeBytesProvider: minSizeProvider,
           );
     return _PageFixture(controller, repository);
+  }
+}
+
+class _RetryCloudSourceStorage extends MemoryCloudSourceStorage {
+  bool failReads = false;
+  int reads = 0;
+  Completer<void>? readGate;
+
+  @override
+  Future<List<Map<String, dynamic>>> read() async {
+    reads++;
+    if (failReads) throw StateError('模拟来源读取失败');
+    if (readGate != null) await readGate!.future;
+    return super.read();
+  }
+}
+
+class _RetryPageCloudClient extends _PageCloudClient {
+  _RetryPageCloudClient(super.entries);
+
+  bool fail = true;
+  int scans = 0;
+  Completer<void>? scanGate;
+
+  @override
+  Future<List<CloudFileEntry>> listDirectory(CloudRemoteRef directory) async {
+    scans++;
+    if (fail) throw StateError('模拟扫描失败');
+    if (scanGate != null) await scanGate!.future;
+    return super.listDirectory(directory);
   }
 }
 

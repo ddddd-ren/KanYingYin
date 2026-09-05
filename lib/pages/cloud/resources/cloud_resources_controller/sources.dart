@@ -14,11 +14,21 @@ mixin _CloudSourcesMixin on _CloudResourcesControllerBase {
     return future.whenComplete(() {
       if (identical(_resourcesLoadFuture, future)) {
         _resourcesLoadFuture = null;
-        if (!_disposed && errorMessage != '网盘来源加载失败') {
+        if (!_disposed && !_sourceLoadFailed) {
           _resourcesInitialized = true;
         }
       }
     });
+  }
+
+  Future<void> retry({bool startScan = true}) async {
+    if (loading) return;
+    if (scanning) return scanCompletion;
+    if (_sourceLoadFailed || selectedSource == null) {
+      await load(startScan: startScan);
+    } else {
+      await refresh();
+    }
   }
 
   Future<void> ensureMediaLibrarySnapshot() {
@@ -27,10 +37,10 @@ mixin _CloudSourcesMixin on _CloudResourcesControllerBase {
   }
 
   @override
-  Future<void> reloadMediaLibrarySnapshot() {
+  Future<void> reloadMediaLibrarySnapshot({bool force = false}) {
     final pending = _mediaLibraryReloadFuture;
-    if (pending != null) return pending;
-    final future = _reloadMediaLibrarySnapshot();
+    if (!force && pending != null) return pending;
+    final future = _reloadMediaLibrarySnapshot(++_mediaLibraryReloadGeneration);
     _mediaLibraryReloadFuture = future;
     return future.whenComplete(() {
       if (identical(_mediaLibraryReloadFuture, future)) {
@@ -39,7 +49,10 @@ mixin _CloudSourcesMixin on _CloudResourcesControllerBase {
     });
   }
 
-  Future<void> _reloadMediaLibrarySnapshot() async {
+  Future<void> _reloadMediaLibrarySnapshot(int generation) async {
+    final nextSeries = Map<String, List<MediaLibrarySeries>>.from(
+      _mediaLibrarySeriesBySource,
+    );
     final enabledSources = (await _repository.getAll())
         .where((source) => source.enabled)
         .toList(growable: false);
@@ -83,7 +96,7 @@ mixin _CloudSourcesMixin on _CloudResourcesControllerBase {
           recordsByWorkKey: sourceRecords,
           query: '',
         );
-        _mediaLibrarySeriesBySource[source.id] = _mediaLibraryAdapter.convert(
+        nextSeries[source.id] = _mediaLibraryAdapter.convert(
           source: source,
           collection: collection,
           indexedItems: items,
@@ -97,10 +110,14 @@ mixin _CloudSourcesMixin on _CloudResourcesControllerBase {
         );
       }
     }
+    if (_disposed || generation != _mediaLibraryReloadGeneration) return;
     _mediaLibrarySources = enabledSources;
-    _mediaLibrarySeriesBySource.removeWhere(
+    nextSeries.removeWhere(
       (sourceId, _) => !nextSourceIds.contains(sourceId),
     );
+    _mediaLibrarySeriesBySource
+      ..clear()
+      ..addAll(nextSeries);
     _mediaLibrarySnapshotInitialized = true;
     if (!_disposed) {
       _mediaLibraryNotifier.notifyListeners();
@@ -111,6 +128,7 @@ mixin _CloudSourcesMixin on _CloudResourcesControllerBase {
   Future<void> reloadSourcesAndSnapshot({String? preferredSourceId}) async {
     _scanToken?.cancel();
     await scanCompletion;
+    final sourceListBeforeLoad = sources;
     final previousSources = List<CloudSource>.from(sources);
     final previousEntries = List<CloudFileEntry>.from(entries);
     final previousSelectedSource = selectedSource;
@@ -127,11 +145,17 @@ mixin _CloudSourcesMixin on _CloudResourcesControllerBase {
       for (final entry in _customTagsByResourceKey.entries)
         entry.key: List<String>.unmodifiable(entry.value),
     };
+    final generation = _generation + 1;
     await _loadSources(
       startScan: false,
       preferredSourceId: preferredSourceId,
     );
-    if (errorMessage != '网盘来源加载失败') return;
+    if (!_isCurrent(generation) || !_sourceLoadFailed) return;
+    if (identical(sources, sourceListBeforeLoad)) {
+      errorMessage = '网盘来源加载失败，请重试';
+      _notify();
+      return;
+    }
     sources = previousSources;
     entries = previousEntries;
     selectedSource = previousSelectedSource;
@@ -163,14 +187,24 @@ mixin _CloudSourcesMixin on _CloudResourcesControllerBase {
     final generation = ++_generation;
     _scanToken?.cancel();
     loading = true;
+    _sourceLoadFailed = false;
     errorMessage = null;
     _notify();
+    var sourcesRead = false;
     try {
       final loadedSources = (await _repository.getAll())
           .where((source) => source.enabled)
           .toList(growable: false);
       if (!_isCurrent(generation)) return;
+      sourcesRead = true;
       sources = loadedSources;
+      // 只有成功读到来源列表才移除快照成员，同时废弃仍在读取的旧快照。
+      _mediaLibraryReloadGeneration++;
+      _mediaLibrarySources = loadedSources;
+      final sourceIds = loadedSources.map((source) => source.id).toSet();
+      _mediaLibrarySeriesBySource.removeWhere((id, _) => !sourceIds.contains(id));
+      if (loadedSources.isEmpty) _mediaLibrarySnapshotInitialized = true;
+      _mediaLibraryNotifier.notifyListeners();
       final currentId = selectedSource?.id;
       final nextId = loadedSources.any(
         (source) => source.id == preferredSourceId,
@@ -184,20 +218,27 @@ mixin _CloudSourcesMixin on _CloudResourcesControllerBase {
         generation: generation,
         startScan: startScan,
       );
+      if (_isCurrent(generation)) _resourcesInitialized = true;
     } on Object {
       if (!_isCurrent(generation)) return;
-      sources = <CloudSource>[];
-      selectedSource = null;
-      entries = <CloudFileEntry>[];
-      _indexedItems.clear();
-      _customTagsByResourceKey.clear();
-      _selectedGenres.clear();
-      _hiddenVideos = <CloudHiddenVideo>[];
-      _works = <CloudWorkIdentity>[];
-      _mediaTree = null;
-      currentDirectoryScope = null;
-      _invalidateDirectoryScopeTree();
+      // 来源读取失败时尚未切换状态，保留期间已经成功提交的隐藏等操作。
+      if (sourcesRead) {
+        sources = <CloudSource>[];
+        selectedSource = null;
+        entries = <CloudFileEntry>[];
+        _indexedItems.clear();
+        _customTagsByResourceKey.clear();
+        _selectedGenres.clear();
+        _hiddenVideos = <CloudHiddenVideo>[];
+        _works = <CloudWorkIdentity>[];
+        _mediaTree = null;
+        currentDirectoryScope = null;
+        _invalidateDirectoryScopeTree();
+      }
       loading = false;
+      scanning = false;
+      _sourceLoadFailed = true;
+      _resourcesInitialized = false;
       errorMessage = '网盘来源加载失败';
       _notify();
     }
@@ -249,14 +290,19 @@ mixin _CloudSourcesMixin on _CloudResourcesControllerBase {
     loading = true;
     _notify();
     String? hiddenVideoWarning;
+    final hiddenVideosRevision = _hiddenVideosRevision;
     try {
       final hiddenVideos = await _hiddenVideoRepository.getBySource(source.id);
       if (!_isCurrent(generation) || selectedSource?.id != source.id) return;
-      _hiddenVideos = hiddenVideos;
+      if (hiddenVideosRevision == _hiddenVideosRevision) {
+        _hiddenVideos = hiddenVideos;
+      }
     } on Object {
       if (!_isCurrent(generation) || selectedSource?.id != source.id) return;
-      _hiddenVideos = <CloudHiddenVideo>[];
-      hiddenVideoWarning = '隐藏视频设置读取失败，已显示全部视频';
+      if (hiddenVideosRevision == _hiddenVideosRevision) {
+        _hiddenVideos = <CloudHiddenVideo>[];
+        hiddenVideoWarning = '隐藏视频设置读取失败，已显示全部视频';
+      }
     }
     await _loadSnapshot(source, generation);
     if (!_isCurrent(generation)) return;

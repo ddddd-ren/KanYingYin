@@ -2,27 +2,22 @@ part of '../cloud_resources_controller.dart';
 
 /// 隐藏视频：按来源隐藏/恢复视频与媒体库分集。
 mixin _CloudHiddenVideosMixin on _CloudResourcesControllerBase {
+  final Lock _hiddenVideoMutationLock = Lock();
+
   Future<void> hideVideos(Iterable<CloudFileEntry> videos) async {
     final source = selectedSource;
     if (source == null) throw StateError('尚未选择网盘来源');
-    final nextByIdentity = <String, CloudHiddenVideo>{
-      for (final record in _hiddenVideos) record.identityKey: record,
-    };
-    for (final video in videos) {
-      final record = CloudHiddenVideo.fromEntry(
-        sourceId: source.id,
-        entry: video,
-      );
-      nextByIdentity[record.identityKey] = record;
-    }
-    final next = nextByIdentity.values.toList(growable: false);
-    if (_sameHiddenVideos(_hiddenVideos, next)) return;
-    await _hiddenVideoRepository.replaceSource(source.id, next);
-    if (selectedSource?.id != source.id) return;
-    _hiddenVideos = next;
-    _invalidateCollection();
-    await reloadMediaLibrarySnapshot();
-    _notify();
+    final additions = [
+      for (final video in videos)
+        CloudHiddenVideo.fromEntry(sourceId: source.id, entry: video),
+    ];
+    await _updateHiddenVideos(
+      source.id,
+      (current) => <String, CloudHiddenVideo>{
+        for (final record in current) record.identityKey: record,
+        for (final record in additions) record.identityKey: record,
+      }.values.toList(growable: false),
+    );
   }
 
   Future<void> hideMediaLibraryEpisodes(
@@ -44,26 +39,22 @@ mixin _CloudHiddenVideosMixin on _CloudResourcesControllerBase {
           );
     }
     for (final entry in bySource.entries) {
-      final records = <String, CloudHiddenVideo>{
-        for (final record
-            in await _hiddenVideoRepository.getBySource(entry.key))
-          record.identityKey: record,
-      };
-      for (final episode in entry.value) {
-        final record = CloudHiddenVideo(
-          sourceId: entry.key,
-          remoteId: episode.remoteId!,
-          remotePath: normalizeCloudHiddenVideoPath(episode.remotePath!),
-          fileName: episode.name,
-        );
-        records[record.identityKey] = record;
-      }
-      await _hiddenVideoRepository.replaceSource(
-        entry.key,
-        records.values.toList(growable: false),
-      );
+      await _updateHiddenVideos(entry.key, (current) {
+        final records = <String, CloudHiddenVideo>{
+          for (final record in current) record.identityKey: record,
+        };
+        for (final episode in entry.value) {
+          final record = CloudHiddenVideo(
+            sourceId: entry.key,
+            remoteId: episode.remoteId!,
+            remotePath: normalizeCloudHiddenVideoPath(episode.remotePath!),
+            fileName: episode.name,
+          );
+          records[record.identityKey] = record;
+        }
+        return records.values.toList(growable: false);
+      });
     }
-    await reloadMediaLibrarySnapshot();
   }
 
   Future<void> restoreHiddenVideo(CloudHiddenVideo record) async {
@@ -72,29 +63,40 @@ mixin _CloudHiddenVideosMixin on _CloudResourcesControllerBase {
     if (record.sourceId != source.id) {
       throw ArgumentError.value(record, 'record', '隐藏视频不属于当前网盘来源');
     }
-    final next = _hiddenVideos
-        .where((candidate) => candidate.identityKey != record.identityKey)
-        .toList(growable: false);
-    if (next.length == _hiddenVideos.length) return;
-    await _hiddenVideoRepository.replaceSource(source.id, next);
-    if (selectedSource?.id != source.id) return;
-    _hiddenVideos = next;
-    _invalidateCollection();
-    await reloadMediaLibrarySnapshot();
-    _notify();
+    await _updateHiddenVideos(
+      source.id,
+      (current) => current
+          .where((candidate) => candidate.identityKey != record.identityKey)
+          .toList(growable: false),
+    );
   }
 
   Future<void> restoreAllHiddenVideos() async {
     final source = selectedSource;
     if (source == null) throw StateError('尚未选择网盘来源');
-    if (_hiddenVideos.isEmpty) return;
-    await _hiddenVideoRepository.clearSource(source.id);
-    if (selectedSource?.id != source.id) return;
-    _hiddenVideos = <CloudHiddenVideo>[];
-    _invalidateCollection();
-    await reloadMediaLibrarySnapshot();
-    _notify();
+    await _updateHiddenVideos(source.id, (_) => <CloudHiddenVideo>[]);
   }
+
+  Future<void> _updateHiddenVideos(
+    String sourceId,
+    List<CloudHiddenVideo> Function(List<CloudHiddenVideo>) update,
+  ) =>
+      _hiddenVideoMutationLock.synchronized(() async {
+        if (_disposed) return;
+        // 跨页读改写串行执行，每次以持久化记录为准，写入失败不修改可见状态。
+        final current = await _hiddenVideoRepository.getBySource(sourceId);
+        final next = update(current);
+        if (!_sameHiddenVideos(current, next)) {
+          await _hiddenVideoRepository.replaceSource(sourceId, next);
+        }
+        if (!_disposed && selectedSource?.id == sourceId) {
+          _hiddenVideos = next;
+          _hiddenVideosRevision++;
+          _invalidateCollection();
+          _notify();
+        }
+        if (!_disposed) await reloadMediaLibrarySnapshot(force: true);
+      });
 
   @override
   bool _isHiddenEntry(CloudFileEntry entry) {

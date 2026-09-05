@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:synchronized/synchronized.dart';
 import 'package:kanyingyin/features/cloud/application/cloud_directory_scope_tree.dart';
 import 'package:kanyingyin/features/cloud/application/cloud_genre_filter.dart';
 import 'package:kanyingyin/features/cloud/application/cloud_resource_tmdb_facade.dart';
@@ -239,6 +240,7 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
       <String, List<String>>{};
   final Set<String> _selectedGenres = <String>{};
   List<CloudHiddenVideo> _hiddenVideos = <CloudHiddenVideo>[];
+  int _hiddenVideosRevision = 0;
   List<CloudWorkIdentity> _works = <CloudWorkIdentity>[];
   CloudMediaTree? _mediaTree;
   final Map<String, List<MediaLibrarySeries>> _mediaLibrarySeriesBySource =
@@ -268,9 +270,11 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
   int _resourceTmdbRecordsRevision = 0;
   int _workTmdbRecordsRevision = 0;
   bool _resourcesInitialized = false;
+  bool _sourceLoadFailed = false;
   Future<void>? _resourcesLoadFuture;
   bool _mediaLibrarySnapshotInitialized = false;
   Future<void>? _mediaLibraryReloadFuture;
+  int _mediaLibraryReloadGeneration = 0;
 
   Future<void> get scanCompletion => _scanFuture ?? Future<void>.value();
 
@@ -338,7 +342,8 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
   CloudMediaIndexItem? _indexedItemFor(CloudFileEntry entry);
   void _reconcileDirectoryScope();
   void _reconcileSelectedGenres();
-  Future<void> reloadMediaLibrarySnapshot();
+  Future<void> reloadMediaLibrarySnapshot({bool force = false});
+  Future<void> refresh();
   Future<void> _loadSnapshot(CloudSource source, int generation);
   void _startScan(CloudSource source, int generation);
   CloudResourceTmdbTarget tmdbTargetFor(CloudFileEntry entry);

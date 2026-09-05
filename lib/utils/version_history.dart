@@ -27,6 +27,19 @@ class VersionHistory {
 /// 区段拆分到 part 文件，展开顺序与原列表完全一致，不得重排。
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.205',
+    date: '2026-09-05',
+    isPrerelease: true,
+    changes: [
+      '修复数据目录与缓存目录重合时清理缓存可能误删数据库的问题；危险目录或混入视频、数据库的缓存目录会明确拒绝操作',
+      '网盘视频隐藏或恢复后，分类页、网盘页和隐藏管理列表保持同步，连续隐藏不再覆盖已有记录',
+      '移除最后一个网盘来源后，分类页同步清空对应筛选和视频；读取失败时保留已有内容',
+      '修复首次网盘加载失败后点击“重试”无效的问题，避免重复请求和返回页面后重复加载',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机仅同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频；缓存清理只在确认后执行',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.204',
     date: '2026-09-04',
     isPrerelease: true,

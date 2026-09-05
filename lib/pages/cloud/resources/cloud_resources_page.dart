@@ -798,7 +798,11 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
                 content: Text(_controller.errorMessage!),
                 actions: [
                   TextButton(
-                    onPressed: _controller.refresh,
+                    onPressed: _controller.loading || _controller.scanning
+                        ? null
+                        : () => _controller.retry(
+                              startScan: !_capabilities.isAndroidTv,
+                            ),
                     child: const Text('重试'),
                   ),
                 ],

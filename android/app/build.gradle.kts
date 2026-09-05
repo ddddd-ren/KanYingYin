@@ -41,11 +41,11 @@ val pubspecVersionMatch =
         ?: throw GradleException("pubspec.yaml 的 version 格式无效")
 val windowsVersionName = pubspecVersionMatch.groupValues[1]
 val windowsVersionCode = pubspecVersionMatch.groupValues[2].toInt()
-if (windowsVersionName != "2.1.204" || windowsVersionCode != 20204) {
-    throw GradleException("pubspec.yaml 必须为 Windows 测试版 2.1.204+20204")
+if (windowsVersionName != "2.1.205" || windowsVersionCode != 20205) {
+    throw GradleException("pubspec.yaml 必须为 Windows 测试版 2.1.205+20205")
 }
-val androidVersionName = "2.1.204"
-val androidVersionCode = 20204
+val androidVersionName = "2.1.205"
+val androidVersionCode = 20205
 
 android {
     namespace = "com.kanyingyin.player"

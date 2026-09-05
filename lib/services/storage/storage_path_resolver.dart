@@ -104,6 +104,7 @@ class StoragePathResolver {
   }
 
   Future<void> save() async {
+    await validateDirectorySeparation();
     await _writeConfig(StorageStartupConfig(
       dataRoot: dataRoot.path,
       cacheRoot: cacheRoot.path,
@@ -116,6 +117,8 @@ class StoragePathResolver {
   Future<void> saveMigrationRequest({
     required StoragePathResolver previous,
   }) async {
+    await previous.validateDirectorySeparation();
+    await validateDirectorySeparation();
     await _writeConfig(StorageStartupConfig(
       dataRoot: dataRoot.path,
       cacheRoot: cacheRoot.path,
@@ -123,6 +126,51 @@ class StoragePathResolver {
       lastSuccessfulDataRoot: previous.dataRoot.path,
       lastSuccessfulCacheRoot: previous.cacheRoot.path,
     ));
+  }
+
+  Future<void> validateDirectorySeparation() async {
+    void check(String data, String cache) {
+      data = p.canonicalize(data);
+      cache = p.canonicalize(cache);
+      if (p.equals(data, cache) ||
+          p.isWithin(data, cache) ||
+          p.isWithin(cache, data)) {
+        throw const FileSystemException('应用数据目录和缓存目录不能相同或互相包含，请选择独立目录');
+      }
+    }
+
+    check(
+      p.normalize(dataRoot.absolute.path),
+      p.normalize(cacheRoot.absolute.path),
+    );
+    final resolvedCache = await _resolvedDirectoryPath(cacheRoot);
+    check(await _resolvedDirectoryPath(dataRoot), resolvedCache);
+    final resolvedConfig = await _resolvedDirectoryPath(Directory(configFile.path));
+    if (p.equals(cacheRoot.path, configFile.path) ||
+        p.isWithin(cacheRoot.path, configFile.path) ||
+        p.equals(resolvedCache, resolvedConfig) ||
+        p.isWithin(resolvedCache, resolvedConfig)) {
+      throw const FileSystemException('缓存目录不能包含启动配置文件，请选择独立目录');
+    }
+  }
+
+  static Future<String> _resolvedDirectoryPath(Directory directory) async {
+    var existing = Directory(p.normalize(directory.absolute.path));
+    final suffix = <String>[];
+    // 尚未创建的目录也要解析已有祖先，避免通过符号链接或目录联接绕过校验。
+    while (await FileSystemEntity.type(existing.path, followLinks: false) ==
+        FileSystemEntityType.notFound) {
+      final parent = existing.parent;
+      if (p.equals(parent.path, existing.path)) {
+        throw FileSystemException('无法确认存储目录的实际位置', directory.path);
+      }
+      suffix.add(p.basename(existing.path));
+      existing = parent;
+    }
+    return p.normalize(p.joinAll([
+      await existing.resolveSymbolicLinks(),
+      ...suffix.reversed,
+    ]));
   }
 
   Future<void> _writeConfig(StorageStartupConfig config) async {
@@ -180,12 +228,14 @@ class StoragePathResolver {
     }
     final defaultRoot = legacyData.parent;
     if (config != null) {
-      return StoragePathResolver.fromStartupConfig(
+      final resolver = StoragePathResolver.fromStartupConfig(
         config: config,
         configFile: configFile,
         fallbackDataRoot: legacyData,
         fallbackCacheRoot: legacyCache,
       );
+      await resolver.validateDirectorySeparation();
+      return resolver;
     }
     final dataRoot = Directory(p.join(defaultRoot.path, '数据'));
     final cacheRoot = Directory(legacyCache.path);

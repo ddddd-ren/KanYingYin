@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/core/app_version.dart';
 import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/features/version/presentation/version_changelog_dialog.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
@@ -33,6 +34,23 @@ Future<void> _openVersionChangelogDialog(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('2.1.205 测试版更新弹窗展示四项边界修复', (tester) async {
+    expect(AppVersion.current, '2.1.205');
+    final entries = versionHistoryForCurrent(AppVersion.current);
+    expect(entries, hasLength(1));
+    expect(entries.single.isPrerelease, isTrue);
+    expect(entries.single.date, '2026-09-05');
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: VersionChangelogContent(versions: entries)),
+    ));
+
+    expect(find.text('v2.1.205  测试版  2026-09-05'), findsOneWidget);
+    for (final text in ['数据目录', '隐藏或恢复', '最后一个网盘来源', '重试']) {
+      expect(find.textContaining(text), findsWidgets);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   test('二点一九八 Windows 测试版记录全屏体验和双端交付', () {
     final entries = versionHistoryForCurrent('2.1.199');
 

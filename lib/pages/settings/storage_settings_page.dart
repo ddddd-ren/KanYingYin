@@ -71,6 +71,8 @@ class _StorageSettingsPageState extends State<StorageSettingsPage> {
         cacheRoot: isCache ? Directory(selected) : null,
         isConfigured: true,
       );
+      await _resolver.validateDirectorySeparation();
+      await next.validateDirectorySeparation();
       if (isCache) {
         await widget.migrationService.migrateDirectory(
           source: _resolver.cacheRoot,
@@ -100,6 +102,7 @@ class _StorageSettingsPageState extends State<StorageSettingsPage> {
   }
 
   Future<void> _clearCache() async {
+    if (_working || _restartRequired) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -117,9 +120,16 @@ class _StorageSettingsPageState extends State<StorageSettingsPage> {
         ],
       ),
     );
-    if (confirmed != true || !mounted) return;
-    await widget.migrationService.clearCache(_resolver.cacheRoot);
-    setState(() => _status = '缓存已清理。');
+    if (confirmed != true || !mounted || _working) return;
+    setState(() => _working = true);
+    try {
+      await widget.migrationService.clearCache(_resolver);
+      if (mounted) setState(() => _status = '缓存已清理。');
+    } on Object catch (error) {
+      if (mounted) setState(() => _status = '缓存清理失败：$error');
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
   }
 
   @override

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:kanyingyin/services/local_video_file_types.dart';
 import 'package:kanyingyin/services/storage/storage_path_resolver.dart';
 import 'package:path/path.dart' as p;
 
@@ -48,7 +49,7 @@ class AppDataMigrationService {
       return _manifest(source);
     }
     final temporary = Directory('${target.path}.migrating');
-    if (await temporary.exists()) await temporary.delete(recursive: true);
+    await _validateMigrationTarget(source, target);
     try {
       await _copyTree(source, temporary);
       final copied = await _manifest(temporary);
@@ -60,7 +61,6 @@ class AppDataMigrationService {
       }
       if (await target.exists()) {
         final backup = Directory('${target.path}.backup');
-        if (await backup.exists()) await backup.delete(recursive: true);
         await target.rename(backup.path);
       }
       await temporary.rename(target.path);
@@ -75,6 +75,9 @@ class AppDataMigrationService {
   Future<StorageMigrationResult> migrateResolver(
     StoragePathResolver resolver,
   ) async {
+    await resolver.validateDirectorySeparation();
+    await _validateMigrationTarget(resolver.legacyDataRoot, resolver.dataRoot);
+    await _validateMigrationTarget(resolver.legacyCacheRoot, resolver.cacheRoot);
     final data = await migrateDirectory(
       source: resolver.legacyDataRoot,
       target: resolver.dataRoot,
@@ -91,8 +94,30 @@ class AppDataMigrationService {
     return data;
   }
 
-  Future<void> clearCache(Directory cacheRoot) async {
-    if (await cacheRoot.exists()) await cacheRoot.delete(recursive: true);
+  Future<void> clearCache(StoragePathResolver resolver) async {
+    await resolver.validateDirectorySeparation();
+    final cacheRoot = resolver.cacheRoot;
+    if (!await cacheRoot.exists()) return;
+    // 先检查完整目录再删除，不能在发现混入视频或数据库前已经清掉部分文件。
+    await for (final entity in cacheRoot.list(recursive: true, followLinks: false)) {
+      if (entity is File &&
+          (LocalVideoFileTypes.isVideoPath(entity.path) ||
+              p.extension(entity.path).toLowerCase() == '.hive')) {
+        throw const StorageMigrationException('缓存目录含有视频或数据库文件，已停止清理，请选择独立缓存目录');
+      }
+    }
+    await cacheRoot.delete(recursive: true);
+  }
+
+  Future<void> _validateMigrationTarget(Directory source, Directory target) async {
+    if (p.equals(source.absolute.path, target.absolute.path)) return;
+    for (final suffix in ['migrating', 'backup']) {
+      final reserved = '${target.path}.$suffix';
+      if (await FileSystemEntity.type(reserved, followLinks: false) !=
+          FileSystemEntityType.notFound) {
+        throw StorageMigrationException('迁移暂存或备份目录已存在，未修改已有文件：$reserved');
+      }
+    }
   }
 
   Future<void> _copyTree(Directory source, Directory target) async {

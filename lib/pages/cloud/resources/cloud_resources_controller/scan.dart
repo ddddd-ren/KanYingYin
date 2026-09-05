@@ -55,7 +55,7 @@ mixin _CloudScanMixin on _CloudResourcesControllerBase {
         .toList(growable: false);
     _invalidateDirectoryScopeTree();
     _reconcileDirectoryScope();
-    await reloadMediaLibrarySnapshot();
+    await reloadMediaLibrarySnapshot(force: true);
   }
 
   @override
@@ -122,6 +122,7 @@ mixin _CloudScanMixin on _CloudResourcesControllerBase {
     }
   }
 
+  @override
   Future<void> refresh() async {
     if (loading) return;
     final source = selectedSource;

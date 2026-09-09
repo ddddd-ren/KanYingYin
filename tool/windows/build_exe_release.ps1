@@ -1,8 +1,9 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
   [string]$FlutterPath = 'D:\flutter\bin\flutter.bat',
   [string]$DesktopDirectory = (Join-Path $env:USERPROFILE 'Desktop'),
   [switch]$SkipBuild,
+  [switch]$KeepIntermediateArtifacts,
   [string[]]$BuildArguments = @()
 )
 
@@ -132,6 +133,34 @@ $installer = $installerCandidates[0]
 $hash = Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256
 $signature = Get-AuthenticodeSignature -LiteralPath $installer.FullName
 $releaseHash = Get-FileHash -LiteralPath $releaseExe -Algorithm SHA256
+
+# 构建与打包全部完成后，清理 Windows 构建的 CMake 中间产物，
+# 保留 runner\Release 下的最终发布文件，避免 build 目录无谓膨胀。
+# 默认清理；传入 -KeepIntermediateArtifacts 可保留。
+if (-not $KeepIntermediateArtifacts) {
+  $buildRoot = [System.IO.Path]::GetFullPath($buildDirectory)
+  $releaseRoot = [System.IO.Path]::GetFullPath($releaseDirectory)
+  if (-not $releaseRoot.StartsWith("$buildRoot\", [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing to clean intermediate artifacts outside build directory"
+  }
+  $cmakeFilesDirs = Get-ChildItem -LiteralPath $buildRoot -Directory -Recurse -Filter 'CMakeFiles' -ErrorAction SilentlyContinue
+  $removedCount = 0
+  foreach ($dir in $cmakeFilesDirs) {
+    if ($dir.FullName.StartsWith("$releaseRoot\", [System.StringComparison]::OrdinalIgnoreCase)) {
+      continue
+    }
+    try {
+      Remove-Item -LiteralPath $dir.FullName -Recurse -Force -ErrorAction Stop
+      $removedCount++
+    } catch {
+      Write-Warning ("清理中间产物目录失败 " + $dir.FullName + "：" + $_.Exception.Message)
+    }
+  }
+  if ($removedCount -gt 0) {
+    Write-Host ("已清理 " + $removedCount + " 个 CMake 中间产物目录，保留 Release 产物。")
+  }
+}
+
 [PSCustomObject]@{
   Version = $version
   ReleaseExecutable = $releaseExe

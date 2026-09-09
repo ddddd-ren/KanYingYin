@@ -156,11 +156,21 @@ void main() {
     expect(verification, contains('ProductVersion'));
     expect(verification, contains('Get-FileHash'));
     expect(verification, contains('Get-AuthenticodeSignature'));
+    expect(
+      verification,
+      contains(
+          r'$releaseAsset = Join-Path $installer.DirectoryName "KanYingYin-$env:APP_VERSION.exe"'),
+    );
+    expect(
+      verification,
+      contains(
+          r'Copy-Item -LiteralPath $installer.FullName -Destination $releaseAsset -Force'),
+    );
     final release = _stepBlock(releaseWorkflow, '发布 GitHub Release');
     expect(
       release,
       contains(
-        r'files: build/windows/exe_output/看影音-${{ env.APP_VERSION }}-测试版-安装程序.exe',
+        r'files: build/windows/exe_output/KanYingYin-${{ env.APP_VERSION }}.exe',
       ),
     );
     expect(

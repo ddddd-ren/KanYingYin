@@ -34,9 +34,24 @@ Future<void> _openVersionChangelogDialog(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('1.0.14 正式版更新弹窗展示当前有效更新', (tester) async {
-    expect(AppVersion.current, '1.0.14');
+  testWidgets('2.1.207 测试版更新弹窗展示窄屏工具栏修复', (tester) async {
+    expect(AppVersion.current, '2.1.207');
     final entries = versionHistoryForCurrent(AppVersion.current);
+    expect(entries, hasLength(1));
+    expect(entries.single.isPrerelease, isTrue);
+    expect(entries.single.date, '2026-09-06');
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: VersionChangelogContent(versions: entries)),
+    ));
+    expect(find.text('v2.1.207  测试版  2026-09-06'), findsOneWidget);
+    for (final text in ['窄屏', '来源名称', '重新刮削本季', '原始视频']) {
+      expect(find.textContaining(text), findsWidgets);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('1.0.14 正式版更新弹窗展示当前有效更新', (tester) async {
+    final entries = versionHistoryForCurrent('1.0.14');
     expect(entries, hasLength(1));
     expect(entries.single.isPrerelease, isFalse);
     expect(entries.single.date, '2026-09-06');
@@ -53,7 +68,7 @@ void main() {
 
   test('Android 1.0.10 正式版只展示手机和平板实际功能', () {
     final entries = versionHistoryForCurrent(
-      AppVersion.current,
+      '1.0.14',
       platform: AppPlatformKind.android,
     );
 

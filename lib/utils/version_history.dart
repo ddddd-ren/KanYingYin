@@ -27,6 +27,18 @@ class VersionHistory {
 /// 区段拆分到 part 文件，展开顺序与原列表完全一致，不得重排。
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.207',
+    date: '2026-09-06',
+    isPrerelease: true,
+    changes: [
+      '网盘工具栏在窄屏下自动分成两行，添加、管理、刷新和更多操作保持可见；宽屏布局不变',
+      '网盘来源名称较长时自动省略显示，展开选择菜单可查看完整名称',
+      '保留“重新刮削本季”的独立更新和整剧更新确认，失败时保留原资料和旧封面',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机仅同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+    ],
+  ),
+  VersionHistory(
     version: '1.0.14',
     date: '2026-09-06',
     changes: [

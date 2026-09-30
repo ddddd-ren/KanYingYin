@@ -61,8 +61,15 @@ if ([string]::IsNullOrWhiteSpace($IsccPath) -or
 }
 
 $compileStartedAt = Get-Date
-& $IsccPath "/DMyAppVersion=$Version" "/DBuildDir=$releasePath" `
-  "/DOutputDir=$desktopPath" $scriptPath
+$preprocessorArguments = @(
+  "/DMyAppVersion=$Version",
+  "/DBuildDir=$releasePath",
+  "/DOutputDir=$desktopPath"
+)
+if (-not $Version.StartsWith('2.', [System.StringComparison]::Ordinal)) {
+  $preprocessorArguments += '/DFormalRelease'
+}
+& $IsccPath @preprocessorArguments $scriptPath
 if ($LASTEXITCODE -ne 0) {
   throw "Inno Setup compilation failed with exit code $LASTEXITCODE"
 }

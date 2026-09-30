@@ -34,23 +34,23 @@ Future<void> _openVersionChangelogDialog(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('2.1.208 测试版更新弹窗展示网盘速度识别优化', (tester) async {
-    expect(AppVersion.current, '2.1.208');
+  testWidgets('1.0.15 正式版更新弹窗展示网盘播放优化', (tester) async {
+    expect(AppVersion.current, '1.0.15');
     final entries = versionHistoryForCurrent(AppVersion.current);
     expect(entries, hasLength(1));
-    expect(entries.single.isPrerelease, isTrue);
-    expect(entries.single.date, '2026-09-30');
+    expect(entries.single.isPrerelease, isFalse);
+    expect(entries.single.date, '2026-10-01');
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(body: VersionChangelogContent(versions: entries)),
     ));
-    expect(find.text('v2.1.208  测试版  2026-09-30'), findsOneWidget);
+    expect(find.text('v1.0.15  正式版  2026-10-01'), findsOneWidget);
     for (final text in ['连续采样', '网卡链路速率', '缓存秒数', '原始视频']) {
       expect(find.textContaining(text), findsWidgets);
     }
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('1.0.14 正式版更新弹窗展示当前有效更新', (tester) async {
+  testWidgets('1.0.14 正式版历史更新弹窗仍可查看', (tester) async {
     final entries = versionHistoryForCurrent('1.0.14');
     expect(entries, hasLength(1));
     expect(entries.single.isPrerelease, isFalse);
@@ -66,20 +66,20 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  test('Android 1.0.10 正式版只展示手机和平板实际功能', () {
+  test('Android 1.0.11 正式版只展示手机和平板实际功能', () {
     final entries = versionHistoryForCurrent(
-      '1.0.14',
+      '1.0.15',
       platform: AppPlatformKind.android,
     );
 
     expect(entries, hasLength(1));
-    expect(entries.single.version, '1.0.10');
+    expect(entries.single.version, '1.0.11');
     expect(entries.single.isPrerelease, isFalse);
     final changes = entries.single.changes.join('\n');
     for (final text in <String>[
       '手机和平板',
-      '重新刮削本季',
-      '网盘视频隐藏',
+      '连续采样',
+      '缓存秒数',
       'MediaCodec',
       '不会修改',
     ]) {

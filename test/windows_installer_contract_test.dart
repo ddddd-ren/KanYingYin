@@ -18,6 +18,8 @@ void main() {
       source,
       contains('OutputBaseFilename=看影音-{#MyAppVersion}-测试版-安装程序'),
     );
+    expect(source, contains('#ifdef FormalRelease'));
+    expect(source, contains('OutputBaseFilename=看影音-{#MyAppVersion}-安装程序'));
     expect(source, contains('Excludes: "*.msix,msix_verify_*\\*"'));
     expect(source, isNot(contains('Get-AppxPackage')));
     expect(source, isNot(contains('Remove-AppxPackage')));
@@ -41,6 +43,7 @@ void main() {
     expect(source, contains('Get-AuthenticodeSignature'));
     expect(source, contains("'Desktop'"));
     expect(source, contains("-Filter '*.iss'"));
+    expect(source, contains("'/DFormalRelease'"));
     expect(
         source, isNot(contains("'\u770b\u5f71\u97f3\u6d4b\u8bd5\u7248.iss'")));
   });

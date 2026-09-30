@@ -135,6 +135,7 @@ class QuarkRangeRemoteReader
   int? _maxReadSize;
   int? _currentReadSize;
   var _timeoutCount = 0;
+  var _slowSamples = 0;
 
   @override
   int? get totalLength => _totalLength;
@@ -228,6 +229,7 @@ class QuarkRangeRemoteReader
         if (timedOut) {
           _timeoutCount++;
           _currentReadSize = _minReadSize ?? _currentReadSize;
+          _slowSamples = 0;
           _emitEvent(CloudRangeReaderEvent.slow);
         }
         _resetClient();
@@ -567,15 +569,25 @@ class QuarkRangeRemoteReader
         minReadSize == maxReadSize) {
       return;
     }
-    if (ttfb >= const Duration(seconds: 3) || bytesPerSecond < 1024 * 1024) {
+    final slow =
+        ttfb >= const Duration(seconds: 3) || bytesPerSecond < 1024 * 1024;
+    final healthy =
+        ttfb <= const Duration(seconds: 1) && bytesPerSecond >= 4 * 1024 * 1024;
+    if (slow) {
+      _slowSamples++;
+      if (_slowSamples < 2) {
+        _currentReadSize = minReadSize;
+        return;
+      }
       _currentReadSize = minReadSize;
       _emitEvent(CloudRangeReaderEvent.slow);
       return;
     }
-    if (ttfb <= const Duration(seconds: 1) &&
-        bytesPerSecond >= 4 * 1024 * 1024) {
+    _slowSamples = 0;
+    if (healthy) {
       _currentReadSize = maxReadSize;
       _emitEvent(CloudRangeReaderEvent.healthy);
+      return;
     }
   }
 

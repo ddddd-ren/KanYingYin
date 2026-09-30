@@ -395,6 +395,51 @@ void main() {
     timeout: const Timeout(Duration(seconds: 25)),
   );
 
+  test('单次慢速样本不触发低速，连续两次才触发', () async {
+    final events = <QuarkRemoteReaderEvent>[];
+    final logs = <String>[];
+    final server = await serve((request) async {
+      final range = request.headers.value(HttpHeaders.rangeHeader)!;
+      final match = RegExp(r'bytes=(\d+)-(\d+)').firstMatch(range)!;
+      final start = int.parse(match.group(1)!);
+      final end = int.parse(match.group(2)!);
+      final length = end - start + 1;
+      request.response
+        ..statusCode = HttpStatus.partialContent
+        ..headers.set(
+          HttpHeaders.contentRangeHeader,
+          'bytes $start-$end/${length * 2}',
+        )
+        ..contentLength = length;
+      await request.response.flush();
+      await Future<void>.delayed(const Duration(milliseconds: 1100));
+      request.response.add(List<int>.filled(length, 1));
+      await request.response.close();
+    });
+    final reader = QuarkRangeRemoteReader(
+      resource: QuarkRemoteResource(
+        uri: Uri.parse('http://127.0.0.1:${server.port}/video'),
+      ),
+      refreshResource: () => throw StateError('不应刷新'),
+      uriValidator: allowTestUri,
+      log: logs.add,
+    )..configureAdaptiveReads(
+        minReadSize: 1024,
+        initialReadSize: 1024,
+        maxReadSize: 2048,
+      );
+    final subscription = reader.events.listen(events.add);
+    await reader.readTo(
+      const ByteRange(0, 2047),
+      File('${directory.path}/slow-samples.bin'),
+    );
+    await subscription.cancel();
+    await reader.close();
+
+    expect(events, contains(QuarkRemoteReaderEvent.slow));
+    expect(logs.where((line) => line.contains('stage=complete')), hasLength(2));
+  });
+
   test('上游 404 和 5xx 快速返回真实状态且日志不泄露地址或 Cookie', () async {
     for (final statusCode in <int>[
       HttpStatus.notFound,

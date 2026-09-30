@@ -267,10 +267,12 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
             message: '$providerName正在重新连接',
           );
         case CloudRangeReaderEvent.healthy:
+          _logTransferEvent('healthy');
           if (tuning.adaptivePolicy?.boostOnHealthyTransfer ?? false) {
             _boost('healthy_transfer');
           }
         case CloudRangeReaderEvent.slow:
+          _logTransferEvent('slow');
           _returnToBase('slow_transfer');
       }
     });
@@ -587,6 +589,16 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
     );
   }
 
+  void _logTransferEvent(String event) {
+    _log(
+      'CloudRangeRelaySession: provider=$providerName event=$event '
+      'throughputKiBps=${(_bytesPerSecond / 1024).round()} '
+      'cachedBytes=${_cache?.cachedBytes ?? 0} '
+      'cachedSeconds=${_cachedSeconds ?? "unknown"} '
+      'mode=${_adaptiveMode.name}',
+    );
+  }
+
   void _launchPrefetch(int offset, int generation) {
     if (_closed || offset < 0 || offset >= totalLength) return;
     late final Future<void> task;
@@ -637,6 +649,13 @@ class CloudRangeRelaySession implements CloudPlaybackLease {
     final microseconds = completedAt.difference(startedAt).inMicroseconds;
     if (bytes == 0 || microseconds <= 0) return 0;
     return bytes * Duration.microsecondsPerSecond / microseconds;
+  }
+
+  int? get _cachedSeconds {
+    final bytesPerSecond = _bytesPerSecond;
+    final cachedBytes = _cache?.cachedBytes ?? 0;
+    if (bytesPerSecond <= 0 || cachedBytes <= 0) return null;
+    return (cachedBytes / bytesPerSecond).floor();
   }
 
   void _publish({

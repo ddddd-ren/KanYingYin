@@ -265,8 +265,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       for (final tooltip in <String>[
-        '添加网盘',
-        '管理网盘来源',
+        '筛选',
         '刷新当前来源',
         '更多网盘操作',
       ]) {
@@ -288,9 +287,10 @@ void main() {
         });
         image.dispose();
       }
-      await tester.tap(find.byTooltip('添加网盘'));
+      await tester.tap(find.byTooltip('更多网盘操作'));
       await tester.pumpAndSettle();
       expect(find.text('添加夸克网盘'), findsOneWidget);
+      expect(find.text('管理网盘来源'), findsOneWidget);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
       final titleY = tester.getCenter(find.text('网盘媒体库')).dy;
@@ -300,7 +300,7 @@ void main() {
           ))
           .dy;
       expect(
-          sourceY, size.width < 632 ? greaterThan(titleY) : closeTo(titleY, 1));
+          sourceY, size.width < 626 ? greaterThan(titleY) : closeTo(titleY, 1));
       await tester.tap(find.byTooltip('资源操作').first);
       await tester.pumpAndSettle();
       expect(find.text('重新刮削本季'), findsOneWidget);

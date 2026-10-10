@@ -543,96 +543,120 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
   }
 
   Future<MediaLibraryEpisode?> _selectEpisode(MediaLibrarySeries series) {
+    var selectedVersion = 0;
     return showModalBottomSheet<MediaLibraryEpisode>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => SafeArea(
-        child: FocusTraversalGroup(
-          key: const ValueKey<String>('media-category-episode-focus-group'),
-          child: FractionallySizedBox(
-            heightFactor: 0.78,
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          series.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: '关闭',
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.close),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: series.episodes.length,
-                    itemBuilder: (context, index) {
-                      final episode = series.episodes[index];
-                      final local = episode.localItem;
-                      final technicalBadges =
-                          const MediaTechnicalBadgeResolver().resolve(
-                        names: [
-                          episode.name,
-                          if (local != null) local.path,
-                          if (episode.remotePath != null) episode.remotePath!,
-                        ],
-                        releaseTags: [episode.releaseTags],
-                        resolution: local?.resolution,
-                        videoWidth: local?.videoWidth,
-                        videoHeight: local?.videoHeight,
-                      );
-                      final detailsText =
-                          episode.sourceKind == MediaSourceKind.local
-                              ? local?.path ?? ''
-                              : episode.remotePath ?? '';
-                      return Focus(
-                        autofocus: index == 0,
-                        child: ListTile(
-                          leading: const Icon(Icons.play_circle_outline),
-                          title: Text(
-                            episode.name,
+      builder: (context) => StatefulBuilder(builder: (context, setSheetState) {
+        final episodes = series.versions.isEmpty
+            ? series.episodes
+            : series.versions[selectedVersion].episodes;
+        return SafeArea(
+          child: FocusTraversalGroup(
+            key: const ValueKey<String>('media-category-episode-focus-group'),
+            child: FractionallySizedBox(
+              heightFactor: 0.78,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            series.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleMedium,
                           ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (technicalBadges.isNotEmpty) ...[
-                                const SizedBox(height: 5),
-                                MediaTechnicalBadgeRow(
-                                  badges: technicalBadges,
-                                ),
-                                const SizedBox(height: 4),
-                              ],
-                              Text(
-                                detailsText,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                          onTap: () => Navigator.of(context).pop(episode),
                         ),
-                      );
-                    },
+                        IconButton(
+                          tooltip: '关闭',
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  if (series.versions.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      child: Wrap(spacing: 8, runSpacing: 8, children: [
+                        for (var index = 0;
+                            index < series.versions.length;
+                            index++)
+                          ChoiceChip(
+                            label: Text(series.versions[index].label),
+                            selected: selectedVersion == index,
+                            onSelected: (_) =>
+                                setSheetState(() => selectedVersion = index),
+                          ),
+                      ]),
+                    ),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: episodes.length,
+                      itemBuilder: (context, index) {
+                        final episode = episodes[index];
+                        final local = episode.localItem;
+                        final technicalBadges =
+                            const MediaTechnicalBadgeResolver().resolve(
+                          names: [
+                            episode.name,
+                            if (local != null) local.path,
+                            if (episode.remotePath != null) episode.remotePath!,
+                          ],
+                          releaseTags: [episode.releaseTags],
+                          resolution: local?.resolution,
+                          videoWidth: local?.videoWidth,
+                          videoHeight: local?.videoHeight,
+                        );
+                        final detailsText =
+                            episode.sourceKind == MediaSourceKind.local
+                                ? local?.path ?? ''
+                                : episode.remotePath ?? '';
+                        return Focus(
+                          autofocus: index == 0,
+                          child: ListTile(
+                            leading: const Icon(Icons.play_circle_outline),
+                            title: Text(
+                              episode.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (technicalBadges.isNotEmpty) ...[
+                                  const SizedBox(height: 5),
+                                  MediaTechnicalBadgeRow(
+                                    badges: technicalBadges,
+                                  ),
+                                  const SizedBox(height: 4),
+                                ],
+                                Text(
+                                  detailsText,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                if (episode.sharedFromVersionLabel != null)
+                                  Text('共享自${episode.sharedFromVersionLabel}'),
+                              ],
+                            ),
+                            onTap: () => Navigator.of(context).pop(episode),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      }),
     );
   }
 

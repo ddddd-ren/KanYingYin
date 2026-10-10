@@ -26,7 +26,22 @@ CloudResourcePlaybackRequest buildCloudResourcePlaybackRequest({
   required CloudResourceSubtitleResolver subtitleFor,
 }) {
   List<CloudFileEntry>? seasonVideos;
+  final versionKey = selected.playbackVersionKey;
+  if (versionKey != null) {
+    final versions = [
+      ...group.versions,
+      ...group.seasons.expand((season) => season.versions),
+    ];
+    for (final version in versions) {
+      if (version.key == versionKey) {
+        seasonVideos = version.videos;
+        break;
+      }
+    }
+    if (seasonVideos == null) throw ArgumentError('选中的剧集版本已不存在');
+  }
   for (final season in group.seasons) {
+    if (seasonVideos != null) break;
     if (season.videos.any((video) => _sameEntry(video, selected))) {
       seasonVideos = season.videos;
       break;

@@ -15,6 +15,7 @@ import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/local_media_source.dart';
 import 'package:kanyingyin/modules/local/media_location.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/modules/local/tmdb_image_metadata.dart';
 import 'package:kanyingyin/modules/local/poster_scrape.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
@@ -38,6 +39,7 @@ import 'package:kanyingyin/services/tmdb/local_tmdb_scrape_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client_capabilities.dart';
+import 'package:kanyingyin/services/tmdb/local_tmdb_image_selection_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_image_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_poster_policy.dart';
@@ -422,7 +424,9 @@ abstract class _LocalController with Store {
         );
         return;
       }
-      items = ObservableList.of(_applySeriesTitleOverrides(result.items));
+      items = ObservableList.of(
+        _mergeIndexedMetadata(_applySeriesTitleOverrides(result.items)),
+      );
       await _tryUpdateMediaSourceScanSummary(path, result);
       AppLogger().i(
         'LocalController: loaded ${items.length} items from $path, skipped ${result.skippedCount}',
@@ -556,13 +560,17 @@ abstract class _LocalController with Store {
       seriesName: seriesName,
       options: tmdbScrapeOptions,
     );
-    return _tmdbImageUrl(result.metadata?.posterUrl);
+    return _tmdbImageUrl(
+      result.metadata?.imageOverride.poster ?? result.metadata?.posterUrl,
+    );
   }
 
   String? _findIndexedTmdbCover(String path) {
     for (final indexed in localLibraryItems) {
       if (indexed.path == path) {
-        final cover = _tmdbImageUrl(indexed.tmdb?.posterUrl);
+        final cover = _tmdbImageUrl(
+          indexed.tmdb?.imageOverride.poster ?? indexed.tmdb?.posterUrl,
+        );
         if (cover != null && cover.isNotEmpty) return cover;
       }
     }
@@ -636,6 +644,7 @@ abstract class _LocalController with Store {
     mediaInfoCurrent = 0;
     mediaInfoTotal = videoItems.length;
     mediaInfoCurrentFile = '';
+    final indexUpdates = <String, LocalMediaIndexItem>{};
     try {
       final result = await _metadataCoordinator.probeMediaInfo(
         videoItems,
@@ -655,8 +664,22 @@ abstract class _LocalController with Store {
             videoWidth: update.info.width,
             videoHeight: update.info.height,
           );
+          final indexed = _mediaIndexRepository.getByPath(update.item.path);
+          if (indexed != null) {
+            indexUpdates[indexed.id] = indexed.copyWith(
+              durationMillis: update.info.duration?.inMilliseconds ??
+                  indexed.durationMillis,
+              videoWidth: update.info.width ?? indexed.videoWidth,
+              videoHeight: update.info.height ?? indexed.videoHeight,
+              indexedAt: DateTime.now(),
+            );
+          }
         },
       );
+      if (indexUpdates.isNotEmpty) {
+        await _mediaIndexRepository.updateItems(indexUpdates);
+        _reloadLocalLibraryIndexSafe();
+      }
       return result.updated;
     } finally {
       isFetchingMediaInfo = false;
@@ -1194,6 +1217,67 @@ abstract class _LocalController with Store {
     );
     _reloadLocalLibraryIndexSafe();
     return result;
+  }
+
+  Future<TmdbImageSet> loadLocalTmdbImages(
+    String seriesName, {
+    TmdbImageKind kind = TmdbImageKind.poster,
+    int? seasonNumber,
+    int? episodeNumber,
+  }) async {
+    final service = LocalTmdbImageSelectionService(
+      indexRepository: _mediaIndexRepository,
+      metadataRepository: TmdbMetadataRepository(),
+      client: _tmdbClientContextRegistry.contextFor(_tmdbApiKey).client,
+    );
+    return service.imagesForSeries(
+      seriesName,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+      language: tmdbScrapeOptions.language,
+    );
+  }
+
+  Future<void> selectLocalTmdbImage({
+    required String seriesName,
+    required TmdbImageKind kind,
+    required String filePath,
+    int? seasonNumber,
+    int? episodeNumber,
+  }) async {
+    final service = LocalTmdbImageSelectionService(
+      indexRepository: _mediaIndexRepository,
+      metadataRepository: TmdbMetadataRepository(),
+      client: _tmdbClientContextRegistry.contextFor(_tmdbApiKey).client,
+    );
+    await service.selectSeriesImage(
+      seriesName: seriesName,
+      kind: kind,
+      filePath: filePath,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+    );
+    _reloadLocalLibraryIndexSafe();
+  }
+
+  Future<void> clearLocalTmdbImage({
+    required String seriesName,
+    required TmdbImageKind kind,
+    int? seasonNumber,
+    int? episodeNumber,
+  }) async {
+    final service = LocalTmdbImageSelectionService(
+      indexRepository: _mediaIndexRepository,
+      metadataRepository: TmdbMetadataRepository(),
+      client: _tmdbClientContextRegistry.contextFor(_tmdbApiKey).client,
+    );
+    await service.clearSeriesImage(
+      seriesName: seriesName,
+      kind: kind,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+    );
+    _reloadLocalLibraryIndexSafe();
   }
 
   Future<CloudTmdbMatchOutcome> scrapeCloudSeries(MediaLibrarySeries series,
@@ -1837,6 +1921,9 @@ abstract class _LocalController with Store {
         return;
       }
       localLibraryItems = ObservableList.of(nextItems);
+      if (items.isNotEmpty) {
+        items = ObservableList.of(_mergeIndexedMetadata(items));
+      }
     } catch (e) {
       AppLogger().w(
         'LocalController: failed to load local media index',
@@ -1854,6 +1941,32 @@ abstract class _LocalController with Store {
         p.dirname(item.path),
       );
       return title == null ? item : item.copyWith(seriesTitleOverride: title);
+    }).toList(growable: false);
+  }
+
+  List<LocalFileItem> _mergeIndexedMetadata(
+    Iterable<LocalFileItem> scanItems,
+  ) {
+    final indexedByPath = <String, LocalMediaIndexItem>{
+      for (final indexed in localLibraryItems)
+        LocalMediaIndexItem.normalizePath(indexed.path): indexed,
+    };
+    return scanItems.map((item) {
+      final indexed =
+          indexedByPath[LocalMediaIndexItem.normalizePath(item.path)];
+      if (indexed == null) return item;
+      return item.copyWith(
+        duration: item.duration ??
+            (indexed.durationMillis == null
+                ? null
+                : Duration(milliseconds: indexed.durationMillis!)),
+        videoWidth: item.videoWidth ?? indexed.videoWidth,
+        videoHeight: item.videoHeight ?? indexed.videoHeight,
+        releaseGroup: item.releaseGroup ?? indexed.releaseGroup,
+        resolution: item.resolution ?? indexed.resolution,
+        source: item.source ?? indexed.source,
+        codec: item.codec ?? indexed.codec,
+      );
     }).toList(growable: false);
   }
 

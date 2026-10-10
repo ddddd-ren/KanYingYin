@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/modules/local/tmdb_image_override.dart';
 
 void main() {
   test('旧版 TMDB JSON 缺少新增字段时保持兼容', () {
@@ -62,5 +63,24 @@ void main() {
 
     expect(restored, metadata);
     expect(restored.toJson(), metadata.toJson());
+  });
+
+  test('图片覆盖值 JSON 往返并兼容季度和单集', () {
+    final metadata = TmdbMetadata(
+      id: 42,
+      mediaType: TmdbMediaType.tv,
+      title: '三体',
+      language: 'zh-CN',
+      matchedAt: DateTime.utc(2026, 8, 5),
+      matchConfidence: 1,
+      imageOverride: const TmdbImageOverride(
+        poster: '/poster-2.jpg',
+        backdrop: '/backdrop-2.jpg',
+        seasonPosters: <int, String>{1: '/season-1.jpg'},
+        episodeStills: <String, String>{'1:2': '/still-2.jpg'},
+      ),
+    );
+
+    expect(TmdbMetadata.fromJson(metadata.toJson()), metadata);
   });
 }

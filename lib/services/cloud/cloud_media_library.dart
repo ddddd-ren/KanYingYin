@@ -34,6 +34,8 @@ class MediaLibraryEpisode {
     this.modifiedAt,
     this.seasonNumber,
     this.episodeNumber,
+    this.playbackVersionKey,
+    this.sharedFromVersionLabel,
     this.subtitleRemotePaths = const <String>[],
     this.subtitleRemoteRefs = const <CloudRemoteRef>[],
     this.releaseTags = const MediaReleaseTags(),
@@ -57,6 +59,12 @@ class MediaLibraryEpisode {
       modifiedAt: localItem.modified,
       seasonNumber: localItem.seasonNumber,
       episodeNumber: localItem.episodeNumber,
+      releaseTags: MediaReleaseTags(
+        resolution: localItem.resolution,
+        source: localItem.source,
+        codec: localItem.codec,
+        releaseGroup: localItem.releaseGroup,
+      ),
     );
   }
 
@@ -79,6 +87,8 @@ class MediaLibraryEpisode {
     DateTime? modifiedAt,
     int? seasonNumber,
     int? episodeNumber,
+    String? playbackVersionKey,
+    String? sharedFromVersionLabel,
     List<String> subtitleRemotePaths = const <String>[],
     List<CloudRemoteRef> subtitleRemoteRefs = const <CloudRemoteRef>[],
     MediaReleaseTags releaseTags = const MediaReleaseTags(),
@@ -109,6 +119,8 @@ class MediaLibraryEpisode {
       modifiedAt: modifiedAt,
       seasonNumber: seasonNumber,
       episodeNumber: episodeNumber,
+      playbackVersionKey: playbackVersionKey,
+      sharedFromVersionLabel: sharedFromVersionLabel,
       subtitleRemotePaths: subtitleRemotePaths,
       subtitleRemoteRefs: subtitleRemoteRefs,
       releaseTags: releaseTags,
@@ -135,6 +147,8 @@ class MediaLibraryEpisode {
   final DateTime? modifiedAt;
   final int? seasonNumber;
   final int? episodeNumber;
+  final String? playbackVersionKey;
+  final String? sharedFromVersionLabel;
   final List<String> subtitleRemotePaths;
   final List<CloudRemoteRef> subtitleRemoteRefs;
   final MediaReleaseTags releaseTags;
@@ -150,6 +164,7 @@ class MediaLibrarySeries {
     required this.sourceName,
     required this.isAvailable,
     required this.episodes,
+    this.versions = const <MediaLibraryVersionGroup>[],
     this.genres = const <String>[],
     this.tmdbTitle,
     this.tmdbOverview,
@@ -168,6 +183,7 @@ class MediaLibrarySeries {
   final String sourceName;
   final bool isAvailable;
   final List<MediaLibraryEpisode> episodes;
+  final List<MediaLibraryVersionGroup> versions;
   final List<String> genres;
   final String? tmdbTitle;
   final String? tmdbOverview;
@@ -176,6 +192,33 @@ class MediaLibrarySeries {
   final String? tmdbPosterUrl;
   final String? posterCachePath;
   final TmdbMediaType? mediaType;
+
+  List<MediaLibraryEpisode> playbackEpisodesFor(MediaLibraryEpisode selected) {
+    final key = selected.playbackVersionKey;
+    final playlist = key == null
+        ? episodes
+        : versions
+            .firstWhere((version) => version.key == key,
+                orElse: () => throw ArgumentError('选中的剧集版本已不存在'))
+            .episodes;
+    if (playlist.where((item) => item.stableId == selected.stableId).length !=
+        1) {
+      throw ArgumentError('选中的剧集不在播放列表中');
+    }
+    return playlist;
+  }
+}
+
+class MediaLibraryVersionGroup {
+  const MediaLibraryVersionGroup({
+    required this.key,
+    required this.label,
+    required this.episodes,
+  });
+
+  final String key;
+  final String label;
+  final List<MediaLibraryEpisode> episodes;
 }
 
 class MediaLibrarySourceFilter {

@@ -16,6 +16,7 @@ import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/modules/local/tmdb_image_metadata.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_media_library_adapter.dart';
 import 'package:kanyingyin/repositories/cloud_hidden_video_repository.dart';
@@ -367,6 +368,112 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
 
   void _notify() {
     if (!_disposed) notifyListeners();
+  }
+
+  Future<TmdbImageSet> loadTmdbImagesForItem(
+    CloudMediaIndexItem item, {
+    required TmdbImageKind kind,
+  }) async {
+    final apiKey = _tmdbApiKeyProvider.read().trim();
+    if (apiKey.isEmpty) throw StateError('尚未配置 TMDB API Key');
+    final client = _tmdbClientContextRegistry.contextFor(apiKey).client;
+    if (client is! ITmdbImageCapabilities) {
+      throw StateError('当前 TMDB 客户端不支持图片选择');
+    }
+    final id = item.tmdbId;
+    if (id == null || id <= 0) throw StateError('该资源尚未完成 TMDB 刮削');
+    final season = kind == TmdbImageKind.backdrop ? null : item.seasonNumber;
+    final episode = kind == TmdbImageKind.still ? item.episodeNumber : null;
+    return (client as ITmdbImageCapabilities).images(
+      id,
+      item.mediaType == CloudMediaType.movie
+          ? TmdbMediaType.movie
+          : TmdbMediaType.tv,
+      seasonNumber: season,
+      episodeNumber: episode,
+      language: tmdbScrapeOptions.language,
+    );
+  }
+
+  Future<void> saveTmdbImageForItem(
+    CloudMediaIndexItem item, {
+    required TmdbImageKind kind,
+    required String filePath,
+  }) async {
+    final season = item.seasonNumber;
+    final episode = item.episodeNumber;
+    final workKey = item.workKey;
+    final workCoordinator = _workTmdbCoordinator;
+    if (workCoordinator != null && workKey != null) {
+      final work = _works.firstWhere(
+        (value) => value.workKey == workKey,
+        orElse: () => throw StateError('找不到网盘作品'),
+      );
+      await workCoordinator.saveImageOverride(
+        work,
+        kind: kind,
+        filePath: filePath,
+        seasonNumber: season,
+        episodeNumber: episode,
+      );
+      await reloadMediaLibrarySnapshot(force: true);
+      return;
+    }
+    final coordinator = _tmdbCoordinator;
+    if (coordinator == null) throw StateError('TMDB 刮削服务不可用');
+    final entry = entries.firstWhere(
+      (value) =>
+          value.id == item.remoteId &&
+          _normalizeCloudPath(value.remotePath) ==
+              _normalizeCloudPath(item.remotePath),
+      orElse: () => throw StateError('找不到网盘资源'),
+    );
+    await coordinator.saveImageOverride(
+      tmdbTargetFor(entry),
+      kind: kind,
+      filePath: filePath,
+      seasonNumber: season,
+      episodeNumber: episode,
+    );
+    await reloadMediaLibrarySnapshot(force: true);
+  }
+
+  Future<void> clearTmdbImageForItem(
+    CloudMediaIndexItem item, {
+    required TmdbImageKind kind,
+  }) async {
+    final workKey = item.workKey;
+    final workCoordinator = _workTmdbCoordinator;
+    if (workCoordinator != null && workKey != null) {
+      final work = _works.firstWhere(
+        (value) => value.workKey == workKey,
+        orElse: () => throw StateError('找不到网盘作品'),
+      );
+      await workCoordinator.clearImageOverride(
+        work,
+        kind: kind,
+        seasonNumber: item.seasonNumber,
+        episodeNumber: item.episodeNumber,
+      );
+      await reloadMediaLibrarySnapshot(force: true);
+      return;
+    }
+    final coordinator = _tmdbCoordinator;
+    if (coordinator == null) throw StateError('TMDB 刮削服务不可用');
+    final entry = entries.firstWhere(
+      (value) =>
+          value.id == item.remoteId &&
+          _normalizeCloudPath(value.remotePath) ==
+              _normalizeCloudPath(item.remotePath),
+      orElse: () => throw StateError('找不到网盘资源'),
+    );
+    await coordinator.clearImageOverride(
+      tmdbTargetFor(entry),
+      kind: kind,
+      seasonNumber: item.seasonNumber,
+      episodeNumber: item.episodeNumber,
+    );
+    await reloadMediaLibrarySnapshot(force: true);
   }
 
   @override

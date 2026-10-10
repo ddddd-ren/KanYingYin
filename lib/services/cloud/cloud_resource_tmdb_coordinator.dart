@@ -7,6 +7,8 @@ import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/modules/local/tmdb_image_metadata.dart';
+import 'package:kanyingyin/modules/local/tmdb_image_override.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
@@ -390,6 +392,119 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
     _markRecordsChanged();
     notifyListeners();
     return record;
+  }
+
+  Future<CloudResourceTmdbRecord> saveImageOverride(
+    CloudResourceTmdbTarget target, {
+    required TmdbImageKind kind,
+    required String filePath,
+    int? seasonNumber,
+    int? episodeNumber,
+  }) async {
+    final path = filePath.trim();
+    if (path.isEmpty) throw ArgumentError.value(filePath, 'filePath');
+    final current =
+        _records[target.stableKey] ?? await _repository.get(target.stableKey);
+    if (current == null || current.status != CloudResourceTmdbStatus.matched) {
+      throw StateError('该网盘资源尚未完成 TMDB 刮削');
+    }
+    final override = _updateImageOverride(
+      current.imageOverride,
+      kind: kind,
+      path: path,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+    );
+    final seasons = kind == TmdbImageKind.poster && seasonNumber != null
+        ? [
+            for (final season in current.seasons)
+              season.seasonNumber == seasonNumber
+                  ? season.clearPosterCache()
+                  : season,
+          ]
+        : null;
+    final updated = current.withImageOverride(
+      override,
+      clearPosterCachePath:
+          kind == TmdbImageKind.poster && seasonNumber == null,
+      seasons: seasons,
+    );
+    await _repository.upsert(updated);
+    _records[updated.stableKey] = updated;
+    _markRecordsChanged();
+    notifyListeners();
+    await _syncUpdatedImage(target, updated);
+    return updated;
+  }
+
+  Future<CloudResourceTmdbRecord> clearImageOverride(
+    CloudResourceTmdbTarget target, {
+    required TmdbImageKind kind,
+    int? seasonNumber,
+    int? episodeNumber,
+  }) async {
+    final current =
+        _records[target.stableKey] ?? await _repository.get(target.stableKey);
+    if (current == null || current.status != CloudResourceTmdbStatus.matched) {
+      throw StateError('该网盘资源尚未完成 TMDB 刮削');
+    }
+    final override = switch (kind) {
+      TmdbImageKind.poster when seasonNumber != null =>
+        current.imageOverride.clearSeasonPoster(seasonNumber),
+      TmdbImageKind.poster => current.imageOverride.clearPoster(),
+      TmdbImageKind.backdrop => current.imageOverride.clearBackdrop(),
+      TmdbImageKind.still when seasonNumber != null && episodeNumber != null =>
+        current.imageOverride.clearEpisodeStill(seasonNumber, episodeNumber),
+      TmdbImageKind.still => throw ArgumentError('清除单集剧照时必须提供季度号和集数'),
+    };
+    final updated = current.withImageOverride(override);
+    await _repository.upsert(updated);
+    _records[updated.stableKey] = updated;
+    _markRecordsChanged();
+    notifyListeners();
+    await _syncUpdatedImage(target, updated);
+    return updated;
+  }
+
+  Future<void> _syncUpdatedImage(
+    CloudResourceTmdbTarget target,
+    CloudResourceTmdbRecord record,
+  ) async {
+    final service = await _serviceFor(_apiKeyProvider().trim());
+    await service.syncRecordToIndex(target, record);
+  }
+
+  TmdbImageOverride _updateImageOverride(
+    TmdbImageOverride current, {
+    required TmdbImageKind kind,
+    required String path,
+    int? seasonNumber,
+    int? episodeNumber,
+  }) {
+    switch (kind) {
+      case TmdbImageKind.poster:
+        if (seasonNumber != null) {
+          return current.copyWith(
+            seasonPosters: <int, String>{
+              ...current.seasonPosters,
+              seasonNumber: path,
+            },
+          );
+        }
+        return current.copyWith(poster: path);
+      case TmdbImageKind.backdrop:
+        return current.copyWith(backdrop: path);
+      case TmdbImageKind.still:
+        if (seasonNumber == null || episodeNumber == null) {
+          throw ArgumentError('选择单集剧照时必须提供季度号和集数');
+        }
+        return current.copyWith(
+          episodeStills: <String, String>{
+            ...current.episodeStills,
+            '$seasonNumber:$episodeNumber': path,
+          },
+        );
+    }
   }
 
   List<CloudResourceTmdbTarget> _targetsToSchedule(

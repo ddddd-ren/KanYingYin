@@ -64,6 +64,7 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
             CloudResourceSeasonGroup(
               seasonNumber: null,
               videos: group.videos,
+              versions: group.versions,
             ),
           ]
         : group.seasons;
@@ -269,19 +270,47 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
             ),
           ),
           const Divider(height: 1),
-          for (var index = 0; index < season.videos.length; index++) ...[
-            _episodeTile(
-              context,
-              season.videos[index],
-              index,
-              isTv: isTv,
-              autofocus: autofocusFirstEpisode && index == 0,
-            ),
-            if (index < season.videos.length - 1) const Divider(height: 1),
-          ],
+          _versionEpisodes(context, season,
+            isTv: isTv, autofocusFirstEpisode: autofocusFirstEpisode),
         ],
       ),
     );
+  }
+
+  Widget _versionEpisodes(
+    BuildContext context,
+    CloudResourceSeasonGroup season, {
+    required bool isTv,
+    required bool autofocusFirstEpisode,
+  }) {
+    var selectedIndex = 0;
+    return StatefulBuilder(builder: (context, setState) {
+      final videos = season.versions.isEmpty
+          ? season.videos
+          : season.versions[selectedIndex].videos;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (season.versions.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Wrap(spacing: 8, runSpacing: 8, children: [
+                for (var index = 0; index < season.versions.length; index++)
+                  ChoiceChip(
+                    label: Text(season.versions[index].label),
+                    selected: selectedIndex == index,
+                    onSelected: (_) => setState(() => selectedIndex = index),
+                  ),
+              ]),
+            ),
+          for (var index = 0; index < videos.length; index++) ...[
+            _episodeTile(context, videos[index], index,
+                isTv: isTv, autofocus: autofocusFirstEpisode && index == 0),
+            if (index < videos.length - 1) const Divider(height: 1),
+          ],
+        ],
+      );
+    });
   }
 
   Widget _infoBadge(
@@ -373,6 +402,8 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
             const SizedBox(height: 4),
           ],
           Text(_formatBytes(video.size)),
+          if (video.isShared)
+            Text('共享自${video.sharedFromVersionLabel ?? '其他版本'}'),
         ],
       ),
       trailing: hasSubtitle

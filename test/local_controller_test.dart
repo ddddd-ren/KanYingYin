@@ -136,6 +136,45 @@ void main() {
     expect(controller.items.single.formattedResolution, '1920x1080');
   });
 
+  test('目录卡片复用本地媒体库索引中的技术信息', () async {
+    final dir = await Directory.systemTemp.createTemp('local_index_tags_');
+    addTearDown(() async {
+      if (await dir.exists()) await dir.delete(recursive: true);
+    });
+    final videoPath = '${dir.path}${Platform.pathSeparator}movie.mkv';
+    final controller = LocalController(
+      scanner: _ImmediateScanner(<LocalFileItem>[_item(path: videoPath)]),
+      mediaSourceRepository: _MemoryMediaSourceRepository(),
+      preferences: _preferences(),
+    );
+    controller.localLibraryItems.add(
+      LocalMediaIndexItem(
+        path: videoPath,
+        name: 'movie.mkv',
+        parentPath: dir.path,
+        sourcePath: dir.path,
+        size: 1024,
+        modified: DateTime(2026),
+        seriesName: 'movie',
+        resolution: '3840x2160',
+        source: 'Web-DL',
+        codec: 'HEVC',
+        videoWidth: 3840,
+        videoHeight: 2160,
+        indexedAt: DateTime(2026),
+      ),
+    );
+
+    await controller.navigateTo(dir.path);
+
+    final item = controller.items.single;
+    expect(item.resolution, '3840x2160');
+    expect(item.source, 'Web-DL');
+    expect(item.codec, 'HEVC');
+    expect(item.videoWidth, 3840);
+    expect(item.videoHeight, 2160);
+  });
+
   test('LocalController ignores stale navigation results', () async {
     final firstDir = await Directory.systemTemp.createTemp('kanyingyin_first_');
     final secondDir =
@@ -657,10 +696,27 @@ void main() {
     });
 
     final videoPath = '${dir.path}${Platform.pathSeparator}video.mkv';
+    final repository = _MemoryMediaIndexRepository();
+    await repository.saveForSource(
+      dir.path,
+      [
+        LocalMediaIndexItem(
+          path: videoPath,
+          name: 'video.mkv',
+          parentPath: dir.path,
+          sourcePath: dir.path,
+          size: 1024,
+          modified: DateTime(2026),
+          seriesName: 'video',
+          indexedAt: DateTime(2026),
+        ),
+      ],
+    );
     final controller = LocalController(
       scanner: _ImmediateScanner([
         _item(path: videoPath),
       ]),
+      mediaIndexRepository: repository,
       metadataCoordinator: LocalLibraryMetadataCoordinator(
         mediaProbe: _FakeMediaProbe({
           videoPath: const LocalMediaInfo(
@@ -680,6 +736,8 @@ void main() {
     expect(updated, 1);
     expect(controller.items.single.formattedDuration, '24:12');
     expect(controller.items.single.formattedResolution, '1920x1080');
+    expect(repository.getByPath(videoPath)?.videoWidth, 1920);
+    expect(repository.getByPath(videoPath)?.videoHeight, 1080);
     expect(controller.isFetchingMediaInfo, isFalse);
   });
 

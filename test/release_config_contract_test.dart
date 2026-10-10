@@ -79,16 +79,12 @@ void main() {
           : 'Android 手机正式版：1.0.11 (10011)'),
     );
     expect(versionHistory, contains("version: '$version'"));
-    expect(gradle, contains('windowsVersionName != "$version"'));
-    expect(gradle, contains('windowsVersionCode != $buildNumber'));
-    final androidVersion = isPrerelease ? version : '1.0.11';
-    final androidCode = isPrerelease ? buildNumber : '10011';
-    expect(gradle, contains('val androidVersionName = "$androidVersion"'));
-    expect(gradle, contains('val androidVersionCode = $androidCode'));
-    expect(androidScript, contains("pubspecVersion.Name -ne '$version'"));
-    expect(androidScript, contains('pubspecVersion.Code -ne $buildNumber'));
-    expect(androidScript, contains("\$androidVersion = '$androidVersion'"));
-    expect(androidScript, contains('\$androidVersionCode = $androidCode'));
+    expect(gradle, contains('val isPrerelease = windowsVersionName.startsWith("2.1.")'));
+    expect(gradle, contains('val androidVersionName = if (isPrerelease)'));
+    expect(gradle, contains('val androidVersionCode = if (isPrerelease)'));
+    expect(androidScript, contains(r'$isPrerelease ='));
+    expect(androidScript, contains('\$androidVersion = if'));
+    expect(androidScript, contains('\$androidVersionCode = if'));
   });
 
   test('直接依赖使用与锁文件兼容的明确约束', () {

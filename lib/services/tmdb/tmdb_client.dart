@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:kanyingyin/core/network/dio_factory.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/modules/local/tmdb_image_metadata.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client_capabilities.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_endpoint_policy.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_cache.dart';
@@ -77,7 +78,8 @@ class TmdbClientContextRegistry {
   }
 }
 
-class TmdbClient implements ITmdbClient, ITmdbClientCapabilities {
+class TmdbClient
+    implements ITmdbClient, ITmdbClientCapabilities, ITmdbImageCapabilities {
   final String apiKey;
   Dio _dio;
   final TmdbDioFactory? _dioFactory;
@@ -301,6 +303,76 @@ class TmdbClient implements ITmdbClient, ITmdbClientCapabilities {
       );
     }
     return _detailsUncached(id, mediaType, language: language);
+  }
+
+  @override
+  Future<TmdbImageSet> images(
+    int id,
+    TmdbMediaType mediaType, {
+    int? seasonNumber,
+    int? episodeNumber,
+    String language = 'zh-CN',
+  }) async {
+    _validateKey();
+    if (id <= 0) throw ArgumentError.value(id, 'id', 'TMDB ID 必须大于 0');
+    if (episodeNumber != null && seasonNumber == null) {
+      throw ArgumentError('查询单集图片时必须同时提供季度号');
+    }
+    final cache = _cache;
+    final key = _imagesCacheKey(
+      id,
+      mediaType,
+      language,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+    );
+    if (cache != null) {
+      return cache.getOrLoad<TmdbImageSet>(
+        key,
+        () => _imagesUncached(
+          id,
+          mediaType,
+          seasonNumber: seasonNumber,
+          episodeNumber: episodeNumber,
+          language: language,
+        ),
+        kind: TmdbScrapeCacheKind.images,
+      );
+    }
+    return _imagesUncached(
+      id,
+      mediaType,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+      language: language,
+    );
+  }
+
+  Future<TmdbImageSet> _imagesUncached(
+    int id,
+    TmdbMediaType mediaType, {
+    int? seasonNumber,
+    int? episodeNumber,
+    required String language,
+  }) async {
+    final mediaPath = mediaType == TmdbMediaType.movie ? 'movie' : 'tv';
+    final path = episodeNumber != null
+        ? '$mediaPath/$id/season/$seasonNumber/episode/$episodeNumber/images'
+        : seasonNumber != null
+            ? '$mediaPath/$id/season/$seasonNumber/images'
+            : '$mediaPath/$id/images';
+    final response = await _withEndpointRecovery(
+      (dio, baseUrl) => dio.get<Map<String, dynamic>>(
+        '$baseUrl/$path',
+        queryParameters: <String, dynamic>{
+          ..._authenticationQuery,
+          'language': language,
+          'include_image_language': '$language,en-US,null',
+        },
+        options: _authenticationOptions,
+      ),
+    );
+    return TmdbImageSet.fromJson(response.data ?? const <String, dynamic>{});
   }
 
   Future<TmdbMetadata> _detailsUncached(
@@ -710,6 +782,17 @@ class TmdbClient implements ITmdbClient, ITmdbClientCapabilities {
     String language,
   ) {
     return 'details|${mediaType.name}|$language|$id';
+  }
+
+  static String _imagesCacheKey(
+    int id,
+    TmdbMediaType mediaType,
+    String language, {
+    int? seasonNumber,
+    int? episodeNumber,
+  }) {
+    return 'images|${mediaType.name}|$language|$id|'
+        'season:${seasonNumber ?? ""}|episode:${episodeNumber ?? ""}';
   }
 
   static String _normalizeQuery(String value) =>

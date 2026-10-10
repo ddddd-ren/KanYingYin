@@ -843,6 +843,7 @@ class _LocalPageState extends State<LocalPage>
     final parts = p.split(localController.currentPath);
     return LibraryPathBarViewData(
       currentPath: localController.currentPath,
+      mediaCount: _visibleGroups(localController.items).length,
       breadcrumbs: [
         for (var i = 0; i < parts.length; i++)
           LibraryBreadcrumbViewData(
@@ -886,7 +887,7 @@ class _LocalPageState extends State<LocalPage>
     );
   }
 
-  Widget _sourceMenu() {
+  LibrarySourceMenu _sourceMenu() {
     return LibrarySourceMenu(
       data: LibrarySourceMenuViewData(
         enabled:
@@ -988,7 +989,7 @@ class _LocalPageState extends State<LocalPage>
         : ' · 媒体库 ${localController.localLibraryVideoCount} 个视频/${localController.localLibrarySeriesCount} 个系列';
     return LibraryDirectoryStatusViewData(
         kind: LibraryDirectoryStatusKind.idle,
-        label: '${groups.length} 部剧/$videos 个视频$searchSuffix$librarySuffix');
+        label: '$videos 个视频$searchSuffix$librarySuffix');
   }
 
   Widget _mediaGrid(BuildContext context) {

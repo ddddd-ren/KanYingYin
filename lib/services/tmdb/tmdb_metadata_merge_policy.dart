@@ -60,6 +60,7 @@ class TmdbMetadataMergePolicy {
       matchConfidence: matchConfidence,
       genres: fetched.genres,
       seasons: resolvedSeasons,
+      imageOverride: existing?.imageOverride ?? fetched.imageOverride,
     );
   }
 
@@ -97,6 +98,7 @@ class TmdbMetadataMergePolicy {
                 overview: season.overview,
                 airDate: season.airDate,
                 episodes: episodes,
+                imageOverride: season.imageOverride,
               )
             : season.copyWith(episodes: episodes);
         continue;
@@ -147,6 +149,9 @@ class TmdbMetadataMergePolicy {
         existing.episodes,
         scrapeEpisodeNames: scrapeEpisodeNames,
       ),
+      imageOverride: existing.imageOverride.isEmpty
+          ? fetched.imageOverride
+          : existing.imageOverride,
     );
   }
 
@@ -176,6 +181,9 @@ class TmdbMetadataMergePolicy {
             ? previous.stillUrl
             : episode.stillUrl,
         rating: episode.rating ?? previous.rating,
+        imageOverride: previous.imageOverride.isEmpty
+            ? episode.imageOverride
+            : previous.imageOverride,
       );
     }
     if (!scrapeEpisodeNames) {

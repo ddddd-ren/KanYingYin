@@ -3,14 +3,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
+import 'package:kanyingyin/modules/local/tmdb_image_metadata.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
+import 'package:kanyingyin/widgets/tmdb_image_picker_dialog.dart';
 
 Future<void> showCloudMediaDetailsDialog({
   required BuildContext context,
   required CloudMediaIndexItem item,
   AppPlatformCapabilities? capabilities,
   FutureOr<void> Function()? onPlay,
+  Future<TmdbImageSet> Function(TmdbImageKind kind)? onLoadImages,
+  Future<void> Function(TmdbImageKind kind, String filePath)? onSaveImage,
+  Future<void> Function(TmdbImageKind kind)? onClearImage,
 }) {
   final platform = capabilities ?? detectAppPlatform();
   if (platform.isAndroid && !platform.isAndroidTv) {
@@ -23,6 +28,9 @@ Future<void> showCloudMediaDetailsDialog({
         item: item,
         asSheet: true,
         onPlay: onPlay,
+        onLoadImages: onLoadImages,
+        onSaveImage: onSaveImage,
+        onClearImage: onClearImage,
       ),
     );
   }
@@ -31,6 +39,9 @@ Future<void> showCloudMediaDetailsDialog({
     builder: (context) => CloudMediaDetailsDialog(
       item: item,
       onPlay: onPlay,
+      onLoadImages: onLoadImages,
+      onSaveImage: onSaveImage,
+      onClearImage: onClearImage,
     ),
   );
 }
@@ -41,11 +52,17 @@ class CloudMediaDetailsDialog extends StatelessWidget {
     required this.item,
     this.asSheet = false,
     this.onPlay,
+    this.onLoadImages,
+    this.onSaveImage,
+    this.onClearImage,
   });
 
   final CloudMediaIndexItem item;
   final bool asSheet;
   final FutureOr<void> Function()? onPlay;
+  final Future<TmdbImageSet> Function(TmdbImageKind kind)? onLoadImages;
+  final Future<void> Function(TmdbImageKind kind, String filePath)? onSaveImage;
+  final Future<void> Function(TmdbImageKind kind)? onClearImage;
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +100,31 @@ class CloudMediaDetailsDialog extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
+            if (onLoadImages != null && onSaveImage != null)
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _imageButton(
+                    context,
+                    TmdbImageKind.poster,
+                    item.seasonNumber == null ? '更换海报' : '更换本季海报',
+                  ),
+                  _imageButton(context, TmdbImageKind.backdrop, '更换背景图'),
+                  if (item.seasonNumber != null && item.episodeNumber != null)
+                    _imageButton(context, TmdbImageKind.still, '更换本集剧照'),
+                  if (onClearImage != null)
+                    _clearButton(context, TmdbImageKind.poster, '恢复海报默认'),
+                  if (onClearImage != null)
+                    _clearButton(context, TmdbImageKind.backdrop, '恢复背景默认'),
+                  if (onClearImage != null &&
+                      item.seasonNumber != null &&
+                      item.episodeNumber != null)
+                    _clearButton(context, TmdbImageKind.still, '恢复剧照默认'),
+                ],
+              ),
+            if (onLoadImages != null && onSaveImage != null)
+              const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
@@ -127,6 +169,49 @@ class CloudMediaDetailsDialog extends StatelessWidget {
   Future<void> _playAndClose(BuildContext context) async {
     Navigator.of(context).pop();
     await onPlay?.call();
+  }
+
+  Widget _imageButton(
+    BuildContext context,
+    TmdbImageKind kind,
+    String label,
+  ) {
+    return OutlinedButton(
+      onPressed: () => _pickImage(context, kind, label),
+      child: Text(label),
+    );
+  }
+
+  Widget _clearButton(
+    BuildContext context,
+    TmdbImageKind kind,
+    String label,
+  ) {
+    return TextButton(
+      onPressed: () => onClearImage?.call(kind),
+      child: Text(label),
+    );
+  }
+
+  Future<void> _pickImage(
+    BuildContext context,
+    TmdbImageKind kind,
+    String title,
+  ) async {
+    final load = onLoadImages;
+    final save = onSaveImage;
+    if (load == null || save == null) return;
+    final candidate = await TmdbImagePickerDialog.show(
+      context: context,
+      title: title,
+      kind: kind,
+      images: () => load(kind),
+      currentPath: kind == TmdbImageKind.backdrop
+          ? item.tmdbBackdropUrl
+          : item.tmdbPosterUrl,
+    );
+    if (candidate == null || !context.mounted) return;
+    await save(kind, candidate.filePath);
   }
 
   Widget _detail(BuildContext context, String label, String value) {

@@ -11,6 +11,9 @@ class CloudFileEntry {
     this.seasonNumber,
     this.episodeNumber,
     this.variantLabel,
+    this.isShared = false,
+    this.sharedFromVersionLabel,
+    this.playbackVersionKey,
     this.releaseTags = const MediaReleaseTags(),
   });
 
@@ -23,5 +26,8 @@ class CloudFileEntry {
   final int? seasonNumber;
   final int? episodeNumber;
   final String? variantLabel;
+  final bool isShared;
+  final String? sharedFromVersionLabel;
+  final String? playbackVersionKey;
   final MediaReleaseTags releaseTags;
 }

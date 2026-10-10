@@ -3,14 +3,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-String _requiredCapture(String source, RegExp pattern, String label) {
-  final match = pattern.firstMatch(source);
-  expect(match, isNotNull, reason: label);
-  return match!.group(1)!;
-}
-
 void main() {
-  test('Android Gradle 构建门禁校验 Windows 版本并使用独立 Android 版本', () {
+  test('Android 测试版与 Windows 同步版本，正式版保持独立版本', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final gradle = File('android/app/build.gradle.kts').readAsStringSync();
     final packageVersion = RegExp(
@@ -27,20 +21,11 @@ void main() {
         gradle,
         contains(
             'val windowsVersionCode = pubspecVersionMatch.groupValues[2].toInt()'));
-    final androidVersion = _requiredCapture(
-      gradle,
-      RegExp(r'val androidVersionName = "([^"]+)"'),
-      'Android versionName',
-    );
-    final androidVersionCode = _requiredCapture(
-      gradle,
-      RegExp(r'val androidVersionCode = (\d+)'),
-      'Android versionCode',
-    );
-    if (packageVersion!.group(1)!.startsWith('2.')) {
-      expect(androidVersion, packageVersion.group(1));
-      expect(androidVersionCode, packageVersion.group(2));
-    }
+    expect(gradle,
+        contains('val isPrerelease = windowsVersionName.startsWith("2.1.")'));
+    expect(gradle, contains('val androidVersionName = if (isPrerelease)'));
+    expect(gradle, contains('val androidVersionCode = if (isPrerelease)'));
+    expect(packageVersion!.group(1), startsWith('2.1.'));
   });
 
   test('Android mobile Release 使用当前版本契约并使用本机环境签名', () {
@@ -66,11 +51,8 @@ void main() {
         gradle,
         contains(
             'val windowsVersionCode = pubspecVersionMatch.groupValues[2].toInt()'));
-    expect(
-      gradle,
-      matches(RegExp(r'val androidVersionName = "\d+\.\d+\.\d+"')),
-    );
-    expect(gradle, matches(RegExp(r'val androidVersionCode = [1-9]\d*')));
+    expect(gradle, contains('else "1.0.11"'));
+    expect(gradle, contains('else 10011'));
     expect(gradle, contains('create("mobile")'));
     expect(gradle, contains('create("tvTest")'));
     expect(gradle, contains('versionCode = androidVersionCode'));
@@ -89,18 +71,6 @@ void main() {
     final script = File(
       'tool/android/build_signed_release.ps1',
     ).readAsStringSync();
-    final gradle = File('android/app/build.gradle.kts').readAsStringSync();
-    final androidVersion = _requiredCapture(
-      gradle,
-      RegExp(r'val androidVersionName = "([^"]+)"'),
-      'Android versionName',
-    );
-    final androidVersionCode = _requiredCapture(
-      gradle,
-      RegExp(r'val androidVersionCode = (\d+)'),
-      'Android versionCode',
-    );
-
     expect(script, contains(r"$flutter = 'D:\flutter\bin\flutter.bat'"));
     expect(
       script,
@@ -123,8 +93,8 @@ void main() {
     );
     expect(script, contains(r'$apkTarget = Join-Path $desktop'));
     expect(script, contains(r'$aabTarget = Join-Path $desktop'));
-    expect(script, contains("\$androidVersion = '$androidVersion'"));
-    expect(script, contains('\$androidVersionCode = $androidVersionCode'));
+    expect(script, contains(r'$androidVersion = if ($isPrerelease)'));
+    expect(script, contains(r'$androidVersionCode = if ($isPrerelease)'));
     expect(script, contains(r'$isTestVersion = $androidVersion.StartsWith('));
     expect(
       script,

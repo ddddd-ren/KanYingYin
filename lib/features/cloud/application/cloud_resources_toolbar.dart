@@ -1,4 +1,9 @@
 enum CloudToolbarAction {
+  addQuark,
+  addBaidu,
+  addXunlei,
+  addOpenList,
+  manageSources,
   manageHiddenVideos,
   autoOrganize,
   scrape,

@@ -6,6 +6,8 @@ import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/modules/local/tmdb_image_metadata.dart';
+import 'package:kanyingyin/modules/local/tmdb_image_override.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
@@ -349,6 +351,127 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
     return updated;
   }
 
+  Future<CloudWorkTmdbRecord> saveImageOverride(
+    CloudWorkIdentity work, {
+    required TmdbImageKind kind,
+    required String filePath,
+    int? seasonNumber,
+    int? episodeNumber,
+  }) async {
+    final path = filePath.trim();
+    if (path.isEmpty) throw ArgumentError.value(filePath, 'filePath');
+    final current =
+        _records[work.workKey] ?? await _repository.get(work.workKey);
+    final metadata = current?.metadata;
+    if (current == null ||
+        metadata == null ||
+        current.status != CloudWorkTmdbStatus.matched) {
+      throw StateError('该网盘作品尚未完成 TMDB 刮削');
+    }
+    final updatedMetadata = metadata.copyWith(
+      imageOverride: _updateImageOverride(
+        metadata.imageOverride,
+        kind: kind,
+        path: path,
+        seasonNumber: seasonNumber,
+        episodeNumber: episodeNumber,
+      ),
+      seasons: kind == TmdbImageKind.poster && seasonNumber != null
+          ? [
+              for (final season in metadata.seasons)
+                season.seasonNumber == seasonNumber
+                    ? season.clearPosterCache()
+                    : season,
+            ]
+          : null,
+    );
+    final updated = current.withMetadata(updatedMetadata).withPosterCachePath(
+          kind == TmdbImageKind.poster && seasonNumber == null
+              ? null
+              : current.posterCachePath,
+        );
+    await _repository.upsert(updated);
+    _records[work.workKey] = updated;
+    _markRecordsChanged();
+    notifyListeners();
+    await CloudWorkTmdbService.syncMatchedRecordToIndex(
+      indexRepository: _indexRepository,
+      work: work,
+      record: updated,
+    );
+    return updated;
+  }
+
+  Future<CloudWorkTmdbRecord> clearImageOverride(
+    CloudWorkIdentity work, {
+    required TmdbImageKind kind,
+    int? seasonNumber,
+    int? episodeNumber,
+  }) async {
+    final current =
+        _records[work.workKey] ?? await _repository.get(work.workKey);
+    final metadata = current?.metadata;
+    if (current == null ||
+        metadata == null ||
+        current.status != CloudWorkTmdbStatus.matched) {
+      throw StateError('该网盘作品尚未完成 TMDB 刮削');
+    }
+    final override = switch (kind) {
+      TmdbImageKind.poster when seasonNumber != null =>
+        metadata.imageOverride.clearSeasonPoster(seasonNumber),
+      TmdbImageKind.poster => metadata.imageOverride.clearPoster(),
+      TmdbImageKind.backdrop => metadata.imageOverride.clearBackdrop(),
+      TmdbImageKind.still when seasonNumber != null && episodeNumber != null =>
+        metadata.imageOverride.clearEpisodeStill(seasonNumber, episodeNumber),
+      TmdbImageKind.still => throw ArgumentError('清除单集剧照时必须提供季度号和集数'),
+    };
+    final updated =
+        current.withMetadata(metadata.copyWith(imageOverride: override));
+    await _repository.upsert(updated);
+    _records[work.workKey] = updated;
+    _markRecordsChanged();
+    notifyListeners();
+    await CloudWorkTmdbService.syncMatchedRecordToIndex(
+      indexRepository: _indexRepository,
+      work: work,
+      record: updated,
+    );
+    return updated;
+  }
+
+  TmdbImageOverride _updateImageOverride(
+    TmdbImageOverride current, {
+    required TmdbImageKind kind,
+    required String path,
+    int? seasonNumber,
+    int? episodeNumber,
+  }) {
+    switch (kind) {
+      case TmdbImageKind.poster:
+        if (seasonNumber != null) {
+          return current.copyWith(
+            seasonPosters: <int, String>{
+              ...current.seasonPosters,
+              seasonNumber: path,
+            },
+          );
+        }
+        return current.copyWith(poster: path);
+      case TmdbImageKind.backdrop:
+        return current.copyWith(backdrop: path);
+      case TmdbImageKind.still:
+        if (seasonNumber == null || episodeNumber == null) {
+          throw ArgumentError('选择单集剧照时必须提供季度号和集数');
+        }
+        return current.copyWith(
+          episodeStills: <String, String>{
+            ...current.episodeStills,
+            '$seasonNumber:$episodeNumber': path,
+          },
+        );
+    }
+  }
+
   Future<CloudWorkTmdbOutcome> scrape(
     CloudWorkIdentity work, {
     TmdbScrapeOptions? options,
@@ -542,6 +665,7 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
       rating: record.rating,
       posterUrl: record.posterUrl,
       backdropUrl: record.backdropUrl,
+      imageOverride: record.imageOverride,
       language: 'zh-CN',
       matchedAt: record.checkedAt,
       matchConfidence: 1,

@@ -5,6 +5,7 @@ import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/modules/local/tmdb_image_metadata.dart';
 import 'package:kanyingyin/modules/media/media_name_analysis.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
@@ -381,6 +382,60 @@ void main() {
       fixture.coordinator.recordsByWorkKey[first.workKey]?.scrapeTitleOverride,
       '修正标题',
     );
+  });
+
+  test('替换作品级网盘海报时失效旧的总海报和季度缓存', () async {
+    final fixture = _Fixture(apiKey: '');
+    final work = _work('image-override');
+    await fixture.repository.upsert(
+      CloudWorkTmdbRecord.matched(
+        sourceId: work.sourceId,
+        workKey: work.workKey,
+        workRootId: work.root.id,
+        workRootPath: work.root.remotePath,
+        remoteName: work.remoteName,
+        metadata: TmdbMetadata(
+          id: 42,
+          mediaType: TmdbMediaType.tv,
+          title: work.displayTitle,
+          language: 'zh-CN',
+          matchedAt: DateTime.utc(2026, 7, 20),
+          matchConfidence: 1,
+          seasons: <TmdbSeasonMetadata>[
+            TmdbSeasonMetadata(
+              id: 1,
+              seasonNumber: 1,
+              name: '第一季',
+              episodeCount: 1,
+              posterUrl: '/season-old.jpg',
+              posterCachePath: 'season-cache.jpg',
+            ),
+          ],
+        ),
+        checkedAt: DateTime.utc(2026, 7, 20),
+        posterCachePath: 'poster-cache.jpg',
+      ),
+    );
+
+    final overall = await fixture.coordinator.saveImageOverride(
+      work,
+      kind: TmdbImageKind.poster,
+      filePath: '/new.jpg',
+    );
+    expect(overall.posterCachePath, isNull);
+    expect(overall.metadata?.imageOverride.poster, '/new.jpg');
+    expect(
+        overall.metadata?.seasons.single.posterCachePath, 'season-cache.jpg');
+
+    final season = await fixture.coordinator.saveImageOverride(
+      work,
+      kind: TmdbImageKind.poster,
+      seasonNumber: 1,
+      filePath: '/season-new.jpg',
+    );
+    expect(season.posterCachePath, isNull);
+    expect(season.metadata?.seasons.single.posterCachePath, isNull);
+    expect(season.metadata?.imageOverride.seasonPosters[1], '/season-new.jpg');
   });
 
   test('无 API Key 时仍生成季度卡且保留真实播放引用', () async {

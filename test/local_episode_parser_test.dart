@@ -179,6 +179,19 @@ void main() {
     expect(info.codec, 'H265');
   });
 
+  test('LocalEpisodeParser 将 UHD 和 3840x2160 统一为 4K', () {
+    for (final name in <String>[
+      'Show S01E01 UHD.mkv',
+      'Show S01E02 3840x2160.mkv',
+      'Show S01E03 3840×2160.mkv',
+    ]) {
+      final info = parser.parse(name);
+
+      expect(info, isNotNull, reason: name);
+      expect(info!.resolution, '4K', reason: name);
+    }
+  });
+
   test('LocalEpisodeParser 继续保护年份画质和数字电影名', () {
     for (final name in <String>[
       '流浪地球2 2023 4K.mkv',

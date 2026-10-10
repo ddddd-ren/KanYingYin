@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+typedef LibraryMenuAction = FutureOr<void> Function();
+
 typedef LibrarySourceAction = FutureOr<void> Function(
   LibrarySourceViewData source,
 );
@@ -100,6 +102,25 @@ class LibrarySourceMenu extends StatelessWidget {
         return entries;
       },
     );
+  }
+
+  List<PopupMenuEntry<LibraryMenuAction>> managementEntries(
+      BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return [
+      if (data.unavailableCount > 0)
+        PopupMenuItem<LibraryMenuAction>(
+          value: onRemoveUnavailable,
+          enabled: data.enabled,
+          child: _removeUnavailable(context, colors),
+        ),
+      for (final source in data.sources)
+        PopupMenuItem<LibraryMenuAction>(
+          value: () => onRemove(source),
+          enabled: data.enabled,
+          child: _removeItem(context, colors, source),
+        ),
+    ];
   }
 
   Widget _sourceItem(

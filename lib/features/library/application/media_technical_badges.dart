@@ -174,7 +174,13 @@ class MediaTechnicalBadgeResolver {
   }
 
   String? _normalizeResolution(String? value) {
-    return switch (value?.trim().toLowerCase()) {
+    final normalized = value?.trim().toLowerCase();
+    if (normalized != null &&
+        RegExp(r'^(?:3840\s*[x×]\s*2160|2160\s*[x×]\s*3840)$')
+            .hasMatch(normalized)) {
+      return '4K';
+    }
+    return switch (normalized) {
       '4k' || '2160p' => '4K',
       '2k' || '1440p' => '2K',
       '1080p' => '1080P',

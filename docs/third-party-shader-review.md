@@ -1,5 +1,7 @@
 # 第三方着色器来源审查
 
+> 文档状态：固定来源审查记录，不代表第三方仓库当前 HEAD 或当前发布版本的完整依赖审计。
+
 ## LuckyPuppy514/MPV_Glsl_Running_Mode_Cache
 
 - 仓库：`https://github.com/LuckyPuppy514/MPV_Glsl_Running_Mode_Cache`

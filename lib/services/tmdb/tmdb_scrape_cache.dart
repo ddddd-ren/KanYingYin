@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 
 /// TMDB 刮削请求的缓存类别。
-enum TmdbScrapeCacheKind { search, details, aliases }
+enum TmdbScrapeCacheKind { search, details, aliases, images }
 
 /// 为 TMDB 响应提供带 TTL 的 LRU 缓存和进行中请求合并。
 ///
@@ -131,6 +131,8 @@ class TmdbScrapeCache {
       case TmdbScrapeCacheKind.aliases:
         return aliasTtl;
       case TmdbScrapeCacheKind.details:
+        return detailsTtl;
+      case TmdbScrapeCacheKind.images:
         return detailsTtl;
     }
   }

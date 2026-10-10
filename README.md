@@ -18,6 +18,8 @@
 | Android 7.0+ | 1.0.11 (10011) | [KanYingYin-1.0.11.apk](https://github.com/ddddd-ren/KanYingYin/releases/download/v1.0.15/KanYingYin-1.0.11.apk) | Android 手机安装包 |
 | Android 应用商店 | 1.0.11 (10011) | [KanYingYin-1.0.11.aab](https://github.com/ddddd-ren/KanYingYin/releases/download/v1.0.15/KanYingYin-1.0.11.aab) | 应用商店交付包 |
 
+正式版下载区只列稳定版资产。Windows `2.1.x` 测试版使用单独的 Inno Setup 安装器名称，不代表正式版，也不会替换这里的正式版下载链接；测试版验证结果以 `RELEASE_NOTES.md` 和对应版本弹窗文案为准。
+
 > Android TV 正式版、测试版和 GitHub 发布已无限期暂停，不提供 TV 下载资产。
 
 ## 主要功能

@@ -34,17 +34,17 @@ Future<void> _openVersionChangelogDialog(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('1.0.15 正式版更新弹窗展示网盘播放优化', (tester) async {
-    expect(AppVersion.current, '1.0.15');
+  testWidgets('2.1.213 测试版更新弹窗展示网盘换图修复', (tester) async {
+    expect(AppVersion.current, '2.1.213');
     final entries = versionHistoryForCurrent(AppVersion.current);
     expect(entries, hasLength(1));
-    expect(entries.single.isPrerelease, isFalse);
-    expect(entries.single.date, '2026-10-01');
+    expect(entries.single.isPrerelease, isTrue);
+    expect(entries.single.date, '2026-10-11');
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(body: VersionChangelogContent(versions: entries)),
     ));
-    expect(find.text('v1.0.15  正式版  2026-10-01'), findsOneWidget);
-    for (final text in ['连续采样', '网卡链路速率', '缓存秒数', '原始视频']) {
+    expect(find.text('v2.1.213  测试版  2026-10-11'), findsOneWidget);
+    for (final text in ['网盘', '海报', '缓存', '原始视频']) {
       expect(find.textContaining(text), findsWidgets);
     }
     expect(tester.takeException(), isNull);
@@ -88,6 +88,18 @@ void main() {
     expect(changes, isNot(contains('测试版')));
     expect(changes, isNot(contains('Android TV')));
     expect(changes, isNot(contains('首次正式发布')));
+  });
+
+  test('Android 当前测试版展示 TMDB 换图更新', () {
+    final entries = versionHistoryForCurrent(
+      AppVersion.current,
+      platform: AppPlatformKind.android,
+    );
+    expect(entries, hasLength(1));
+    expect(entries.single.isPrerelease, isTrue);
+    expect(entries.single.changes.join('\n'), contains('网盘海报'));
+    expect(
+        entries.single.changes.join('\n'), isNot(contains('Windows 测试版 EXE')));
   });
 
   test('二点一九八 Windows 测试版记录全屏体验和双端交付', () {

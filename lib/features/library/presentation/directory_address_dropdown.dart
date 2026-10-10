@@ -44,6 +44,9 @@ class DirectoryAddressDropdown extends StatefulWidget {
     required this.onSubmitted,
     this.addressKey = const ValueKey<String>('directory-address'),
     this.hintText = '输入文件夹地址',
+    this.savedDirectories = const [],
+    this.recentDirectories = const [],
+    this.borderless = false,
   });
 
   final String currentPath;
@@ -53,6 +56,9 @@ class DirectoryAddressDropdown extends StatefulWidget {
   final DirectoryAddressSubmit onSubmitted;
   final Key addressKey;
   final String hintText;
+  final List<DirectoryNavigationItem> savedDirectories;
+  final List<DirectoryNavigationItem> recentDirectories;
+  final bool borderless;
 
   @override
   State<DirectoryAddressDropdown> createState() =>
@@ -87,6 +93,11 @@ class _DirectoryAddressDropdownState extends State<DirectoryAddressDropdown> {
       selection: TextSelection.collapsed(offset: widget.currentPath.length),
     );
     _error = null;
+    if (_loadingChildren) {
+      _operationGeneration++;
+      _loadingChildren = false;
+      _children = const [];
+    }
     if (_menuController.isOpen) _menuController.close();
   }
 
@@ -123,9 +134,18 @@ class _DirectoryAddressDropdownState extends State<DirectoryAddressDropdown> {
     } on Object {
       if (!mounted || generation != _operationGeneration) return;
       setState(() {
+        _children = const [];
         _loadingChildren = false;
         _error = '目录不存在或无法访问';
       });
+      if (widget.savedDirectories.isNotEmpty ||
+          widget.recentDirectories.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && generation == _operationGeneration) {
+            _menuController.open();
+          }
+        });
+      }
     }
   }
 
@@ -216,7 +236,10 @@ class _DirectoryAddressDropdownState extends State<DirectoryAddressDropdown> {
                           ),
                         )
                       : IconButton(
-                          tooltip: '展开子文件夹',
+                          tooltip: widget.savedDirectories.isEmpty &&
+                                  widget.recentDirectories.isEmpty
+                              ? '展开子文件夹'
+                              : '选择目录与子文件夹',
                           onPressed: _disabled ? null : _toggleChildren,
                           icon: Icon(
                             controller.isOpen
@@ -226,16 +249,20 @@ class _DirectoryAddressDropdownState extends State<DirectoryAddressDropdown> {
                           ),
                         ),
                   isDense: true,
-                  filled: true,
+                  filled: !widget.borderless,
                   fillColor: colors.surface,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: colors.outlineVariant),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: colors.outlineVariant),
-                  ),
+                  border: widget.borderless
+                      ? InputBorder.none
+                      : OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: colors.outlineVariant),
+                        ),
+                  enabledBorder: widget.borderless
+                      ? InputBorder.none
+                      : OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: colors.outlineVariant),
+                        ),
                 ),
               ),
             ),
@@ -274,7 +301,9 @@ class _DirectoryAddressDropdownState extends State<DirectoryAddressDropdown> {
   }
 
   List<Widget> _menuItems(BuildContext context) {
-    if (_children.isEmpty) {
+    if (_children.isEmpty &&
+        widget.savedDirectories.isEmpty &&
+        widget.recentDirectories.isEmpty) {
       return const <Widget>[
         MenuItemButton(
           onPressed: null,
@@ -284,33 +313,46 @@ class _DirectoryAddressDropdownState extends State<DirectoryAddressDropdown> {
     }
     final colors = Theme.of(context).colorScheme;
     return <Widget>[
-      for (final item in _children)
-        MenuItemButton(
-          onPressed: () => _selectChild(item),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 180, maxWidth: 320),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (item.subtitle case final subtitle?)
-                  Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: colors.outline,
-                        ),
-                  ),
-              ],
-            ),
-          ),
-        ),
+      if (widget.savedDirectories.isNotEmpty) ...[
+        const MenuItemButton(onPressed: null, child: Text('已添加目录')),
+        for (final item in widget.savedDirectories)
+          _directoryItem(context, colors, item),
+        const Divider(height: 8),
+      ],
+      if (widget.recentDirectories.isNotEmpty) ...[
+        const MenuItemButton(onPressed: null, child: Text('最近访问')),
+        for (final item in widget.recentDirectories)
+          _directoryItem(context, colors, item),
+        const Divider(height: 8),
+      ],
+      const MenuItemButton(onPressed: null, child: Text('当前目录的子文件夹')),
+      if (_children.isEmpty)
+        const MenuItemButton(onPressed: null, child: Text('没有子文件夹')),
+      for (final item in _children) _directoryItem(context, colors, item),
     ];
   }
+
+  Widget _directoryItem(BuildContext context, ColorScheme colors,
+          DirectoryNavigationItem item) =>
+      MenuItemButton(
+        onPressed: () => _selectChild(item),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 180, maxWidth: 320),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(item.label, maxLines: 1, overflow: TextOverflow.ellipsis),
+              if (item.subtitle case final subtitle?)
+                Text(subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelSmall
+                        ?.copyWith(color: colors.outline)),
+            ],
+          ),
+        ),
+      );
 }

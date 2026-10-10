@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/modules/local/tmdb_image_override.dart';
 
 void main() {
   test('资源 TMDB 记录稳定键和 JSON 往返保留公开元数据', () {
@@ -24,6 +25,10 @@ void main() {
         releaseDate: '2019-02-05',
         posterUrl: '/poster.jpg',
         backdropUrl: '/backdrop.jpg',
+        imageOverride: const TmdbImageOverride(
+          poster: '/poster-picked.jpg',
+          seasonPosters: <int, String>{1: '/season-picked.jpg'},
+        ),
         language: 'zh-CN',
         matchedAt: DateTime.utc(2026, 7, 19),
         matchConfidence: 1,
@@ -41,6 +46,8 @@ void main() {
     expect(record.aliases, <String>['The Wandering Earth']);
     expect(record.popularity, 42.5);
     expect(record.voteCount, 1200);
+    expect(record.imageOverride.poster, '/poster-picked.jpg');
+    expect(record.imageOverride.seasonPosters[1], '/season-picked.jpg');
     expect(record.toJson()['releaseDate'], '2019-02-05');
     expect(record.toJson()['genres'], <String>['科幻', '冒险']);
     expect(CloudResourceTmdbRecord.fromJson(record.toJson()), record);

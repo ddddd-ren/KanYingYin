@@ -8,6 +8,7 @@ import 'package:kanyingyin/services/cloud/cloud_series_identity_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_grouping_metadata.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_grouping_policy.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
+import 'package:kanyingyin/services/media_name_analyzer.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_episode_title_resolver.dart';
 import 'package:path/path.dart' as p;
@@ -28,7 +29,11 @@ class CloudResourceSeasonGroup {
     required List<CloudFileEntry> videos,
     int? uniqueEpisodeCount,
     this.metadata,
+    List<CloudResourceVersionGroup>? versions,
   })  : videos = List<CloudFileEntry>.unmodifiable(videos),
+        versions = List<CloudResourceVersionGroup>.unmodifiable(
+          versions ?? const <CloudResourceVersionGroup>[],
+        ),
         uniqueEpisodeCount =
             uniqueEpisodeCount ?? metadata?.episodeCount ?? videos.length;
 
@@ -36,6 +41,20 @@ class CloudResourceSeasonGroup {
   final List<CloudFileEntry> videos;
   final int uniqueEpisodeCount;
   final TmdbSeasonMetadata? metadata;
+  final List<CloudResourceVersionGroup> versions;
+}
+
+class CloudResourceVersionGroup {
+  CloudResourceVersionGroup({
+    required this.key,
+    required this.label,
+    required List<CloudFileEntry> videos,
+  }) : videos = List<CloudFileEntry>.unmodifiable(videos);
+
+  final String key;
+  final String label;
+  final List<CloudFileEntry> videos;
+
 }
 
 class CloudResourceMediaGroup {
@@ -54,13 +73,17 @@ class CloudResourceMediaGroup {
     this.workRecord,
     this.seasonMetadata,
     this.isWorkScoped = false,
+    List<CloudResourceVersionGroup>? versions,
   })  : videos = List<CloudFileEntry>.unmodifiable(videos),
         seasons = List<CloudResourceSeasonGroup>.unmodifiable(seasons),
         uniqueEpisodeCount =
             uniqueEpisodeCount ?? seasonMetadata?.episodeCount ?? videos.length,
         workKey = workKey ?? stableKey,
         workKeys = _normalizedWorkKeys(workKey ?? stableKey, workKeys),
-        displayName = displayName ?? seriesName;
+        displayName = displayName ?? seriesName,
+        versions = List<CloudResourceVersionGroup>.unmodifiable(
+          versions ?? const <CloudResourceVersionGroup>[],
+        );
 
   final String stableKey;
   final String workKey;
@@ -76,6 +99,7 @@ class CloudResourceMediaGroup {
   final CloudWorkTmdbRecord? workRecord;
   final TmdbSeasonMetadata? seasonMetadata;
   final bool isWorkScoped;
+  final List<CloudResourceVersionGroup> versions;
 
   CloudFileEntry get anchor => videos.first;
 }
@@ -349,11 +373,26 @@ class CloudResourceCollectionGrouper {
           metadata: record?.metadata,
           seriesTitle: title,
         );
+        final origins = <String, String>{
+          for (final item in seasonItems)
+            '${item.remoteId}|${item.remotePath}':
+                '${item.sourceId}|${item.workRootId ?? item.workRootPath ?? item.workKey}',
+        };
+        final directories = <String, String>{
+          for (final item in seasonItems)
+            '${item.remoteId}|${item.remotePath}': _versionDirectory(item),
+        };
+        final versions = _buildEpisodeVersions(
+          videos,
+          originFor: (video) => origins[_entryKey(video)]!,
+          directoryFor: (video) => directories[_entryKey(video)]!,
+        );
         final seasonGroup = CloudResourceSeasonGroup(
           seasonNumber: seasonNumber,
           videos: videos,
           uniqueEpisodeCount: _uniqueEpisodeCount(seasonItems),
           metadata: seasonMetadata,
+          versions: versions,
         );
         final group = CloudResourceMediaGroup(
           stableKey: '${aggregate.key}|season:$seasonNumber',
@@ -371,6 +410,7 @@ class CloudResourceCollectionGrouper {
           workRecord: record,
           seasonMetadata: seasonMetadata,
           isWorkScoped: true,
+          versions: versions,
         );
         if (_matchesWork(group, aggregate.works, seasonItems, query)) {
           groups.add(group);
@@ -1009,6 +1049,25 @@ class _CloudResourceMediaGroupBuilder {
         seasonNumber: seasonNumber,
         videos: videosBySeason[seasonNumber]!,
         metadata: metadata,
+        versions: seasonNumber == null
+            ? const []
+            : _buildEpisodeVersions([
+                for (final video in videosBySeason[seasonNumber]!)
+                  CloudFileEntry(
+                    id: video.id,
+                    remotePath: video.remotePath,
+                    name: video.name,
+                    size: video.size,
+                    modifiedAt: video.modifiedAt,
+                    isDirectory: false,
+                    seasonNumber: seasonNumber,
+                    episodeNumber:
+                        identities[_entryKey(video)]?.episodeNumber ??
+                            video.episodeNumber,
+                    variantLabel: video.variantLabel,
+                    releaseTags: video.releaseTags,
+                  ),
+              ], originFor: (_) => '$stableKey|season:$seasonNumber'),
       );
     }).toList(growable: false);
   }
@@ -1041,3 +1100,202 @@ class _CloudResourceMediaGroupBuilder {
 }
 
 String _entryKey(CloudFileEntry entry) => '${entry.id}|${entry.remotePath}';
+
+List<CloudResourceVersionGroup> _buildEpisodeVersions(
+  List<CloudFileEntry> videos, {
+  required String Function(CloudFileEntry) originFor,
+  String Function(CloudFileEntry)? directoryFor,
+}) {
+  final roots = <String, List<CloudFileEntry>>{};
+  final specsByEntry = {
+    for (final video in videos) _entryKey(video): _versionSpecs(video)
+  };
+  for (final video in videos) {
+    roots.putIfAbsent(originFor(video), () => []).add(video);
+  }
+  final buckets = <String, List<CloudFileEntry>>{};
+  for (final root in roots.entries) {
+    final directories = <String, List<CloudFileEntry>>{};
+    final episodeDirectories = <int, Set<String>>{};
+    for (final video in root.value) {
+      final directory = directoryFor?.call(video) ??
+          p.posix.dirname(video.remotePath.replaceAll('\\', '/'));
+      directories.putIfAbsent(directory, () => []).add(video);
+      final number = video.episodeNumber;
+      if (number != null && number > 0) {
+        episodeDirectories.putIfAbsent(number, () => {}).add(directory);
+      }
+    }
+    final splitDirectories =
+        episodeDirectories.values.any((dirs) => dirs.length > 1);
+    for (final directory
+        in (splitDirectories ? directories : {'': root.value}).entries) {
+      final prefix = '${root.key}|directory:${directory.key}';
+      final byEpisode = <int, List<CloudFileEntry>>{};
+      for (final video in directory.value) {
+        final number = video.episodeNumber;
+        if (number != null && number > 0) {
+          byEpisode.putIfAbsent(number, () => []).add(video);
+        }
+      }
+      // 仅同集的明确规格冲突触发拆版，单集缺标签不建立新版本。
+      final dimensions = <int>[];
+      for (var index = 0; index < 8; index++) {
+        if (byEpisode.values.any((entries) =>
+            entries
+                .map((video) => specsByEntry[_entryKey(video)]![index])
+                .where((value) => value.isNotEmpty)
+                .toSet()
+                .length >
+            1)) {
+          dimensions.add(index);
+        }
+      }
+      final known = <String, List<CloudFileEntry>>{};
+      final unspecified = <CloudFileEntry>[];
+      for (final video in directory.value) {
+        final specs = specsByEntry[_entryKey(video)]!;
+        final signature = dimensions.map((index) => specs[index]).join('|');
+        if (dimensions.any((index) => specs[index].isEmpty)) {
+          unspecified.add(video);
+        } else {
+          known.putIfAbsent(signature, () => []).add(video);
+        }
+      }
+      if (known.isEmpty) {
+        // 规格互相缺失、没有完整签名时不猜测所属版本。
+        buckets['$prefix|spec:'] = directory.value;
+        continue;
+      }
+      final signatures = known.keys.toList()..sort();
+      for (final video in unspecified) {
+        final specs = specsByEntry[_entryKey(video)]!;
+        final compatible = signatures.where((signature) {
+          final values = signature.split('|');
+          return List.generate(dimensions.length, (index) => index).every(
+            (index) =>
+                specs[dimensions[index]].isEmpty ||
+                specs[dimensions[index]] == values[index],
+          );
+        });
+        known[compatible.firstOrNull ?? signatures.first]!.add(video);
+      }
+      for (final signature in signatures) {
+        buckets['$prefix|spec:$signature'] = known[signature]!;
+      }
+    }
+  }
+  if (buckets.length < 2) return const [];
+  final keys = buckets.keys.toList()..sort();
+  final labels = <String, String>{};
+  for (var index = 0; index < keys.length; index++) {
+    final key = keys[index];
+    final directory = key.split('|directory:').last.split('|spec:').first;
+    final spec = key.split('|spec:').last.replaceAll('|', ' · ');
+    labels[key] = [
+      '版本 ${index + 1}',
+      if (directory.isNotEmpty) p.posix.basename(directory),
+      if (spec.isNotEmpty) spec,
+    ].join(' · ');
+  }
+  return [
+    for (final key in keys)
+      CloudResourceVersionGroup(
+        key: key,
+        label: labels[key]!,
+        videos: () {
+          final ownNumbers =
+              buckets[key]!.map((video) => video.episodeNumber).toSet();
+          final entries = <CloudFileEntry>[
+            for (final owner in keys)
+              for (final video in buckets[owner]!)
+                if (owner == key ||
+                    (video.episodeNumber != null &&
+                        video.episodeNumber! > 0 &&
+                        !ownNumbers.contains(video.episodeNumber)))
+                  CloudFileEntry(
+                    id: video.id,
+                    remotePath: video.remotePath,
+                    name: video.name,
+                    size: video.size,
+                    modifiedAt: video.modifiedAt,
+                    isDirectory: video.isDirectory,
+                    seasonNumber: video.seasonNumber,
+                    episodeNumber: video.episodeNumber,
+                    variantLabel: video.variantLabel,
+                    releaseTags: video.releaseTags,
+                    playbackVersionKey: key,
+                    isShared: owner != key,
+                    sharedFromVersionLabel: owner == key ? null : labels[owner],
+                  ),
+          ]..sort((first, second) {
+              final number = (first.episodeNumber ?? (1 << 30))
+                  .compareTo(second.episodeNumber ?? (1 << 30));
+              if (number != 0) return number;
+              final path = first.remotePath.compareTo(second.remotePath);
+              return path != 0 ? path : first.id.compareTo(second.id);
+            });
+          return entries;
+        }(),
+      ),
+  ];
+}
+
+List<String> _versionSpecs(CloudFileEntry video) {
+  final tags = video.releaseTags;
+  final originalTags = const MediaNameAnalyzer()
+      .analyze(
+        p.posix.basename(video.remotePath.replaceAll('\\', '/')),
+        isDirectory: false,
+      )
+      .releaseTags;
+  String normalize(String? value) {
+    final token =
+        (value ?? '').toUpperCase().replaceAll(RegExp(r'[\s._-]'), '');
+    return switch (token) {
+      '4K' || 'UHD' => '2160P',
+      'H265' || 'X265' => 'HEVC',
+      'H264' || 'X264' => 'AVC',
+      _ => token,
+    };
+  }
+
+  final ranges = (tags.dynamicRange.isNotEmpty
+          ? tags.dynamicRange
+          : originalTags.dynamicRange)
+      .map(normalize)
+      .toSet()
+      .toList()
+    ..sort();
+  String normalizeList(List<String> values) {
+    final sorted = values.map(normalize).toSet().toList()..sort();
+    return sorted.join('+');
+  }
+
+  return [
+    normalize(tags.resolution ?? originalTags.resolution),
+    normalize(tags.source ?? originalTags.source),
+    normalize(tags.codec ?? originalTags.codec),
+    ranges.isEmpty ? '普通' : ranges.join('+'),
+    normalize(tags.releaseGroup ?? originalTags.releaseGroup),
+    normalize(tags.bitrate ?? originalTags.bitrate),
+    normalizeList(tags.audio.isNotEmpty ? tags.audio : originalTags.audio),
+    normalizeList(
+        tags.subtitles.isNotEmpty ? tags.subtitles : originalTags.subtitles),
+  ];
+}
+
+String _versionDirectory(CloudMediaIndexItem item) {
+  final parent = p.posix.dirname(item.remotePath.replaceAll('\\', '/'));
+  final root = item.workRootPath?.replaceAll('\\', '/');
+  if (root == null || !p.posix.isWithin(root, parent)) return parent;
+  final parts = p.posix.split(p.posix.relative(parent, from: root));
+  // 按版本目录归并其下的季度、逐集子目录，避免一套资源被拆成很多版本。
+  final versionParts = parts
+      .where((part) => !RegExp(
+            r'^(?:S\d+|Season[ ._-]*\d+|第?[\d一二三四五六七八九十]+季)$',
+            caseSensitive: false,
+          ).hasMatch(part))
+      .toList();
+  return versionParts.isEmpty ? root : p.posix.join(root, versionParts.first);
+}

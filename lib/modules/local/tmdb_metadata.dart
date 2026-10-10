@@ -1,3 +1,5 @@
+import 'package:kanyingyin/modules/local/tmdb_image_override.dart';
+
 enum TmdbMediaType { movie, tv }
 
 enum TmdbScrapeStatus { none, pending, matched, failed }
@@ -11,6 +13,7 @@ class TmdbEpisodeMetadata {
     this.airDate,
     this.stillUrl,
     this.rating,
+    this.imageOverride = const TmdbImageOverride(),
   });
 
   factory TmdbEpisodeMetadata.fromJson(Map<String, dynamic> json) {
@@ -22,6 +25,7 @@ class TmdbEpisodeMetadata {
       airDate: _asString(json['airDate']),
       stillUrl: _asString(json['stillUrl']),
       rating: _asDouble(json['rating']),
+      imageOverride: TmdbImageOverride.fromJson(json['imageOverride']),
     );
   }
 
@@ -32,6 +36,7 @@ class TmdbEpisodeMetadata {
   final String? airDate;
   final String? stillUrl;
   final double? rating;
+  final TmdbImageOverride imageOverride;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
         'id': id,
@@ -41,6 +46,7 @@ class TmdbEpisodeMetadata {
         if (airDate != null) 'airDate': airDate,
         if (stillUrl != null) 'stillUrl': stillUrl,
         if (rating != null) 'rating': rating,
+        if (!imageOverride.isEmpty) 'imageOverride': imageOverride.toJson(),
       };
 
   TmdbEpisodeMetadata copyWith({
@@ -49,6 +55,7 @@ class TmdbEpisodeMetadata {
     String? airDate,
     String? stillUrl,
     double? rating,
+    TmdbImageOverride? imageOverride,
   }) {
     return TmdbEpisodeMetadata(
       id: id,
@@ -58,6 +65,7 @@ class TmdbEpisodeMetadata {
       airDate: airDate ?? this.airDate,
       stillUrl: stillUrl ?? this.stillUrl,
       rating: rating ?? this.rating,
+      imageOverride: imageOverride ?? this.imageOverride,
     );
   }
 
@@ -71,7 +79,8 @@ class TmdbEpisodeMetadata {
             overview == other.overview &&
             airDate == other.airDate &&
             stillUrl == other.stillUrl &&
-            rating == other.rating;
+            rating == other.rating &&
+            imageOverride == other.imageOverride;
   }
 
   @override
@@ -83,6 +92,7 @@ class TmdbEpisodeMetadata {
         airDate,
         stillUrl,
         rating,
+        imageOverride,
       );
 }
 
@@ -97,6 +107,7 @@ class TmdbSeasonMetadata {
     this.posterUrl,
     this.posterCachePath,
     this.episodes = const <TmdbEpisodeMetadata>[],
+    this.imageOverride = const TmdbImageOverride(),
   });
 
   factory TmdbSeasonMetadata.fromJson(Map<String, dynamic> json) {
@@ -119,6 +130,7 @@ class TmdbSeasonMetadata {
               )
               .toList(growable: false)
           : const <TmdbEpisodeMetadata>[],
+      imageOverride: TmdbImageOverride.fromJson(json['imageOverride']),
     );
   }
 
@@ -131,6 +143,7 @@ class TmdbSeasonMetadata {
   final String? posterUrl;
   final String? posterCachePath;
   final List<TmdbEpisodeMetadata> episodes;
+  final TmdbImageOverride imageOverride;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
         'id': id,
@@ -145,6 +158,7 @@ class TmdbSeasonMetadata {
           'episodes': episodes.map((item) => item.toJson()).toList(
                 growable: false,
               ),
+        if (!imageOverride.isEmpty) 'imageOverride': imageOverride.toJson(),
       };
 
   TmdbSeasonMetadata copyWith({
@@ -154,7 +168,9 @@ class TmdbSeasonMetadata {
     String? airDate,
     String? posterUrl,
     String? posterCachePath,
+    bool clearPosterCachePath = false,
     List<TmdbEpisodeMetadata>? episodes,
+    TmdbImageOverride? imageOverride,
   }) {
     return TmdbSeasonMetadata(
       id: id,
@@ -164,10 +180,14 @@ class TmdbSeasonMetadata {
       overview: overview ?? this.overview,
       airDate: airDate ?? this.airDate,
       posterUrl: posterUrl ?? this.posterUrl,
-      posterCachePath: posterCachePath ?? this.posterCachePath,
+      posterCachePath:
+          clearPosterCachePath ? null : posterCachePath ?? this.posterCachePath,
       episodes: episodes ?? this.episodes,
+      imageOverride: imageOverride ?? this.imageOverride,
     );
   }
+
+  TmdbSeasonMetadata clearPosterCache() => copyWith(clearPosterCachePath: true);
 
   @override
   bool operator ==(Object other) {
@@ -181,7 +201,8 @@ class TmdbSeasonMetadata {
             airDate == other.airDate &&
             posterUrl == other.posterUrl &&
             posterCachePath == other.posterCachePath &&
-            _listsEqual(episodes, other.episodes);
+            _listsEqual(episodes, other.episodes) &&
+            imageOverride == other.imageOverride;
   }
 
   @override
@@ -195,6 +216,7 @@ class TmdbSeasonMetadata {
         posterUrl,
         posterCachePath,
         Object.hashAll(episodes),
+        imageOverride,
       );
 }
 
@@ -216,6 +238,7 @@ class TmdbMetadata {
   final double matchConfidence;
   final List<String> genres;
   final List<TmdbSeasonMetadata> seasons;
+  final TmdbImageOverride imageOverride;
 
   const TmdbMetadata({
     required this.id,
@@ -235,6 +258,7 @@ class TmdbMetadata {
     this.backdropUrl,
     this.genres = const <String>[],
     this.seasons = const <TmdbSeasonMetadata>[],
+    this.imageOverride = const TmdbImageOverride(),
   });
 
   factory TmdbMetadata.fromJson(Map<String, dynamic> json) {
@@ -271,6 +295,7 @@ class TmdbMetadata {
               )
               .toList(growable: false)
           : const <TmdbSeasonMetadata>[],
+      imageOverride: TmdbImageOverride.fromJson(json['imageOverride']),
     );
   }
 
@@ -294,6 +319,7 @@ class TmdbMetadata {
       if (genres.isNotEmpty) 'genres': genres,
       if (seasons.isNotEmpty)
         'seasons': seasons.map((item) => item.toJson()).toList(growable: false),
+      if (!imageOverride.isEmpty) 'imageOverride': imageOverride.toJson(),
     };
   }
 
@@ -313,6 +339,7 @@ class TmdbMetadata {
     double? matchConfidence,
     List<String>? genres,
     List<TmdbSeasonMetadata>? seasons,
+    TmdbImageOverride? imageOverride,
   }) {
     return TmdbMetadata(
       id: id,
@@ -332,6 +359,7 @@ class TmdbMetadata {
       matchConfidence: matchConfidence ?? this.matchConfidence,
       genres: genres ?? this.genres,
       seasons: seasons ?? this.seasons,
+      imageOverride: imageOverride ?? this.imageOverride,
     );
   }
 
@@ -355,7 +383,8 @@ class TmdbMetadata {
             matchedAt == other.matchedAt &&
             matchConfidence == other.matchConfidence &&
             _listsEqual(genres, other.genres) &&
-            _listsEqual(seasons, other.seasons);
+            _listsEqual(seasons, other.seasons) &&
+            imageOverride == other.imageOverride;
   }
 
   @override
@@ -377,6 +406,7 @@ class TmdbMetadata {
         matchConfidence,
         Object.hashAll(genres),
         Object.hashAll(seasons),
+        imageOverride,
       ]);
 }
 

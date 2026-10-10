@@ -3,6 +3,7 @@ import 'package:kanyingyin/features/library/application/media_card_info.dart';
 import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/local_media_source.dart';
+import 'package:kanyingyin/modules/media/media_name_analysis.dart';
 import 'package:kanyingyin/services/local_series_grouper.dart';
 
 /// 将本地媒体领域数据转换为媒体库卡片所需的只读展示数据。
@@ -20,9 +21,17 @@ class LibraryMediaViewDataBuilder {
       for (final item in group.episodes)
         resolver.resolve(
           names: [item.name, item.path],
-          resolution: item.resolution,
+          resolution: item.resolution ?? item.episodeInfo?.resolution,
           videoWidth: item.videoWidth,
           videoHeight: item.videoHeight,
+          releaseTags: [
+            MediaReleaseTags(
+              resolution: item.resolution ?? item.episodeInfo?.resolution,
+              source: item.source ?? item.episodeInfo?.source,
+              codec: item.codec ?? item.episodeInfo?.codec,
+              releaseGroup: item.releaseGroup ?? item.episodeInfo?.releaseGroup,
+            ),
+          ],
         ),
     ]);
     final scrapeLabel = isScraping

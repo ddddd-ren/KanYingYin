@@ -7,6 +7,7 @@ import 'package:kanyingyin/features/library/application/media_library_query.dart
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/modules/media/media_name_analysis.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
 import 'package:kanyingyin/pages/local/local_episode_scrape_flow.dart';
 import 'package:kanyingyin/pages/local/manual_episode_match_flow.dart';
@@ -717,6 +718,13 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
       resolution: ep.resolution,
       videoWidth: ep.videoWidth,
       videoHeight: ep.videoHeight,
+      releaseTags: [
+        MediaReleaseTags(
+          source: ep.source,
+          codec: ep.codec,
+          releaseGroup: ep.releaseGroup,
+        ),
+      ],
     );
     return ListTile(
       dense: true,
@@ -893,7 +901,11 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
 
   String _coverUrl(LocalMediaSeries s) {
     for (final ep in s.episodes) {
-      final url = TmdbMatchSheet.imageUrl(ep.tmdb?.posterUrl);
+      final url = TmdbMatchSheet.imageUrl(
+        ep.tmdb?.imageOverride.seasonPosters[ep.seasonNumber] ??
+            ep.tmdb?.imageOverride.poster ??
+            ep.tmdb?.posterUrl,
+      );
       if (url != null) return url;
     }
     return '';

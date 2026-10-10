@@ -1,4 +1,5 @@
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/modules/local/tmdb_image_override.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
 enum CloudResourceKind { directory, standaloneVideo }
@@ -46,6 +47,7 @@ class CloudResourceTmdbRecord {
     this.posterUrl,
     this.backdropUrl,
     this.posterCachePath,
+    this.imageOverride = const TmdbImageOverride(),
     this.customTitle,
     this.seasons = const <TmdbSeasonMetadata>[],
     this.tmdbMatchOrigin = TmdbMatchOrigin.legacyUnknown,
@@ -87,6 +89,7 @@ class CloudResourceTmdbRecord {
       posterUrl: metadata.posterUrl,
       backdropUrl: metadata.backdropUrl,
       posterCachePath: posterCachePath,
+      imageOverride: metadata.imageOverride,
       customTitle: customTitle,
       seasons: metadata.seasons,
       tmdbMatchOrigin: tmdbMatchOrigin,
@@ -197,6 +200,7 @@ class CloudResourceTmdbRecord {
       posterUrl: _asString(json['posterUrl']),
       backdropUrl: _asString(json['backdropUrl']),
       posterCachePath: _asString(json['posterCachePath']),
+      imageOverride: TmdbImageOverride.fromJson(json['imageOverride']),
       customTitle: _asString(json['customTitle']),
       tmdbMatchOrigin: _enumValue(
         TmdbMatchOrigin.values,
@@ -238,6 +242,7 @@ class CloudResourceTmdbRecord {
   final String? posterUrl;
   final String? backdropUrl;
   final String? posterCachePath;
+  final TmdbImageOverride imageOverride;
   final String? customTitle;
   final List<TmdbSeasonMetadata> seasons;
   final TmdbMatchOrigin tmdbMatchOrigin;
@@ -263,6 +268,41 @@ class CloudResourceTmdbRecord {
   }
 
   CloudResourceTmdbRecord clearCustomTitle() => _copyWithCustomTitle(null);
+
+  CloudResourceTmdbRecord withImageOverride(
+    TmdbImageOverride value, {
+    bool clearPosterCachePath = false,
+    List<TmdbSeasonMetadata>? seasons,
+  }) {
+    return CloudResourceTmdbRecord(
+      sourceId: sourceId,
+      remoteId: remoteId,
+      remotePath: remotePath,
+      displayName: displayName,
+      resourceKind: resourceKind,
+      status: status,
+      checkedAt: checkedAt,
+      tmdbId: tmdbId,
+      mediaType: mediaType,
+      title: title,
+      aliases: aliases,
+      genres: genres,
+      originalTitle: originalTitle,
+      overview: overview,
+      rating: rating,
+      popularity: popularity,
+      voteCount: voteCount,
+      releaseDate: releaseDate,
+      posterUrl: posterUrl,
+      backdropUrl: backdropUrl,
+      posterCachePath: clearPosterCachePath ? null : posterCachePath,
+      imageOverride: value,
+      customTitle: customTitle,
+      seasons: seasons ?? this.seasons,
+      tmdbMatchOrigin: tmdbMatchOrigin,
+      tmdbRuleVersion: tmdbRuleVersion,
+    );
+  }
 
   CloudResourceTmdbRecord asFailed(DateTime checkedAt) {
     return CloudResourceTmdbRecord.failed(
@@ -299,6 +339,7 @@ class CloudResourceTmdbRecord {
       posterUrl: posterUrl,
       backdropUrl: backdropUrl,
       posterCachePath: posterCachePath,
+      imageOverride: imageOverride,
       customTitle: customTitle,
       seasons: seasons,
       tmdbMatchOrigin: tmdbMatchOrigin,
@@ -335,6 +376,7 @@ class CloudResourceTmdbRecord {
       posterUrl: posterUrl,
       backdropUrl: backdropUrl,
       posterCachePath: posterCachePath,
+      imageOverride: imageOverride,
       customTitle: customTitle,
       seasons: seasons,
       tmdbMatchOrigin: tmdbMatchOrigin,
@@ -365,6 +407,7 @@ class CloudResourceTmdbRecord {
       if (posterUrl != null) 'posterUrl': posterUrl,
       if (backdropUrl != null) 'backdropUrl': backdropUrl,
       if (posterCachePath != null) 'posterCachePath': posterCachePath,
+      if (!imageOverride.isEmpty) 'imageOverride': imageOverride.toJson(),
       if (customTitle != null) 'customTitle': customTitle,
       if (tmdbMatchOrigin != TmdbMatchOrigin.legacyUnknown)
         'tmdbMatchOrigin': tmdbMatchOrigin.name,
@@ -399,6 +442,7 @@ class CloudResourceTmdbRecord {
             posterUrl == other.posterUrl &&
             backdropUrl == other.backdropUrl &&
             posterCachePath == other.posterCachePath &&
+            imageOverride == other.imageOverride &&
             customTitle == other.customTitle &&
             tmdbMatchOrigin == other.tmdbMatchOrigin &&
             tmdbRuleVersion == other.tmdbRuleVersion &&
@@ -428,6 +472,7 @@ class CloudResourceTmdbRecord {
         posterUrl,
         backdropUrl,
         posterCachePath,
+        imageOverride,
         customTitle,
         tmdbMatchOrigin,
         tmdbRuleVersion,
@@ -457,6 +502,7 @@ class CloudResourceTmdbRecord {
       posterUrl: posterUrl,
       backdropUrl: backdropUrl,
       posterCachePath: posterCachePath,
+      imageOverride: imageOverride,
       customTitle: value,
       seasons: seasons,
       tmdbMatchOrigin: tmdbMatchOrigin,

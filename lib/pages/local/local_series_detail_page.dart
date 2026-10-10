@@ -5,12 +5,15 @@ import 'package:kanyingyin/features/library/application/media_technical_badges.d
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/modules/local/tmdb_image_metadata.dart';
+import 'package:kanyingyin/modules/media/media_name_analysis.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
 import 'package:kanyingyin/pages/local/local_episode_scrape_flow.dart';
 import 'package:kanyingyin/pages/local/manual_episode_match_flow.dart';
 import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/widgets/tmdb_network_image.dart';
+import 'package:kanyingyin/widgets/tmdb_image_picker_dialog.dart';
 
 class LocalSeriesDetailPage extends StatelessWidget {
   const LocalSeriesDetailPage({
@@ -27,11 +30,31 @@ class LocalSeriesDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metadata = _metadata;
-    final backdrop =
-        TmdbMatchSheet.imageUrl(metadata?.backdropUrl, size: 'w1280');
-    final poster = TmdbMatchSheet.imageUrl(metadata?.posterUrl, size: 'w500');
+    final backdrop = TmdbMatchSheet.imageUrl(
+      metadata?.imageOverride.backdrop ?? metadata?.backdropUrl,
+      size: 'w1280',
+    );
+    final poster = TmdbMatchSheet.imageUrl(
+      metadata?.imageOverride.poster ?? metadata?.posterUrl,
+      size: 'w500',
+    );
     return Scaffold(
-      appBar: AppBar(title: Text(metadata?.title ?? series.displayTitle)),
+      appBar: AppBar(
+        title: Text(metadata?.title ?? series.displayTitle),
+        actions: [
+          if (metadata != null)
+            PopupMenuButton<String>(
+              tooltip: '更换刮削图',
+              onSelected: (value) => _pickSeriesImage(context, value),
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'poster', child: Text('更换海报')),
+                PopupMenuItem(value: 'backdrop', child: Text('更换背景图')),
+                PopupMenuItem(value: 'clearPoster', child: Text('恢复海报默认')),
+                PopupMenuItem(value: 'clearBackdrop', child: Text('恢复背景默认')),
+              ],
+            ),
+        ],
+      ),
       body: ListView(
         children: [
           if (backdrop != null)
@@ -99,6 +122,12 @@ class LocalSeriesDetailPage extends StatelessWidget {
                     child: Text('匹配季度和集数'),
                   ),
                   PopupMenuItem(value: 'reassign', child: Text('更正作品归属')),
+                  PopupMenuItem(value: 'seasonImage', child: Text('更换本季海报')),
+                  PopupMenuItem(value: 'episodeImage', child: Text('更换本集剧照')),
+                  PopupMenuItem(
+                      value: 'clearSeasonImage', child: Text('恢复本季海报默认')),
+                  PopupMenuItem(
+                      value: 'clearEpisodeImage', child: Text('恢复本集剧照默认')),
                 ],
               ),
               onTap: () => onPlay(episode),
@@ -115,6 +144,13 @@ class LocalSeriesDetailPage extends StatelessWidget {
       resolution: episode.resolution,
       videoWidth: episode.videoWidth,
       videoHeight: episode.videoHeight,
+      releaseTags: [
+        MediaReleaseTags(
+          source: episode.source,
+          codec: episode.codec,
+          releaseGroup: episode.releaseGroup,
+        ),
+      ],
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -167,7 +203,102 @@ class LocalSeriesDetailPage extends StatelessWidget {
           reassignSeriesName: true,
         );
         return;
+      case 'seasonImage':
+        await _pickEpisodeImage(
+          context,
+          episode,
+          kind: TmdbImageKind.poster,
+        );
+        return;
+      case 'episodeImage':
+        await _pickEpisodeImage(
+          context,
+          episode,
+          kind: TmdbImageKind.still,
+        );
+        return;
+      case 'clearSeasonImage':
+        await controller.clearLocalTmdbImage(
+          seriesName: _seriesName,
+          kind: TmdbImageKind.poster,
+          seasonNumber: episode.seasonNumber,
+        );
+        return;
+      case 'clearEpisodeImage':
+        await controller.clearLocalTmdbImage(
+          seriesName: _seriesName,
+          kind: TmdbImageKind.still,
+          seasonNumber: episode.seasonNumber,
+          episodeNumber: episode.episodeNumber,
+        );
+        return;
     }
+  }
+
+  Future<void> _pickSeriesImage(BuildContext context, String value) async {
+    final metadata = _metadata;
+    if (metadata == null) return;
+    if (value == 'clearPoster' || value == 'clearBackdrop') {
+      await controller.clearLocalTmdbImage(
+        seriesName: _seriesName,
+        kind: value == 'clearPoster'
+            ? TmdbImageKind.poster
+            : TmdbImageKind.backdrop,
+      );
+      return;
+    }
+    final kind =
+        value == 'backdrop' ? TmdbImageKind.backdrop : TmdbImageKind.poster;
+    final candidate = await TmdbImagePickerDialog.show(
+      context: context,
+      title: kind == TmdbImageKind.backdrop ? '更换背景图' : '更换海报',
+      kind: kind,
+      currentPath: kind == TmdbImageKind.backdrop
+          ? metadata.imageOverride.backdrop
+          : metadata.imageOverride.poster,
+      images: () => controller.loadLocalTmdbImages(_seriesName, kind: kind),
+    );
+    if (candidate == null || !context.mounted) return;
+    await controller.selectLocalTmdbImage(
+      seriesName: _seriesName,
+      kind: kind,
+      filePath: candidate.filePath,
+    );
+  }
+
+  Future<void> _pickEpisodeImage(
+    BuildContext context,
+    LocalMediaIndexItem episode, {
+    required TmdbImageKind kind,
+  }) async {
+    final metadata = _metadata;
+    final seasonNumber = episode.seasonNumber;
+    if (metadata == null || seasonNumber == null) return;
+    final episodeNumber =
+        kind == TmdbImageKind.still ? episode.episodeNumber : null;
+    final current = kind == TmdbImageKind.still
+        ? metadata.imageOverride.episodeStills['$seasonNumber:$episodeNumber']
+        : metadata.imageOverride.seasonPosters[seasonNumber];
+    final candidate = await TmdbImagePickerDialog.show(
+      context: context,
+      title: kind == TmdbImageKind.still ? '更换本集剧照' : '更换本季海报',
+      kind: kind,
+      currentPath: current,
+      images: () => controller.loadLocalTmdbImages(
+        _seriesName,
+        kind: kind,
+        seasonNumber: seasonNumber,
+        episodeNumber: episodeNumber,
+      ),
+    );
+    if (candidate == null || !context.mounted) return;
+    await controller.selectLocalTmdbImage(
+      seriesName: _seriesName,
+      kind: kind,
+      filePath: candidate.filePath,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+    );
   }
 
   TmdbMetadata? get _metadata {
@@ -175,6 +306,13 @@ class LocalSeriesDetailPage extends StatelessWidget {
       if (episode.tmdb != null) return episode.tmdb;
     }
     return null;
+  }
+
+  String get _seriesName {
+    final value = series.episodes
+        .map((episode) => episode.seriesName.trim())
+        .firstWhere((value) => value.isNotEmpty, orElse: () => '');
+    return value.isNotEmpty ? value : series.title;
   }
 
   Widget _poster(String? remote) {

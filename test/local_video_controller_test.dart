@@ -127,8 +127,9 @@ void main() {
     expect(source, isNot(contains('FeatureFlags.seriesGroupingEnabled')));
     expect(source, contains('_seriesGrouper.group(items)'));
     expect(source, contains('LibraryPathBar('));
-    expect(pathBar, contains("'扫描媒体库'"));
+    expect(pathBar, contains("'扫描所有媒体源'"));
     expect(pathBar, contains("'媒体库'"));
+    expect(pathBar, contains("'查看全部已索引作品'"));
   });
 
   test('LocalPage 为路径栏提供本地直接子目录', () {

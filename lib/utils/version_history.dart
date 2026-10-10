@@ -27,6 +27,66 @@ class VersionHistory {
 /// 区段拆分到 part 文件，展开顺序与原列表完全一致，不得重排。
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.213',
+    date: '2026-10-11',
+    isPrerelease: true,
+    changes: [
+      '修复替换网盘海报后仍显示旧缓存的问题，总海报和季度海报会立即刷新',
+      '网盘海报替换结果会同步到媒体索引，重新进入页面后仍保留手动选择',
+      '本地媒体库和个人网盘继续支持选择海报、背景图、季度海报和单集剧照',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.212',
+    date: '2026-10-11',
+    isPrerelease: true,
+    changes: [
+      'TMDB 刮削完成后可为剧集选择海报、背景图、季度海报和单集剧照',
+      '本地媒体库和个人网盘详情页支持浏览图片候选，点击图片即可保存选择',
+      '重新刮削会保留手动选择，也可以随时恢复海报、背景图、季度海报或剧照默认值',
+      '换图只更新本地刮削记录和显示索引，不修改网盘原始视频文件',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.210',
+    date: '2026-10-11',
+    isPrerelease: true,
+    changes: [
+      '网盘剧集选集支持按来源目录和发布规格切换版本1、版本2，重复剧集不再混在一份列表里',
+      '某个版本缺集时可使用同季其他版本的文件补齐，并标注共享来源，保留同集的多个候选',
+      '网盘资源页和媒体分类页均支持版本选择，播放及切换剧集沿用选中的版本',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.209',
+    date: '2026-10-10',
+    isPrerelease: true,
+    changes: [
+      '本地视频海报卡片现在会复用媒体库索引中的清晰度、来源和编码信息，显示 4K、2K、1080P 等技术标签',
+      '点击“读取媒体信息”后，视频宽高和时长会保存到本地媒体库索引，重新进入目录仍可显示标签',
+      '继续识别 2160p、3840x2160 和 UHD 等常见 4K 写法，并汇总显示多个文件中的最高规格',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.208',
+    date: '2026-10-10',
+    isPrerelease: true,
+    changes: [
+      '本地视频海报和详情现在也会按文件名与已读取的媒体信息识别 4K、2K、1080P 等清晰度标签',
+      '补充识别 2160p、3840x2160 和 UHD 等常见 4K 写法，多个文件会汇总显示最高清晰度',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+    ],
+  ),
+  VersionHistory(
     version: '1.0.15',
     date: '2026-10-01',
     changes: [
@@ -136,6 +196,69 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '2.1.213' && platform == AppPlatformKind.android) {
+    return const [
+      VersionHistory(
+        version: '2.1.213',
+        date: '2026-10-11',
+        isPrerelease: true,
+        changes: [
+          '修复替换网盘海报后仍显示旧缓存的问题，总海报和季度海报会立即刷新',
+          '网盘海报替换结果会同步到媒体索引，重新进入页面后仍保留手动选择',
+          '本地媒体库和个人网盘继续支持选择海报、背景图、季度海报和单集剧照',
+          '继续支持本地媒体库、个人网盘、字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+        ],
+      ),
+    ];
+  }
+  if (currentVersion == '2.1.212' && platform == AppPlatformKind.android) {
+    return const [
+      VersionHistory(
+        version: '2.1.212',
+        date: '2026-10-11',
+        isPrerelease: true,
+        changes: [
+          'TMDB 刮削完成后可为剧集选择海报、背景图、季度海报和单集剧照',
+          '本地媒体库和个人网盘详情页支持浏览图片候选，点击图片即可保存选择',
+          '重新刮削会保留手动选择，也可以恢复各级图片的默认值',
+          '继续支持本地媒体库、个人网盘、字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+        ],
+      ),
+    ];
+  }
+  if (currentVersion == '2.1.210' && platform == AppPlatformKind.android) {
+    return const [
+      VersionHistory(
+        version: '2.1.210',
+        date: '2026-10-11',
+        isPrerelease: true,
+        changes: [
+          '网盘资源页和媒体分类页支持按来源目录和发布规格选择剧集版本',
+          '同季其他版本可共享缺少的剧集，并显示共享来源，播放及切换剧集沿用选中的版本',
+          '继续支持本地媒体库、个人网盘、字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+        ],
+      ),
+    ];
+  }
+  if (currentVersion == '2.1.209' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[
+      VersionHistory(
+        version: '2.1.209',
+        date: '2026-10-10',
+        isPrerelease: true,
+        changes: [
+          '本地视频海报卡片会复用媒体库索引中的清晰度、来源和编码信息，显示 4K、2K、1080P 等技术标签',
+          '点击“读取媒体信息”后，视频宽高和时长会保存到本地媒体库索引，重新进入目录仍可显示标签',
+          '2160p、3840x2160 和 UHD 等常见 4K 写法会统一识别，作品汇总显示最高规格',
+          '继续支持本地媒体库、个人网盘、字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+        ],
+      ),
+    ];
+  }
   if (currentVersion == '1.0.15' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[
       VersionHistory(

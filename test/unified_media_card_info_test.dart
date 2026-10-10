@@ -55,6 +55,45 @@ void main() {
       ['4K', '杜比视界', 'HDR', '杜比全景声'],
     );
   });
+
+  test('统一媒体卡保留本地索引中的结构化技术标签', () {
+    final item = LocalMediaIndexItem(
+      path: 'D:/Media/Movie.mkv',
+      name: 'Movie.mkv',
+      parentPath: 'D:/Media',
+      sourcePath: 'D:/Media',
+      size: 1024,
+      modified: DateTime.utc(2026, 5, 28),
+      seriesName: 'Movie',
+      resolution: '3840x2160',
+      source: 'Web-DL',
+      codec: 'HEVC',
+      indexedAt: DateTime.utc(2026, 5, 28),
+    );
+    final episode = MediaLibraryEpisode.local(
+      stableId: item.id,
+      name: item.name,
+      localItem: item,
+    );
+    final info = UnifiedMediaCardInfoBuilder.forSeries(
+      MediaLibrarySeries(
+        key: 'local|movie',
+        seriesKey: 'Movie',
+        title: 'Movie',
+        sourceKind: MediaSourceKind.local,
+        sourceId: 'local',
+        sourceName: '本地',
+        isAvailable: true,
+        episodes: [episode],
+        mediaType: TmdbMediaType.movie,
+      ),
+    );
+
+    expect(
+      info.technicalBadges.map((badge) => badge.label),
+      ['4K', 'Web-DL', 'HEVC'],
+    );
+  });
 }
 
 MediaLibrarySeries _series({

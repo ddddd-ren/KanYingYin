@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kanyingyin/features/library/presentation/directory_address_dropdown.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
+import 'package:kanyingyin/features/library/presentation/library_source_menu.dart';
 
 typedef LibraryPathSubmit = Future<String?> Function(String path);
 
@@ -75,6 +76,7 @@ class LibraryPathBarViewData {
     required this.sortAscending,
     required this.status,
     this.searchKeyword = '',
+    this.mediaCount = 0,
     this.isLoading = false,
     this.isIndexing = false,
     this.isFetchingPosters = false,
@@ -96,6 +98,7 @@ class LibraryPathBarViewData {
   final bool sortAscending;
   final LibraryDirectoryStatusViewData status;
   final String searchKeyword;
+  final int mediaCount;
   final bool isLoading;
   final bool isIndexing;
   final bool isFetchingPosters;
@@ -137,7 +140,7 @@ class LibraryPathBar extends StatelessWidget {
   });
 
   final LibraryPathBarViewData data;
-  final Widget sourceMenu;
+  final LibrarySourceMenu sourceMenu;
   final TextEditingController searchController;
   final FutureOr<void> Function() onPickDirectory;
   final FutureOr<void> Function() onRefresh;
@@ -164,218 +167,209 @@ class LibraryPathBar extends StatelessWidget {
     final isAndroidTv = detectAppPlatform().isAndroidTv;
     return Column(
       children: [
-        Container(
+        Padding(
           key: const ValueKey('library-path-command-surface'),
-          margin: const EdgeInsets.fromLTRB(8, 6, 8, 0),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          decoration: BoxDecoration(
-            color: colors.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: colors.outlineVariant, width: 0.75),
-          ),
-          child: Row(
-            children: [
+          padding: const EdgeInsets.fromLTRB(16, 12, 10, 8),
+          child: LayoutBuilder(builder: (context, constraints) {
+            final title = Row(children: [
+              Icon(Icons.video_library_outlined, color: colors.primary),
+              const SizedBox(width: 10),
               Flexible(
-                fit: FlexFit.loose,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 92),
-                  child: Text(
-                    '本地媒体库',
-                    key: const ValueKey<String>('local-media-library-title'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              _button(
-                context,
-                Icons.folder_open,
-                '选择目录',
-                data.isLoading ? null : onPickDirectory,
-              ),
-              const SizedBox(width: 4),
-              sourceMenu,
-              const SizedBox(width: 4),
-              _busyButton(
-                context,
-                Icons.manage_search_outlined,
-                '扫描媒体库',
-                data.isIndexing,
-                data.canScanLibrary ? onScanLibrary : null,
-              ),
-              const SizedBox(width: 4),
-              _button(
-                context,
-                Icons.video_collection_outlined,
-                '媒体库',
-                data.canOpenLibrary ? onOpenLibrary : null,
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                height: 22,
-                child: VerticalDivider(
-                  width: 1,
-                  thickness: 1,
-                  color: colors.outlineVariant,
-                ),
-              ),
-              const SizedBox(width: 8),
-              PopupMenuButton<String>(
-                tooltip: '最近目录',
-                icon: const Icon(Icons.history, size: 20),
-                style: _iconButtonStyle(colors),
-                enabled: !data.isLoading && data.recentPaths.isNotEmpty,
-                onSelected: (path) async => await onOpenRecentPath?.call(path),
-                itemBuilder: (context) => <PopupMenuEntry<String>>[
-                  for (final path in data.recentPaths)
-                    PopupMenuItem<String>(
-                      value: path.path,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 320),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              path.label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              path.path,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelSmall
-                                  ?.copyWith(color: colors.outline),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                  child: Text('媒体库',
+                      key: const ValueKey<String>('local-media-library-title'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w600))),
+              const SizedBox(width: 10),
+              Text('${data.mediaCount} 部',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: colors.outline)),
+            ]);
+            final address = DirectoryAddressDropdown(
+              key: const ValueKey('library-path-breadcrumb-surface'),
+              addressKey: const ValueKey<String>('library-path-address'),
+              currentPath: data.currentPath,
+              enabled: !data.isLoading,
+              borderless: true,
+              savedDirectories: [
+                for (final source in sourceMenu.data.sources)
+                  if (source.isAvailable)
+                    DirectoryNavigationItem(
+                        label: source.name,
+                        path: source.path,
+                        subtitle: source.path),
+              ],
+              recentDirectories: [
+                for (final path in data.recentPaths)
+                  DirectoryNavigationItem(
+                      label: path.label, path: path.path, subtitle: path.path),
+              ],
+              loadChildren: onLoadChildDirectories ?? (_) async => const [],
+              onChildSelected: (item) async {
+                if (onChildDirectorySelected != null) {
+                  await onChildDirectorySelected!(item);
+                } else {
+                  await (onOpenRecentPath ?? onBreadcrumbSelected)(item.path);
+                }
+              },
+              onSubmitted: onPathSubmitted,
+            );
+            final actions = [
+              _button(context, Icons.keyboard_arrow_up_rounded, '上级目录',
+                  data.canNavigateUp ? onNavigateUp : null),
+              _button(context, Icons.refresh, '刷新当前目录',
+                  data.isLoading ? null : onRefresh),
+              PopupMenuButton<LibraryMenuAction>(
+                tooltip: '更多媒体库操作',
+                icon: const Icon(Icons.more_horiz_rounded),
+                onSelected: (action) async => await action(),
+                itemBuilder: (context) => [
+                  _menuAction('选择目录', data.isLoading ? null : onPickDirectory),
+                  _menuAction(
+                      '扫描所有媒体源', data.canScanLibrary ? onScanLibrary : null,
+                      busy: data.isIndexing),
+                  _menuAction(
+                      '查看全部已索引作品', data.canOpenLibrary ? onOpenLibrary : null),
+                  const PopupMenuDivider(),
+                  _menuAction('读取当前目录媒体信息',
+                      data.canReadMediaInfo ? onFetchMediaInfo : null,
+                      busy: data.isFetchingMediaInfo),
+                  _menuAction('生成当前目录缩略图',
+                      data.canGenerateThumbnails ? onGenerateThumbnails : null,
+                      busy: data.isFetchingThumbnails),
+                  _menuAction('匹配媒体库影片信息',
+                      data.canMatchMetadata ? onMatchMetadata : null,
+                      busy: data.isMatchingMetadata),
+                  if (sourceMenu.data.sources.isNotEmpty) ...[
+                    const PopupMenuDivider(),
+                    const PopupMenuItem<LibraryMenuAction>(
+                        enabled: false, child: Text('媒体源管理')),
+                    ...sourceMenu.managementEntries(context),
+                  ],
                 ],
               ),
-              const SizedBox(width: 4),
-              _button(
-                context,
-                Icons.keyboard_arrow_up_rounded,
-                '上级目录',
-                data.canNavigateUp ? onNavigateUp : null,
-              ),
-              const SizedBox(width: 4),
-              _button(
-                context,
-                Icons.refresh,
-                '刷新',
-                data.isLoading ? null : onRefresh,
-              ),
-              const SizedBox(width: 4),
-              _busyButton(
-                context,
-                Icons.info_outline,
-                '读取媒体信息',
-                data.isFetchingMediaInfo,
-                data.canReadMediaInfo ? onFetchMediaInfo : null,
-              ),
-              const SizedBox(width: 4),
-              _busyButton(
-                context,
-                Icons.photo_camera_outlined,
-                '生成缩略图',
-                data.isFetchingThumbnails,
-                data.canGenerateThumbnails ? onGenerateThumbnails : null,
-              ),
-              const SizedBox(width: 4),
-              _busyButton(
-                context,
-                Icons.cloud_sync_outlined,
-                '匹配影片信息',
-                data.isMatchingMetadata,
-                data.canMatchMetadata ? onMatchMetadata : null,
-              ),
+            ];
+            if (constraints.maxWidth < 600) {
+              return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    title,
+                    const SizedBox(height: 4),
+                    Row(children: [Expanded(child: address), ...actions]),
+                  ]);
+            }
+            return Row(children: [
+              Expanded(child: title),
+              SizedBox(width: 250, child: address),
               const SizedBox(width: 8),
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      minWidth: 145,
-                      maxWidth: 250,
-                    ),
-                    child: DirectoryAddressDropdown(
-                      key: const ValueKey('library-path-breadcrumb-surface'),
-                      addressKey:
-                          const ValueKey<String>('library-path-address'),
-                      currentPath: data.currentPath,
-                      enabled: !data.isLoading,
-                      loadChildren:
-                          onLoadChildDirectories ?? (_) async => const [],
-                      onChildSelected: (item) async =>
-                          await onChildDirectorySelected?.call(item),
-                      onSubmitted: onPathSubmitted,
-                    ),
+              ...actions,
+            ]);
+          }),
+        ),
+        if (data.status.label.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+            child: Align(
+                alignment: Alignment.centerLeft,
+                child: _status(context, colors)),
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 1, 16, 7),
+          child: Row(children: [
+            Expanded(
+                child: Container(
+              key: const ValueKey('library-path-search-surface'),
+              height: 38,
+              decoration: BoxDecoration(
+                color: colors.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: colors.outlineVariant, width: 0.75),
+              ),
+              child: Focus(
+                canRequestFocus: false,
+                skipTraversal: true,
+                onKeyEvent: isAndroidTv ? _handleTvSearchKeyEvent : null,
+                child: TextField(
+                  controller: searchController,
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    hintText: '搜索当前目录',
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                    suffixIcon: data.searchKeyword.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: '清空搜索',
+                            icon: const Icon(Icons.close, size: 18),
+                            onPressed: onClearSearch,
+                          ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                   ),
+                  onChanged: onSearchChanged,
                 ),
               ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-          child: Row(
-            children: [
-              Expanded(child: _status(context, colors)),
-              _sortChip(context, '名称', 'name'),
-              const SizedBox(width: 4),
-              _sortChip(context, '大小', 'size'),
-              const SizedBox(width: 4),
-              _sortChip(context, '日期', 'modified'),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 1, 12, 7),
-          child: Container(
-            key: const ValueKey('library-path-search-surface'),
-            height: 38,
-            decoration: BoxDecoration(
-              color: colors.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(9),
-              border: Border.all(color: colors.outlineVariant, width: 0.75),
-            ),
-            child: Focus(
-              canRequestFocus: false,
-              skipTraversal: true,
-              onKeyEvent: isAndroidTv ? _handleTvSearchKeyEvent : null,
-              child: TextField(
-                controller: searchController,
-                textInputAction: TextInputAction.search,
-                decoration: InputDecoration(
-                  hintText: '搜索当前目录',
-                  prefixIcon: const Icon(Icons.search, size: 18),
-                  suffixIcon: data.searchKeyword.isEmpty
-                      ? null
-                      : IconButton(
-                          tooltip: '清空搜索',
-                          icon: const Icon(Icons.close, size: 18),
-                          onPressed: onClearSearch,
-                        ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                ),
-                onChanged: onSearchChanged,
+            )),
+            const SizedBox(width: 8),
+            PopupMenuButton<String>(
+              tooltip: '排序',
+              onSelected: (field) async => await onSort(field),
+              itemBuilder: (_) => [
+                for (final field in const {
+                  'name': '名称',
+                  'size': '大小',
+                  'modified': '日期'
+                }.entries)
+                  CheckedPopupMenuItem(
+                      value: field.key,
+                      checked: data.sortBy == field.key,
+                      child: Text(field.value)),
+              ],
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text('排序：${const {
+                        'name': '名称',
+                        'size': '大小',
+                        'modified': '日期'
+                      }[data.sortBy] ?? '名称'}'),
+                  const SizedBox(width: 4),
+                  Icon(
+                      data.sortAscending
+                          ? Icons.arrow_upward
+                          : Icons.arrow_downward,
+                      size: 14),
+                  const Icon(Icons.arrow_drop_down, size: 18),
+                ]),
               ),
             ),
-          ),
+          ]),
         ),
       ],
     );
   }
+
+  PopupMenuItem<LibraryMenuAction> _menuAction(
+          String label, LibraryMenuAction? action,
+          {bool busy = false}) =>
+      PopupMenuItem<LibraryMenuAction>(
+        value: action,
+        enabled: action != null,
+        child: Row(children: [
+          if (busy) ...[
+            const SizedBox.square(
+                dimension: 16,
+                child: CircularProgressIndicator(strokeWidth: 2)),
+            const SizedBox(width: 8),
+          ],
+          Flexible(child: Text(label)),
+        ]),
+      );
 
   KeyEventResult _handleTvSearchKeyEvent(FocusNode _, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
@@ -401,21 +395,6 @@ class LibraryPathBar extends StatelessWidget {
     return KeyEventResult.ignored;
   }
 
-  ButtonStyle _iconButtonStyle(
-    ColorScheme colors, {
-    Color? backgroundColor,
-  }) =>
-      IconButton.styleFrom(
-        padding: const EdgeInsets.all(4),
-        minimumSize: const Size.square(32),
-        maximumSize: const Size.square(32),
-        backgroundColor: backgroundColor,
-        hoverColor: colors.primary.withValues(alpha: 0.08),
-        focusColor: colors.primary.withValues(alpha: 0.1),
-        highlightColor: colors.primary.withValues(alpha: 0.12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      );
-
   Widget _button(
     BuildContext context,
     IconData icon,
@@ -423,77 +402,10 @@ class LibraryPathBar extends StatelessWidget {
     FutureOr<void> Function()? callback,
   ) =>
       IconButton(
-        icon: Icon(icon, size: 20),
+        icon: Icon(icon),
         tooltip: tooltip,
         onPressed: callback == null ? null : () async => await callback(),
-        style: _iconButtonStyle(Theme.of(context).colorScheme),
       );
-
-  Widget _busyButton(
-    BuildContext context,
-    IconData icon,
-    String tooltip,
-    bool busy,
-    FutureOr<void> Function()? callback,
-  ) =>
-      IconButton(
-        icon: busy
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : Icon(icon, size: 20),
-        tooltip: tooltip,
-        onPressed: callback == null ? null : () async => await callback(),
-        style: _iconButtonStyle(Theme.of(context).colorScheme),
-      );
-
-  Widget _sortChip(BuildContext context, String label, String field) {
-    final active = data.sortBy == field;
-    final colors = Theme.of(context).colorScheme;
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(12),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () async => await onSort(field),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-          decoration: BoxDecoration(
-            color: active ? colors.primaryContainer : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: active
-                          ? colors.onPrimaryContainer
-                          : colors.onSurfaceVariant,
-                      fontWeight: active ? FontWeight.w600 : FontWeight.normal,
-                    ),
-              ),
-              if (active) ...[
-                const SizedBox(width: 2),
-                Icon(
-                  data.sortAscending
-                      ? Icons.arrow_upward
-                      : Icons.arrow_downward,
-                  size: 12,
-                  color: colors.onPrimaryContainer,
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _status(BuildContext context, ColorScheme colors) {
     final status = data.status;

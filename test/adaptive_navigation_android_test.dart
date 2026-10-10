@@ -5,6 +5,7 @@ import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/features/library/presentation/directory_address_dropdown.dart';
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
 import 'package:kanyingyin/features/library/presentation/library_path_bar.dart';
+import 'package:kanyingyin/features/library/presentation/library_source_menu.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_focus_surface.dart';
 import 'package:kanyingyin/pages/menu/adaptive_navigation_shell.dart';
 import 'package:kanyingyin/pages/navigation/navigation_config.dart';
@@ -141,7 +142,12 @@ void main() {
                   label: '0 部剧/0 个视频',
                 ),
               ),
-              sourceMenu: const SizedBox(width: 32, height: 32),
+              sourceMenu: LibrarySourceMenu(
+                data: LibrarySourceMenuViewData(sources: const []),
+                onOpen: (_) {},
+                onRemove: (_) {},
+                onRemoveUnavailable: () {},
+              ),
               searchController: searchController,
               onPickDirectory: () {},
               onRefresh: () {},

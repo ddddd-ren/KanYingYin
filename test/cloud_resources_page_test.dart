@@ -1101,12 +1101,16 @@ void main() {
     expect(group.uniqueEpisodeCount, 6);
     expect(group.videos, hasLength(12));
     expect(find.text('6 集'), findsNWidgets(2));
-    expect(find.byType(ListTile), findsNWidgets(12));
-    expect(
-      find.text('S03E01 · 2160p WEB-DL H265 DDP 5.1 Atmos'),
-      findsOneWidget,
-    );
-    expect(find.text('S03E01 · 4K DV HDR'), findsOneWidget);
+    final versions = group.versions;
+    expect(versions, hasLength(2));
+    expect(find.byType(ChoiceChip), findsNWidgets(2));
+    expect(find.byType(ListTile), findsNWidgets(6));
+    for (final version in versions) {
+      await tester.tap(find.widgetWithText(ChoiceChip, version.label));
+      await tester.pumpAndSettle();
+      expect(find.byType(ListTile), findsNWidgets(6));
+      expect(find.text('S03E01 · ${version.videos.first.variantLabel}'), findsOneWidget);
+    }
     expect(find.textContaining('第 2 集'), findsNothing);
   });
 
@@ -1424,7 +1428,34 @@ void main() {
     fixture.controller.dispose();
   });
 
-  testWidgets('已有来源时常驻添加网盘菜单提供四种入口', (tester) async {
+  testWidgets('工具栏在宽窄窗口中靠右排列并保留长来源名称与数量', (tester) async {
+    final fixture = await _PageFixture.create(
+      source: _quarkSource.copyWith(name: '这是一个很长很长的个人网盘媒体来源名称'),
+      entries: [_pageVideo('toolbar-video', '/影视/测试.mkv', '测试.mkv')],
+    );
+    addTearDown(fixture.controller.dispose);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    for (final width in [1280.0, 640.0, 390.0, 320.0]) {
+      tester.view.physicalSize = Size(width, 900);
+      await tester.pumpWidget(MaterialApp(
+          home: CloudResourcesPage(controller: fixture.controller)));
+      await tester.pumpAndSettle();
+      expect(find.text('1 部'), findsOneWidget);
+      final source = find.byKey(const ValueKey('cloud-source-selector'));
+      final refresh = find.byTooltip('刷新当前来源');
+      final more = find.byTooltip('更多网盘操作');
+      expect(tester.getCenter(refresh).dx,
+          greaterThan(tester.getCenter(source).dx));
+      expect(
+          tester.getCenter(more).dx, greaterThan(tester.getCenter(refresh).dx));
+      expect(width - tester.getTopRight(more).dx, inInclusiveRange(8, 24));
+      expect(tester.takeException(), isNull, reason: '窗口宽度 $width');
+    }
+  });
+
+  testWidgets('已有来源时更多菜单保留四种添加入口', (tester) async {
     final fixture = await _PageFixture.create(source: _quarkSource);
 
     await tester.pumpWidget(
@@ -1434,12 +1465,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('添加网盘'));
+    await tester.tap(find.byTooltip('更多网盘操作'));
     await tester.pumpAndSettle();
     expect(find.text('添加夸克网盘'), findsOneWidget);
     expect(find.text('添加百度网盘'), findsOneWidget);
     expect(find.text('添加迅雷网盘'), findsOneWidget);
     expect(find.text('添加 OpenList'), findsOneWidget);
+    expect(find.text('管理网盘来源'), findsOneWidget);
+    expect(find.text('调试中'), findsOneWidget);
     fixture.controller.dispose();
   });
 
@@ -1554,23 +1587,15 @@ void main() {
     );
     expect(find.text('已汇总全部媒体根目录'), findsNothing);
     expect(find.byTooltip('返回上级'), findsNothing);
-    expect(find.byTooltip('管理网盘来源'), findsOneWidget);
+    expect(find.byTooltip('管理网盘来源'), findsNothing);
     expect(find.byTooltip('刷新当前来源'), findsOneWidget);
     expect(find.byTooltip('更多网盘操作'), findsOneWidget);
-    final emptyGenreFilter = tester.widget<PopupMenuButton<String>>(
-      find.byKey(const ValueKey<String>('cloud-genre-filter')),
+    final filter = tester.widget<PopupMenuButton<String>>(
+      find.byKey(const ValueKey<String>('cloud-resource-filter')),
     );
-    expect(emptyGenreFilter.enabled, isTrue);
-    final emptyCustomTagFilter = tester.widget<PopupMenuButton<String>>(
-      find.byKey(const ValueKey<String>('cloud-custom-tag-filter')),
-    );
-    expect(emptyCustomTagFilter.enabled, isTrue);
-    expect(emptyGenreFilter.constraints, isNotNull);
-    expect(
-      emptyCustomTagFilter.constraints?.maxHeight,
-      emptyGenreFilter.constraints?.maxHeight,
-    );
-    await tester.tap(find.byTooltip('筛选 TMDB 类型'));
+    expect(filter.enabled, isTrue);
+    expect(filter.constraints, isNotNull);
+    await tester.tap(find.byTooltip('筛选'));
     await tester.pumpAndSettle();
     expect(find.text('暂无类型标签'), findsOneWidget);
     expect(find.text('刮削当前来源生成标签'), findsOneWidget);
@@ -1648,38 +1673,27 @@ void main() {
     final sourceSelector = find.byKey(
       const ValueKey<String>('cloud-source-selector'),
     );
-    final genreFilter = find.byKey(
-      const ValueKey<String>('cloud-genre-filter'),
-    );
-    final customTagFilter = find.byKey(
-      const ValueKey<String>('cloud-custom-tag-filter'),
-    );
-    expect(genreFilter, findsOneWidget);
-    expect(customTagFilter, findsOneWidget);
-    expect(
-      tester.getCenter(genreFilter).dx,
-      greaterThan(tester.getCenter(sourceSelector).dx),
-    );
-    expect(
-      tester.getCenter(customTagFilter).dx,
-      greaterThan(tester.getCenter(genreFilter).dx),
-    );
-
-    await tester.tap(find.byTooltip('筛选 TMDB 类型'));
+    final filter = find.byKey(const ValueKey<String>('cloud-resource-filter'));
+    expect(filter, findsOneWidget);
+    expect(tester.getCenter(filter).dx,
+        greaterThan(tester.getCenter(sourceSelector).dx));
+    expect(tester.getCenter(sourceSelector).dx,
+        greaterThan(tester.getCenter(find.text('网盘媒体库')).dx));
+    await tester.tap(find.byTooltip('筛选'));
     await tester.pumpAndSettle();
     await tester.tap(_checkedCloudGenreItem('科幻'));
     await tester.pumpAndSettle();
     expect(find.text('科幻作品'), findsOneWidget);
     expect(find.text('纪录片作品'), findsNothing);
 
-    await tester.tap(find.byTooltip('筛选 TMDB 类型'));
+    await tester.tap(find.byTooltip('筛选'));
     await tester.pumpAndSettle();
     await tester.tap(_checkedCloudGenreItem('纪录片'));
     await tester.pumpAndSettle();
     expect(find.text('科幻作品'), findsOneWidget);
     expect(find.text('纪录片作品'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('筛选 TMDB 类型'));
+    await tester.tap(find.byTooltip('筛选'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('清除'));
     await tester.pumpAndSettle();
@@ -1711,7 +1725,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('筛选 TMDB 类型'));
+    await tester.tap(find.byTooltip('筛选'));
     await tester.pumpAndSettle();
     final menuScrollable = find.ancestor(
       of: find.text('类型 19'),
@@ -1740,7 +1754,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('筛选 TMDB 类型'));
+    await tester.tap(find.byTooltip('筛选'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('刮削当前来源生成标签'));
     await tester.pumpAndSettle();
@@ -1788,13 +1802,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(fixture.controller.availableCustomTags, <String>['收藏']);
-    await tester.tap(find.byTooltip('筛选 TMDB 类型'));
-    await tester.pumpAndSettle();
-    expect(find.text('自定义标签'), findsNothing);
-    await tester.tapAt(const Offset(2, 2));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byTooltip('筛选自定义标签'));
+    await tester.tap(find.byTooltip('筛选'));
     await tester.pumpAndSettle();
     expect(find.text('自定义标签'), findsOneWidget);
     await tester.tap(_checkedCloudGenreItem('收藏'));

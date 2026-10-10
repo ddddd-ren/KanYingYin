@@ -68,7 +68,8 @@ class MediaNameAnalyzer {
     unicode: true,
   );
   static final RegExp _resolutionPattern = RegExp(
-    r'\b(360p|480p|576p|720p|1080p|1440p|2160p|4K|8K)\b',
+    r'(?<![A-Za-z0-9])(360p|480p|576p|720p|1080p|1440p|2160p|4K|8K|UHD|'
+    r'3840\s*[x×]\s*2160|2160\s*[x×]\s*3840)(?![A-Za-z0-9])',
     caseSensitive: false,
   );
   static final RegExp _sourcePattern = RegExp(
@@ -510,8 +511,16 @@ class MediaNameAnalyzer {
 
   String? _canonicalResolution(String? value) {
     if (value == null) return null;
-    final lower = value.toLowerCase();
-    return lower == '4k' || lower == '8k' ? lower.toUpperCase() : lower;
+    final lower =
+        value.toLowerCase().replaceAll('×', 'x').replaceAll(RegExp(r'\s+'), '');
+    if (lower == '4k' ||
+        lower == '8k' ||
+        lower == 'uhd' ||
+        lower == '3840x2160' ||
+        lower == '2160x3840') {
+      return lower == '8k' ? '8K' : '4K';
+    }
+    return lower;
   }
 
   String? _canonicalSource(String? value) {

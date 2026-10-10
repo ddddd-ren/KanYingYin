@@ -117,6 +117,7 @@ TmdbMetadata? _metadataFromResource(CloudResourceTmdbRecord record) {
     voteCount: record.voteCount,
     posterUrl: record.posterUrl,
     backdropUrl: record.backdropUrl,
+    imageOverride: record.imageOverride,
     language: 'zh-CN',
     matchedAt: record.checkedAt,
     matchConfidence: 1,

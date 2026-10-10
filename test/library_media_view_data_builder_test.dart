@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/library/application/library_media_view_data_builder.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
+import 'package:kanyingyin/modules/local/local_episode_info.dart';
 import 'package:kanyingyin/services/local_series_grouper.dart';
 
 void main() {
@@ -66,6 +67,52 @@ void main() {
       ['4K', '杜比视界', 'HDR', '杜比全景声'],
     );
   });
+
+  test('本地卡片保留结构化清晰度标签', () {
+    final item = _item(
+      path: r'D:\Videos\电影.mkv',
+      name: '电影.mkv',
+      size: 1024,
+      modified: DateTime(2026, 7, 24),
+      resolution: '3840x2160',
+      source: 'Web-DL',
+      codec: 'HEVC',
+    );
+    final data = builder.build(
+      LocalVideoGroup(episodes: [item], titleOverride: '电影'),
+      isScraping: false,
+    );
+    expect(
+      data.technicalBadges.map((badge) => badge.label),
+      ['4K', 'Web-DL', 'HEVC'],
+    );
+  });
+
+  test('目录扫描得到的结构化集信息也用于技术标签', () {
+    final item = _item(
+      path: r'D:\Videos\Movie S01E01.mkv',
+      name: 'Movie S01E01.mkv',
+      size: 1024,
+      modified: DateTime(2026, 7, 24),
+      episodeInfo: const LocalEpisodeInfo(
+        seriesName: 'Movie',
+        seasonNumber: 1,
+        episodeNumber: 1,
+        resolution: '2160p',
+        source: 'Web-DL',
+        codec: 'HEVC',
+      ),
+    );
+    final data = builder.build(
+      LocalVideoGroup(episodes: [item], titleOverride: 'Movie'),
+      isScraping: false,
+    );
+
+    expect(
+      data.technicalBadges.map((badge) => badge.label),
+      ['4K', 'Web-DL', 'HEVC'],
+    );
+  });
 }
 
 LocalFileItem _item({
@@ -75,7 +122,10 @@ LocalFileItem _item({
   required DateTime modified,
   Duration? duration,
   String? resolution,
+  String? source,
+  String? codec,
   String? subtitlePath,
+  LocalEpisodeInfo? episodeInfo,
 }) {
   return LocalFileItem(
     path: path,
@@ -86,6 +136,9 @@ LocalFileItem _item({
     isVideo: true,
     duration: duration,
     resolution: resolution,
+    source: source,
+    codec: codec,
     subtitlePath: subtitlePath,
+    episodeInfo: episodeInfo,
   );
 }

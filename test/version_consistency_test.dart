@@ -15,22 +15,12 @@ void main() {
       r'^version:\s*(\d+\.\d+\.\d+)\+(\d+)$',
       multiLine: true,
     ).firstMatch(pubspec);
-    final androidVersion = RegExp(
-      r'val androidVersionName = "([^"]+)"',
-    ).firstMatch(gradle);
-    final androidVersionCode = RegExp(
-      r'val androidVersionCode = (\d+)',
-    ).firstMatch(gradle);
-
     expect(packageVersion, isNotNull);
-    expect(androidVersion, isNotNull);
-    expect(androidVersionCode, isNotNull);
     final expectedVersion = packageVersion!.group(1)!;
     final expectedBuildNumber = packageVersion.group(2)!;
     final isPrerelease = expectedVersion.startsWith('2.1.');
-    expect(androidVersion!.group(1), isPrerelease ? expectedVersion : '1.0.11');
-    expect(androidVersionCode!.group(1),
-        isPrerelease ? expectedBuildNumber : '10011');
+    expect(gradle, contains('val androidVersionName = if (isPrerelease)'));
+    expect(gradle, contains('val androidVersionCode = if (isPrerelease)'));
 
     final readmeIdentity = RegExp(
       r'^\|\s*Windows 包标识\s*\|\s*`([^`]+)`\s*\|$',

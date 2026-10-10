@@ -15,6 +15,7 @@ export 'package:kanyingyin/services/cloud/cloud_media_library.dart'
         CloudMediaLibrary,
         MediaLibraryEpisode,
         MediaLibrarySeries,
+        MediaLibraryVersionGroup,
         MediaSourceKind;
 
 typedef MediaCategoryLibraryProvider = CloudMediaLibrary Function();
@@ -148,7 +149,7 @@ class MediaCategoryRuntime {
     MediaLibraryEpisode episode,
   ) async {
     final targets = <CloudPlaybackTarget>[
-      for (final item in series.episodes)
+      for (final item in series.playbackEpisodesFor(episode))
         if (item.remoteId != null && item.remotePath != null)
           CloudPlaybackTarget(
             sourceId: item.sourceId,

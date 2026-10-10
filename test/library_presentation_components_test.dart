@@ -22,6 +22,27 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/widgets/poster_cover.dart';
 import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
+LibrarySourceMenu _emptySourceMenu() => LibrarySourceMenu(
+      data: LibrarySourceMenuViewData(sources: const []),
+      onOpen: (_) {},
+      onRemove: (_) {},
+      onRemoveUnavailable: () {},
+    );
+
+Future<void> _tapToolbarAction(WidgetTester tester, String label) async {
+  await tester.tap(find.byTooltip('更多媒体库操作'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(label));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _sortToolbar(WidgetTester tester, String label) async {
+  await tester.tap(find.byTooltip('排序'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(label));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   test('TMDB 匹配状态显示实际 current/total 而不是插值字面量', () {
     final status = LibraryDirectoryStatusViewData.matchingMetadata(
@@ -123,6 +144,7 @@ void main() {
             body: LibraryPathBar(
               data: LibraryPathBarViewData(
                 currentPath: currentPath,
+                mediaCount: 26,
                 breadcrumbs: const [
                   LibraryBreadcrumbViewData(label: 'D:', path: 'D:\\'),
                   LibraryBreadcrumbViewData(
@@ -140,10 +162,10 @@ void main() {
                 sortAscending: true,
                 status: const LibraryDirectoryStatusViewData(
                   kind: LibraryDirectoryStatusKind.idle,
-                  label: '26 部剧 · 412 个视频',
+                  label: '412 个视频',
                 ),
               ),
-              sourceMenu: const SizedBox(width: 32, height: 32),
+              sourceMenu: _emptySourceMenu(),
               searchController: pathBarSearchController,
               onPickDirectory: () async => recordedActions.add('pick'),
               onRefresh: () async => recordedActions.add('refresh'),
@@ -166,15 +188,16 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('原工具栏轻量表面在三种宽度下无溢出', (tester) async {
-      for (final width in <double>[1280, 900, 640]) {
+    testWidgets('右侧工具栏在宽屏和手机宽度下无溢出', (tester) async {
+      for (final width in <double>[1280, 900, 640, 390, 320]) {
         await pumpPathBar(tester, width: width);
 
         expect(
           find.byKey(const ValueKey('library-path-command-surface')),
           findsOneWidget,
         );
-        expect(find.text('本地媒体库'), findsOneWidget);
+        expect(find.text('媒体库'), findsOneWidget);
+        expect(find.text('26 部'), findsOneWidget);
         expect(
           find.byKey(const ValueKey('library-path-breadcrumb-surface')),
           findsOneWidget,
@@ -187,7 +210,7 @@ void main() {
       }
     });
 
-    testWidgets('路径导航左对齐且使用轻量上级图标', (tester) async {
+    testWidgets('路径导航靠右且保留上级目录', (tester) async {
       await pumpPathBar(tester, width: 900);
 
       final surface = find.byKey(
@@ -195,6 +218,7 @@ void main() {
       );
       expect(surface, findsOneWidget);
       expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
+      expect(tester.getCenter(surface).dx, greaterThan(900 / 2));
       final upButton = find.byTooltip('上级目录');
       expect(
         find.descendant(
@@ -231,9 +255,9 @@ void main() {
 
     testWidgets('轻量优化后全部工具动作仍按原参数转发', (tester) async {
       await pumpPathBar(tester, width: 900);
-      await tester.tap(find.byTooltip('选择目录'));
-      await tester.tap(find.byTooltip('刷新'));
-      await tester.tap(find.text('日期'));
+      await _tapToolbarAction(tester, '选择目录');
+      await tester.tap(find.byTooltip('刷新当前目录'));
+      await _sortToolbar(tester, '日期');
       await tester.enterText(
         find.widgetWithText(TextField, '搜索当前目录'),
         '关键字',
@@ -289,7 +313,7 @@ void main() {
                 canGenerateThumbnails: true,
                 canMatchMetadata: true,
               ),
-              sourceMenu: const SizedBox.shrink(),
+              sourceMenu: _emptySourceMenu(),
               searchController: searchController,
               onPickDirectory: () async => picked = true,
               onRefresh: () async => refreshed = true,
@@ -309,29 +333,26 @@ void main() {
         ),
       );
 
-      expect(find.byTooltip('选择目录'), findsOneWidget);
-      expect(find.byTooltip('刷新'), findsOneWidget);
+      expect(find.byTooltip('选择目录'), findsNothing);
+      expect(find.byTooltip('更多媒体库操作'), findsOneWidget);
+      expect(find.byTooltip('刷新当前目录'), findsOneWidget);
       expect(
           find.byKey(const ValueKey('library-path-address')), findsOneWidget);
-      expect(find.text('名称'), findsOneWidget);
+      expect(find.text('排序：名称'), findsOneWidget);
       expect(find.text('2 部剧/12 个视频'), findsOneWidget);
       expect(find.widgetWithText(TextField, '搜索当前目录'), findsOneWidget);
       expect(find.text('获取海报'), findsNothing);
-      expect(find.byTooltip('读取媒体信息'), findsOneWidget);
-      expect(find.byTooltip('生成缩略图'), findsOneWidget);
-      expect(find.byTooltip('匹配影片信息'), findsOneWidget);
-
-      await tester.tap(find.byTooltip('读取媒体信息'));
-      await tester.tap(find.byTooltip('生成缩略图'));
-      await tester.tap(find.byTooltip('匹配影片信息'));
-      await tester.pumpAndSettle();
+      expect(find.byTooltip('读取媒体信息'), findsNothing);
+      await _tapToolbarAction(tester, '读取当前目录媒体信息');
+      await _tapToolbarAction(tester, '生成当前目录缩略图');
+      await _tapToolbarAction(tester, '匹配媒体库影片信息');
       expect(fetchedMediaInfo, isTrue);
       expect(generatedThumbnails, isTrue);
       expect(matchedMetadata, isTrue);
 
-      await tester.tap(find.byTooltip('选择目录'));
-      await tester.tap(find.byTooltip('刷新'));
-      await tester.tap(find.text('大小'));
+      await _tapToolbarAction(tester, '选择目录');
+      await tester.tap(find.byTooltip('刷新当前目录'));
+      await _sortToolbar(tester, '大小');
       await tester.enterText(
         find.widgetWithText(TextField, '搜索当前目录'),
         '关键字',
@@ -375,7 +396,7 @@ void main() {
                 canGenerateThumbnails: true,
                 canMatchMetadata: true,
               ),
-              sourceMenu: const SizedBox.shrink(),
+              sourceMenu: _emptySourceMenu(),
               searchController: pathBarSearchController,
               onPickDirectory: () {},
               onRefresh: () {},
@@ -392,27 +413,21 @@ void main() {
         ),
       );
 
-      expect(
-        find.descendant(
-          of: find.byTooltip('读取媒体信息'),
-          matching: find.byType(CircularProgressIndicator),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: find.byTooltip('生成缩略图'),
-          matching: find.byType(CircularProgressIndicator),
-        ),
-        findsNothing,
-      );
-      expect(
-        find.descendant(
-          of: find.byTooltip('匹配影片信息'),
-          matching: find.byType(CircularProgressIndicator),
-        ),
-        findsNothing,
-      );
+      await tester.tap(find.byTooltip('更多媒体库操作'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      for (final label in ['读取当前目录媒体信息', '生成当前目录缩略图', '匹配媒体库影片信息']) {
+        final menuItem = find.ancestor(
+            of: find.text(label),
+            matching: find.byType(PopupMenuItem<LibraryMenuAction>));
+        expect(
+            find.descendant(
+                of: menuItem, matching: find.byType(CircularProgressIndicator)),
+            label == '读取当前目录媒体信息' ? findsOneWidget : findsNothing);
+      }
+      await tester.tapAt(const Offset(2, 2));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
     });
 
     testWidgets('紧凑地址框按 Enter 跳转并显示失败错误', (tester) async {

@@ -360,6 +360,7 @@ class CloudResourceTmdbService {
       rating: record.rating,
       posterUrl: record.posterUrl,
       backdropUrl: record.backdropUrl,
+      imageOverride: record.imageOverride,
       language: 'zh-CN',
       matchedAt: record.checkedAt,
       matchConfidence: 1,
@@ -416,8 +417,8 @@ class CloudResourceTmdbService {
       tmdbOriginalTitle: metadata.originalTitle,
       tmdbOverview: metadata.overview,
       tmdbRating: metadata.rating,
-      tmdbPosterUrl: metadata.posterUrl,
-      tmdbBackdropUrl: metadata.backdropUrl,
+      tmdbPosterUrl: metadata.imageOverride.poster ?? metadata.posterUrl,
+      tmdbBackdropUrl: metadata.imageOverride.backdrop ?? metadata.backdropUrl,
       tmdbGenres: metadata.genres,
       posterCachePath: posterCachePath,
     );

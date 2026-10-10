@@ -10,7 +10,7 @@ import 'package:path/path.dart' as p;
 
 class LocalMediaIndexItem {
   static const int pathFingerprintVersion = 2;
-  static const int currentDerivedMetadataVersion = 4;
+  static const int currentDerivedMetadataVersion = 5;
 
   final MediaLocation location;
   String get path => location.value;

@@ -52,6 +52,30 @@ class CloudResourceMediaLibraryAdapter {
         group.workRecord?.posterCachePath ??
         legacy?.posterCachePath ??
         firstItem?.posterCachePath;
+    final versions = group.versions.isNotEmpty
+        ? group.versions
+        : group.seasons.any((season) => season.versions.isNotEmpty)
+            ? [
+                for (final season in group.seasons)
+                  if (season.versions.isEmpty)
+                    CloudResourceVersionGroup(
+                      key: '${group.stableKey}|season:${season.seasonNumber}',
+                      label: season.seasonNumber == null
+                          ? '未识别季度'
+                          : '第 ${season.seasonNumber} 季',
+                      videos: season.videos,
+                    )
+                  else
+                    for (final version in season.versions)
+                      CloudResourceVersionGroup(
+                        key: version.key,
+                        label: group.seasons.length > 1
+                            ? '第 ${season.seasonNumber} 季 · ${version.label}'
+                            : version.label,
+                        videos: version.videos,
+                      ),
+              ]
+            : const <CloudResourceVersionGroup>[];
 
     return MediaLibrarySeries(
       key: group.stableKey,
@@ -72,6 +96,25 @@ class CloudResourceMediaLibraryAdapter {
       tmdbReleaseDate: metadata?.releaseDate ?? legacy?.releaseDate,
       tmdbPosterUrl: posterUrl,
       posterCachePath: posterCachePath,
+      versions: versions
+          .map((version) => MediaLibraryVersionGroup(
+                key: version.key,
+                label: version.label,
+                episodes: version.videos
+                    .map((video) => _episode(
+                          source,
+                          video,
+                          indexedByIdentity[
+                              _identity(video.id, video.remotePath)],
+                          metadata: metadata,
+                          legacy: legacy,
+                          posterUrl: posterUrl,
+                          posterCachePath: posterCachePath,
+                          playbackVersionKey: version.key,
+                        ))
+                    .toList(growable: false),
+              ))
+          .toList(growable: false),
       episodes: group.videos
           .map(
             (video) => _episode(
@@ -96,6 +139,7 @@ class CloudResourceMediaLibraryAdapter {
     required CloudResourceTmdbRecord? legacy,
     required String? posterUrl,
     required String? posterCachePath,
+    String? playbackVersionKey,
   }) {
     final remoteId = video.id.trim().isEmpty ? video.remotePath : video.id;
     return MediaLibraryEpisode.cloud(
@@ -121,6 +165,8 @@ class CloudResourceMediaLibraryAdapter {
       modifiedAt: video.modifiedAt,
       seasonNumber: video.seasonNumber ?? item?.seasonNumber,
       episodeNumber: video.episodeNumber ?? item?.episodeNumber,
+      playbackVersionKey: playbackVersionKey ?? video.playbackVersionKey,
+      sharedFromVersionLabel: video.sharedFromVersionLabel,
       subtitleRemotePaths: item?.subtitlePaths ?? const <String>[],
       subtitleRemoteRefs: item?.subtitleRefs ?? const <CloudRemoteRef>[],
       releaseTags: video.releaseTags,

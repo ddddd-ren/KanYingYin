@@ -95,4 +95,15 @@ void main() {
       isNot(contains('Proper')),
     );
   });
+
+  test('文件名中的 UHD 和 3840x2160 统一识别为 4K', () {
+    expect(
+        resolver.resolve(
+            names: const ['电影.UHD.WEB-DL.mkv']).map((item) => item.label),
+        contains('4K'));
+    expect(
+        resolver.resolve(
+            names: const ['电影.3840x2160.mkv']).map((item) => item.label),
+        contains('4K'));
+  });
 }

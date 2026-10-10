@@ -605,6 +605,7 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
                           names: [
                             episode.name,
                             if (local != null) local.path,
+                            if (local != null) ...local.originalNames,
                             if (episode.remotePath != null) episode.remotePath!,
                           ],
                           releaseTags: [episode.releaseTags],

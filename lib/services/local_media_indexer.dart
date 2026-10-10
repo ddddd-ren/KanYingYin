@@ -923,6 +923,7 @@ class LocalMediaIndexer
           previous.manualOverride ? previous.resolution : current.resolution,
       source: previous.manualOverride ? previous.source : current.source,
       codec: previous.manualOverride ? previous.codec : current.codec,
+      originalNames: previous.originalNames,
       tmdb: previous.tmdb,
       tmdbIdentity: previous.tmdbIdentity,
       titleLocked: previous.titleLocked,

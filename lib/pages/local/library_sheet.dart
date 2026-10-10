@@ -714,7 +714,7 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
   Widget _epTile(BuildContext ctx, ColorScheme cs, TextTheme tt,
       LocalMediaSeries series, LocalMediaIndexItem ep) {
     final technicalBadges = const MediaTechnicalBadgeResolver().resolve(
-      names: [ep.name, ep.path],
+      names: [ep.name, ep.path, ...ep.originalNames],
       resolution: ep.resolution,
       videoWidth: ep.videoWidth,
       videoHeight: ep.videoHeight,

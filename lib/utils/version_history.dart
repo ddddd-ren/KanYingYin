@@ -27,6 +27,18 @@ class VersionHistory {
 /// 区段拆分到 part 文件，展开顺序与原列表完全一致，不得重排。
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.215',
+    date: '2026-10-11',
+    isPrerelease: true,
+    changes: [
+      '本地媒体索引支持保存已核对的原名称候选，并从原名称补充捕捉清晰度、来源和编码等技术标签',
+      '本地媒体重扫、文件改名迁移以及海报卡片、详情页和选集页都会保留并使用这些标签',
+      '继续识别 2160p、3840x2160 和 UHD 等常见 4K 写法，并汇总显示多个文件中的最高规格',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+    ],
+  ),
+  VersionHistory(
     version: '1.0.16',
     date: '2026-10-11',
     changes: [
@@ -223,6 +235,22 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '2.1.215' && platform == AppPlatformKind.android) {
+    return const [
+      VersionHistory(
+        version: '2.1.215',
+        date: '2026-10-11',
+        isPrerelease: true,
+        changes: [
+          '手机和平板支持使用已核对的媒体原名称补充捕捉清晰度、来源和编码等技术标签',
+          '本地媒体重扫、文件改名迁移以及媒体卡片和详情页会保留并使用这些标签',
+          '手机和平板继续识别 2160p、3840x2160 和 UHD 等常见 4K 写法，并汇总显示多个文件中的最高规格',
+          '继续支持本地媒体库、个人网盘、字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+        ],
+      ),
+    ];
+  }
   if (currentVersion == '2.1.214' && platform == AppPlatformKind.android) {
     return const [
       VersionHistory(

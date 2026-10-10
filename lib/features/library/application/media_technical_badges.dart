@@ -29,13 +29,16 @@ class MediaTechnicalBadgeResolver {
 
   List<MediaTechnicalBadge> resolve({
     required Iterable<String> names,
+    Iterable<String> originalNames = const <String>[],
     String? resolution,
     int? videoWidth,
     int? videoHeight,
     Iterable<MediaReleaseTags> releaseTags = const <MediaReleaseTags>[],
   }) {
-    final sources =
-        names.where((name) => name.trim().isNotEmpty).toList(growable: false);
+    final sources = [
+      ...names,
+      ...originalNames,
+    ].where((name) => name.trim().isNotEmpty).toList(growable: false);
     final parsedFromNames = sources
         .map(
           (name) => const MediaNameAnalyzer()

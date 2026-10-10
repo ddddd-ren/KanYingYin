@@ -60,6 +60,7 @@ class UnifiedMediaCardInfoBuilder {
           names: [
             episode.name,
             if (episode.localItem != null) episode.localItem!.path,
+            if (episode.localItem != null) ...episode.localItem!.originalNames,
             if (episode.remotePath != null) episode.remotePath!,
           ],
           releaseTags: [episode.releaseTags],

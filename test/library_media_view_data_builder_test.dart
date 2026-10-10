@@ -113,6 +113,25 @@ void main() {
       ['4K', 'Web-DL', 'HEVC'],
     );
   });
+
+  test('本地文件核对到的原名称也用于技术标签', () {
+    final item = _item(
+      path: r'D:\Videos\重命名.mkv',
+      name: '重命名.mkv',
+      size: 1024,
+      modified: DateTime(2026, 7, 24),
+      originalNames: const ['Movie.2160p.HDR10Plus.WEB-DL.HEVC.mkv'],
+    );
+    final data = builder.build(
+      LocalVideoGroup(episodes: [item], titleOverride: '电影'),
+      isScraping: false,
+    );
+
+    expect(
+      data.technicalBadges.map((badge) => badge.label),
+      containsAll(<String>['4K', 'HDR10+', 'Web-DL', 'HEVC']),
+    );
+  });
 }
 
 LocalFileItem _item({
@@ -126,6 +145,7 @@ LocalFileItem _item({
   String? codec,
   String? subtitlePath,
   LocalEpisodeInfo? episodeInfo,
+  Iterable<String> originalNames = const <String>[],
 }) {
   return LocalFileItem(
     path: path,
@@ -140,5 +160,6 @@ LocalFileItem _item({
     codec: codec,
     subtitlePath: subtitlePath,
     episodeInfo: episodeInfo,
+    originalNames: originalNames,
   );
 }

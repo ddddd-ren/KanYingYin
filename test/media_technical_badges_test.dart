@@ -106,4 +106,18 @@ void main() {
             names: const ['电影.3840x2160.mkv']).map((item) => item.label),
         contains('4K'));
   });
+
+  test('核对到的原名称也参与技术标签捕捉', () {
+    final result = resolver.resolve(
+      names: const ['本地重命名.mkv', 'D:/Videos/本地重命名.mkv'],
+      originalNames: const [
+        'Movie.2160p.HDR10Plus.WEB-DL.HEVC.mkv',
+      ],
+    );
+
+    expect(
+      result.map((item) => item.label),
+      containsAll(<String>['4K', 'HDR10+', 'Web-DL', 'HEVC']),
+    );
+  });
 }

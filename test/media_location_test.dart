@@ -47,6 +47,7 @@ void main() {
       size: 100,
       modified: DateTime(2026),
       seriesName: '剧集',
+      originalNames: const ['Movie.2160p.HDR.mkv'],
       indexedAt: DateTime(2026),
     );
 
@@ -57,5 +58,7 @@ void main() {
     expect(restored.sourceLocation, source);
     expect(restored.path, media.value);
     expect(restored.id, media.stableId);
+    expect(restored.originalNames, const ['Movie.2160p.HDR.mkv']);
+    expect(restored.toFileItem().originalNames, const ['Movie.2160p.HDR.mkv']);
   });
 }

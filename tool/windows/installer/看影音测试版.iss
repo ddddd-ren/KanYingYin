@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.16"
+  #define MyAppVersion "2.1.215"
 #endif
 #ifndef BuildDir
   #define BuildDir "..\..\..\build\windows\x64\runner\Release"

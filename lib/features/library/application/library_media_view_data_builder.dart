@@ -20,7 +20,7 @@ class LibraryMediaViewDataBuilder {
     final technicalBadges = resolver.aggregate([
       for (final item in group.episodes)
         resolver.resolve(
-          names: [item.name, item.path],
+          names: [item.name, item.path, ...item.originalNames],
           resolution: item.resolution ?? item.episodeInfo?.resolution,
           videoWidth: item.videoWidth,
           videoHeight: item.videoHeight,

@@ -34,17 +34,17 @@ Future<void> _openVersionChangelogDialog(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('1.0.16 正式版更新弹窗展示近期功能汇总', (tester) async {
-    expect(AppVersion.current, '1.0.16');
+  testWidgets('2.1.215 测试版更新弹窗展示原名称标签功能', (tester) async {
+    expect(AppVersion.current, '2.1.215');
     final entries = versionHistoryForCurrent(AppVersion.current);
     expect(entries, hasLength(1));
-    expect(entries.single.isPrerelease, isFalse);
+    expect(entries.single.isPrerelease, isTrue);
     expect(entries.single.date, '2026-10-11');
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(body: VersionChangelogContent(versions: entries)),
     ));
-    expect(find.text('v1.0.16  正式版  2026-10-11'), findsOneWidget);
-    for (final text in ['网盘', '版本', '换图', '原始视频']) {
+    expect(find.text('v2.1.215  测试版  2026-10-11'), findsOneWidget);
+    for (final text in ['原名称', '标签', 'Windows', '原始视频']) {
       expect(find.textContaining(text), findsWidgets);
     }
     expect(tester.takeException(), isNull);
@@ -66,26 +66,26 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  test('Android 1.0.12 正式版只展示手机和平板实际功能', () {
+  test('Android 2.1.215 测试版只展示手机和平板实际功能', () {
     final entries = versionHistoryForCurrent(
-      '1.0.16',
+      '2.1.215',
       platform: AppPlatformKind.android,
     );
 
     expect(entries, hasLength(1));
-    expect(entries.single.version, '1.0.12');
-    expect(entries.single.isPrerelease, isFalse);
+    expect(entries.single.version, '2.1.215');
+    expect(entries.single.isPrerelease, isTrue);
     final changes = entries.single.changes.join('\n');
     for (final text in <String>[
       '手机和平板',
-      '版本',
-      '换图',
+      '原名称',
+      '标签',
       'MediaCodec',
       '不会修改',
     ]) {
       expect(changes, contains(text));
     }
-    expect(changes, isNot(contains('测试版')));
+    expect(changes, isNot(contains('Windows 测试版')));
     expect(changes, isNot(contains('Android TV')));
     expect(changes, isNot(contains('首次正式发布')));
   });

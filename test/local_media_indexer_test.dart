@@ -595,6 +595,7 @@ void main() {
           tmdb: metadata,
           tmdbIdentity: 'tv:42',
           cover: 'cached-poster.jpg',
+          originalNames: const ['Show.S01E01.2160p.HDR.mkv'],
           scrapeStatus: TmdbScrapeStatus.matched,
           tmdbMatchOrigin: TmdbMatchOrigin.manual,
           tmdbRuleVersion: currentTmdbRuleVersion,
@@ -615,6 +616,7 @@ void main() {
     expect(updated.posterLocked, isTrue);
     expect(updated.overviewLocked, isTrue);
     expect(updated.cover, 'cached-poster.jpg');
+    expect(updated.originalNames, const ['Show.S01E01.2160p.HDR.mkv']);
   });
 
   test('同路径重新解析为其他作品时不继承旧 TMDB', () async {

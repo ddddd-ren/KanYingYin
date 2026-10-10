@@ -48,6 +48,9 @@ class LocalFileItem {
   final String? resolution;
   final String? source;
   final String? codec;
+
+  /// 由外部来源核对得到的原名称，用于补充技术标签解析。
+  final List<String> originalNames;
   final String? seriesTitleOverride;
   final String? tmdbIdentity;
 
@@ -69,9 +72,11 @@ class LocalFileItem {
     this.resolution,
     this.source,
     this.codec,
+    Iterable<String> originalNames = const <String>[],
     this.seriesTitleOverride,
     this.tmdbIdentity,
-  })  : assert(path != null || location != null),
+  })  : originalNames = List<String>.unmodifiable(originalNames),
+        assert(path != null || location != null),
         assert(path == null || location == null),
         location = location ?? MediaLocation.file(path!);
 
@@ -144,6 +149,7 @@ class LocalFileItem {
     String? resolution,
     String? source,
     String? codec,
+    Iterable<String>? originalNames,
     String? seriesTitleOverride,
     String? tmdbIdentity,
   }) {
@@ -166,6 +172,7 @@ class LocalFileItem {
       resolution: resolution ?? this.resolution,
       source: source ?? this.source,
       codec: codec ?? this.codec,
+      originalNames: originalNames ?? this.originalNames,
       seriesTitleOverride: seriesTitleOverride ?? this.seriesTitleOverride,
       tmdbIdentity: tmdbIdentity ?? this.tmdbIdentity,
     );

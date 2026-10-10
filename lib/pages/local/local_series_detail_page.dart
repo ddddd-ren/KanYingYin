@@ -167,7 +167,7 @@ class _LocalSeriesDetailPageState extends State<LocalSeriesDetailPage> {
 
   Widget _episodeDetails(LocalMediaIndexItem episode) {
     final badges = const MediaTechnicalBadgeResolver().resolve(
-      names: [episode.name, episode.path],
+      names: [episode.name, episode.path, ...episode.originalNames],
       resolution: episode.resolution,
       videoWidth: episode.videoWidth,
       videoHeight: episode.videoHeight,

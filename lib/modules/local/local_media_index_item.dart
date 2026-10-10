@@ -34,6 +34,10 @@ class LocalMediaIndexItem {
   final String? resolution;
   final String? source;
   final String? codec;
+
+  /// 由外部来源核对得到的原名称，用于补充技术标签解析。
+  // shortcut: 只保存外部已核对的名称，不在扫描时猜测夸克记录；接入可用历史 API 后再自动填充。
+  final List<String> originalNames;
   final TmdbMetadata? tmdb;
   final String? tmdbIdentity;
   final bool titleLocked;
@@ -71,6 +75,7 @@ class LocalMediaIndexItem {
     this.resolution,
     this.source,
     this.codec,
+    Iterable<String> originalNames = const <String>[],
     this.tmdb,
     this.tmdbIdentity,
     this.titleLocked = false,
@@ -82,7 +87,8 @@ class LocalMediaIndexItem {
     this.manualOverride = false,
     String? pathFingerprint,
     this.derivedMetadataVersion = currentDerivedMetadataVersion,
-  })  : assert(path != null || location != null),
+  })  : originalNames = List<String>.unmodifiable(originalNames),
+        assert(path != null || location != null),
         assert(path == null || location == null),
         assert(parentPath != null || parentLocation != null),
         assert(parentPath == null || parentLocation == null),
@@ -103,6 +109,7 @@ class LocalMediaIndexItem {
     Duration? duration,
     int? videoWidth,
     int? videoHeight,
+    Iterable<String> originalNames = const <String>[],
     DateTime? indexedAt,
   }) {
     final fileName = p.basename(file.path);
@@ -126,6 +133,7 @@ class LocalMediaIndexItem {
       resolution: episodeInfo?.resolution,
       source: episodeInfo?.source,
       codec: episodeInfo?.codec,
+      originalNames: originalNames,
       manualOverride: false,
       pathFingerprint: buildPathFingerprint(file.path, stat),
       derivedMetadataVersion: currentDerivedMetadataVersion,
@@ -165,6 +173,7 @@ class LocalMediaIndexItem {
       resolution: _asNullableString(json['resolution']),
       source: _asNullableString(json['source']),
       codec: _asNullableString(json['codec']),
+      originalNames: _asStringList(json['originalNames']),
       tmdb: _parseTmdb(json),
       tmdbIdentity: _asNullableString(json['tmdbIdentity']),
       titleLocked: json['titleLocked'] == true,
@@ -214,6 +223,7 @@ class LocalMediaIndexItem {
         'resolution': resolution,
       if (source != null && source!.isNotEmpty) 'source': source,
       if (codec != null && codec!.isNotEmpty) 'codec': codec,
+      if (originalNames.isNotEmpty) 'originalNames': originalNames,
       if (tmdb != null) 'tmdb': tmdb!.toJson(),
       if (tmdbIdentity != null && tmdbIdentity!.isNotEmpty)
         'tmdbIdentity': tmdbIdentity,
@@ -335,6 +345,7 @@ class LocalMediaIndexItem {
       resolution: resolution,
       source: source,
       codec: codec,
+      originalNames: originalNames,
       tmdbIdentity: effectiveTmdbIdentity,
     );
   }
@@ -362,6 +373,7 @@ class LocalMediaIndexItem {
     String? resolution,
     String? source,
     String? codec,
+    Iterable<String>? originalNames,
     TmdbMetadata? tmdb,
     String? tmdbIdentity,
     bool clearTmdb = false,
@@ -405,6 +417,7 @@ class LocalMediaIndexItem {
       resolution: resolution ?? this.resolution,
       source: source ?? this.source,
       codec: codec ?? this.codec,
+      originalNames: originalNames ?? this.originalNames,
       tmdb: clearTmdb ? null : tmdb ?? this.tmdb,
       tmdbIdentity:
           clearTmdbIdentity ? null : tmdbIdentity ?? this.tmdbIdentity,
@@ -452,6 +465,7 @@ class LocalMediaIndexItem {
       resolution: resolution,
       source: source,
       codec: codec,
+      originalNames: originalNames,
       tmdb: effectiveMetadata,
       tmdbIdentity: metadata == null
           ? tmdbIdentity
@@ -511,6 +525,16 @@ class LocalMediaIndexItem {
   static String? _asNullableString(Object? value) {
     final text = value?.toString().trim();
     return text == null || text.isEmpty ? null : text;
+  }
+
+  static List<String> _asStringList(Object? value) {
+    if (value is! List) return const <String>[];
+    final result = <String>[];
+    for (final item in value.whereType<String>()) {
+      final text = item.trim();
+      if (text.isNotEmpty && !result.contains(text)) result.add(text);
+    }
+    return List<String>.unmodifiable(result);
   }
 
   static DateTime _dateFromMillis(Object? value) {

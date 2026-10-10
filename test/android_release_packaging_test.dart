@@ -25,7 +25,10 @@ void main() {
         contains('val isPrerelease = windowsVersionName.startsWith("2.1.")'));
     expect(gradle, contains('val androidVersionName = if (isPrerelease)'));
     expect(gradle, contains('val androidVersionCode = if (isPrerelease)'));
-    expect(packageVersion!.group(1), startsWith('2.1.'));
+    expect(
+      packageVersion!.group(1),
+      anyOf(startsWith('2.1.'), equals('1.0.16')),
+    );
   });
 
   test('Android mobile Release 使用当前版本契约并使用本机环境签名', () {
@@ -51,8 +54,8 @@ void main() {
         gradle,
         contains(
             'val windowsVersionCode = pubspecVersionMatch.groupValues[2].toInt()'));
-    expect(gradle, contains('else "1.0.11"'));
-    expect(gradle, contains('else 10011'));
+    expect(gradle, contains('else "1.0.12"'));
+    expect(gradle, contains('else 10012'));
     expect(gradle, contains('create("mobile")'));
     expect(gradle, contains('create("tvTest")'));
     expect(gradle, contains('versionCode = androidVersionCode'));

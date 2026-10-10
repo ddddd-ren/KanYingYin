@@ -30,7 +30,7 @@ void main() {
       currentReleaseNotes,
       contains(isPrerelease
           ? 'Android 手机测试版：$version ($buildNumber)'
-          : 'Android 正式版：1.0.11 (10011)'),
+          : 'Android 正式版：1.0.12 (10012)'),
     );
     for (final text in <String>[
       '版本',
@@ -76,10 +76,11 @@ void main() {
       updateDialogCopy,
       contains(isPrerelease
           ? 'Android 手机测试版：$version ($buildNumber)'
-          : 'Android 手机正式版：1.0.11 (10011)'),
+          : 'Android 手机正式版：1.0.12 (10012)'),
     );
     expect(versionHistory, contains("version: '$version'"));
-    expect(gradle, contains('val isPrerelease = windowsVersionName.startsWith("2.1.")'));
+    expect(gradle,
+        contains('val isPrerelease = windowsVersionName.startsWith("2.1.")'));
     expect(gradle, contains('val androidVersionName = if (isPrerelease)'));
     expect(gradle, contains('val androidVersionCode = if (isPrerelease)'));
     expect(androidScript, contains(r'$isPrerelease ='));

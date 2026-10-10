@@ -10,13 +10,13 @@
 
 ## 下载正式版
 
-当前正式版为 Windows 1.0.15 和 Android 1.0.11。你可以在 [看影音 v1.0.15 Release](https://github.com/ddddd-ren/KanYingYin/releases/tag/v1.0.15) 查看更新说明和文件校验信息。
+当前正式版为 Windows 1.0.16 和 Android 1.0.12。你可以在 [看影音 v1.0.16 Release](https://github.com/ddddd-ren/KanYingYin/releases/tag/v1.0.16) 查看更新说明和文件校验信息。
 
 | 平台 | 当前版本 | 下载文件 | 用途 |
 | --- | --- | --- | --- |
-| Windows 10/11 x64 | 1.0.15 | [KanYingYin-1.0.15.exe](https://github.com/ddddd-ren/KanYingYin/releases/download/v1.0.15/KanYingYin-1.0.15.exe) | 普通用户安装程序 |
-| Android 7.0+ | 1.0.11 (10011) | [KanYingYin-1.0.11.apk](https://github.com/ddddd-ren/KanYingYin/releases/download/v1.0.15/KanYingYin-1.0.11.apk) | Android 手机安装包 |
-| Android 应用商店 | 1.0.11 (10011) | [KanYingYin-1.0.11.aab](https://github.com/ddddd-ren/KanYingYin/releases/download/v1.0.15/KanYingYin-1.0.11.aab) | 应用商店交付包 |
+| Windows 10/11 x64 | 1.0.16 | [KanYingYin-1.0.16.exe](https://github.com/ddddd-ren/KanYingYin/releases/download/v1.0.16/KanYingYin-1.0.16.exe) | 普通用户安装程序 |
+| Android 7.0+ | 1.0.12 (10012) | [KanYingYin-1.0.12.apk](https://github.com/ddddd-ren/KanYingYin/releases/download/v1.0.16/KanYingYin-1.0.12.apk) | Android 手机安装包 |
+| Android 应用商店 | 1.0.12 (10012) | [KanYingYin-1.0.12.aab](https://github.com/ddddd-ren/KanYingYin/releases/download/v1.0.16/KanYingYin-1.0.12.aab) | 应用商店交付包 |
 
 正式版下载区只列稳定版资产。Windows `2.1.x` 测试版使用单独的 Inno Setup 安装器名称，不代表正式版，也不会替换这里的正式版下载链接；测试版验证结果以 `RELEASE_NOTES.md` 和对应版本弹窗文案为准。
 
@@ -87,8 +87,8 @@
 | --- | --- |
 | 支持平台 | Windows 10/11 x64；Android 7.0+（API 24+） |
 | 安装格式 | EXE / APK |
-| 当前版本 | 1.0.15 |
-| Android 版本 | 1.0.11 (10011) |
+| 当前版本 | 1.0.16 |
+| Android 版本 | 1.0.12 (10012) |
 | Dart 包名 | `kanyingyin` |
 | Windows 包标识 | `com.kanyingyin.player` |
 | Android 应用标识 | `com.kanyingyin.player` |
@@ -100,13 +100,13 @@ Windows 安装目录、应用数据目录和缓存目录均可由你选择，不
 
 ### Windows
 
-1. 下载 [KanYingYin-1.0.15.exe](https://github.com/ddddd-ren/KanYingYin/releases/download/v1.0.15/KanYingYin-1.0.15.exe)
+1. 下载 [KanYingYin-1.0.16.exe](https://github.com/ddddd-ren/KanYingYin/releases/download/v1.0.16/KanYingYin-1.0.16.exe)
 2. 运行安装程序，在安装向导中选择安装目录
 3. 首次启动时，如桌面或开始菜单没有快捷方式，按弹窗提示决定是否创建
 
 ### Android 手机
 
-1. 下载 [KanYingYin-1.0.11.apk](https://github.com/ddddd-ren/KanYingYin/releases/download/v1.0.15/KanYingYin-1.0.11.apk)
+1. 下载 [KanYingYin-1.0.12.apk](https://github.com/ddddd-ren/KanYingYin/releases/download/v1.0.16/KanYingYin-1.0.12.apk)
 2. 允许当前文件管理器安装未知来源应用
 3. 按 Android 系统提示完成安装
 

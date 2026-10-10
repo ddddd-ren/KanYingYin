@@ -34,17 +34,17 @@ Future<void> _openVersionChangelogDialog(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('2.1.214 测试版更新弹窗展示换图一致性修复', (tester) async {
-    expect(AppVersion.current, '2.1.214');
+  testWidgets('1.0.16 正式版更新弹窗展示近期功能汇总', (tester) async {
+    expect(AppVersion.current, '1.0.16');
     final entries = versionHistoryForCurrent(AppVersion.current);
     expect(entries, hasLength(1));
-    expect(entries.single.isPrerelease, isTrue);
+    expect(entries.single.isPrerelease, isFalse);
     expect(entries.single.date, '2026-10-11');
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(body: VersionChangelogContent(versions: entries)),
     ));
-    expect(find.text('v2.1.214  测试版  2026-10-11'), findsOneWidget);
-    for (final text in ['网盘', '连续更换', '日志', '原始视频']) {
+    expect(find.text('v1.0.16  正式版  2026-10-11'), findsOneWidget);
+    for (final text in ['网盘', '版本', '换图', '原始视频']) {
       expect(find.textContaining(text), findsWidgets);
     }
     expect(tester.takeException(), isNull);
@@ -66,20 +66,20 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  test('Android 1.0.11 正式版只展示手机和平板实际功能', () {
+  test('Android 1.0.12 正式版只展示手机和平板实际功能', () {
     final entries = versionHistoryForCurrent(
-      '1.0.15',
+      '1.0.16',
       platform: AppPlatformKind.android,
     );
 
     expect(entries, hasLength(1));
-    expect(entries.single.version, '1.0.11');
+    expect(entries.single.version, '1.0.12');
     expect(entries.single.isPrerelease, isFalse);
     final changes = entries.single.changes.join('\n');
     for (final text in <String>[
       '手机和平板',
-      '连续采样',
-      '缓存秒数',
+      '版本',
+      '换图',
       'MediaCodec',
       '不会修改',
     ]) {
@@ -90,9 +90,9 @@ void main() {
     expect(changes, isNot(contains('首次正式发布')));
   });
 
-  test('Android 当前测试版展示 TMDB 换图更新', () {
+  test('Android 2.1.214 测试版历史记录仍展示 TMDB 换图更新', () {
     final entries = versionHistoryForCurrent(
-      AppVersion.current,
+      '2.1.214',
       platform: AppPlatformKind.android,
     );
     expect(entries, hasLength(1));

@@ -12,6 +12,13 @@ class TmdbPosterPolicy {
     TmdbFieldLocks locks = const TmdbFieldLocks(),
     String? existingPoster,
   }) {
+    if (metadata.mediaType == TmdbMediaType.tv && seasonNumber != null) {
+      final seasonOverride =
+          _normalized(metadata.imageOverride.posterForSeason(seasonNumber));
+      if (seasonOverride != null) return seasonOverride;
+    }
+    final override = _normalized(metadata.imageOverride.poster);
+    if (override != null) return override;
     if (!options.fetchPoster || locks.poster || !options.overwritePoster) {
       return _normalized(existingPoster);
     }

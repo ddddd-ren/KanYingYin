@@ -27,6 +27,18 @@ class VersionHistory {
 /// 区段拆分到 part 文件，展开顺序与原列表完全一致，不得重排。
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.214',
+    date: '2026-10-11',
+    isPrerelease: true,
+    changes: [
+      '修复本地媒体库和个人网盘更换刮削图片后显示结果与所选图片不一致的问题',
+      '支持连续更换海报、季度海报、背景图和单集剧照，并在保存后立即刷新',
+      '完善图片选择、保存、索引同步和显示日志，便于定位换图链路问题',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频；换图只更新本地资料与显示索引',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.213',
     date: '2026-10-11',
     isPrerelease: true,
@@ -196,6 +208,21 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '2.1.214' && platform == AppPlatformKind.android) {
+    return const [
+      VersionHistory(
+        version: '2.1.214',
+        date: '2026-10-11',
+        isPrerelease: true,
+        changes: [
+          '修复本地媒体库和个人网盘更换刮削图片后显示结果与所选图片不一致的问题',
+          '支持连续更换海报、季度海报、背景图和单集剧照，并在保存后立即刷新',
+          '换图只更新本地资料与显示索引，不修改、删除、改名或移动原始视频',
+          '继续支持本地媒体库、个人网盘、字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+        ],
+      ),
+    ];
+  }
   if (currentVersion == '2.1.213' && platform == AppPlatformKind.android) {
     return const [
       VersionHistory(

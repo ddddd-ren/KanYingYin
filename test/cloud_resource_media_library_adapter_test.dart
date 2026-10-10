@@ -3,6 +3,7 @@ import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
+import 'package:kanyingyin/modules/local/tmdb_image_override.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_media_library_adapter.dart';
@@ -36,6 +37,9 @@ void main() {
         matchConfidence: 1,
         genres: const <String>['动画'],
         posterUrl: '/series.jpg',
+        imageOverride: const TmdbImageOverride(
+          seasonPosters: <int, String>{1: '/picked-season.jpg'},
+        ),
         seasons: const <TmdbSeasonMetadata>[
           TmdbSeasonMetadata(
             id: 4201,
@@ -80,8 +84,8 @@ void main() {
     expect(series.single.title, group.displayName);
     expect(series.single.mediaType, TmdbMediaType.tv);
     expect(series.single.genres, <String>['动画']);
-    expect(series.single.tmdbPosterUrl, '/season-1.jpg');
-    expect(series.single.posterCachePath, r'C:\cache\season-1.jpg');
+    expect(series.single.tmdbPosterUrl, '/picked-season.jpg');
+    expect(series.single.posterCachePath, isNull);
     expect(series.single.episodes.map((item) => item.remoteId), <String>[
       'e1',
       'e2',

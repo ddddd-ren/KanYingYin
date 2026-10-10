@@ -34,8 +34,8 @@ Future<void> _openVersionChangelogDialog(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('2.1.213 测试版更新弹窗展示网盘换图修复', (tester) async {
-    expect(AppVersion.current, '2.1.213');
+  testWidgets('2.1.214 测试版更新弹窗展示换图一致性修复', (tester) async {
+    expect(AppVersion.current, '2.1.214');
     final entries = versionHistoryForCurrent(AppVersion.current);
     expect(entries, hasLength(1));
     expect(entries.single.isPrerelease, isTrue);
@@ -43,8 +43,8 @@ void main() {
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(body: VersionChangelogContent(versions: entries)),
     ));
-    expect(find.text('v2.1.213  测试版  2026-10-11'), findsOneWidget);
-    for (final text in ['网盘', '海报', '缓存', '原始视频']) {
+    expect(find.text('v2.1.214  测试版  2026-10-11'), findsOneWidget);
+    for (final text in ['网盘', '连续更换', '日志', '原始视频']) {
       expect(find.textContaining(text), findsWidgets);
     }
     expect(tester.takeException(), isNull);
@@ -97,7 +97,7 @@ void main() {
     );
     expect(entries, hasLength(1));
     expect(entries.single.isPrerelease, isTrue);
-    expect(entries.single.changes.join('\n'), contains('网盘海报'));
+    expect(entries.single.changes.join('\n'), contains('更换刮削图片'));
     expect(
         entries.single.changes.join('\n'), isNot(contains('Windows 测试版 EXE')));
   });

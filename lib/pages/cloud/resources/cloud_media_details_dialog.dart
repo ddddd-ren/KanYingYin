@@ -46,7 +46,7 @@ Future<void> showCloudMediaDetailsDialog({
   );
 }
 
-class CloudMediaDetailsDialog extends StatelessWidget {
+class CloudMediaDetailsDialog extends StatefulWidget {
   const CloudMediaDetailsDialog({
     super.key,
     required this.item,
@@ -63,6 +63,24 @@ class CloudMediaDetailsDialog extends StatelessWidget {
   final Future<TmdbImageSet> Function(TmdbImageKind kind)? onLoadImages;
   final Future<void> Function(TmdbImageKind kind, String filePath)? onSaveImage;
   final Future<void> Function(TmdbImageKind kind)? onClearImage;
+
+  @override
+  State<CloudMediaDetailsDialog> createState() =>
+      _CloudMediaDetailsDialogState();
+}
+
+class _CloudMediaDetailsDialogState extends State<CloudMediaDetailsDialog> {
+  final Map<TmdbImageKind, String?> _selectedPaths = <TmdbImageKind, String?>{};
+
+  CloudMediaIndexItem get item => widget.item;
+  bool get asSheet => widget.asSheet;
+  FutureOr<void> Function()? get onPlay => widget.onPlay;
+  Future<TmdbImageSet> Function(TmdbImageKind kind)? get onLoadImages =>
+      widget.onLoadImages;
+  Future<void> Function(TmdbImageKind kind, String filePath)? get onSaveImage =>
+      widget.onSaveImage;
+  Future<void> Function(TmdbImageKind kind)? get onClearImage =>
+      widget.onClearImage;
 
   @override
   Widget build(BuildContext context) {
@@ -188,9 +206,17 @@ class CloudMediaDetailsDialog extends StatelessWidget {
     String label,
   ) {
     return TextButton(
-      onPressed: () => onClearImage?.call(kind),
+      onPressed: onClearImage == null ? null : () => _clearImage(kind),
       child: Text(label),
     );
+  }
+
+  Future<void> _clearImage(TmdbImageKind kind) async {
+    final clear = onClearImage;
+    if (clear == null) return;
+    await clear(kind);
+    if (!mounted) return;
+    setState(() => _selectedPaths[kind] = null);
   }
 
   Future<void> _pickImage(
@@ -206,12 +232,23 @@ class CloudMediaDetailsDialog extends StatelessWidget {
       title: title,
       kind: kind,
       images: () => load(kind),
-      currentPath: kind == TmdbImageKind.backdrop
-          ? item.tmdbBackdropUrl
-          : item.tmdbPosterUrl,
+      currentPath: _currentPath(kind),
     );
     if (candidate == null || !context.mounted) return;
     await save(kind, candidate.filePath);
+    if (!mounted) return;
+    setState(
+      () => _selectedPaths[kind] = normalizeTmdbImagePath(candidate.filePath),
+    );
+  }
+
+  String? _currentPath(TmdbImageKind kind) {
+    if (_selectedPaths.containsKey(kind)) return _selectedPaths[kind];
+    return normalizeTmdbImagePath(
+      kind == TmdbImageKind.backdrop
+          ? item.tmdbBackdropUrl
+          : item.tmdbPosterUrl,
+    );
   }
 
   Widget _detail(BuildContext context, String label, String value) {

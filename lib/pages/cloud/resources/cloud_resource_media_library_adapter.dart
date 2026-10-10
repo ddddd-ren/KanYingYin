@@ -39,19 +39,27 @@ class CloudResourceMediaLibraryAdapter {
     final firstItem = indexed.firstOrNull;
     final metadata = group.workRecord?.metadata;
     final legacy = group.record;
+    final seasonNumber =
+        group.seasonNumber ?? group.seasonMetadata?.seasonNumber;
+    final posterOverride =
+        metadata?.imageOverride.posterForSeason(seasonNumber) ??
+            legacy?.imageOverride.posterForSeason(seasonNumber);
     final genres = _genres(
       metadata?.genres,
       legacy?.genres,
       indexed.expand((item) => item.tmdbGenres),
     );
-    final posterUrl = group.seasonMetadata?.posterUrl ??
+    final posterUrl = posterOverride ??
+        group.seasonMetadata?.posterUrl ??
         metadata?.posterUrl ??
         legacy?.posterUrl ??
         firstItem?.tmdbPosterUrl;
-    final posterCachePath = group.seasonMetadata?.posterCachePath ??
-        group.workRecord?.posterCachePath ??
-        legacy?.posterCachePath ??
-        firstItem?.posterCachePath;
+    final posterCachePath = posterOverride == null
+        ? group.seasonMetadata?.posterCachePath ??
+            group.workRecord?.posterCachePath ??
+            legacy?.posterCachePath ??
+            firstItem?.posterCachePath
+        : null;
     final versions = group.versions.isNotEmpty
         ? group.versions
         : group.seasons.any((season) => season.versions.isNotEmpty)

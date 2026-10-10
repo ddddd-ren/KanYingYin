@@ -3,6 +3,7 @@ import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/modules/local/tmdb_image_override.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_card_view_data.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resource_collection.dart';
 
@@ -110,6 +111,60 @@ void main() {
     expect(data.details, contains('6 集'));
     expect(data.posterCachePath, r'C:\cache\season-3.jpg');
     expect(data.posterUrl, '/season-3.jpg');
+  });
+
+  test('卡片显示手动季度海报并跳过旧缓存', () {
+    final workRecord = CloudWorkTmdbRecord.matched(
+      sourceId: 'source',
+      workKey: 'source|work|show',
+      workRootId: 'show',
+      workRootPath: '/影视/Show',
+      remoteName: 'Show',
+      metadata: TmdbMetadata(
+        id: 42,
+        mediaType: TmdbMediaType.tv,
+        title: '中文剧名',
+        posterUrl: '/work.jpg',
+        language: 'zh-CN',
+        matchedAt: DateTime.utc(2026, 7, 20),
+        matchConfidence: 1,
+        imageOverride: const TmdbImageOverride(
+          seasonPosters: <int, String>{3: '/picked-season.jpg'},
+        ),
+        seasons: const <TmdbSeasonMetadata>[
+          TmdbSeasonMetadata(
+            id: 300,
+            seasonNumber: 3,
+            name: '第 3 季',
+            episodeCount: 6,
+            posterUrl: '/season-3.jpg',
+            posterCachePath: r'C:\cache\season-3.jpg',
+          ),
+        ],
+      ),
+      posterCachePath: r'C:\cache\work.jpg',
+      checkedAt: DateTime.utc(2026, 7, 20),
+    );
+    final data = CloudResourceCardViewData.fromGroup(
+      group: CloudResourceMediaGroup(
+        stableKey: 'source|work|show|season:3',
+        workKey: 'source|work|show',
+        displayName: '中文剧名 第 3 季',
+        seriesName: '中文剧名',
+        isSeries: true,
+        seasonNumber: 3,
+        videos: const <CloudFileEntry>[video],
+        seasons: const <CloudResourceSeasonGroup>[],
+        record: null,
+        workRecord: workRecord,
+        seasonMetadata: workRecord.seasons.single,
+        isWorkScoped: true,
+      ),
+      scraping: false,
+    );
+
+    expect(data.posterUrl, '/picked-season.jpg');
+    expect(data.posterCachePath, isNull);
   });
 
   test('未匹配、失败和未检查目录保持普通目录卡', () {

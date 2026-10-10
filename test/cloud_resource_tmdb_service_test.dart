@@ -5,6 +5,7 @@ import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/modules/local/tmdb_image_override.dart';
 import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_poster_cache.dart';
@@ -158,6 +159,69 @@ void main() {
     expect(
       (await indexRepository.getBySource('source-a')).single.tmdbGenres,
       <String>['科幻'],
+    );
+  });
+
+  test('索引同步使用季度手动海报覆盖而不是作品默认海报', () async {
+    final indexRepository = CloudMediaIndexRepository(
+      storage: MemoryCloudMediaIndexStorage(),
+    );
+    final item = CloudMediaIndexItem(
+      sourceId: 'source-a',
+      remoteId: '/影视/三体/S01E01.mkv',
+      remotePath: '/影视/三体/S01E01.mkv',
+      name: 'S01E01.mkv',
+      size: 100,
+      modifiedAt: null,
+      seriesName: '三体',
+      seasonNumber: 1,
+      episodeNumber: 1,
+      mediaType: CloudMediaType.episode,
+    );
+    await indexRepository.replaceSource(
+      'source-a',
+      <CloudMediaIndexItem>[item],
+      const <String, String>{},
+      const <String, List<CloudFileEntry>>{},
+      const <String>[],
+    );
+    final service = CloudResourceTmdbService(
+      repository: CloudResourceTmdbRepository(
+        storage: MemoryCloudResourceTmdbStorage(),
+      ),
+      indexRepository: indexRepository,
+      client: _FakeTmdbClient(
+        searches: const <TmdbMediaType, List<TmdbMetadata>>{},
+        detail: _candidate(TmdbMediaType.tv),
+      ),
+    );
+    final target = _target(
+      path: item.remotePath,
+      name: item.name,
+      kind: CloudResourceKind.standaloneVideo,
+    );
+    final metadata = _candidate(TmdbMediaType.tv).copyWith(
+      title: '三体',
+      posterUrl: '/work-default.jpg',
+      imageOverride: const TmdbImageOverride(
+        poster: '/work-picked.jpg',
+        seasonPosters: <int, String>{1: '/season-picked.jpg'},
+      ),
+    );
+    final record = CloudResourceTmdbRecord.matched(
+      sourceId: target.sourceId,
+      remoteId: target.remote.id,
+      remotePath: target.remote.path,
+      displayName: target.displayName,
+      resourceKind: target.resourceKind,
+      metadata: metadata,
+      checkedAt: DateTime.utc(2026, 8, 4),
+    );
+
+    expect(await service.syncRecordToIndex(target, record), isTrue);
+    expect(
+      (await indexRepository.getBySource('source-a')).single.tmdbPosterUrl,
+      '/season-picked.jpg',
     );
   });
 

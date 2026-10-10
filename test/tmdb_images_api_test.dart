@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/modules/local/tmdb_image_metadata.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 
@@ -38,6 +39,14 @@ void main() {
       adapter.lastRequest?.uri.path,
       '/3/tv/42/season/2/episode/3/images',
     );
+  });
+
+  test('TMDB 图片 URL 与 file_path 使用同一规范路径', () {
+    expect(
+      normalizeTmdbImagePath('https://image.tmdb.org/t/p/w500/poster.jpg'),
+      '/poster.jpg',
+    );
+    expect(normalizeTmdbImagePath('/poster.jpg'), '/poster.jpg');
   });
 }
 

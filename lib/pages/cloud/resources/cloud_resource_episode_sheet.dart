@@ -427,12 +427,19 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
     CloudResourceSeasonGroup season,
     TvImageDecodeSize? decodeSize,
   ) {
+    final seasonNumber = group.seasonNumber ?? season.seasonNumber;
+    final posterOverride = group.workRecord?.metadata?.imageOverride
+            .posterForSeason(seasonNumber) ??
+        group.record?.imageOverride.posterForSeason(seasonNumber);
     return CloudPosterImage(
-      cachePath: season.metadata?.posterCachePath ??
-          group.workRecord?.posterCachePath ??
-          group.record?.posterCachePath,
+      cachePath: posterOverride == null
+          ? season.metadata?.posterCachePath ??
+              group.workRecord?.posterCachePath ??
+              group.record?.posterCachePath
+          : null,
       url: TmdbMatchSheet.imageUrl(
-        season.metadata?.posterUrl ??
+        posterOverride ??
+            season.metadata?.posterUrl ??
             group.workRecord?.metadata?.posterUrl ??
             group.record?.posterUrl,
         size: 'w500',

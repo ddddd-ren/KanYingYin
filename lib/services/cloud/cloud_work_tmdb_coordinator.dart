@@ -16,6 +16,7 @@ import 'package:kanyingyin/services/cloud/cloud_work_tmdb_service.dart';
 import 'package:kanyingyin/services/local_episode_parser.dart';
 import 'package:kanyingyin/services/media_name_analyzer.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_image_selection_logger.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 import 'package:kanyingyin/utils/logger.dart';
@@ -358,8 +359,8 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
     int? seasonNumber,
     int? episodeNumber,
   }) async {
-    final path = filePath.trim();
-    if (path.isEmpty) throw ArgumentError.value(filePath, 'filePath');
+    final path = normalizeTmdbImagePath(filePath);
+    if (path == null) throw ArgumentError.value(filePath, 'filePath');
     final current =
         _records[work.workKey] ?? await _repository.get(work.workKey);
     final metadata = current?.metadata;
@@ -368,6 +369,25 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
         current.status != CloudWorkTmdbStatus.matched) {
       throw StateError('该网盘作品尚未完成 TMDB 刮削');
     }
+    final startedAt = DateTime.now();
+    final previousPath = _overridePath(
+      metadata.imageOverride,
+      kind: kind,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+    );
+    TmdbImageSelectionLogger.write(
+      scope: 'cloud',
+      phase: 'save_start',
+      target: _targetFor(seasonNumber, episodeNumber),
+      kind: kind,
+      identity: work.workKey,
+      tmdbId: metadata.id,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+      previousPath: previousPath,
+      selectedPath: path,
+    );
     final updatedMetadata = metadata.copyWith(
       imageOverride: _updateImageOverride(
         metadata.imageOverride,
@@ -390,16 +410,58 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
               ? null
               : current.posterCachePath,
         );
-    await _repository.upsert(updated);
-    _records[work.workKey] = updated;
-    _markRecordsChanged();
-    notifyListeners();
-    await CloudWorkTmdbService.syncMatchedRecordToIndex(
-      indexRepository: _indexRepository,
-      work: work,
-      record: updated,
-    );
-    return updated;
+    try {
+      await _repository.upsert(updated);
+      _records[work.workKey] = updated;
+      _markRecordsChanged();
+      notifyListeners();
+      final syncedCount = await CloudWorkTmdbService.syncMatchedRecordToIndex(
+        indexRepository: _indexRepository,
+        work: work,
+        record: updated,
+      );
+      final readBack = await _repository.get(work.workKey);
+      TmdbImageSelectionLogger.write(
+        scope: 'cloud',
+        phase: 'save_success',
+        target: _targetFor(seasonNumber, episodeNumber),
+        kind: kind,
+        identity: work.workKey,
+        tmdbId: metadata.id,
+        seasonNumber: seasonNumber,
+        episodeNumber: episodeNumber,
+        previousPath: previousPath,
+        selectedPath: path,
+        savedPath: path,
+        repositoryReadBack: _overridePath(
+          readBack?.metadata?.imageOverride,
+          kind: kind,
+          seasonNumber: seasonNumber,
+          episodeNumber: episodeNumber,
+        ),
+        indexSynced: syncedCount > 0,
+        elapsedMs: DateTime.now().difference(startedAt).inMilliseconds,
+        result: syncedCount > 0 ? 'success' : 'partial',
+      );
+      return updated;
+    } catch (error, stackTrace) {
+      TmdbImageSelectionLogger.write(
+        scope: 'cloud',
+        phase: 'save_failed',
+        target: _targetFor(seasonNumber, episodeNumber),
+        kind: kind,
+        identity: work.workKey,
+        tmdbId: metadata.id,
+        seasonNumber: seasonNumber,
+        episodeNumber: episodeNumber,
+        selectedPath: path,
+        elapsedMs: DateTime.now().difference(startedAt).inMilliseconds,
+        result: 'error',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
   }
 
   Future<CloudWorkTmdbRecord> clearImageOverride(
@@ -416,6 +478,24 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
         current.status != CloudWorkTmdbStatus.matched) {
       throw StateError('该网盘作品尚未完成 TMDB 刮削');
     }
+    final startedAt = DateTime.now();
+    final previousPath = _overridePath(
+      metadata.imageOverride,
+      kind: kind,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+    );
+    TmdbImageSelectionLogger.write(
+      scope: 'cloud',
+      phase: 'clear_start',
+      target: _targetFor(seasonNumber, episodeNumber),
+      kind: kind,
+      identity: work.workKey,
+      tmdbId: metadata.id,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+      previousPath: previousPath,
+    );
     final override = switch (kind) {
       TmdbImageKind.poster when seasonNumber != null =>
         metadata.imageOverride.clearSeasonPoster(seasonNumber),
@@ -427,16 +507,79 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
     };
     final updated =
         current.withMetadata(metadata.copyWith(imageOverride: override));
-    await _repository.upsert(updated);
-    _records[work.workKey] = updated;
-    _markRecordsChanged();
-    notifyListeners();
-    await CloudWorkTmdbService.syncMatchedRecordToIndex(
-      indexRepository: _indexRepository,
-      work: work,
-      record: updated,
-    );
-    return updated;
+    try {
+      await _repository.upsert(updated);
+      _records[work.workKey] = updated;
+      _markRecordsChanged();
+      notifyListeners();
+      final syncedCount = await CloudWorkTmdbService.syncMatchedRecordToIndex(
+        indexRepository: _indexRepository,
+        work: work,
+        record: updated,
+      );
+      final readBack = await _repository.get(work.workKey);
+      TmdbImageSelectionLogger.write(
+        scope: 'cloud',
+        phase: 'clear_success',
+        target: _targetFor(seasonNumber, episodeNumber),
+        kind: kind,
+        identity: work.workKey,
+        tmdbId: metadata.id,
+        seasonNumber: seasonNumber,
+        episodeNumber: episodeNumber,
+        previousPath: previousPath,
+        repositoryReadBack: _overridePath(
+          readBack?.metadata?.imageOverride,
+          kind: kind,
+          seasonNumber: seasonNumber,
+          episodeNumber: episodeNumber,
+        ),
+        indexSynced: syncedCount > 0,
+        elapsedMs: DateTime.now().difference(startedAt).inMilliseconds,
+        result: syncedCount > 0 ? 'success' : 'partial',
+      );
+      return updated;
+    } catch (error, stackTrace) {
+      TmdbImageSelectionLogger.write(
+        scope: 'cloud',
+        phase: 'clear_failed',
+        target: _targetFor(seasonNumber, episodeNumber),
+        kind: kind,
+        identity: work.workKey,
+        tmdbId: metadata.id,
+        seasonNumber: seasonNumber,
+        episodeNumber: episodeNumber,
+        elapsedMs: DateTime.now().difference(startedAt).inMilliseconds,
+        result: 'error',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
+  }
+
+  static String _targetFor(int? seasonNumber, int? episodeNumber) {
+    if (episodeNumber != null) return 'episode';
+    if (seasonNumber != null) return 'season';
+    return 'series';
+  }
+
+  static String? _overridePath(
+    TmdbImageOverride? override, {
+    required TmdbImageKind kind,
+    int? seasonNumber,
+    int? episodeNumber,
+  }) {
+    if (override == null) return null;
+    return switch (kind) {
+      TmdbImageKind.poster when seasonNumber != null =>
+        override.seasonPosters[seasonNumber],
+      TmdbImageKind.poster => override.poster,
+      TmdbImageKind.backdrop => override.backdrop,
+      TmdbImageKind.still when seasonNumber != null && episodeNumber != null =>
+        override.episodeStills['$seasonNumber:$episodeNumber'],
+      TmdbImageKind.still => null,
+    };
   }
 
   TmdbImageOverride _updateImageOverride(

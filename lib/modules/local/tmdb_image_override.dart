@@ -11,6 +11,11 @@ class TmdbImageOverride {
   final Map<int, String> seasonPosters;
   final Map<String, String> episodeStills;
 
+  String? posterForSeason(int? seasonNumber) {
+    final season = seasonNumber == null ? null : seasonPosters[seasonNumber];
+    return _asString(season) ?? _asString(poster);
+  }
+
   bool get isEmpty =>
       poster == null &&
       backdrop == null &&

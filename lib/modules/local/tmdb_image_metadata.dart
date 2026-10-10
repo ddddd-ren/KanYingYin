@@ -33,7 +33,7 @@ class TmdbImageCandidate {
     TmdbImageKind kind,
   ) {
     return TmdbImageCandidate(
-      filePath: (json['file_path'] as String? ?? '').trim(),
+      filePath: normalizeTmdbImagePath(json['file_path'] as String?) ?? '',
       kind: kind,
       language: _asString(json['iso_639_1']),
       width: _asInt(json['width']),
@@ -52,6 +52,20 @@ class TmdbImageCandidate {
         if (voteAverage != null) 'voteAverage': voteAverage,
         if (voteCount != null) 'voteCount': voteCount,
       };
+}
+
+/// 将 TMDB 图片 URL 和 API 返回的 file_path 统一为可持久化的路径。
+String? normalizeTmdbImagePath(String? value) {
+  final normalized = value?.trim();
+  if (normalized == null || normalized.isEmpty) return null;
+  final uri = Uri.tryParse(normalized);
+  if (uri == null ||
+      (uri.scheme != 'http' && uri.scheme != 'https') ||
+      uri.host != 'image.tmdb.org') {
+    return normalized;
+  }
+  final match = RegExp(r'^/t/p/[^/]+(/.*)$').firstMatch(uri.path);
+  return match?.group(1) ?? uri.path;
 }
 
 class TmdbImageSet {

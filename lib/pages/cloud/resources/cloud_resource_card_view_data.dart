@@ -102,7 +102,10 @@ class CloudResourceCardViewData {
               tmdbTitle: hasMetadata ? record?.title : null,
               tmdbRating: hasMetadata ? record?.rating : null,
               tmdbReleaseDate: hasMetadata ? record?.releaseDate : null,
-              tmdbPosterUrl: hasMetadata ? record?.posterUrl : null,
+              tmdbPosterUrl: hasMetadata
+                  ? record?.imageOverride.posterForSeason(entry.seasonNumber) ??
+                      record?.posterUrl
+                  : null,
               mediaType: record?.mediaType ??
                   (entry.seasonNumber != null || entry.episodeNumber != null
                       ? TmdbMediaType.tv
@@ -125,8 +128,14 @@ class CloudResourceCardViewData {
       ),
       technicalBadges:
           unified?.technicalBadges ?? const <MediaTechnicalBadge>[],
-      posterCachePath: hasMetadata ? record?.posterCachePath : null,
-      posterUrl: hasMetadata ? record?.posterUrl : null,
+      posterCachePath: hasMetadata &&
+              record?.imageOverride.posterForSeason(entry.seasonNumber) == null
+          ? record?.posterCachePath
+          : null,
+      posterUrl: hasMetadata
+          ? record?.imageOverride.posterForSeason(entry.seasonNumber) ??
+              record?.posterUrl
+          : null,
     );
   }
 
@@ -139,6 +148,9 @@ class CloudResourceCardViewData {
     final record = group.workRecord;
     final matched = record?.status == CloudWorkTmdbStatus.matched;
     final metadata = record?.metadata;
+    final posterOverride = metadata?.imageOverride.posterForSeason(
+      group.seasonNumber ?? group.seasonMetadata?.seasonNumber,
+    );
     final details = <String>[];
     final rating = metadata?.rating;
     if (rating != null) details.add('${rating.toStringAsFixed(1)} ★');
@@ -182,7 +194,7 @@ class CloudResourceCardViewData {
         tmdbTitle: matched ? metadata?.title : null,
         tmdbRating: matched ? metadata?.rating : null,
         tmdbReleaseDate: matched ? metadata?.releaseDate : null,
-        tmdbPosterUrl: matched ? metadata?.posterUrl : null,
+        tmdbPosterUrl: matched ? posterOverride ?? metadata?.posterUrl : null,
         mediaType: metadata?.mediaType,
       ),
     );
@@ -202,11 +214,13 @@ class CloudResourceCardViewData {
         scraping: scraping,
       ),
       technicalBadges: unified.technicalBadges,
-      posterCachePath: matched
+      posterCachePath: matched && posterOverride == null
           ? group.seasonMetadata?.posterCachePath ?? record?.posterCachePath
           : null,
       posterUrl: matched
-          ? group.seasonMetadata?.posterUrl ?? metadata?.posterUrl
+          ? posterOverride ??
+              group.seasonMetadata?.posterUrl ??
+              metadata?.posterUrl
           : null,
     );
   }

@@ -417,11 +417,20 @@ class CloudResourceTmdbService {
       tmdbOriginalTitle: metadata.originalTitle,
       tmdbOverview: metadata.overview,
       tmdbRating: metadata.rating,
-      tmdbPosterUrl: metadata.imageOverride.poster ?? metadata.posterUrl,
+      tmdbPosterUrl: _posterPath(item, metadata),
       tmdbBackdropUrl: metadata.imageOverride.backdrop ?? metadata.backdropUrl,
       tmdbGenres: metadata.genres,
       posterCachePath: posterCachePath,
     );
+  }
+
+  static String? _posterPath(
+    CloudMediaIndexItem item,
+    TmdbMetadata metadata,
+  ) {
+    return metadata.imageOverride.seasonPosters[item.seasonNumber] ??
+        metadata.imageOverride.poster ??
+        metadata.posterUrl;
   }
 
   static String _normalizePath(String value) {

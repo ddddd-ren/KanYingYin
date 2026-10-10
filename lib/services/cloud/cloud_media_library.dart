@@ -336,9 +336,10 @@ class CloudMediaLibraryAggregator {
       final indexedMetadata = _metadataItem(items);
       final workRecord = _workRecord(items, workRecordsByKey);
       final workMetadata = workRecord?.metadata;
+      final seasonNumber = CloudMediaGroupingMetadata.seasonNumber(items.first);
       final seasonMetadata = _seasonMetadata(
         workMetadata,
-        CloudMediaGroupingMetadata.seasonNumber(items.first),
+        seasonNumber,
       );
       final recognizedTitle = indexedMetadata?.tmdbTitle ??
           (items.first.seriesName.trim().isEmpty
@@ -347,12 +348,17 @@ class CloudMediaLibraryAggregator {
       final effectiveTitle =
           workRecord?.effectiveTitle(recognizedTitle) ?? recognizedTitle;
       final title = _cloudGroupTitle(items.first, effectiveTitle);
-      final posterUrl = seasonMetadata?.posterUrl ??
+      final posterOverride =
+          workMetadata?.imageOverride.posterForSeason(seasonNumber);
+      final posterUrl = posterOverride ??
+          seasonMetadata?.posterUrl ??
           workMetadata?.posterUrl ??
           indexedMetadata?.tmdbPosterUrl;
-      final posterCachePath = seasonMetadata?.posterCachePath ??
-          workRecord?.posterCachePath ??
-          indexedMetadata?.posterCachePath;
+      final posterCachePath = posterOverride == null
+          ? seasonMetadata?.posterCachePath ??
+              workRecord?.posterCachePath ??
+              indexedMetadata?.posterCachePath
+          : null;
       final mediaType = workMetadata?.mediaType ?? _cloudMediaType(items);
       final genres = workMetadata?.genres.isNotEmpty == true
           ? workMetadata!.genres

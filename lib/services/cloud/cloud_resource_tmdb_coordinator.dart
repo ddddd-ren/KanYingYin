@@ -16,6 +16,7 @@ import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
 import 'package:kanyingyin/services/cloud/cloud_series_match_service.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_image_selection_logger.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
@@ -401,13 +402,32 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
     int? seasonNumber,
     int? episodeNumber,
   }) async {
-    final path = filePath.trim();
-    if (path.isEmpty) throw ArgumentError.value(filePath, 'filePath');
+    final path = normalizeTmdbImagePath(filePath);
+    if (path == null) throw ArgumentError.value(filePath, 'filePath');
     final current =
         _records[target.stableKey] ?? await _repository.get(target.stableKey);
     if (current == null || current.status != CloudResourceTmdbStatus.matched) {
       throw StateError('该网盘资源尚未完成 TMDB 刮削');
     }
+    final startedAt = DateTime.now();
+    final previousPath = _overridePath(
+      current.imageOverride,
+      kind: kind,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+    );
+    TmdbImageSelectionLogger.write(
+      scope: 'cloud',
+      phase: 'save_start',
+      target: _targetFor(seasonNumber, episodeNumber),
+      kind: kind,
+      identity: '${target.sourceId}:${target.remote.id}',
+      tmdbId: current.tmdbId,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+      previousPath: previousPath,
+      selectedPath: path,
+    );
     final override = _updateImageOverride(
       current.imageOverride,
       kind: kind,
@@ -429,12 +449,54 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
           kind == TmdbImageKind.poster && seasonNumber == null,
       seasons: seasons,
     );
-    await _repository.upsert(updated);
-    _records[updated.stableKey] = updated;
-    _markRecordsChanged();
-    notifyListeners();
-    await _syncUpdatedImage(target, updated);
-    return updated;
+    try {
+      await _repository.upsert(updated);
+      _records[updated.stableKey] = updated;
+      _markRecordsChanged();
+      notifyListeners();
+      final indexSynced = await _syncUpdatedImage(target, updated);
+      final readBack = await _repository.get(updated.stableKey);
+      TmdbImageSelectionLogger.write(
+        scope: 'cloud',
+        phase: 'save_success',
+        target: _targetFor(seasonNumber, episodeNumber),
+        kind: kind,
+        identity: '${target.sourceId}:${target.remote.id}',
+        tmdbId: current.tmdbId,
+        seasonNumber: seasonNumber,
+        episodeNumber: episodeNumber,
+        previousPath: previousPath,
+        selectedPath: path,
+        savedPath: path,
+        repositoryReadBack: _overridePath(
+          readBack?.imageOverride,
+          kind: kind,
+          seasonNumber: seasonNumber,
+          episodeNumber: episodeNumber,
+        ),
+        indexSynced: indexSynced,
+        elapsedMs: DateTime.now().difference(startedAt).inMilliseconds,
+        result: indexSynced ? 'success' : 'partial',
+      );
+      return updated;
+    } catch (error, stackTrace) {
+      TmdbImageSelectionLogger.write(
+        scope: 'cloud',
+        phase: 'save_failed',
+        target: _targetFor(seasonNumber, episodeNumber),
+        kind: kind,
+        identity: '${target.sourceId}:${target.remote.id}',
+        tmdbId: current.tmdbId,
+        seasonNumber: seasonNumber,
+        episodeNumber: episodeNumber,
+        selectedPath: path,
+        elapsedMs: DateTime.now().difference(startedAt).inMilliseconds,
+        result: 'error',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
   }
 
   Future<CloudResourceTmdbRecord> clearImageOverride(
@@ -448,6 +510,24 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
     if (current == null || current.status != CloudResourceTmdbStatus.matched) {
       throw StateError('该网盘资源尚未完成 TMDB 刮削');
     }
+    final startedAt = DateTime.now();
+    final previousPath = _overridePath(
+      current.imageOverride,
+      kind: kind,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+    );
+    TmdbImageSelectionLogger.write(
+      scope: 'cloud',
+      phase: 'clear_start',
+      target: _targetFor(seasonNumber, episodeNumber),
+      kind: kind,
+      identity: '${target.sourceId}:${target.remote.id}',
+      tmdbId: current.tmdbId,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+      previousPath: previousPath,
+    );
     final override = switch (kind) {
       TmdbImageKind.poster when seasonNumber != null =>
         current.imageOverride.clearSeasonPoster(seasonNumber),
@@ -458,20 +538,83 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
       TmdbImageKind.still => throw ArgumentError('清除单集剧照时必须提供季度号和集数'),
     };
     final updated = current.withImageOverride(override);
-    await _repository.upsert(updated);
-    _records[updated.stableKey] = updated;
-    _markRecordsChanged();
-    notifyListeners();
-    await _syncUpdatedImage(target, updated);
-    return updated;
+    try {
+      await _repository.upsert(updated);
+      _records[updated.stableKey] = updated;
+      _markRecordsChanged();
+      notifyListeners();
+      final indexSynced = await _syncUpdatedImage(target, updated);
+      final readBack = await _repository.get(updated.stableKey);
+      TmdbImageSelectionLogger.write(
+        scope: 'cloud',
+        phase: 'clear_success',
+        target: _targetFor(seasonNumber, episodeNumber),
+        kind: kind,
+        identity: '${target.sourceId}:${target.remote.id}',
+        tmdbId: current.tmdbId,
+        seasonNumber: seasonNumber,
+        episodeNumber: episodeNumber,
+        previousPath: previousPath,
+        repositoryReadBack: _overridePath(
+          readBack?.imageOverride,
+          kind: kind,
+          seasonNumber: seasonNumber,
+          episodeNumber: episodeNumber,
+        ),
+        indexSynced: indexSynced,
+        elapsedMs: DateTime.now().difference(startedAt).inMilliseconds,
+        result: indexSynced ? 'success' : 'partial',
+      );
+      return updated;
+    } catch (error, stackTrace) {
+      TmdbImageSelectionLogger.write(
+        scope: 'cloud',
+        phase: 'clear_failed',
+        target: _targetFor(seasonNumber, episodeNumber),
+        kind: kind,
+        identity: '${target.sourceId}:${target.remote.id}',
+        tmdbId: current.tmdbId,
+        seasonNumber: seasonNumber,
+        episodeNumber: episodeNumber,
+        elapsedMs: DateTime.now().difference(startedAt).inMilliseconds,
+        result: 'error',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
   }
 
-  Future<void> _syncUpdatedImage(
+  Future<bool> _syncUpdatedImage(
     CloudResourceTmdbTarget target,
     CloudResourceTmdbRecord record,
   ) async {
     final service = await _serviceFor(_apiKeyProvider().trim());
-    await service.syncRecordToIndex(target, record);
+    return service.syncRecordToIndex(target, record);
+  }
+
+  static String _targetFor(int? seasonNumber, int? episodeNumber) {
+    if (episodeNumber != null) return 'episode';
+    if (seasonNumber != null) return 'season';
+    return 'series';
+  }
+
+  static String? _overridePath(
+    TmdbImageOverride? override, {
+    required TmdbImageKind kind,
+    int? seasonNumber,
+    int? episodeNumber,
+  }) {
+    if (override == null) return null;
+    return switch (kind) {
+      TmdbImageKind.poster when seasonNumber != null =>
+        override.seasonPosters[seasonNumber],
+      TmdbImageKind.poster => override.poster,
+      TmdbImageKind.backdrop => override.backdrop,
+      TmdbImageKind.still when seasonNumber != null && episodeNumber != null =>
+        override.episodeStills['$seasonNumber:$episodeNumber'],
+      TmdbImageKind.still => null,
+    };
   }
 
   TmdbImageOverride _updateImageOverride(

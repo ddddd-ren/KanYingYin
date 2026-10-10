@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
@@ -15,7 +16,7 @@ import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 import 'package:kanyingyin/widgets/tmdb_image_picker_dialog.dart';
 
-class LocalSeriesDetailPage extends StatelessWidget {
+class LocalSeriesDetailPage extends StatefulWidget {
   const LocalSeriesDetailPage({
     super.key,
     required this.series,
@@ -28,7 +29,30 @@ class LocalSeriesDetailPage extends StatelessWidget {
   final void Function(LocalMediaIndexItem episode) onPlay;
 
   @override
+  State<LocalSeriesDetailPage> createState() => _LocalSeriesDetailPageState();
+}
+
+class _LocalSeriesDetailPageState extends State<LocalSeriesDetailPage> {
+  LocalController get controller => widget.controller;
+  void Function(LocalMediaIndexItem episode) get onPlay => widget.onPlay;
+
+  LocalMediaSeries get _series {
+    final current = const LocalMediaLibraryBuilder().buildSeries(
+      controller.localLibraryItems,
+    );
+    for (final value in current) {
+      if (value.key == widget.series.key) return value;
+    }
+    return widget.series;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    return Observer(builder: (_) => _buildPage(context));
+  }
+
+  Widget _buildPage(BuildContext context) {
+    final currentSeries = _series;
     final metadata = _metadata;
     final backdrop = TmdbMatchSheet.imageUrl(
       metadata?.imageOverride.backdrop ?? metadata?.backdropUrl,
@@ -40,7 +64,7 @@ class LocalSeriesDetailPage extends StatelessWidget {
     );
     return Scaffold(
       appBar: AppBar(
-        title: Text(metadata?.title ?? series.displayTitle),
+        title: Text(metadata?.title ?? currentSeries.displayTitle),
         actions: [
           if (metadata != null)
             PopupMenuButton<String>(
@@ -71,7 +95,10 @@ class LocalSeriesDetailPage extends StatelessWidget {
                   width: 120,
                   child: AspectRatio(
                     aspectRatio: 2 / 3,
-                    child: _poster(poster),
+                    child: _poster(
+                      poster,
+                      preferRemote: metadata?.imageOverride.poster != null,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 18),
@@ -79,7 +106,7 @@ class LocalSeriesDetailPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(metadata?.title ?? series.displayTitle,
+                      Text(metadata?.title ?? currentSeries.displayTitle,
                           style: Theme.of(context).textTheme.headlineSmall),
                       if (metadata?.originalTitle != null) ...[
                         const SizedBox(height: 4),
@@ -102,10 +129,10 @@ class LocalSeriesDetailPage extends StatelessWidget {
           const Divider(height: 1),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
-            child: Text('剧集 (${series.episodeCount})',
+            child: Text('剧集 (${currentSeries.episodeCount})',
                 style: Theme.of(context).textTheme.titleMedium),
           ),
-          for (final episode in series.episodes)
+          for (final episode in currentSeries.episodes)
             ListTile(
               leading: const Icon(Icons.play_circle_outline),
               title: Text(episode.displayTitle),
@@ -302,24 +329,30 @@ class LocalSeriesDetailPage extends StatelessWidget {
   }
 
   TmdbMetadata? get _metadata {
-    for (final episode in series.episodes) {
+    for (final episode in _series.episodes) {
       if (episode.tmdb != null) return episode.tmdb;
     }
     return null;
   }
 
   String get _seriesName {
-    final value = series.episodes
+    final value = _series.episodes
         .map((episode) => episode.seriesName.trim())
         .firstWhere((value) => value.isNotEmpty, orElse: () => '');
-    return value.isNotEmpty ? value : series.title;
+    return value.isNotEmpty ? value : _series.title;
   }
 
-  Widget _poster(String? remote) {
-    if (series.cover != null && File(series.cover!).existsSync()) {
+  Widget _poster(String? remote, {required bool preferRemote}) {
+    if (preferRemote && remote != null) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(6),
-        child: Image.file(File(series.cover!), fit: BoxFit.cover),
+        child: TmdbNetworkImage(url: remote, fit: BoxFit.cover),
+      );
+    }
+    if (_series.cover != null && File(_series.cover!).existsSync()) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: Image.file(File(_series.cover!), fit: BoxFit.cover),
       );
     }
     if (remote != null) {
@@ -335,13 +368,13 @@ class LocalSeriesDetailPage extends StatelessWidget {
   }
 
   String _facts(TmdbMetadata? metadata) {
-    if (metadata == null) return '${series.episodeCount} 个视频';
+    if (metadata == null) return '${_series.episodeCount} 个视频';
     final values = <String>[
       metadata.mediaType == TmdbMediaType.movie ? '电影' : '剧集',
       if (metadata.releaseDate != null && metadata.releaseDate!.length >= 4)
         metadata.releaseDate!.substring(0, 4),
       if (metadata.rating != null) '评分 ${metadata.rating!.toStringAsFixed(1)}',
-      '${series.episodeCount} 个视频',
+      '${_series.episodeCount} 个视频',
     ];
     return values.join(' · ');
   }

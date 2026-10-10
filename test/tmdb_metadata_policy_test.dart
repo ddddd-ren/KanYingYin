@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/modules/local/tmdb_image_override.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_metadata_merge_policy.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_episode_title_resolver.dart';
@@ -115,6 +116,45 @@ void main() {
         options: const TmdbScrapeOptions.defaults(),
       ),
       '/work.jpg',
+    );
+  });
+
+  test('手动图片覆盖优先于默认海报且不受重新刮削选项影响', () {
+    final metadata = _metadata(
+      title: '三体',
+      type: TmdbMediaType.tv,
+      posterUrl: '/work.jpg',
+      seasons: <TmdbSeasonMetadata>[
+        _season(1, '/season-default.jpg'),
+      ],
+    ).copyWith(
+      imageOverride: const TmdbImageOverride(
+        poster: '/work-picked.jpg',
+        seasonPosters: <int, String>{1: '/season-picked.jpg'},
+      ),
+    );
+
+    expect(
+      posterPolicy.select(
+        metadata,
+        seasonNumber: 1,
+        options: const TmdbScrapeOptions.defaults().copyWith(
+          fetchPoster: false,
+        ),
+        existingPoster: '/existing.jpg',
+      ),
+      '/season-picked.jpg',
+    );
+    expect(
+      posterPolicy.select(
+        metadata,
+        seasonNumber: null,
+        options: const TmdbScrapeOptions.defaults().copyWith(
+          overwritePoster: false,
+        ),
+        existingPoster: '/existing.jpg',
+      ),
+      '/work-picked.jpg',
     );
   });
 

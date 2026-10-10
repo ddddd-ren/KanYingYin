@@ -50,12 +50,19 @@ CloudResourcePlaybackRequest buildCloudResourcePlaybackRequest({
   final videos = seasonVideos ?? group.videos;
   final targets = videos.map((video) {
     final subtitle = subtitleFor(video);
-    final posterUrl = group.seasonMetadata?.posterUrl ??
+    final seasonNumber = group.seasonNumber ?? video.seasonNumber;
+    final posterOverride = group.workRecord?.metadata?.imageOverride
+            .posterForSeason(seasonNumber) ??
+        group.record?.imageOverride.posterForSeason(seasonNumber);
+    final posterUrl = posterOverride ??
+        group.seasonMetadata?.posterUrl ??
         group.workRecord?.metadata?.posterUrl ??
         group.record?.posterUrl;
-    final posterCachePath = group.seasonMetadata?.posterCachePath ??
-        group.workRecord?.posterCachePath ??
-        group.record?.posterCachePath;
+    final posterCachePath = posterOverride == null
+        ? group.seasonMetadata?.posterCachePath ??
+            group.workRecord?.posterCachePath ??
+            group.record?.posterCachePath
+        : null;
     return CloudPlaybackTarget(
       sourceId: sourceId,
       remoteId: video.id,

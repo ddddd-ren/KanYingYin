@@ -64,7 +64,9 @@ class _TmdbImagePickerDialogState extends State<TmdbImagePickerDialog> {
               return _error(context, snapshot.error.toString());
             }
             final values = _values(snapshot.data ?? const TmdbImageSet());
-            if (values.isEmpty) return const Center(child: Text('TMDB 没有返回可用图片'));
+            if (values.isEmpty) {
+              return const Center(child: Text('TMDB 没有返回可用图片'));
+            }
             return GridView.builder(
               padding: const EdgeInsets.only(top: 4),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -108,8 +110,10 @@ class _TmdbImagePickerDialogState extends State<TmdbImagePickerDialog> {
   }
 
   Widget _tile(BuildContext context, TmdbImageCandidate image) {
-    final selected = image.filePath == widget.currentPath;
-    final url = image.url(size: widget.kind == TmdbImageKind.backdrop ? 'w780' : 'w342');
+    final selected = normalizeTmdbImagePath(image.filePath) ==
+        normalizeTmdbImagePath(widget.currentPath);
+    final url = image.url(
+        size: widget.kind == TmdbImageKind.backdrop ? 'w780' : 'w342');
     return InkWell(
       onTap: () => Navigator.of(context).pop(image),
       borderRadius: BorderRadius.circular(8),

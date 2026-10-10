@@ -45,6 +45,7 @@ import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client_capabilities.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_image_selection_logger.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/utils/logger.dart';
@@ -400,6 +401,9 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
     required TmdbImageKind kind,
     required String filePath,
   }) async {
+    final startedAt = DateTime.now();
+    final normalized = normalizeTmdbImagePath(filePath);
+    if (normalized == null) throw ArgumentError.value(filePath, 'filePath');
     final season = item.seasonNumber;
     final episode = item.episodeNumber;
     final workKey = item.workKey;
@@ -412,11 +416,17 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
       await workCoordinator.saveImageOverride(
         work,
         kind: kind,
-        filePath: filePath,
+        filePath: normalized,
         seasonNumber: season,
         episodeNumber: episode,
       );
       await reloadMediaLibrarySnapshot(force: true);
+      _logTmdbImageDisplay(
+        item,
+        kind: kind,
+        selectedPath: normalized,
+        startedAt: startedAt,
+      );
       return;
     }
     final coordinator = _tmdbCoordinator;
@@ -431,17 +441,24 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
     await coordinator.saveImageOverride(
       tmdbTargetFor(entry),
       kind: kind,
-      filePath: filePath,
+      filePath: normalized,
       seasonNumber: season,
       episodeNumber: episode,
     );
     await reloadMediaLibrarySnapshot(force: true);
+    _logTmdbImageDisplay(
+      item,
+      kind: kind,
+      selectedPath: normalized,
+      startedAt: startedAt,
+    );
   }
 
   Future<void> clearTmdbImageForItem(
     CloudMediaIndexItem item, {
     required TmdbImageKind kind,
   }) async {
+    final startedAt = DateTime.now();
     final workKey = item.workKey;
     final workCoordinator = _workTmdbCoordinator;
     if (workCoordinator != null && workKey != null) {
@@ -456,6 +473,7 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
         episodeNumber: item.episodeNumber,
       );
       await reloadMediaLibrarySnapshot(force: true);
+      _logTmdbImageDisplay(item, kind: kind, startedAt: startedAt);
       return;
     }
     final coordinator = _tmdbCoordinator;
@@ -474,6 +492,44 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
       episodeNumber: item.episodeNumber,
     );
     await reloadMediaLibrarySnapshot(force: true);
+    _logTmdbImageDisplay(item, kind: kind, startedAt: startedAt);
+  }
+
+  void _logTmdbImageDisplay(
+    CloudMediaIndexItem item, {
+    required TmdbImageKind kind,
+    String? selectedPath,
+    required DateTime startedAt,
+  }) {
+    final refreshed = _indexedItems[_resourceKeyForItem(item)];
+    final displayPath = switch (kind) {
+      TmdbImageKind.poster => refreshed?.tmdbPosterUrl,
+      TmdbImageKind.backdrop => refreshed?.tmdbBackdropUrl,
+      TmdbImageKind.still => null,
+    };
+    final synced = selectedPath == null || kind == TmdbImageKind.still
+        ? null
+        : normalizeTmdbImagePath(displayPath) ==
+            normalizeTmdbImagePath(selectedPath);
+    TmdbImageSelectionLogger.write(
+      scope: 'cloud',
+      phase: 'display',
+      target: item.episodeNumber != null
+          ? 'episode'
+          : item.seasonNumber != null
+              ? 'season'
+              : 'series',
+      kind: kind,
+      identity: '${item.sourceId}:${item.remoteId}',
+      tmdbId: refreshed?.tmdbId ?? item.tmdbId,
+      seasonNumber: item.seasonNumber,
+      episodeNumber: item.episodeNumber,
+      selectedPath: selectedPath,
+      displayPath: displayPath,
+      indexSynced: synced,
+      elapsedMs: DateTime.now().difference(startedAt).inMilliseconds,
+      result: refreshed == null || synced == false ? 'mismatch' : 'success',
+    );
   }
 
   @override

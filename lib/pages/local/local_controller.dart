@@ -41,6 +41,7 @@ import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client_capabilities.dart';
 import 'package:kanyingyin/services/tmdb/local_tmdb_image_selection_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_image_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_image_selection_logger.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_poster_policy.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scraper.dart';
@@ -1232,6 +1233,7 @@ abstract class _LocalController with Store {
     );
     return service.imagesForSeries(
       seriesName,
+      kind: kind,
       seasonNumber: seasonNumber,
       episodeNumber: episodeNumber,
       language: tmdbScrapeOptions.language,
@@ -1245,6 +1247,9 @@ abstract class _LocalController with Store {
     int? seasonNumber,
     int? episodeNumber,
   }) async {
+    final startedAt = DateTime.now();
+    final normalized = normalizeTmdbImagePath(filePath);
+    if (normalized == null) throw ArgumentError.value(filePath, 'filePath');
     final service = LocalTmdbImageSelectionService(
       indexRepository: _mediaIndexRepository,
       metadataRepository: TmdbMetadataRepository(),
@@ -1258,6 +1263,14 @@ abstract class _LocalController with Store {
       episodeNumber: episodeNumber,
     );
     _reloadLocalLibraryIndexSafe();
+    _logLocalTmdbImageDisplay(
+      seriesName: seriesName,
+      kind: kind,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+      selectedPath: normalized,
+      startedAt: startedAt,
+    );
   }
 
   Future<void> clearLocalTmdbImage({
@@ -1266,6 +1279,7 @@ abstract class _LocalController with Store {
     int? seasonNumber,
     int? episodeNumber,
   }) async {
+    final startedAt = DateTime.now();
     final service = LocalTmdbImageSelectionService(
       indexRepository: _mediaIndexRepository,
       metadataRepository: TmdbMetadataRepository(),
@@ -1278,6 +1292,13 @@ abstract class _LocalController with Store {
       episodeNumber: episodeNumber,
     );
     _reloadLocalLibraryIndexSafe();
+    _logLocalTmdbImageDisplay(
+      seriesName: seriesName,
+      kind: kind,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+      startedAt: startedAt,
+    );
   }
 
   Future<CloudTmdbMatchOutcome> scrapeCloudSeries(MediaLibrarySeries series,
@@ -1544,6 +1565,58 @@ abstract class _LocalController with Store {
       options: const TmdbScrapeOptions.defaults(),
     );
     return _tmdbImageUrl(poster);
+  }
+
+  void _logLocalTmdbImageDisplay({
+    required String seriesName,
+    required TmdbImageKind kind,
+    int? seasonNumber,
+    int? episodeNumber,
+    String? selectedPath,
+    required DateTime startedAt,
+  }) {
+    final key = seriesName.trim().toLowerCase();
+    final matching = localLibraryItems
+        .where((item) => item.seriesName.trim().toLowerCase() == key)
+        .toList(growable: false);
+    final metadata = matching.map((item) => item.tmdb).nonNulls.firstOrNull;
+    if (metadata == null) return;
+    final displayPath = switch (kind) {
+      TmdbImageKind.poster => const TmdbPosterPolicy().select(
+          metadata,
+          seasonNumber: seasonNumber,
+          options: const TmdbScrapeOptions.defaults(),
+        ),
+      TmdbImageKind.backdrop =>
+        metadata.imageOverride.backdrop ?? metadata.backdropUrl,
+      TmdbImageKind.still => seasonNumber == null || episodeNumber == null
+          ? null
+          : metadata
+              .imageOverride.episodeStills['$seasonNumber:$episodeNumber'],
+    };
+    final synced = selectedPath == null || kind == TmdbImageKind.still
+        ? null
+        : normalizeTmdbImagePath(displayPath) ==
+            normalizeTmdbImagePath(selectedPath);
+    TmdbImageSelectionLogger.write(
+      scope: 'local',
+      phase: 'display',
+      target: episodeNumber != null
+          ? 'episode'
+          : seasonNumber != null
+              ? 'season'
+              : 'series',
+      kind: kind,
+      identity: seriesName,
+      tmdbId: metadata.id,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+      selectedPath: selectedPath,
+      displayPath: displayPath,
+      indexSynced: synced,
+      elapsedMs: DateTime.now().difference(startedAt).inMilliseconds,
+      result: synced == false ? 'mismatch' : 'success',
+    );
   }
 
   @action

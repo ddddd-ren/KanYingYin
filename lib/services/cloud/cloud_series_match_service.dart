@@ -287,7 +287,7 @@ class CloudSeriesMatchService {
       tmdbOriginalTitle: metadata.originalTitle,
       tmdbOverview: metadata.overview,
       tmdbRating: metadata.rating,
-      tmdbPosterUrl: metadata.imageOverride.poster ?? metadata.posterUrl,
+      tmdbPosterUrl: metadata.imageOverride.posterForSeason(item.seasonNumber),
       tmdbBackdropUrl: metadata.imageOverride.backdrop ?? metadata.backdropUrl,
       tmdbGenres: metadata.genres,
       posterCachePath: posterCachePath,

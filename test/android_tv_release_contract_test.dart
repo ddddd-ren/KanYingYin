@@ -30,7 +30,7 @@ void main() {
         isPrerelease
             ? 'Android 手机测试版：${packageVersion.group(1)} '
                 '(${packageVersion.group(2)})'
-            : 'Android 正式版：1.0.12 (10012)',
+            : 'Android 正式版：1.0.13 (10013)',
       ),
     );
     expect(gradle,

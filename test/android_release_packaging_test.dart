@@ -27,7 +27,7 @@ void main() {
     expect(gradle, contains('val androidVersionCode = if (isPrerelease)'));
     expect(
       packageVersion!.group(1),
-      anyOf(startsWith('2.1.'), equals('1.0.16')),
+      anyOf(startsWith('2.1.'), equals('1.0.17')),
     );
   });
 
@@ -54,8 +54,8 @@ void main() {
         gradle,
         contains(
             'val windowsVersionCode = pubspecVersionMatch.groupValues[2].toInt()'));
-    expect(gradle, contains('else "1.0.12"'));
-    expect(gradle, contains('else 10012'));
+    expect(gradle, contains('else "1.0.13"'));
+    expect(gradle, contains('else 10013'));
     expect(gradle, contains('create("mobile")'));
     expect(gradle, contains('create("tvTest")'));
     expect(gradle, contains('versionCode = androidVersionCode'));

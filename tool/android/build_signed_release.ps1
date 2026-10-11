@@ -64,8 +64,8 @@ if ($VersionOnly) {
     return
 }
 $isPrerelease = $pubspecVersion.Name.StartsWith('2.1.')
-$androidVersion = if ($isPrerelease) { $pubspecVersion.Name } else { '1.0.12' }
-$androidVersionCode = if ($isPrerelease) { $pubspecVersion.Code } else { 10012 }
+$androidVersion = if ($isPrerelease) { $pubspecVersion.Name } else { '1.0.13' }
+$androidVersionCode = if ($isPrerelease) { $pubspecVersion.Code } else { 10013 }
 $requiredVariables = @(
     'KANYINGYIN_ANDROID_KEYSTORE',
     'KANYINGYIN_ANDROID_STORE_PASSWORD',

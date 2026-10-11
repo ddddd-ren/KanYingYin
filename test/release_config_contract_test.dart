@@ -30,7 +30,7 @@ void main() {
       currentReleaseNotes,
       contains(isPrerelease
           ? 'Android 手机测试版：$version ($buildNumber)'
-          : 'Android 正式版：1.0.12 (10012)'),
+          : 'Android 正式版：1.0.13 (10013)'),
     );
     for (final text in <String>[
       '版本',
@@ -76,7 +76,7 @@ void main() {
       updateDialogCopy,
       contains(isPrerelease
           ? 'Android 手机测试版：$version ($buildNumber)'
-          : 'Android 手机正式版：1.0.12 (10012)'),
+          : 'Android 手机正式版：1.0.13 (10013)'),
     );
     expect(versionHistory, contains("version: '$version'"));
     expect(gradle,

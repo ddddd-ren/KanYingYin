@@ -42,8 +42,8 @@ val pubspecVersionMatch =
 val windowsVersionName = pubspecVersionMatch.groupValues[1]
 val windowsVersionCode = pubspecVersionMatch.groupValues[2].toInt()
 val isPrerelease = windowsVersionName.startsWith("2.1.")
-val androidVersionName = if (isPrerelease) windowsVersionName else "1.0.12"
-val androidVersionCode = if (isPrerelease) windowsVersionCode else 10012
+val androidVersionName = if (isPrerelease) windowsVersionName else "1.0.13"
+val androidVersionCode = if (isPrerelease) windowsVersionCode else 10013
 
 android {
     namespace = "com.kanyingyin.player"

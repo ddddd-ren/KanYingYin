@@ -38,7 +38,7 @@ void main() {
       releaseNotes,
       contains(isPrerelease
           ? 'Android 手机测试版：$expectedVersion ($expectedBuildNumber)'
-          : 'Android 正式版：1.0.12 (10012)'),
+          : 'Android 正式版：1.0.13 (10013)'),
     );
     expect(
       readme,
@@ -80,20 +80,15 @@ void main() {
       currentReleaseNotes,
       currentVersionHistory
     ]) {
-      for (final text in <String>[
-        '网盘',
-        'Windows',
-        'Android',
-        '不会修改',
-      ]) {
+      for (final text in <String>['网盘', '不会修改']) {
         expect(currentCopy, contains(text));
       }
       if (currentCopy == currentReleaseNotes) {
-        expect(currentCopy, contains('版本'));
-      } else {
-        if (!isPrerelease) {
-          expect(currentCopy, contains('手机和平板'));
+        for (final text in ['版本', 'Windows', 'Android']) {
+          expect(currentCopy, contains(text));
         }
+      } else {
+        expect(currentCopy, contains('Windows'));
       }
       if (isPrerelease) {
         expect(currentCopy, contains('测试版'));

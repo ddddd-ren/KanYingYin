@@ -34,20 +34,37 @@ Future<void> _openVersionChangelogDialog(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('2.1.226 测试版更新弹窗展示分类题材规则调整', (tester) async {
-    expect(AppVersion.current, '2.1.226');
+  testWidgets('1.0.17 正式版更新弹窗展示媒体库与播放器功能', (tester) async {
+    expect(AppVersion.current, '1.0.17');
     final entries = versionHistoryForCurrent(AppVersion.current);
     expect(entries, hasLength(1));
-    expect(entries.single.isPrerelease, isTrue);
+    expect(entries.single.isPrerelease, isFalse);
     expect(entries.single.date, '2026-10-12');
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(body: VersionChangelogContent(versions: entries)),
     ));
-    expect(find.text('v2.1.226  测试版  2026-10-12'), findsOneWidget);
-    for (final text in ['题材标签', 'TMDB', '主分类', '待确认', '原始视频']) {
+    expect(find.text('v1.0.17  正式版  2026-10-12'), findsOneWidget);
+    for (final text in ['收藏', '书签', '分类', '原始视频']) {
       expect(find.textContaining(text), findsWidgets);
     }
     expect(tester.takeException(), isNull);
+  });
+
+  test('Android 1.0.13 正式版只展示手机和平板功能', () {
+    final entries = versionHistoryForCurrent(
+      '1.0.17',
+      platform: AppPlatformKind.android,
+    );
+    expect(entries, hasLength(1));
+    expect(entries.single.version, '1.0.13');
+    expect(entries.single.isPrerelease, isFalse);
+    final changes = entries.single.changes.join('\n');
+    for (final text in ['收藏', '内嵌章节', '分类', 'MediaCodec', 'Anime4K']) {
+      expect(changes, contains(text));
+    }
+    expect(changes, isNot(contains('Windows')));
+    expect(changes, isNot(contains('Android TV')));
+    expect(changes, isNot(contains('测试版')));
   });
 
   test('Android 2.1.226 更新说明展示分类题材规则调整', () {

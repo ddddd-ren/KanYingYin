@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
+import 'package:kanyingyin/features/library/application/media_library_classification.dart';
+import 'package:kanyingyin/features/library/application/media_library_user_state.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
@@ -31,17 +33,16 @@ class UnifiedMediaCardInfoBuilder {
   static UnifiedMediaCardInfo forSeries(
     MediaLibrarySeries series, {
     String? categoryLabel,
+    MediaLibraryUserState? userState,
+    MediaClassificationMode classificationMode = MediaClassificationMode.conservative,
   }) {
     final episodes = series.episodes;
-    final seasonNumbers = episodes
-        .map((episode) => episode.seasonNumber)
-        .whereType<int>()
-        .where((season) => season > 0)
-        .toSet()
-        .toList()
-      ..sort();
-    final title = _titleWithSeason(series.title, seasonNumbers);
-    final mediaTypeLabel = _mediaTypeLabel(series.mediaType);
+    final classification = const MediaClassificationResolver().resolve(
+      series, state: userState, mode: classificationMode,
+    );
+    final mediaTypeLabel = classification.categories.isEmpty
+        ? (classification.needsConfirmation ? '待确认' : '未分类')
+        : classification.categories.join(' · ');
     final subtitle = _episodeSubtitle(
       episodes,
       isMovie: series.mediaType == TmdbMediaType.movie,
@@ -81,7 +82,7 @@ class UnifiedMediaCardInfoBuilder {
       );
     }
     final normalizedCategory = categoryLabel?.trim() ?? '';
-    final normalizedType = mediaTypeLabel?.trim() ?? '';
+    final normalizedType = mediaTypeLabel.trim();
     if (normalizedCategory.isNotEmpty) {
       badges.add(
         ImmersiveMediaCardBadge(
@@ -112,7 +113,7 @@ class UnifiedMediaCardInfoBuilder {
       ),
     );
     return UnifiedMediaCardInfo(
-      title: title,
+      title: series.title,
       subtitle: subtitle,
       details: details,
       badges: badges,
@@ -131,6 +132,9 @@ class UnifiedMediaCardInfoBuilder {
     required bool hasSubtitle,
     required String scrapeLabel,
     String? mediaTypeLabel,
+    MediaLibrarySeries? librarySeries,
+    MediaLibraryUserState? userState,
+    MediaClassificationMode classificationMode = MediaClassificationMode.conservative,
   }) {
     final seasonValues = seasonNumbers.toList(growable: false);
     final episodeValues = episodeNumbers.toList(growable: false);
@@ -152,7 +156,7 @@ class UnifiedMediaCardInfoBuilder {
         ),
     ];
     final info = forSeries(
-      MediaLibrarySeries(
+      librarySeries ?? MediaLibrarySeries(
         key: 'local-card',
         seriesKey: title,
         title: title,
@@ -164,6 +168,8 @@ class UnifiedMediaCardInfoBuilder {
         mediaType:
             mediaTypeLabel == '电影' ? TmdbMediaType.movie : TmdbMediaType.tv,
       ),
+      userState: userState,
+      classificationMode: classificationMode,
     );
     final badges = info.badges
         .map(
@@ -185,17 +191,6 @@ class UnifiedMediaCardInfoBuilder {
     );
   }
 
-  static String _titleWithSeason(String title, List<int> seasons) {
-    final value = title.trim();
-    if (value.isEmpty || seasons.length != 1) return value;
-    final season = seasons.single;
-    if (RegExp(r'\bS0?' + season.toString() + r'\b', caseSensitive: false)
-        .hasMatch(value)) {
-      return value;
-    }
-    return '$value S${season.toString().padLeft(2, '0')}';
-  }
-
   static String _episodeSubtitle(
     Iterable<MediaLibraryEpisode> episodes, {
     required bool isMovie,
@@ -205,7 +200,7 @@ class UnifiedMediaCardInfoBuilder {
       return list.length > 1 ? '电影 · ${list.length} 个版本' : '电影';
     }
     final count = list.length;
-    if (count == 0) return '电视剧';
+    if (count == 0) return '剧集';
     final numbers = list
         .map((episode) => episode.episodeNumber)
         .whereType<int>()
@@ -268,12 +263,6 @@ class UnifiedMediaCardInfoBuilder {
       series.tmdbPosterUrl?.trim().isNotEmpty == true ||
       series.posterCachePath?.trim().isNotEmpty == true ||
       series.tmdbRating != null;
-
-  static String? _mediaTypeLabel(TmdbMediaType? type) => switch (type) {
-        TmdbMediaType.movie => '电影',
-        TmdbMediaType.tv => '电视剧',
-        null => null,
-      };
 
   static String? _releaseYear(String? value) {
     final match = RegExp(r'^(\d{4})').firstMatch(value?.trim() ?? '');

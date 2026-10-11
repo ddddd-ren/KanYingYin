@@ -53,6 +53,7 @@ class PlayerRuntimePreferences {
   }) : _policy = PlayerPlatformPolicy(capabilities ?? detectAppPlatform());
 
   final TypedSettings _settings;
+  TypedSettings get settings => _settings;
   final PlayerPlatformPolicy _policy;
 
   PlayerRuntimeSettings load() {

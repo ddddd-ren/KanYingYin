@@ -7,6 +7,12 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:flutter/services.dart';
 import 'package:kanyingyin/bean/dialog/async_confirmation_dialog.dart';
 import 'package:kanyingyin/features/library/application/library_media_view_data_builder.dart';
+import 'package:kanyingyin/features/library/application/media_library_classification.dart';
+import 'package:kanyingyin/features/library/application/media_library_user_state.dart';
+import 'package:kanyingyin/features/library/application/media_library_user_state_repository.dart';
+import 'package:kanyingyin/features/library/presentation/media_classification_dialog.dart';
+import 'package:kanyingyin/repositories/local_media_tag_repository.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 import 'package:kanyingyin/features/library/presentation/directory_address_dropdown.dart';
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
 import 'package:kanyingyin/features/library/presentation/library_path_bar.dart';
@@ -25,16 +31,19 @@ import 'package:kanyingyin/pages/cloud/quark/quark_share_import_action.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/services/local_custom_cover_service.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
+import 'package:kanyingyin/services/local_media_indexer.dart';
 import 'package:kanyingyin/services/local_playback_request_builder.dart';
 import 'package:kanyingyin/services/local_series_grouper.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scraper.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:path/path.dart' as p;
+import 'package:mobx/mobx.dart' show ReactionDisposer, reaction;
 
 enum _LocalMediaAction {
   play,
   editTitle,
+  editTags,
   customCover,
   scrapeTmdb,
   rematchTmdb,
@@ -61,6 +70,11 @@ class _LocalPageState extends State<LocalPage>
   final LibraryMediaViewDataBuilder _mediaViewDataBuilder =
       const LibraryMediaViewDataBuilder();
   String _searchKeyword = '';
+  final _userStateRepository = MediaLibraryUserStateRepository();
+  Map<String, MediaLibraryUserState> _userStates = const {};
+  Map<String, MediaLibrarySeries> _librarySeriesByPath = const {};
+  MediaClassificationMode _classificationMode = MediaClassificationMode.conservative;
+  late final ReactionDisposer _disposeClassificationReaction;
 
   @override
   bool get wantKeepAlive => true;
@@ -69,17 +83,82 @@ class _LocalPageState extends State<LocalPage>
   void initState() {
     super.initState();
     localController.init();
+    MediaLibraryUserStateRepository.changes.addListener(_reloadClassifications);
+    _disposeClassificationReaction = reaction(
+      (_) => localController.localLibraryItems.toList(growable: false),
+      (_) => _reloadClassifications(),
+    );
+    _reloadClassifications();
   }
 
   @override
   void dispose() {
+    _disposeClassificationReaction();
+    MediaLibraryUserStateRepository.changes.removeListener(_reloadClassifications);
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
+  Future<void> _reloadClassifications() async {
+    try {
+      final states = await _userStateRepository.reconcile({
+        for (final series in localController.localMediaLibrary.series)
+          series.key: series.episodes.map((episode) => episode.stableId).toSet(),
+      });
+      final value = Modular.get<TypedSettings>().readRaw(SettingBoxKey.mediaClassificationMode);
+      if (!mounted) return;
+      setState(() {
+        _userStates = states;
+        _classificationMode = MediaClassificationMode.values.firstWhere(
+          (mode) => mode.name == value,
+          orElse: () => MediaClassificationMode.conservative,
+        );
+      });
+    } on Object {
+      // 暂不可读时沿用已加载的人工选择。
+    }
+  }
+
+  MediaLibrarySeries? _librarySeriesForGroup(LocalVideoGroup group) {
+    final matches = group.episodes
+        .map((episode) => _librarySeriesByPath[LocalMediaIndexItem.normalizePath(episode.path)])
+        .toSet();
+    return matches.length == 1 ? matches.single : null;
+  }
+
+  Future<void> _editGroupTags(BuildContext context, LocalVideoGroup group) async {
+    final series = _librarySeriesForGroup(group);
+    if (series == null) return;
+    final tags = LocalMediaTagRepository();
+    final initialTags = tags.getAll()[series.seriesKey] ?? const <String>[];
+    await showMediaClassificationDialog(
+      context,
+      series: series,
+      state: _userStates[series.key] ?? MediaLibraryUserState.empty,
+      mode: _classificationMode,
+      customTags: initialTags,
+      onSave: (state, selectedTags) async {
+        try {
+          await tags.saveForSeries(series.seriesKey, selectedTags);
+          await _userStateRepository.saveClassification(
+            series.key,
+            categories: state.categoryOverride,
+            genres: state.genreOverride,
+            mediaIds: series.episodes.map((episode) => episode.stableId),
+          );
+        } on Object {
+          await tags.saveForSeries(series.seriesKey, initialTags);
+          rethrow;
+        }
+        await _reloadClassifications();
+      },
+    );
+  }
+
   Future<void> _playGroup(LocalVideoGroup group) async {
     final firstEpisode = group.firstEpisode;
+    final legacyTitles = localController.localLegacySeriesTitlesByMediaId;
     final indexedItemsByPath = <String, LocalMediaIndexItem>{
       for (final item in localController.localLibraryItems)
         LocalMediaIndexItem.normalizePath(item.path): item,
@@ -90,7 +169,7 @@ class _LocalPageState extends State<LocalPage>
       if (indexed == null) return file;
       return <String, String>{
         ...file,
-        'title': indexed.displayTitle,
+        'title': indexed.playbackTitleFor(group.title),
       };
     }).toList(growable: false);
     AppLogger().i(
@@ -100,6 +179,12 @@ class _LocalPageState extends State<LocalPage>
     await localVideoController.openFilePlayback(
       filePath: firstEpisode.path,
       seriesTitle: group.title,
+      legacySeriesTitles: LocalMediaLibraryBuilder.legacySeriesTitlesFor(
+        group.episodes.map((item) => item.location.isFile
+            ? LocalMediaIndexItem.normalizePath(item.path)
+            : item.location.stableId),
+        legacyTitles,
+      ),
       directoryFiles: directoryFiles,
       playlistAlreadyIsolated: true,
       autoLoadSubtitle: Modular.get<TypedSettings>().getTyped<bool>(
@@ -118,17 +203,24 @@ class _LocalPageState extends State<LocalPage>
         .map((item) => {
               'path': item.path,
               'name': item.name,
-              'title': _playbackTitle(item),
+              'title': item.playbackTitleFor(series.displayTitle),
             })
         .toList(growable: false);
     final playbackEntries = series.episodes
-        .map(LocalPlaybackEntry.fromIndexItem)
+        .map((item) => LocalPlaybackEntry(
+              location: item.location,
+              parentLocation: item.parentLocation,
+              name: item.name,
+              title: item.playbackTitleFor(series.displayTitle),
+              subtitlePath: item.subtitlePath,
+            ))
         .toList(growable: false);
     AppLogger().i(
         'LocalPage: playing library episode: ${episode.path} (${directoryFiles.length} videos in series)');
     await localVideoController.openFilePlayback(
       filePath: episode.path,
       seriesTitle: series.displayTitle,
+      legacySeriesTitles: series.legacySeriesTitles,
       directoryFiles: directoryFiles,
       playbackEntries: playbackEntries,
       playlistAlreadyIsolated: true,
@@ -177,10 +269,6 @@ class _LocalPageState extends State<LocalPage>
           ),
         )
         .toList(growable: false);
-  }
-
-  String _playbackTitle(LocalMediaIndexItem item) {
-    return item.displayTitle;
   }
 
   Future<void> _pickDirectory() async {
@@ -426,12 +514,13 @@ class _LocalPageState extends State<LocalPage>
     final removed = result['removed'] ?? 0;
     final skipped = result['skipped'] ?? 0;
     final failed = result['failed'] ?? 0;
+    final changes = result['changes'] ?? 0;
     final cancelled = result['cancelled'] == 1;
     final message = sources == 0
         ? '没有可扫描的媒体源'
         : cancelled
             ? '媒体库扫描已取消'
-            : '媒体库已更新：$total 个视频，新增 $added，更新 $updated，移除 $removed，跳过 $skipped，失败 $failed';
+            : '媒体库已更新：$total 个视频，新增 $added，更新 $updated，移除 $removed，跳过 $skipped，失败 $failed，变更 $changes';
     messenger.showSnackBar(
       SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
     );
@@ -443,6 +532,7 @@ class _LocalPageState extends State<LocalPage>
       showDragHandle: true,
       builder: (context) {
         final failures = localController.libraryIndexFailures;
+        final changes = localController.libraryIndexChanges;
         return SafeArea(
           child: ListView(
             shrinkWrap: true,
@@ -451,9 +541,37 @@ class _LocalPageState extends State<LocalPage>
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.error_outline),
-                title: Text('扫描失败项 ${failures.length} 个'),
-                subtitle: const Text('可检查文件权限、磁盘连接或路径是否仍存在'),
+                title:
+                    Text('扫描结果：${changes.length} 项变更，${failures.length} 项失败'),
+                subtitle: const Text('变更会保留在队列中，失败项可检查权限、磁盘连接或路径'),
               ),
+              if (changes.isNotEmpty)
+                const ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.sync_alt),
+                  title: Text('本次扫描变更'),
+                ),
+              for (final change in changes.take(20))
+                ListTile(
+                  dense: true,
+                  contentPadding: const EdgeInsets.only(left: 16),
+                  leading: Icon(
+                    switch (change.kind) {
+                      LocalMediaIndexChangeKind.added =>
+                        Icons.add_circle_outline,
+                      LocalMediaIndexChangeKind.updated => Icons.edit_outlined,
+                      LocalMediaIndexChangeKind.removed =>
+                        Icons.remove_circle_outline,
+                      LocalMediaIndexChangeKind.failed => Icons.error_outline,
+                    },
+                  ),
+                  title: Text(
+                    change.path,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(change.kind.name),
+                ),
               for (final failure in failures.take(20))
                 ListTile(
                   dense: true,
@@ -540,6 +658,9 @@ class _LocalPageState extends State<LocalPage>
             case _LocalMediaAction.editTitle:
               await _editGroupTitle(context, group);
               return;
+            case _LocalMediaAction.editTags:
+              await _editGroupTags(context, group);
+              return;
             case _LocalMediaAction.customCover:
               await _setCustomCoverForGroup(context, group);
               return;
@@ -576,6 +697,11 @@ class _LocalPageState extends State<LocalPage>
             value: _LocalMediaAction.editTitle,
             child: Text('修改剧名'),
           ),
+          if (_librarySeriesForGroup(group) != null)
+            const PopupMenuItem<_LocalMediaAction>(
+              value: _LocalMediaAction.editTags,
+              child: Text('管理分类与标签'),
+            ),
           const PopupMenuItem<_LocalMediaAction>(
             value: _LocalMediaAction.customCover,
             child: Text('自定义封面'),
@@ -656,6 +782,15 @@ class _LocalPageState extends State<LocalPage>
                 ),
               ),
               const Divider(height: 1),
+              if (_librarySeriesForGroup(group) != null)
+                ListTile(
+                  leading: const Icon(Icons.label_outline),
+                  title: const Text('管理分类与标签'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _editGroupTags(pageContext, group);
+                  },
+                ),
               ListTile(
                 leading: const Icon(Icons.play_arrow_outlined),
                 title: Text(group.episodeCount == 1 ? '播放' : '播放剧集'),
@@ -933,10 +1068,12 @@ class _LocalPageState extends State<LocalPage>
             '${(localController.libraryIndexProgressValue * 100).clamp(0, 100).round()}%',
       );
     }
-    if (localController.libraryIndexFailures.isNotEmpty) {
+    if (localController.libraryIndexFailures.isNotEmpty ||
+        localController.libraryIndexChanges.isNotEmpty) {
       return LibraryDirectoryStatusViewData(
           kind: LibraryDirectoryStatusKind.indexFailures,
-          label: '${localController.libraryIndexFailures.length} 项扫描失败');
+          label:
+              '${localController.libraryIndexChanges.length} 项变更 · ${localController.libraryIndexFailures.length} 项扫描失败');
     }
     if (localController.isScrapingTmdb) {
       return LibraryDirectoryStatusViewData.matchingMetadata(
@@ -993,6 +1130,12 @@ class _LocalPageState extends State<LocalPage>
   }
 
   Widget _mediaGrid(BuildContext context) {
+    _librarySeriesByPath = {
+      for (final series in localController.localMediaLibrary.series)
+        for (final episode in series.episodes)
+          if (episode.localItem case final item?)
+            LocalMediaIndexItem.normalizePath(item.path): series,
+    };
     final groups = _visibleGroups(localController.items);
     final groupById = {
       for (final group in groups) group.firstEpisode.path: group
@@ -1029,6 +1172,7 @@ class _LocalPageState extends State<LocalPage>
   }
 
   LibraryMediaItemViewData _mediaItemData(LocalVideoGroup group) {
+    final series = _librarySeriesForGroup(group);
     final isScraping = localController.isFetchingPosters &&
         (localController.posterCurrentFile == group.title ||
             group.episodes
@@ -1036,6 +1180,9 @@ class _LocalPageState extends State<LocalPage>
     return _mediaViewDataBuilder.build(
       group,
       isScraping: isScraping,
+      librarySeries: series,
+      userState: series == null ? null : _userStates[series.key],
+      classificationMode: _classificationMode,
       networkCoverUrl: localController.tmdbPosterUrlForPaths(
         group.episodes.map((item) => item.path),
       ),

@@ -20,8 +20,13 @@ class TmdbEpisodeTitleResolver {
     }
     final episodeLabel = 'E${episode.toString().padLeft(2, '0')}';
     final season = seasonNumber;
+    final seasonLabel = season != null && season > 0
+        ? 'S${season.toString().padLeft(2, '0')}'
+        : '';
     final prefix = season != null && season > 0
-        ? '$title S${season.toString().padLeft(2, '0')}$episodeLabel'
+        ? title.endsWith(' $seasonLabel')
+            ? '$title$episodeLabel'
+            : '$title $seasonLabel$episodeLabel'
         : '$title $episodeLabel';
     final name = episodeName?.trim() ?? '';
     return name.isEmpty ? prefix : '$prefix $name';

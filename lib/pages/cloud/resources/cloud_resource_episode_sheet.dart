@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/features/library/application/media_library_classification.dart';
+import 'package:kanyingyin/features/library/application/media_library_user_state.dart';
 import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_episode_tile_surface.dart';
@@ -12,36 +14,65 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/services/local_episode_parser.dart';
 import 'package:kanyingyin/widgets/cloud_poster_image.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 
 Future<CloudFileEntry?> showCloudResourceEpisodeSheet({
   required BuildContext context,
   required String sourceId,
   required CloudResourceMediaGroup group,
+  CloudResourceMediaGroup Function()? groupProvider,
+  Listenable? groupListenable,
   Set<String> subtitleVideoKeys = const <String>{},
   String sourceName = '',
   AppPlatformCapabilities? capabilities,
+  Map<String, MediaLibraryUserState> userStates = const {},
+  Map<String, MediaLibraryUserState> Function()? userStatesProvider,
+  MediaClassificationMode classificationMode =
+      MediaClassificationMode.conservative,
+  MediaClassificationMode Function()? classificationModeProvider,
+  MediaLibrarySeries? Function(CloudResourceMediaGroup)?
+      classificationSeriesForGroup,
 }) {
   return showModalBottomSheet<CloudFileEntry>(
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
-    builder: (context) => _CloudResourceEpisodeSheet(
-      sourceId: sourceId,
-      group: group,
-      subtitleVideoKeys: subtitleVideoKeys,
-      sourceName: sourceName,
-      capabilities: capabilities,
-    ),
+    builder: (context) {
+      Widget content() {
+        final currentGroup = groupProvider?.call() ?? group;
+        return _CloudResourceEpisodeSheet(
+          sourceId: sourceId,
+          group: currentGroup,
+          subtitleVideoKeys: subtitleVideoKeys,
+          sourceName: sourceName,
+          capabilities: capabilities,
+          librarySeries: classificationSeriesForGroup?.call(currentGroup),
+          userState: (userStatesProvider?.call() ?? userStates)[currentGroup.stableKey],
+          classificationMode: classificationModeProvider?.call() ?? classificationMode,
+        );
+      }
+
+      final listenable = groupListenable;
+      return listenable == null
+          ? content()
+          : ListenableBuilder(
+              listenable: listenable,
+              builder: (_, __) => content(),
+            );
+    },
   );
 }
 
-class _CloudResourceEpisodeSheet extends StatelessWidget {
+class _CloudResourceEpisodeSheet extends StatefulWidget {
   const _CloudResourceEpisodeSheet({
     required this.sourceId,
     required this.group,
     required this.subtitleVideoKeys,
     required this.sourceName,
     required this.capabilities,
+    required this.librarySeries,
+    required this.userState,
+    required this.classificationMode,
   });
 
   final String sourceId;
@@ -49,6 +80,23 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
   final Set<String> subtitleVideoKeys;
   final String sourceName;
   final AppPlatformCapabilities? capabilities;
+  final MediaLibrarySeries? librarySeries;
+  final MediaLibraryUserState? userState;
+  final MediaClassificationMode classificationMode;
+
+  @override
+  State<_CloudResourceEpisodeSheet> createState() =>
+      _CloudResourceEpisodeSheetState();
+}
+
+class _CloudResourceEpisodeSheetState
+    extends State<_CloudResourceEpisodeSheet> {
+  final Map<int?, String> _selectedVersionKeys = <int?, String>{};
+  String get sourceId => widget.sourceId;
+  CloudResourceMediaGroup get group => widget.group;
+  Set<String> get subtitleVideoKeys => widget.subtitleVideoKeys;
+  String get sourceName => widget.sourceName;
+  AppPlatformCapabilities? get capabilities => widget.capabilities;
 
   @override
   Widget build(BuildContext context) {
@@ -74,6 +122,9 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
             scraping: false,
             hasSubtitle: _hasSubtitle(group),
             sourceName: sourceName,
+            librarySeries: widget.librarySeries,
+            userState: widget.userState,
+            classificationMode: widget.classificationMode,
           )
         : CloudResourceCardViewData.fromEntry(
             entry: group.anchor,
@@ -81,6 +132,9 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
             scraping: false,
             hasSubtitle: _hasSubtitle(group),
             sourceName: sourceName,
+            librarySeries: widget.librarySeries,
+            userState: widget.userState,
+            classificationMode: widget.classificationMode,
           );
     return SafeArea(
       child: SizedBox(
@@ -271,7 +325,7 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
           ),
           const Divider(height: 1),
           _versionEpisodes(context, season,
-            isTv: isTv, autofocusFirstEpisode: autofocusFirstEpisode),
+              isTv: isTv, autofocusFirstEpisode: autofocusFirstEpisode),
         ],
       ),
     );
@@ -283,34 +337,37 @@ class _CloudResourceEpisodeSheet extends StatelessWidget {
     required bool isTv,
     required bool autofocusFirstEpisode,
   }) {
-    var selectedIndex = 0;
-    return StatefulBuilder(builder: (context, setState) {
-      final videos = season.versions.isEmpty
-          ? season.videos
-          : season.versions[selectedIndex].videos;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (season.versions.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Wrap(spacing: 8, runSpacing: 8, children: [
-                for (var index = 0; index < season.versions.length; index++)
-                  ChoiceChip(
-                    label: Text(season.versions[index].label),
-                    selected: selectedIndex == index,
-                    onSelected: (_) => setState(() => selectedIndex = index),
-                  ),
-              ]),
-            ),
-          for (var index = 0; index < videos.length; index++) ...[
-            _episodeTile(context, videos[index], index,
-                isTv: isTv, autofocus: autofocusFirstEpisode && index == 0),
-            if (index < videos.length - 1) const Divider(height: 1),
-          ],
+    final versionIndex = season.versions.indexWhere(
+      (version) => version.key == _selectedVersionKeys[season.seasonNumber],
+    );
+    final selectedIndex = versionIndex < 0 ? 0 : versionIndex;
+    final videos = season.versions.isEmpty
+        ? season.videos
+        : season.versions[selectedIndex].videos;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (season.versions.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Wrap(spacing: 8, runSpacing: 8, children: [
+              for (var index = 0; index < season.versions.length; index++)
+                ChoiceChip(
+                  label: Text(season.versions[index].label),
+                  selected: selectedIndex == index,
+                  onSelected: (_) => setState(() =>
+                      _selectedVersionKeys[season.seasonNumber] =
+                          season.versions[index].key),
+                ),
+            ]),
+          ),
+        for (var index = 0; index < videos.length; index++) ...[
+          _episodeTile(context, videos[index], index,
+              isTv: isTv, autofocus: autofocusFirstEpisode && index == 0),
+          if (index < videos.length - 1) const Divider(height: 1),
         ],
-      );
-    });
+      ],
+    );
   }
 
   Widget _infoBadge(

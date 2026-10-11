@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/features/library/application/media_library_classification.dart';
+import 'package:kanyingyin/features/library/application/media_library_user_state.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_hidden_video.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
@@ -486,7 +488,7 @@ void main() {
       controller.dispose();
     });
 
-    test('标签只筛选当前来源并与搜索和目录范围组合', () async {
+    test('人工题材只筛选当前来源并与搜索和目录范围组合', () async {
       final credentials = MemoryCloudCredentialStore();
       final sourceRepository = CloudSourceRepository(
         storage: MemoryCloudSourceStorage(),
@@ -559,6 +561,17 @@ void main() {
         preferredSourceId: sourceA.id,
       );
 
+      expect(controller.availableGenres, isEmpty);
+      const confirmedGenres = <String, List<String>>{
+        'science-fiction': ['科幻'],
+        'documentary': ['纪录片'],
+      };
+      controller.updateClassifications({
+        for (final group in controller.collection.groups)
+          group.stableKey: MediaLibraryUserState(
+            genreOverride: confirmedGenres[group.videos.single.id],
+          ),
+      }, controller.classificationMode);
       expect(controller.availableGenres, <String>['科幻', '纪录片']);
       controller.toggleGenre('科幻');
       expect(controller.selectedGenres, const <String>{'科幻'});
@@ -584,11 +597,15 @@ void main() {
         preferredSourceId: sourceB.id,
       );
       expect(controller.selectedGenres, isEmpty);
+      controller.updateClassifications({
+        controller.collection.groups.single.stableKey:
+            const MediaLibraryUserState(genreOverride: ['动画']),
+      }, controller.classificationMode);
       expect(controller.availableGenres, <String>['动画']);
       controller.dispose();
     });
 
-    test('TMDB 刮削通知后立即更新当前来源类型标签', () async {
+    test('旧资源记录通知后更新候选题材但不自动确认', () async {
       final credentials = MemoryCloudCredentialStore();
       final sourceRepository = CloudSourceRepository(
         storage: MemoryCloudSourceStorage(),
@@ -657,10 +674,19 @@ void main() {
         ),
       );
 
-      expect(controller.availableGenres, <String>['科幻']);
+      MediaClassificationResult currentClassification() =>
+          const MediaClassificationResolver().resolve(
+            controller.classificationSeriesForGroup(
+              controller.collection.groups.single,
+            )!,
+          );
+      expect(controller.availableGenres, isEmpty);
       expect(controller.visibleIndexedItems.single.tmdbGenres, <String>['科幻']);
+      expect(currentClassification().genreSuggestions.map((item) => item.label),
+          ['科幻']);
+      expect(currentClassification().needsConfirmation, isTrue);
       controller.toggleGenre('科幻');
-      expect(controller.selectedGenres, const <String>{'科幻'});
+      expect(controller.selectedGenres, isEmpty);
 
       coordinator.publish(
         CloudResourceTmdbRecord.matched(
@@ -683,7 +709,11 @@ void main() {
       );
 
       expect(controller.selectedGenres, isEmpty);
-      expect(controller.availableGenres, <String>['纪录片']);
+      expect(controller.availableGenres, isEmpty);
+      expect(controller.visibleIndexedItems.single.tmdbGenres, <String>['纪录片']);
+      expect(currentClassification().genreSuggestions.map((item) => item.label),
+          ['纪录片']);
+      expect(currentClassification().needsConfirmation, isTrue);
       controller.dispose();
     });
 
@@ -2245,6 +2275,38 @@ void main() {
       fixture.controller.dispose();
     });
 
+    test('来源改名不会复用正在读取旧标题的分类快照', () async {
+      final hidden = _DelayedHiddenVideoRepository();
+      final coordinator = _RecordingWorkTmdbCoordinator();
+      final fixture = await _HiddenVideoFixture.create(
+        hiddenVideoRepository: hidden,
+        workTmdbCoordinator: coordinator,
+      );
+      addTearDown(fixture.controller.dispose);
+      await fixture.controller.load(startScan: false);
+      await fixture.controller.reloadMediaLibrarySnapshot();
+      final previous = fixture.controller.mediaLibrarySnapshot.series.single;
+      hidden.delayNextRead = true;
+      final oldReload = fixture.controller.reloadMediaLibrarySnapshot();
+      await hidden.readStarted.future;
+
+      await fixture.controller.saveScrapeTitle(
+        fixture.controller.collection.groups.single,
+        '光阴之外',
+      );
+      hidden.releaseRead.complete();
+      await fixture.controller.reloadMediaLibrarySnapshot();
+      await oldReload;
+
+      final current = fixture.controller.mediaLibrarySnapshot.series.single;
+      expect(current.title, '光阴之外');
+      expect(current.title,
+          fixture.controller.collection.groups.single.displayName);
+      expect(current.key, previous.key);
+      expect(current.episodes.map((episode) => episode.stableId),
+          previous.episodes.map((episode) => episode.stableId));
+    });
+
     test('当前网盘页与分类快照复用相同成品组', () async {
       final fixture = await _HiddenVideoFixture.create();
       await fixture.controller.load(startScan: false);
@@ -2410,6 +2472,7 @@ class _HiddenVideoFixture {
   static Future<_HiddenVideoFixture> create({
     ICloudHiddenVideoRepository? hiddenVideoRepository,
     CloudSourceStorage? sourceStorage,
+    CloudWorkTmdbCoordinator? workTmdbCoordinator,
   }) async {
     final credentials = MemoryCloudCredentialStore();
     final sourceRepository = CloudSourceRepository(
@@ -2503,7 +2566,8 @@ class _HiddenVideoFixture {
         CloudSourceType.openList: (_, __, ___) =>
             _FakeCloudClient(entriesById: directoryEntries),
       }),
-      workTmdbCoordinator: _RecordingWorkTmdbCoordinator(),
+      workTmdbCoordinator:
+          workTmdbCoordinator ?? _RecordingWorkTmdbCoordinator(),
       minRecognizedVideoSizeBytesProvider: () => 0,
     );
     fixture = _HiddenVideoFixture(

@@ -12,7 +12,13 @@
 #include <cmath>
 
 void FullscreenUtils::EnterNativeFullscreen(HWND window, Completion completion) {
-  if (fullscreen_ || transition_active_) {
+  if (transition_active_) {
+    DeferTransition([window, completion = std::move(completion)]() mutable {
+      EnterNativeFullscreen(window, std::move(completion));
+    });
+    return;
+  }
+  if (fullscreen_) {
     if (completion) {
       completion();
     }
@@ -30,16 +36,10 @@ void FullscreenUtils::EnterNativeFullscreen(HWND window, Completion completion) 
   auto style = ::GetWindowLongPtr(window, GWL_STYLE);
   if (style & WS_OVERLAPPEDWINDOW) {
     auto monitor = MONITORINFO{};
-    auto placement = WINDOWPLACEMENT{};
     monitor.cbSize = sizeof(MONITORINFO);
-    placement.length = sizeof(WINDOWPLACEMENT);
-    ::GetWindowPlacement(window, &placement);
-    rect_before_fullscreen_ = RECT{
-        placement.rcNormalPosition.left,
-        placement.rcNormalPosition.top,
-        placement.rcNormalPosition.right,
-        placement.rcNormalPosition.bottom,
-    };
+    // 保存实际屏幕坐标，兼容最大化和任务栏不在屏幕底部的情况。
+    ::GetWindowRect(window, &rect_before_fullscreen_);
+    style_before_fullscreen_ = style;
     ::GetMonitorInfo(::MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST),
                      &monitor);
     ::SetWindowLongPtr(window, GWL_STYLE, style & ~WS_OVERLAPPEDWINDOW);
@@ -58,6 +58,12 @@ void FullscreenUtils::EnterNativeFullscreen(HWND window, Completion completion) 
 }
 
 void FullscreenUtils::ExitNativeFullscreen(HWND window, Completion completion) {
+  if (transition_active_) {
+    DeferTransition([window, completion = std::move(completion)]() mutable {
+      ExitNativeFullscreen(window, std::move(completion));
+    });
+    return;
+  }
   if (!fullscreen_) {
     if (completion) {
       completion();
@@ -68,35 +74,29 @@ void FullscreenUtils::ExitNativeFullscreen(HWND window, Completion completion) {
 
   auto style = ::GetWindowLongPtr(window, GWL_STYLE);
   if (!(style & WS_OVERLAPPEDWINDOW)) {
-    ::SetWindowLongPtr(window, GWL_STYLE, style | WS_OVERLAPPEDWINDOW);
-    if (::IsZoomed(window)) {
-      // Refresh the parent window.
-      ::SetWindowPos(window, nullptr, 0, 0, 0, 0,
-                     SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
-                         SWP_FRAMECHANGED);
-      auto rect = RECT{};
-      ::GetClientRect(window, &rect);
-      auto flutter_view =
-          ::FindWindowEx(window, nullptr, kFlutterViewWindowClassName, nullptr);
-      ::SetWindowPos(flutter_view, nullptr, rect.left, rect.top,
-                     rect.right - rect.left, rect.bottom - rect.top,
-                     SWP_NOACTIVATE | SWP_NOZORDER);
-      if (completion) {
-        completion();
-      }
-    } else {
-      auto start = RECT{};
-      ::GetWindowRect(window, &start);
-      ::SetWindowPos(window, nullptr, start.left, start.top,
-                     start.right - start.left, start.bottom - start.top,
-                     SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_NOZORDER |
-                         SWP_FRAMECHANGED);
-      StartTransition(window, start, rect_before_fullscreen_,
-                      std::move(completion));
-    }
+    auto start = RECT{};
+    ::GetWindowRect(window, &start);
+    ::SetWindowLongPtr(window, GWL_STYLE, style_before_fullscreen_);
+    ::SetWindowPos(window, nullptr, start.left, start.top,
+                   start.right - start.left, start.bottom - start.top,
+                   SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_NOZORDER |
+                       SWP_FRAMECHANGED);
+    StartTransition(window, start, rect_before_fullscreen_,
+                    std::move(completion));
   } else if (completion) {
     completion();
   }
+}
+
+void FullscreenUtils::DeferTransition(Completion next) {
+  auto previous = std::move(transition_completion_);
+  transition_completion_ =
+      [previous = std::move(previous), next = std::move(next)]() mutable {
+        if (previous) {
+          previous();
+        }
+        next();
+      };
 }
 
 void FullscreenUtils::StartTransition(HWND window, const RECT& start,
@@ -169,6 +169,7 @@ LONG FullscreenUtils::Interpolate(LONG start, LONG end, double progress) {
 bool FullscreenUtils::fullscreen_ = false;
 
 RECT FullscreenUtils::rect_before_fullscreen_ = RECT{};
+LONG_PTR FullscreenUtils::style_before_fullscreen_ = 0;
 bool FullscreenUtils::transition_active_ = false;
 RECT FullscreenUtils::transition_start_ = RECT{};
 RECT FullscreenUtils::transition_end_ = RECT{};

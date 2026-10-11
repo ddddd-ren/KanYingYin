@@ -34,8 +34,8 @@ Future<void> _openVersionChangelogDialog(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('2.1.215 测试版更新弹窗展示原名称标签功能', (tester) async {
-    expect(AppVersion.current, '2.1.215');
+  testWidgets('2.1.224 测试版更新弹窗展示分类与标签自主选择', (tester) async {
+    expect(AppVersion.current, '2.1.224');
     final entries = versionHistoryForCurrent(AppVersion.current);
     expect(entries, hasLength(1));
     expect(entries.single.isPrerelease, isTrue);
@@ -43,11 +43,27 @@ void main() {
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(body: VersionChangelogContent(versions: entries)),
     ));
-    expect(find.text('v2.1.215  测试版  2026-10-11'), findsOneWidget);
-    for (final text in ['原名称', '标签', 'Windows', '原始视频']) {
+    expect(find.text('v2.1.224  测试版  2026-10-11'), findsOneWidget);
+    for (final text in ['动漫', '可信度', '多标签', '人工选择', '待确认', '原始视频']) {
       expect(find.textContaining(text), findsWidgets);
     }
     expect(tester.takeException(), isNull);
+  });
+
+  test('Android 2.1.224 更新说明展示分类与标签自主选择', () {
+    final entries = versionHistoryForCurrent(
+      '2.1.224',
+      platform: AppPlatformKind.android,
+    );
+    expect(entries, hasLength(1));
+    expect(entries.single.version, '2.1.224');
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in ['动漫', '可信度', '多标签', '人工选择', '待确认', '原始视频']) {
+      expect(changes, contains(text));
+    }
+    expect(changes, isNot(contains('Windows')));
+    expect(changes, isNot(contains('Android TV')));
   });
 
   testWidgets('1.0.14 正式版历史更新弹窗仍可查看', (tester) async {
@@ -66,20 +82,64 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  test('Android 2.1.215 测试版只展示手机和平板实际功能', () {
+  test('Android 2.1.221 动画文案不包含 Windows 窗口功能', () {
     final entries = versionHistoryForCurrent(
-      '2.1.215',
+      '2.1.221',
+      platform: AppPlatformKind.android,
+    );
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in ['手机和平板', '页面', '选集', '全屏', '原始视频']) {
+      expect(changes, contains(text));
+    }
+    expect(changes, isNot(contains('最大化')));
+    expect(changes, isNot(contains('Windows')));
+    expect(changes, isNot(contains('Android TV')));
+  });
+
+  test('Android 2.1.223 更新说明展示分类海报剧名修复', () {
+    final entries = versionHistoryForCurrent(
+      '2.1.223',
+      platform: AppPlatformKind.android,
+    );
+    expect(entries, hasLength(1));
+    expect(entries.single.version, '2.1.223');
+    expect(entries.single.isPrerelease, isTrue);
+    final changes = entries.single.changes.join('\n');
+    for (final text in ['分类', '来源', '剧名', 'S01', '原始视频']) {
+      expect(changes, contains(text));
+    }
+    expect(changes, isNot(contains('Windows')));
+    expect(changes, isNot(contains('Android TV')));
+  });
+
+  test('Android 2.1.222 更新说明展示来源剧名与记录保留', () {
+    final entries = versionHistoryForCurrent(
+      '2.1.222',
+      platform: AppPlatformKind.android,
+    );
+    final changes = entries.single.changes.join('\n');
+    for (final text in ['来源', '剧名', '历史', '播放进度', '字幕偏好']) {
+      expect(changes, contains(text));
+    }
+    expect(changes, isNot(contains('Windows')));
+    expect(changes, isNot(contains('Android TV')));
+  });
+
+  test('Android 2.1.220 测试版只展示手机和平板实际功能', () {
+    final entries = versionHistoryForCurrent(
+      '2.1.220',
       platform: AppPlatformKind.android,
     );
 
     expect(entries, hasLength(1));
-    expect(entries.single.version, '2.1.215');
+    expect(entries.single.version, '2.1.220');
     expect(entries.single.isPrerelease, isTrue);
     final changes = entries.single.changes.join('\n');
     for (final text in <String>[
       '手机和平板',
-      '原名称',
-      '标签',
+      '片头/片尾',
+      '加密备份',
       'MediaCodec',
       '不会修改',
     ]) {

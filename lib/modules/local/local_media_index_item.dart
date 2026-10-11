@@ -263,6 +263,25 @@ class LocalMediaIndexItem {
     );
   }
 
+  String get episodeDisplayTitle {
+    final info = episodeInfo;
+    final title = tmdbEpisodeName?.trim();
+    if (info == null || title == null || title.isEmpty) {
+      return info?.displayTitle ?? name;
+    }
+    return '${info.episodeLabel}  $title';
+  }
+
+  String playbackTitleFor(String sourceTitle) {
+    return const TmdbEpisodeTitleResolver().resolve(
+      seriesTitle: sourceTitle,
+      seasonNumber: seasonNumber,
+      episodeNumber: episodeNumber,
+      episodeName: tmdbEpisodeName ?? episodeTitle,
+      originalFileName: p.basenameWithoutExtension(name),
+    );
+  }
+
   /// TMDB 有逐集名称时只改变展示标题，不改变原始文件路径或播放身份。
   String? get tmdbEpisodeName {
     final metadata = tmdb;

@@ -37,11 +37,13 @@ class _LocalSeriesDetailPageState extends State<LocalSeriesDetailPage> {
   void Function(LocalMediaIndexItem episode) get onPlay => widget.onPlay;
 
   LocalMediaSeries get _series {
-    final current = const LocalMediaLibraryBuilder().buildSeries(
-      controller.localLibraryItems,
-    );
+    final current = controller.localLibrarySeries;
     for (final value in current) {
       if (value.key == widget.series.key) return value;
+    }
+    final mediaId = widget.series.episodes.firstOrNull?.id;
+    for (final value in current) {
+      if (value.episodes.any((episode) => episode.id == mediaId)) return value;
     }
     return widget.series;
   }
@@ -64,7 +66,7 @@ class _LocalSeriesDetailPageState extends State<LocalSeriesDetailPage> {
     );
     return Scaffold(
       appBar: AppBar(
-        title: Text(metadata?.title ?? currentSeries.displayTitle),
+        title: Text(currentSeries.displayTitle),
         actions: [
           if (metadata != null)
             PopupMenuButton<String>(
@@ -106,11 +108,11 @@ class _LocalSeriesDetailPageState extends State<LocalSeriesDetailPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(metadata?.title ?? currentSeries.displayTitle,
+                      Text(currentSeries.displayTitle,
                           style: Theme.of(context).textTheme.headlineSmall),
                       if (metadata?.originalTitle != null) ...[
                         const SizedBox(height: 4),
-                        Text(metadata!.originalTitle!,
+                        Text('原名：${metadata!.originalTitle!}',
                             style: Theme.of(context).textTheme.bodySmall),
                       ],
                       const SizedBox(height: 10),
@@ -135,7 +137,7 @@ class _LocalSeriesDetailPageState extends State<LocalSeriesDetailPage> {
           for (final episode in currentSeries.episodes)
             ListTile(
               leading: const Icon(Icons.play_circle_outline),
-              title: Text(episode.displayTitle),
+              title: Text(episode.episodeDisplayTitle),
               subtitle: _episodeDetails(episode),
               trailing: PopupMenuButton<String>(
                 tooltip: '单集操作',

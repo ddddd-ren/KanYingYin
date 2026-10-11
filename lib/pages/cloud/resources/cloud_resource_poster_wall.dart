@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/features/library/application/media_library_classification.dart';
+import 'package:kanyingyin/features/library/application/media_library_user_state.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
@@ -14,6 +16,7 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/widgets/cloud_poster_image.dart';
 import 'package:kanyingyin/widgets/poster_cover.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 
 typedef CloudResourceGroupAction = FutureOr<void> Function(
   CloudResourceMediaGroup group,
@@ -40,6 +43,9 @@ class CloudResourcePosterWall extends StatefulWidget {
     this.onDetails,
     this.onHide,
     this.capabilities,
+    this.userStates = const {},
+    this.classificationMode = MediaClassificationMode.conservative,
+    this.classificationSeriesForGroup,
   });
 
   final String sourceId;
@@ -60,6 +66,10 @@ class CloudResourcePosterWall extends StatefulWidget {
   final CloudResourceGroupAction? onDetails;
   final CloudResourceGroupAction? onHide;
   final AppPlatformCapabilities? capabilities;
+  final Map<String, MediaLibraryUserState> userStates;
+  final MediaClassificationMode classificationMode;
+  final MediaLibrarySeries? Function(CloudResourceMediaGroup)?
+      classificationSeriesForGroup;
 
   @override
   State<CloudResourcePosterWall> createState() =>
@@ -231,12 +241,17 @@ class _CloudResourcePosterWallState extends State<CloudResourcePosterWall> {
     final hasSubtitle = group.videos.any(
       (video) => subtitleVideoKeys.contains(_resourceKey(video)),
     );
+    final librarySeries = widget.classificationSeriesForGroup?.call(group);
+    final userState = widget.userStates[group.stableKey];
     return group.isWorkScoped
         ? CloudResourceCardViewData.fromGroup(
             group: group,
             scraping: scraping,
             hasSubtitle: hasSubtitle,
             sourceName: sourceName,
+            librarySeries: librarySeries,
+            userState: userState,
+            classificationMode: widget.classificationMode,
           )
         : CloudResourceCardViewData.fromEntry(
             entry: group.anchor,
@@ -244,6 +259,9 @@ class _CloudResourcePosterWallState extends State<CloudResourcePosterWall> {
             scraping: scraping,
             hasSubtitle: hasSubtitle,
             sourceName: sourceName,
+            librarySeries: librarySeries,
+            userState: userState,
+            classificationMode: widget.classificationMode,
           );
   }
 

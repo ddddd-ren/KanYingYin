@@ -6,6 +6,8 @@ import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
+import 'package:kanyingyin/features/configuration_transfer/application/configuration_user_data_store.dart';
+import 'package:kanyingyin/features/configuration_transfer/domain/portable_user_data.dart';
 
 void main() {
   test('导出捕获 TMDB 和全部来源凭据且 inspect 不写入目标配置', () async {
@@ -22,10 +24,12 @@ void main() {
     );
     await tmdbManager.initialize();
     final importer = ConfigurationImporter(
+      userDataStore: _BackupStore(),
       sourceRepository: sourceRepository,
       tmdbCredentialManager: tmdbManager,
     );
     final service = ConfigurationTransferService(
+      userDataStore: _BackupStore(),
       sourceRepository: sourceRepository,
       tmdbCredentialManager: tmdbManager,
       importer: importer,
@@ -57,6 +61,11 @@ void main() {
     final session = await service.inspect(bytes, password: 'export-pass');
     expect(session.summary.added, 1);
     expect(session.summary.tmdbWillUpdate, isTrue);
+    expect(session.configuration.userData!.states['missing']!.favorite, isTrue);
+    expect(
+        session.configuration.userData!.bookmarks['local|missing.mp4']!.single
+            .position,
+        const Duration(seconds: 3));
     expect(session.configuration.cloudSources.single.source.scanStatus,
         CloudScanStatus.never);
     expect(await sourceRepository.getAll(), isEmpty);
@@ -67,4 +76,23 @@ void main() {
     expect(tmdbManager.read(), 'tmdb-secret');
     expect((await credentialStore.read(source.id))?.cookie, 'cookie-secret');
   });
+}
+
+class _BackupStore implements ConfigurationUserDataStore {
+  PortableUserData value = PortableUserData.fromJson({
+    'states': {
+      'missing': {'favorite': true}
+    },
+    'bookmarks': {
+      'local|missing.mp4': [
+        {'positionMillis': 3000}
+      ]
+    },
+  });
+  @override
+  Future<PortableUserData> capture() async => value;
+  @override
+  Future<void> replace(PortableUserData data) async {
+    value = data;
+  }
 }

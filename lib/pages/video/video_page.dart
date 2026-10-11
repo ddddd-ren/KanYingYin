@@ -21,12 +21,15 @@ import 'package:kanyingyin/bean/widget/embedded_native_control_area.dart';
 import 'package:kanyingyin/services/timed_shutdown_service.dart';
 import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 import 'package:kanyingyin/pages/video/cloud_relay_status_presenter.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:kanyingyin/features/player/presentation/player_exit_coordinator.dart';
 import 'package:kanyingyin/features/player/application/player_back_policy.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_episode_tile_surface.dart';
 import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
+import 'package:kanyingyin/features/library/application/media_watch_state.dart';
+import 'package:kanyingyin/features/player/application/player_bookmark.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 
 class VideoPage extends StatefulWidget {
@@ -51,6 +54,10 @@ class _VideoPageState extends State<VideoPage>
       GlobalKey<PlayerItemState>();
   final PlayerExitCoordinator _exitCoordinator = PlayerExitCoordinator();
   ReactionDisposer? _historyDisposer;
+  CloudResourcesController? _cloudSourceController;
+  late final MediaWatchStateRepository _watchStates = MediaWatchStateRepository(
+      TypedSettingsPlayerBookmarkStorage(setting,
+          storageKey: SettingBoxKey.mediaWatchStates));
 
   ScrollController scrollController = ScrollController();
   late ListObserverController observerController;
@@ -70,9 +77,6 @@ class _VideoPageState extends State<VideoPage>
     super.initState();
     if (Utils.isDesktop()) {
       windowManager.addListener(this);
-      windowManager.isFullScreen().then((value) {
-        localVideoController.isFullscreen = value;
-      });
     }
     tabController = TabController(length: 1, vsync: this);
     observerController = ListObserverController(controller: scrollController);
@@ -113,13 +117,27 @@ class _VideoPageState extends State<VideoPage>
       ],
       (_) => unawaited(_recordPlaybackHistory()),
     );
+    if (localVideoController.isCloudPlayback) {
+      _cloudSourceController = Modular.get<CloudResourcesController>();
+      _cloudSourceController!.mediaLibrarySnapshotListenable
+          .addListener(_refreshCloudSourceTitles);
+      unawaited(_ensureCloudSourceTitles());
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       openTabBodyAnimated();
       try {
         await historyController.ensureLoaded();
         final key = localVideoController.currentPlaybackHistoryKey;
-        final offset =
-            key == null ? 0 : historyController.resumePosition(key).inSeconds;
+        var previous = key == null ? null : historyController.find(key);
+        final target = localVideoController.currentCloudPlaybackTarget;
+        if (previous == null && target != null) {
+          previous = historyController.findCloudEntry(
+            sourceId: target.sourceId,
+            remoteId: target.remoteId,
+            mediaPath: target.remotePath,
+          );
+        }
+        final offset = previous?.resumePosition.inSeconds ?? 0;
         await changeEpisode(
           localVideoController.currentEpisode,
           currentRoad: localVideoController.currentRoad,
@@ -141,6 +159,8 @@ class _VideoPageState extends State<VideoPage>
   @override
   void dispose() {
     _historyDisposer?.call();
+    _cloudSourceController?.mediaLibrarySnapshotListenable
+        .removeListener(_refreshCloudSourceTitles);
     unawaited(_recordPlaybackHistory(forcePersist: true));
     _exitCoordinator.beginExit();
     if (Utils.isDesktop()) {
@@ -149,9 +169,8 @@ class _VideoPageState extends State<VideoPage>
       } catch (e) {
         AppLogger().d('移除窗口监听失败', error: e);
       }
-    } else {
-      unawaited(Utils.exitFullScreen());
     }
+    unawaited(_setFullscreen(false));
     try {
       animation.dispose();
     } catch (e) {
@@ -171,6 +190,28 @@ class _VideoPageState extends State<VideoPage>
     TimedShutdownService().cancel();
     _exitCoordinator.dispose();
     super.dispose();
+  }
+
+  Future<void> _ensureCloudSourceTitles() async {
+    try {
+      await _cloudSourceController?.ensureMediaLibrarySnapshot();
+      _refreshCloudSourceTitles();
+    } on Object catch (error, stackTrace) {
+      AppLogger().w('VideoPage: failed to load source titles',
+          error: error, stackTrace: stackTrace);
+    }
+  }
+
+  void _refreshCloudSourceTitles() {
+    if (!mounted) return;
+    final source = _cloudSourceController;
+    if (source == null ||
+        !localVideoController
+            .refreshCloudSourceTitles(source.mediaLibrarySnapshot.series)) {
+      return;
+    }
+    setState(() {});
+    unawaited(_recordPlaybackHistory(forcePersist: true));
   }
 
   // Handle fullscreen change invoked by system controls
@@ -230,6 +271,24 @@ class _VideoPageState extends State<VideoPage>
       duration: duration,
     );
     if (entry == null) return;
+    if (entry.stableKey != playerController.currentStableMediaKey ||
+        playerController.loading) {
+      return;
+    }
+    final completed = playerController.completed;
+    try {
+      await _watchStates.record(
+          entry.isCloud
+              ? mediaWatchKey(
+                  sourceId: entry.sourceId, remoteId: entry.remoteId)
+              : mediaWatchKey(localPath: entry.mediaPath),
+          position: position,
+          duration: duration,
+          completed: completed);
+    } on Object catch (error, stackTrace) {
+      AppLogger().w('VideoPage: failed to persist watch state',
+          error: error, stackTrace: stackTrace);
+    }
     try {
       await historyController.record(entry, forcePersist: forcePersist);
     } on Object catch (error, stackTrace) {
@@ -285,19 +344,46 @@ class _VideoPageState extends State<VideoPage>
     }
   }
 
-  void closeTabBodyAnimated() {
-    if (!disableAnimations) {
-      animation.reverse();
-      Future.delayed(StyleString.fastAnimationDuration, () {
-        localVideoController.showTabBody = false;
-      });
-    } else {
-      localVideoController.showTabBody = false;
+  Future<bool> _setFullscreen(bool fullscreen) async {
+    try {
+      if (fullscreen) {
+        await localVideoController.enterFullScreen();
+      } else {
+        await localVideoController.exitFullScreen();
+      }
+      return true;
+    } catch (error, stackTrace) {
+      AppLogger().e('切换全屏失败', error: error, stackTrace: stackTrace);
+      return false;
     }
+  }
+
+  void _syncOrientationFullscreen(bool fullscreen) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_setFullscreen(fullscreen));
+    });
+  }
+
+  Future<void> closeTabBodyAnimated() async {
+    if (!disableAnimations) {
+      try {
+        await animation.reverse().orCancel;
+      } on TickerCanceled {
+        return;
+      }
+    }
+    if (!mounted) return;
+    localVideoController.showTabBody = false;
     keyboardFocus.requestFocus();
   }
 
   void onBackPressed(BuildContext context) async {
+    try {
+      await localVideoController.fullscreenTransition;
+    } catch (error, stackTrace) {
+      AppLogger().e('等待全屏切换失败', error: error, stackTrace: stackTrace);
+    }
+    if (!context.mounted) return;
     final capabilities = detectAppPlatform();
     final action = PlayerBackPolicy.decide(
       overlayVisible: AppDialog.observer.hasAppDialog,
@@ -335,15 +421,13 @@ class _VideoPageState extends State<VideoPage>
         menuJumpToCurrentEpisode();
         localVideoController.showTabBody = false;
       }
-      await Utils.exitFullScreen();
-      localVideoController.isFullscreen = false;
+      await _setFullscreen(false);
       return;
     }
     if (!Utils.isDesktop() &&
         !capabilities.isAndroidTv &&
         localVideoController.isFullscreen) {
-      await Utils.exitFullScreen();
-      localVideoController.isFullscreen = false;
+      if (!await _setFullscreen(false)) return;
     }
     if (!context.mounted) return;
     if (!_exitCoordinator.beginExit()) return;
@@ -376,10 +460,10 @@ class _VideoPageState extends State<VideoPage>
           if (!Utils.isDesktop()) {
             if (orientation == Orientation.landscape &&
                 !localVideoController.isFullscreen) {
-              localVideoController.enterFullScreen();
+              _syncOrientationFullscreen(true);
             } else if (orientation == Orientation.portrait &&
                 localVideoController.isFullscreen) {
-              localVideoController.exitFullScreen();
+              _syncOrientationFullscreen(false);
               menuJumpToCurrentEpisode();
               localVideoController.showTabBody = true;
             }
@@ -589,7 +673,9 @@ class _VideoPageState extends State<VideoPage>
                             child: IconButton(
                               tooltip: '选集',
                               onPressed: () {
-                                if (localVideoController.showTabBody) {
+                                if (localVideoController.showTabBody &&
+                                    animation.status !=
+                                        AnimationStatus.reverse) {
                                   closeTabBodyAnimated();
                                 } else {
                                   localVideoController.showTabBody = true;
@@ -621,6 +707,7 @@ class _VideoPageState extends State<VideoPage>
                   capabilities: detectAppPlatform(),
                   exitCoordinator: _exitCoordinator,
                   openMenu: openTabBodyAnimated,
+                  closeMenu: closeTabBodyAnimated,
                   locateEpisode: menuJumpToCurrentEpisode,
                   changeEpisode: changeEpisode,
                   onBackPressed: onBackPressed,

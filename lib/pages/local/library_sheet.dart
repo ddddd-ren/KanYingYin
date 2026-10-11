@@ -1,9 +1,15 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_modular/flutter_modular.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
 import 'package:kanyingyin/features/library/application/media_library_query.dart';
+import 'package:kanyingyin/features/library/application/media_library_classification.dart';
+import 'package:kanyingyin/features/library/application/media_library_user_state.dart';
+import 'package:kanyingyin/features/library/application/media_library_user_state_repository.dart';
+import 'package:kanyingyin/features/library/presentation/media_classification_dialog.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
@@ -17,9 +23,9 @@ import 'package:kanyingyin/pages/local/tmdb_scrape_options_sheet.dart';
 import 'package:kanyingyin/repositories/local_media_tag_repository.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
-import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 import 'package:kanyingyin/widgets/poster_cover.dart';
 import 'package:kanyingyin/widgets/tmdb_network_image.dart';
+import 'package:mobx/mobx.dart' show ReactionDisposer, reaction;
 
 /// 带搜索、排序和 TMDB 信息展示的媒体库面板。
 class LibrarySheetContent extends StatefulWidget {
@@ -30,6 +36,8 @@ class LibrarySheetContent extends StatefulWidget {
     required this.onRefresh,
     this.headerActions = const <Widget>[],
     this.tagRepository,
+    this.userStateRepository,
+    this.settings,
   });
 
   final LocalController controller;
@@ -38,6 +46,8 @@ class LibrarySheetContent extends StatefulWidget {
   final VoidCallback onRefresh;
   final List<Widget> headerActions;
   final ILocalMediaTagRepository? tagRepository;
+  final MediaLibraryUserStateRepository? userStateRepository;
+  final TypedSettings? settings;
 
   @override
   State<LibrarySheetContent> createState() => _LibrarySheetContentState();
@@ -47,16 +57,53 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
   final _searchCtrl = TextEditingController();
   String _query = '';
   String _sortBy = 'modified';
-  final Set<String> _selectedTags = <String>{};
+  final Set<String> _selectedCategories = <String>{};
+  final Set<String> _selectedGenres = <String>{};
+  final Set<String> _selectedCustomTags = <String>{};
   final MediaLibraryQuery _libraryQuery = const MediaLibraryQuery();
   late final ILocalMediaTagRepository _tagRepository;
   Map<String, List<String>> _customTagsBySeries = <String, List<String>>{};
+  late final MediaLibraryUserStateRepository _userStateRepository;
+  Map<String, MediaLibraryUserState> _userStates = const {};
+  MediaClassificationMode _classificationMode = MediaClassificationMode.conservative;
+  late final ReactionDisposer _disposeClassificationReaction;
+
+  int get _selectedTagCount => _selectedCategories.length +
+      _selectedGenres.length + _selectedCustomTags.length;
 
   @override
   void initState() {
     super.initState();
     _tagRepository = widget.tagRepository ?? LocalMediaTagRepository();
     _reloadCustomTags();
+    _userStateRepository = widget.userStateRepository ?? MediaLibraryUserStateRepository();
+    MediaLibraryUserStateRepository.changes.addListener(_reloadClassifications);
+    _disposeClassificationReaction = reaction(
+      (_) => widget.controller.localLibraryItems.toList(growable: false),
+      (_) => _reloadClassifications(),
+    );
+    _reloadClassifications();
+  }
+
+  Future<void> _reloadClassifications() async {
+    try {
+      final states = await _userStateRepository.reconcile({
+        for (final series in widget.controller.localMediaLibrary.series)
+          series.key: series.episodes.map((episode) => episode.stableId).toSet(),
+      });
+      final settings = widget.settings ?? Modular.get<TypedSettings>();
+      final value = settings.readRaw(SettingBoxKey.mediaClassificationMode);
+      if (!mounted) return;
+      setState(() {
+        _userStates = states;
+        _classificationMode = MediaClassificationMode.values.firstWhere(
+          (mode) => mode.name == value,
+          orElse: () => MediaClassificationMode.conservative,
+        );
+      });
+    } on Object {
+      // 读取失败保留已有选择，不将人工结果重置为自动。
+    }
   }
 
   void _reloadCustomTags() {
@@ -69,6 +116,8 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
 
   @override
   void dispose() {
+    _disposeClassificationReaction();
+    MediaLibraryUserStateRepository.changes.removeListener(_reloadClassifications);
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -130,12 +179,36 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
         return Observer(
           builder: (_) {
             final library = widget.controller.localMediaLibrary;
+            final availableCategories = _libraryQuery.availableCategories(
+              library.series,
+              sourceId: 'local',
+              userStates: _userStates,
+              classificationMode: _classificationMode,
+            );
+            final availableGenres = _libraryQuery.availableGenres(
+              library.series,
+              sourceId: 'local',
+              userStates: _userStates,
+              classificationMode: _classificationMode,
+            );
+            final availableCustomTags = _libraryQuery.availableCustomTags(
+              library.series,
+              sourceId: 'local',
+              customTagsBySeries: _customTagsBySeries,
+            );
+            _selectedCategories.retainAll(availableCategories);
+            _selectedGenres.retainAll(availableGenres);
+            _selectedCustomTags.retainAll(availableCustomTags);
             if (library.series.isEmpty) return _empty(context, cs, tt);
             final tagFiltered = _libraryQuery.apply(
               series: library.series,
               sourceId: 'local',
-              selectedTags: _selectedTags,
+              selectedCategories: _selectedCategories,
+              selectedGenres: _selectedGenres,
+              selectedCustomTags: _selectedCustomTags,
               extraTagsBySeries: _customTagsBySeries,
+              userStates: _userStates,
+              classificationMode: _classificationMode,
             );
             final localSeriesKeys =
                 tagFiltered.map((item) => item.seriesKey).toSet();
@@ -147,7 +220,8 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
               children: [
                 _header(cs, tt, library.series.length),
                 _searchBar(cs),
-                _tagRow(cs, tt, library),
+                _tagRow(cs, tt, availableCategories, availableGenres,
+                    availableCustomTags),
                 if (all.isNotEmpty) _sortRow(cs, tt),
                 Expanded(
                   child: series.isEmpty
@@ -266,20 +340,8 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
         ),
       );
 
-  Widget _tagRow(ColorScheme cs, TextTheme tt, CloudMediaLibrary library) {
-    final availableCategories = _libraryQuery.availableCategories(
-      library.series,
-      sourceId: 'local',
-    );
-    final availableGenres = _libraryQuery.availableGenres(
-      library.series,
-      sourceId: 'local',
-    );
-    final availableCustomTags = _libraryQuery.availableCustomTags(
-      library.series,
-      sourceId: 'local',
-      customTagsBySeries: _customTagsBySeries,
-    );
+  Widget _tagRow(ColorScheme cs, TextTheme tt, List<String> availableCategories,
+      List<String> availableGenres, List<String> availableCustomTags) {
     final genreStatus = widget.controller.libraryGenreRefreshError;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
@@ -293,10 +355,22 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
               tooltip: '筛选 TMDB 类型',
               onSelected: (value) => setState(() {
                 if (value == '__clear__') {
-                  _selectedTags.clear();
-                } else if (!_selectedTags.remove(value)) {
-                  _selectedTags.add(value);
+                  _selectedCategories.clear();
+                  _selectedGenres.clear();
+                  _selectedCustomTags.clear();
+                  return;
                 }
+                final separator = value.indexOf(':');
+                if (separator < 0) return;
+                final selected = switch (value.substring(0, separator)) {
+                  'category' => _selectedCategories,
+                  'genre' => _selectedGenres,
+                  'custom' => _selectedCustomTags,
+                  _ => null,
+                };
+                if (selected == null) return;
+                final label = value.substring(separator + 1);
+                if (!selected.remove(label)) selected.add(label);
               }),
               itemBuilder: (_) => _tagMenuEntries(
                 availableCategories,
@@ -304,7 +378,7 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
                 availableCustomTags,
               ),
               child: Text(
-                _selectedTags.isEmpty ? '类型' : '类型 ${_selectedTags.length}',
+                _selectedTagCount == 0 ? '类型' : '类型 $_selectedTagCount',
                 style: tt.bodySmall,
               ),
             ),
@@ -353,7 +427,7 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
     List<String> customTags,
   ) {
     final entries = <PopupMenuEntry<String>>[];
-    if (_selectedTags.isNotEmpty) {
+    if (_selectedTagCount > 0) {
       entries.add(
         const PopupMenuItem<String>(
           value: '__clear__',
@@ -366,7 +440,8 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
         enabled: false,
         child: Text('分类'),
       ));
-      entries.addAll(categories.map(_checkedTagItem));
+      entries.addAll(categories.map(
+          (value) => _checkedTagItem(value, 'category', _selectedCategories)));
     }
     if (genres.isNotEmpty) {
       if (entries.isNotEmpty) entries.add(_menuSpacing());
@@ -374,7 +449,8 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
         enabled: false,
         child: Text('TMDB 类型'),
       ));
-      entries.addAll(genres.map(_checkedTagItem));
+      entries.addAll(genres.map(
+          (value) => _checkedTagItem(value, 'genre', _selectedGenres)));
     }
     if (customTags.isNotEmpty) {
       if (entries.isNotEmpty) entries.add(_menuSpacing());
@@ -382,7 +458,8 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
         enabled: false,
         child: Text('自定义标签'),
       ));
-      entries.addAll(customTags.map(_checkedTagItem));
+      entries.addAll(customTags.map(
+          (value) => _checkedTagItem(value, 'custom', _selectedCustomTags)));
     }
     if (entries.isEmpty ||
         (categories.isEmpty && genres.isEmpty && customTags.isEmpty)) {
@@ -394,10 +471,11 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
     return entries;
   }
 
-  PopupMenuEntry<String> _checkedTagItem(String value) {
+  PopupMenuEntry<String> _checkedTagItem(
+      String value, String group, Set<String> selected) {
     return CheckedPopupMenuItem<String>(
-      value: value,
-      checked: _selectedTags.contains(value),
+      value: '$group:$value',
+      checked: selected.contains(value),
       child: Text(value),
     );
   }
@@ -630,42 +708,35 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
     final initialTags = List<String>.from(
       _customTagsBySeries[series.key] ?? const <String>[],
     );
-    final tags = await showDialog<List<String>>(
-      context: context,
-      builder: (_) => _LocalMediaTagEditorDialog(
-        seriesTitle: series.displayTitle,
-        initialTags: initialTags,
-      ),
-    );
-    if (!context.mounted || tags == null) return;
-
-    try {
-      await _tagRepository.saveForSeries(series.key, tags);
-      if (!context.mounted) return;
-      setState(() {
-        if (tags.isEmpty) {
-          _customTagsBySeries.remove(series.key);
-        } else {
-          _customTagsBySeries[series.key] = List<String>.unmodifiable(tags);
+    final media = widget.controller.localMediaLibrary.series
+        .where((item) => item.seriesKey == series.key).firstOrNull;
+    if (media == null) return;
+    final saved = await showMediaClassificationDialog(
+      context,
+      series: media,
+      state: _userStates[media.key] ?? MediaLibraryUserState.empty,
+      mode: _classificationMode,
+      customTags: initialTags,
+      onSave: (state, tags) async {
+        try {
+          await _tagRepository.saveForSeries(series.key, tags);
+          await _userStateRepository.saveClassification(
+            media.key,
+            categories: state.categoryOverride,
+            genres: state.genreOverride,
+            mediaIds: media.episodes.map((episode) => episode.stableId),
+          );
+        } on Object {
+          await _tagRepository.saveForSeries(series.key, initialTags);
+          rethrow;
         }
-        final availableTags = _libraryQuery
-            .availableTags(
-              widget.controller.localMediaLibrary.series,
-              sourceId: 'local',
-              extraTagsBySeries: _customTagsBySeries,
-            )
-            .toSet();
-        _selectedTags.removeWhere(
-          (tag) => !availableTags.contains(tag),
-        );
-      });
+        _reloadCustomTags();
+        await _reloadClassifications();
+      },
+    );
+    if (saved == true && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('标签已保存')),
-      );
-    } on Object {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('标签保存失败，请稍后重试')),
       );
     }
   }
@@ -732,7 +803,7 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
       leading: const Icon(Icons.play_circle_outline, size: 22),
       title: Row(children: [
         Expanded(
-            child: Text(ep.displayTitle,
+            child: Text(ep.episodeDisplayTitle,
                 maxLines: 1, overflow: TextOverflow.ellipsis)),
         if (ep.manualOverride)
           Padding(
@@ -880,20 +951,17 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
   }
 
   String _infoLine(LocalMediaSeries s) {
-    String name = '';
     double? r;
     String? d;
     for (final ep in s.episodes) {
       final metadata = ep.tmdb;
       if (metadata != null && metadata.title.isNotEmpty) {
-        name = metadata.title;
         r = metadata.rating;
         d = metadata.releaseDate;
         break;
       }
     }
-    if (name.isEmpty) return '';
-    final parts = <String>[name];
+    final parts = <String>[];
     if (r != null && r > 0) parts.add('${r.toStringAsFixed(1)} ★');
     if (d != null && d.length >= 4) parts.add(d.substring(0, 4));
     return parts.join(' · ');
@@ -923,108 +991,5 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
     final l = t.toLocal();
     String two(int v) => v.toString().padLeft(2, '0');
     return '${l.year}-${two(l.month)}-${two(l.day)} ${two(l.hour)}:${two(l.minute)}';
-  }
-}
-
-class _LocalMediaTagEditorDialog extends StatefulWidget {
-  const _LocalMediaTagEditorDialog({
-    required this.seriesTitle,
-    required this.initialTags,
-  });
-
-  final String seriesTitle;
-  final List<String> initialTags;
-
-  @override
-  State<_LocalMediaTagEditorDialog> createState() =>
-      _LocalMediaTagEditorDialogState();
-}
-
-class _LocalMediaTagEditorDialogState
-    extends State<_LocalMediaTagEditorDialog> {
-  late final TextEditingController _inputController;
-  late final List<String> _tags;
-
-  @override
-  void initState() {
-    super.initState();
-    _inputController = TextEditingController();
-    _tags = List<String>.from(widget.initialTags);
-  }
-
-  @override
-  void dispose() {
-    _inputController.dispose();
-    super.dispose();
-  }
-
-  void _addTag([String? submitted]) {
-    final value = (submitted ?? _inputController.text).trim();
-    if (value.isEmpty || value.length > LocalMediaTagRepository.maxTagLength) {
-      return;
-    }
-    if (_tags.any((tag) => tag.toLowerCase() == value.toLowerCase())) {
-      _inputController.clear();
-      return;
-    }
-    if (_tags.length >= LocalMediaTagRepository.maxTagsPerSeries) return;
-    setState(() => _tags.add(value));
-    _inputController.clear();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('管理标签 · ${widget.seriesTitle}'),
-      content: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: _inputController,
-              autofocus: true,
-              maxLength: LocalMediaTagRepository.maxTagLength,
-              decoration: InputDecoration(
-                hintText: '输入标签',
-                suffixIcon: IconButton(
-                  tooltip: '添加标签',
-                  onPressed: _addTag,
-                  icon: const Icon(Icons.add),
-                ),
-              ),
-              onSubmitted: _addTag,
-            ),
-            if (_tags.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: _tags
-                      .map(
-                        (tag) => InputChip(
-                          label: Text(tag),
-                          onDeleted: () => setState(() => _tags.remove(tag)),
-                        ),
-                      )
-                      .toList(growable: false),
-                ),
-              ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(List<String>.from(_tags)),
-          child: const Text('保存'),
-        ),
-      ],
-    );
   }
 }

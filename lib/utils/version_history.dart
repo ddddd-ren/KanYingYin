@@ -27,6 +27,119 @@ class VersionHistory {
 /// 区段拆分到 part 文件，展开顺序与原列表完全一致，不得重排。
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.224',
+    date: '2026-10-11',
+    isPrerelease: true,
+    changes: [
+      '动漫与电视剧分开归类，动画电影可自主选择电影、动漫或两者',
+      '分类可信度支持保守、标准和全手动，多标签由你选择，信息不足的作品进入待确认',
+      '分类、题材和自定义标签分开管理，可明确清空或恢复自动，刷新与重新刮削保留人工选择',
+      '新增分类检查与待确认入口，分类选择和可信度设置可随加密备份恢复',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.223',
+    date: '2026-10-11',
+    isPrerelease: true,
+    changes: [
+      '修复分类海报在来源剧名后额外追加 S01 等季号的问题',
+      '动漫、电视剧和电影卡片原样沿用对应媒体库来源剧名，保留来源本身的季度名称',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.222',
+    date: '2026-10-11',
+    isPrerelease: true,
+    changes: [
+      '作品剧名以对应来源界面为准，媒体库、详情和播放器沿用同一名称',
+      '观看历史和继续观看同步当前来源剧名，来源不可用时保留已有记录和播放进度',
+      '修复来源改名期间媒体库可能保留旧标题的问题，保留来源本身的季度名称',
+      '作品改名后继续沿用音轨和字幕偏好，兼容原有记录',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.221',
+    date: '2026-10-11',
+    isPrerelease: true,
+    changes: [
+      '修复页面切换前半程内容不显示的问题，导航选中状态及时跟随页面',
+      '设置页沿用统一的页面转场，减少重复淡入带来的停顿',
+      '选集面板可连续展开和收起，中途反向操作不会被旧的关闭任务打断',
+      '优化全屏进出与窗口缩放的衔接，最大化窗口退出全屏时也保持过渡',
+      '全屏切换期间合并重复操作，失败时保留正确状态，视频尺寸随播放区域变化',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.220',
+    date: '2026-10-11',
+    isPrerelease: true,
+    changes: [
+      '每个视频可手动设置片头/片尾区间，时间轴显示色带、起止刻度和标签；仅显示标记，不自动跳过或切集',
+      '本地时间轴缩略图按约十秒采样，坏图自动重建、文件变化后失效；缩小后存入应用缓存，每个视频最多保留 20 张',
+      '已看和观看进度独立保存，支持手动标记、已看/未看筛选和卡片进度，清空历史不会清除已看记录',
+      '手动选轨优先，同一作品跨集沿用语言偏好；播放设置可选择全局音轨和字幕语言，不抢占外置字幕',
+      '加密备份增加片头片尾、已看/进度和选轨偏好，兼容旧配置包并支持目录、来源重新对应',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.219',
+    date: '2026-10-11',
+    isPrerelease: true,
+    changes: [
+      '本地目录断盘或读取失败时保留旧索引，恢复后再确认文件变更',
+      '作品改名、重新匹配或分组合并后继续保留收藏、待看和合集，无法确认的记录可手动关联',
+      '加密备份增加收藏、待看、合集、书签和观看历史，支持旧配置包、目录重新对应及导入失败回滚',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.218',
+    date: '2026-10-11',
+    isPrerelease: true,
+    changes: [
+      '播放器支持读取内嵌章节和保存手动书签，书签与视频详情弹窗切换更可靠',
+      '本地视频支持时间轴缩略图预览，快速拖动时逐个生成截图，退出或关闭预览后不再保存过期结果',
+      '每个视频最多保留 20 张时间轴缓存，低内存模式关闭预览，生成失败时继续使用普通进度条',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.217',
+    date: '2026-10-11',
+    isPrerelease: true,
+    changes: [
+      '播放器可读取本地视频中的内嵌章节，也可以继续使用手动书签',
+      '本地视频拖动进度条时按需生成时间轴缩略图，最多保留每个视频 20 张缓存，生成失败会自动回退普通进度条',
+      '时间轴缩略图只保存在看影音缓存目录中，不会上传或修改本地及个人网盘原始视频',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.216',
+    date: '2026-10-11',
+    isPrerelease: true,
+    changes: [
+      '媒体库支持收藏、待看和自定义合集筛选，状态保存在看影音专属数据目录中',
+      '本地媒体重扫会展示新增、更新、移除和失败变更，播放器可为本地与个人网盘视频保存手动书签',
+      'TMDB 详情补充主演、导演和相似作品，并在媒体详情中展示',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.215',
     date: '2026-10-11',
     isPrerelease: true,
@@ -235,6 +348,150 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '2.1.224' && platform == AppPlatformKind.android) {
+    return const [
+      VersionHistory(
+        version: '2.1.224',
+        date: '2026-10-11',
+        isPrerelease: true,
+        changes: [
+          '动漫与电视剧分开归类，动画电影可自主选择电影、动漫或两者',
+          '分类可信度支持保守、标准和全手动，多标签由你选择，信息不足的作品进入待确认',
+          '分类、题材和自定义标签分开管理，可明确清空或恢复自动，刷新与重新刮削保留人工选择',
+          '新增分类检查与待确认入口，分类选择和可信度设置可随加密备份恢复',
+          '本轮仅同步 Android 手机版本配置，不交付 Android 安装包',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+        ],
+      ),
+    ];
+  }
+  if (currentVersion == '2.1.223' && platform == AppPlatformKind.android) {
+    return const [
+      VersionHistory(
+        version: '2.1.223',
+        date: '2026-10-11',
+        isPrerelease: true,
+        changes: [
+          '修复分类海报在来源剧名后额外追加 S01 等季号的问题',
+          '手机和平板的分类卡片原样沿用对应媒体库来源剧名，保留来源本身的季度名称',
+          '本轮仅同步 Android 手机版本配置，不交付 Android 安装包',
+          '继续支持字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+        ],
+      ),
+    ];
+  }
+  if (currentVersion == '2.1.222' && platform == AppPlatformKind.android) {
+    return const [
+      VersionHistory(
+        version: '2.1.222',
+        date: '2026-10-11',
+        isPrerelease: true,
+        changes: [
+          '手机和平板的媒体库、详情、播放器与观看历史沿用对应来源界面的剧名',
+          '来源改名后继续保留播放进度与音轨、字幕偏好，来源不可用时保留已有历史记录',
+          '本轮仅同步 Android 手机版本配置，不交付 Android 安装包',
+          '继续支持字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+        ],
+      ),
+    ];
+  }
+  if (currentVersion == '2.1.221' && platform == AppPlatformKind.android) {
+    return const [
+      VersionHistory(
+        version: '2.1.221',
+        date: '2026-10-11',
+        isPrerelease: true,
+        changes: [
+          '手机和平板的导航选中状态及时跟随页面，设置内容沿用页面转场',
+          '选集面板连续展开、收起和中途反向操作时衔接更稳定',
+          '全屏和方向变化共用切换状态，视频尺寸随播放区域变化',
+          '本轮仅同步 Android 手机版本配置，不交付 Android 安装包',
+          '继续支持字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+        ],
+      ),
+    ];
+  }
+  if (currentVersion == '2.1.220' && platform == AppPlatformKind.android) {
+    return const [
+      VersionHistory(
+          version: '2.1.220',
+          date: '2026-10-11',
+          isPrerelease: true,
+          changes: [
+            '手机和平板播放器支持手动片头/片尾标记，已看和观看进度独立保存',
+            '同一作品跨集沿用音轨、字幕语言偏好，播放设置可选择全局语言，不抢占外置字幕',
+            '加密备份增加片头片尾、已看/进度和选轨偏好，兼容旧配置包',
+            '本轮仅同步 Android 手机版本配置，不交付 Android 安装包',
+            '继续支持后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+            '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+          ]),
+    ];
+  }
+  if (currentVersion == '2.1.219' && platform == AppPlatformKind.android) {
+    return const [
+      VersionHistory(
+        version: '2.1.219',
+        date: '2026-10-11',
+        isPrerelease: true,
+        changes: [
+          '手机和平板媒体库读取失败时保留旧索引，收藏、待看和合集支持分组关联',
+          '加密备份增加收藏、待看、合集、书签和观看历史，兼容旧配置包',
+          '本轮仅同步 Android 手机版本配置，不交付 Android 安装包',
+          '继续支持字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+        ],
+      ),
+    ];
+  }
+  if (currentVersion == '2.1.218' && platform == AppPlatformKind.android) {
+    return const [
+      VersionHistory(
+        version: '2.1.218',
+        date: '2026-10-11',
+        isPrerelease: true,
+        changes: [
+          '手机和平板播放器支持内嵌章节和手动书签，修正书签与视频详情弹窗的切换',
+          '本轮仅同步 Android 手机版本配置，不交付 Android 安装包',
+          '继续支持本地媒体库、个人网盘、字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+        ],
+      ),
+    ];
+  }
+  if (currentVersion == '2.1.217' && platform == AppPlatformKind.android) {
+    return const [
+      VersionHistory(
+        version: '2.1.217',
+        date: '2026-10-11',
+        isPrerelease: true,
+        changes: [
+          '手机和平板播放器可读取本地视频中的内嵌章节，也可以继续使用手动书签',
+          '本轮同步播放器章节和书签版本配置，不交付 Android 安装包',
+          '继续支持本地媒体库、个人网盘、字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+        ],
+      ),
+    ];
+  }
+  if (currentVersion == '2.1.216' && platform == AppPlatformKind.android) {
+    return const [
+      VersionHistory(
+        version: '2.1.216',
+        date: '2026-10-11',
+        isPrerelease: true,
+        changes: [
+          '手机和平板支持收藏、待看和自定义合集筛选，并保存在看影音专属数据目录中',
+          '本地媒体重扫会展示新增、更新、移除和失败变更，播放器可保存手动书签',
+          'TMDB 详情补充主演、导演和相似作品，并在媒体详情中展示',
+          '继续支持本地媒体库、个人网盘、字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+        ],
+      ),
+    ];
+  }
   if (currentVersion == '2.1.215' && platform == AppPlatformKind.android) {
     return const [
       VersionHistory(
@@ -244,7 +501,7 @@ List<VersionHistory> versionHistoryForCurrent(
         changes: [
           '手机和平板支持使用已核对的媒体原名称补充捕捉清晰度、来源和编码等技术标签',
           '本地媒体重扫、文件改名迁移以及媒体卡片和详情页会保留并使用这些标签',
-          '手机和平板继续识别 2160p、3840x2160 和 UHD 等常见 4K 写法，并汇总显示多个文件中的最高规格',
+          '继续识别 2160p、3840x2160 和 UHD 等常见 4K 写法，并汇总显示多个文件中的最高规格',
           '继续支持本地媒体库、个人网盘、字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
           '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
         ],

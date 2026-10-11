@@ -104,9 +104,12 @@ void main() {
 
   test('Windows 主程序和安装器使用相同的三段版本号', () {
     final runner = File('windows/runner/Runner.rc').readAsStringSync();
+    final installer =
+        File('tool/windows/installer/看影音测试版.iss').readAsStringSync();
     final buildScript =
         File('tool/windows/build_exe_release.ps1').readAsStringSync();
 
+    expect(installer, contains('VersionInfoVersion={#MyAppVersion}'));
     expect(
       runner,
       contains(

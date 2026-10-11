@@ -173,6 +173,8 @@ class MediaLibrarySeries {
     this.tmdbPosterUrl,
     this.posterCachePath,
     this.mediaType,
+    this.tmdbMetadata,
+    this.legacySeriesTitles = const <String>[],
   });
 
   final String key;
@@ -192,6 +194,8 @@ class MediaLibrarySeries {
   final String? tmdbPosterUrl;
   final String? posterCachePath;
   final TmdbMediaType? mediaType;
+  final TmdbMetadata? tmdbMetadata;
+  final List<String> legacySeriesTitles;
 
   List<MediaLibraryEpisode> playbackEpisodesFor(MediaLibraryEpisode selected) {
     final key = selected.playbackVersionKey;
@@ -252,27 +256,25 @@ class CloudMediaLibraryAggregator {
     required Iterable<LocalMediaIndexItem> localItems,
     required Iterable<CloudMediaIndexItem> cloudItems,
     required Iterable<CloudSource> cloudSources,
+    Map<String, String> localSourceTitlesByMediaId = const <String, String>{},
+    Map<String, List<String>> localLegacyTitlesByMediaId =
+        const <String, List<String>>{},
     Map<String, CloudWorkTmdbRecord> workRecordsByKey =
         const <String, CloudWorkTmdbRecord>{},
   }) {
     final sources = {for (final source in cloudSources) source.id: source};
     final result = <MediaLibrarySeries>[];
-    for (final local
-        in const LocalMediaLibraryBuilder().buildSeries(localItems)) {
+    for (final local in const LocalMediaLibraryBuilder().buildSeries(
+      localItems,
+      sourceTitlesByMediaId: localSourceTitlesByMediaId,
+      legacyTitlesByMediaId: localLegacyTitlesByMediaId,
+    )) {
       final metadata = _localMetadata(local.episodes);
-      final tmdbTitle = metadata?.title.trim() ?? '';
-      final hasCustomTitle = local.episodes.any(
-        (item) =>
-            item.manualOverride &&
-            item.seriesName.trim().toLowerCase() ==
-                local.title.trim().toLowerCase(),
-      );
-      final effectiveTitle =
-          hasCustomTitle || tmdbTitle.isEmpty ? local.title : tmdbTitle;
       result.add(MediaLibrarySeries(
         key: 'local|${local.key}',
         seriesKey: local.key,
-        title: effectiveTitle,
+        title: local.title,
+        legacySeriesTitles: local.legacySeriesTitles,
         sourceKind: MediaSourceKind.local,
         sourceId: 'local',
         sourceName: '本地',
@@ -289,6 +291,7 @@ class CloudMediaLibraryAggregator {
         tmdbReleaseDate: metadata?.releaseDate,
         tmdbPosterUrl: metadata?.posterUrl,
         posterCachePath: local.cover,
+        tmdbMetadata: metadata,
         episodes: local.episodes
             .map((item) => MediaLibraryEpisode.local(
                   stableId: item.id,
@@ -297,7 +300,7 @@ class CloudMediaLibraryAggregator {
                     metadata ?? item.tmdb,
                     item.seasonNumber,
                     item.episodeNumber,
-                    seriesTitle: effectiveTitle,
+                    seriesTitle: local.title,
                   ),
                   localItem: item,
                 ))
@@ -379,6 +382,7 @@ class CloudMediaLibraryAggregator {
         tmdbReleaseDate: workMetadata?.releaseDate,
         tmdbPosterUrl: posterUrl,
         posterCachePath: posterCachePath,
+        tmdbMetadata: workMetadata,
         episodes: items
             .map((item) => MediaLibraryEpisode.cloud(
                   stableId: item.remoteId,

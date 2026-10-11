@@ -110,6 +110,25 @@ void main() {
     c.dispose();
   });
 
+  testWidgets('书签与视频详情切换时替换旧弹窗', (tester) async {
+    final c = PlayerOverlayCoordinator();
+    await tester.pumpWidget(_presenterHost(c));
+    c.openVideoInfo();
+    await tester.pumpAndSettle();
+
+    c.open(PlayerOverlay.other);
+    await tester.pumpAndSettle();
+    expect(find.text('视频详情'), findsNothing);
+    expect(find.text('书签章节'), findsOneWidget);
+    expect(c.visible, PlayerOverlay.other);
+
+    c.openVideoInfo();
+    await tester.pumpAndSettle();
+    expect(find.text('书签章节'), findsNothing);
+    expect(find.text('视频详情'), findsOneWidget);
+    c.dispose();
+  });
+
   testWidgets('presenter dispose 时 BottomSheet future 安全完成', (tester) async {
     final c = PlayerOverlayCoordinator();
     await tester.pumpWidget(_presenterHost(c));
@@ -180,6 +199,7 @@ Widget _presenterHost(
         key: const ValueKey('presenter'),
         coordinator: coordinator,
         videoInfoBuilder: (_) => Text(label),
+        otherBuilder: (_) => const Text('书签章节'),
         child: const Text('播放器'),
       ),
     ),

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:kanyingyin/features/library/application/local_library_metadata_coordinator.dart';
 import 'package:kanyingyin/features/library/application/local_library_preferences.dart';
+import 'package:kanyingyin/features/library/application/media_library_user_state_repository.dart';
 import 'package:kanyingyin/features/library/application/local_library_source_coordinator.dart';
 import 'package:kanyingyin/features/library/application/local_library_tmdb_coordinator.dart';
 import 'package:kanyingyin/features/library/application/library_genre_backfill_service.dart';
@@ -35,6 +36,7 @@ import 'package:kanyingyin/services/local_media_indexer.dart';
 import 'package:kanyingyin/services/local_media_index_metadata_refresher.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/services/local_media_scanner.dart';
+import 'package:kanyingyin/services/local_episode_parser.dart';
 import 'package:kanyingyin/services/tmdb/local_tmdb_scrape_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
@@ -356,6 +358,10 @@ abstract class _LocalController with Store {
   @observable
   ObservableList<LocalMediaIndexFailure> libraryIndexFailures =
       ObservableList<LocalMediaIndexFailure>();
+
+  @observable
+  ObservableList<LocalMediaIndexChange> libraryIndexChanges =
+      ObservableList<LocalMediaIndexChange>();
 
   String _lastResolvedStartPath = '';
   int _navigationRequestId = 0;
@@ -801,15 +807,98 @@ abstract class _LocalController with Store {
 
   @computed
   int get localLibrarySeriesCount =>
-      _libraryBuilder.buildSeries(localLibraryItems).length;
+      localLibrarySeries.length;
 
   @computed
   List<LocalMediaSeries> get localLibrarySeries =>
-      _libraryBuilder.buildSeries(localLibraryItems);
+      _libraryBuilder.buildSeries(
+        localLibraryItems,
+        sourceTitlesByMediaId: localSourceTitlesByMediaId,
+        legacyTitlesByMediaId: localLegacySeriesTitlesByMediaId,
+      );
+
+  Map<String, String> get localSourceTitlesByMediaId {
+    return {
+      for (final group in _localSourceGroups(applyTitleOverrides: true))
+        for (final item in group.episodes)
+          (item.location.isFile
+              ? LocalMediaIndexItem.normalizePath(item.path)
+              : item.location.stableId): group.title,
+    };
+  }
+
+  Map<String, List<String>> get localLegacySeriesTitlesByMediaId {
+    final indexedById = {for (final item in localLibraryItems) item.id: item};
+    final sourceTitles = localSourceTitlesByMediaId;
+    final oldTitles = {
+      for (final group in _libraryBuilder.buildSeries(localLibraryItems))
+        for (final item in group.episodes) item.id: group.title,
+    };
+    final candidatesById = <String, Set<String>>{};
+    final owners = <String, Set<String>>{};
+    String aliasKey(LocalMediaIndexItem item, String title) =>
+        '${item.parentLocation.stableId}|${Uri.encodeComponent(title.toLowerCase())}';
+    for (final group in _localSourceGroups(applyTitleOverrides: false)) {
+      for (final file in group.episodes) {
+        final id = file.location.isFile
+            ? LocalMediaIndexItem.normalizePath(file.path)
+            : file.location.stableId;
+        final item = indexedById[id]!;
+        final rawTitle = _seriesGrouper.group([file]).single.title;
+        final owner = rawTitle.toLowerCase();
+        final candidates = <String>{
+          rawTitle,
+          ...[sourceTitles[id], oldTitles[id], item.tmdb?.title]
+              .whereType<String>()
+              .map((title) => title.trim())
+              .where((title) => title.isNotEmpty),
+        };
+        candidatesById[id] = candidates;
+        for (final title in candidates) {
+          owners.putIfAbsent(aliasKey(item, title), () => <String>{}).add(owner);
+        }
+      }
+    }
+    return {
+      for (final entry in candidatesById.entries)
+        entry.key: entry.value
+            .where((title) => owners[aliasKey(indexedById[entry.key]!, title)]!
+                .length == 1)
+            .toList(growable: false),
+    };
+  }
+
+  Iterable<LocalVideoGroup> _localSourceGroups({
+    required bool applyTitleOverrides,
+  }) {
+    final parser = LocalEpisodeParser();
+    final byDirectory = <String, List<LocalFileItem>>{};
+    for (final item in localLibraryItems) {
+      byDirectory.putIfAbsent(item.parentLocation.stableId, () => []).add(
+        LocalFileItem(
+          location: item.location,
+          name: item.name,
+          size: item.size,
+          modified: item.modified,
+          isDirectory: false,
+          isVideo: true,
+          episodeInfo: item.location.isFile
+              ? parser.parse(item.path)
+              : item.episodeInfo,
+          seriesTitleOverride: applyTitleOverrides
+              ? _seriesTitleOverrideRepository.getForDirectory(item.parentPath)
+              : null,
+        ),
+      );
+    }
+    return byDirectory.values.expand(_seriesGrouper.group);
+  }
 
   CloudMediaLibrary get localMediaLibrary =>
       const CloudMediaLibraryAggregator().build(
         localItems: localLibraryItems,
+        localSourceTitlesByMediaId: localSourceTitlesByMediaId,
+        localLegacyTitlesByMediaId: localLegacySeriesTitlesByMediaId,
         cloudItems: const <CloudMediaIndexItem>[],
         cloudSources: const <CloudSource>[],
       );
@@ -817,6 +906,8 @@ abstract class _LocalController with Store {
   CloudMediaLibrary get combinedMediaLibrary =>
       const CloudMediaLibraryAggregator().build(
         localItems: localLibraryItems,
+        localSourceTitlesByMediaId: localSourceTitlesByMediaId,
+        localLegacyTitlesByMediaId: localLegacySeriesTitlesByMediaId,
         cloudItems: cloudLibraryItems,
         cloudSources: cloudLibrarySources,
       );
@@ -981,12 +1072,14 @@ abstract class _LocalController with Store {
         'reused': 0,
         'removed': 0,
         'skipped': 0,
+        'changes': 0,
       };
     }
 
     isIndexingLibrary = true;
     cancelLibraryIndexRequested = false;
     libraryIndexFailures.clear();
+    libraryIndexChanges.clear();
     libraryIndexCurrent = 0;
     libraryIndexTotal = 0;
     libraryIndexProgressValue = 0;
@@ -1039,6 +1132,17 @@ abstract class _LocalController with Store {
           throw UnsupportedError('当前索引器不支持 Android 文档来源');
         }
         _sourceAccessibility[source.id] = result.sourceAccessible;
+        if (result.mediaIdAliases.isNotEmpty) {
+          try {
+            await MediaLibraryUserStateRepository()
+                .remapMediaIds(result.mediaIdAliases);
+          } on Object {
+            libraryIndexFailures.add(LocalMediaIndexFailure(
+              path: source.path,
+              message: '改名后的收藏关联未保存，原记录已保留，可在媒体分类中手动关联',
+            ));
+          }
+        }
         totalCount += result.totalCount;
         addedCount += result.addedCount;
         updatedCount += result.updatedCount;
@@ -1046,6 +1150,7 @@ abstract class _LocalController with Store {
         removedCount += result.removedCount;
         skippedCount += result.skippedCount;
         libraryIndexFailures.addAll(result.failures);
+        libraryIndexChanges.addAll(result.changes);
         if (result.cancelled || cancelLibraryIndexRequested) {
           scanCancelled = true;
           libraryIndexSummary = '媒体库扫描已取消，已保留 $localLibraryVideoCount 个已索引视频';
@@ -1118,6 +1223,7 @@ abstract class _LocalController with Store {
       'removed': removedCount,
       'skipped': skippedCount,
       'failed': libraryIndexFailures.length,
+      'changes': libraryIndexChanges.length,
       'cancelled': scanCancelled ? 1 : 0,
     };
   }

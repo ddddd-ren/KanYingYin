@@ -19,6 +19,7 @@ import 'package:kanyingyin/features/player/application/anime4k_policy.dart';
 import 'package:kanyingyin/pages/player/widgets/anime4k_status_label.dart';
 import 'package:kanyingyin/features/player/presentation/player_network_speed_presenter.dart';
 import 'package:kanyingyin/features/player/presentation/tv_remote_key_policy.dart';
+import 'package:kanyingyin/features/player/presentation/player_timeline_progress_bar.dart';
 
 class PlayerItemPanel extends StatefulWidget {
   const PlayerItemPanel({
@@ -40,6 +41,7 @@ class PlayerItemPanel extends StatefulWidget {
     required this.skipOP,
     required this.showVideoInfo,
     required this.showSubtitleSettings,
+    this.showBookmarks,
     required this.onConfirmTrackLanguage,
     required this.pauseForTimedShutdown,
     this.disableAnimations = false,
@@ -65,6 +67,7 @@ class PlayerItemPanel extends StatefulWidget {
   final void Function() skipOP;
   final void Function() showVideoInfo;
   final VoidCallback showSubtitleSettings;
+  final VoidCallback? showBookmarks;
   final void Function(EmbeddedTrackInfo track) onConfirmTrackLanguage;
   final VoidCallback pauseForTimedShutdown;
   final bool disableAnimations;
@@ -581,7 +584,8 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
                 ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: ProgressBar(
+                child: PlayerTimelineProgressBar(
+                  segments: playerController.timelineSegments.toList(),
                   thumbRadius: 8,
                   thumbGlowRadius: 18,
                   timeLabelLocation: Utils.isTablet()
@@ -597,6 +601,10 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
                   progress: playerController.currentPosition,
                   buffered: playerController.buffer,
                   total: playerController.duration,
+                  videoPath: playerController.isLocalPlayback
+                      ? playerController.videoUrl
+                      : null,
+                  enablePreview: !playerController.lowMemoryMode,
                   onSeek: (duration) {
                     playerController.seek(duration);
                   },
@@ -981,6 +989,16 @@ class _PlayerItemPanelState extends State<PlayerItemPanel> {
                     );
                   },
                   menuChildren: [
+                    if (widget.showBookmarks != null)
+                      MenuItemButton(
+                        onPressed: widget.showBookmarks,
+                        child: Container(
+                          height: 48,
+                          constraints: const BoxConstraints(minWidth: 112),
+                          alignment: Alignment.centerLeft,
+                          child: const Text('书签/章节'),
+                        ),
+                      ),
                     MenuItemButton(
                       onPressed: widget.showSubtitleSettings,
                       child: Container(

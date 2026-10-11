@@ -200,9 +200,9 @@ mixin _CloudTmdbWorkMixin on _CloudResourcesControllerBase {
       _resourceTmdbRecordsRevision = resourceRevision;
       _workTmdbRecordsRevision = workRevision;
       _syncIndexedTmdbMetadata();
-      _reconcileSelectedGenres();
       _invalidateCollection();
-      unawaited(reloadMediaLibrarySnapshot().catchError((_) {}));
+      _reconcileSelectedGenres();
+      unawaited(reloadMediaLibrarySnapshot(force: true).catchError((_) {}));
     }
     _notify();
   }

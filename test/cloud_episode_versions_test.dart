@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/library/application/media_library_category.dart';
+import 'package:kanyingyin/features/library/application/media_library_user_state.dart';
 import 'package:kanyingyin/features/library/presentation/media_category_page.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
@@ -85,6 +86,9 @@ void main() {
       selected: shared.first,
       subtitleFor: (_) => null,
     );
+    expect(request.seriesTitle, result.displayName);
+    expect(request.workKey, result.workKey);
+    expect(request.legacySeriesTitles, contains('示例剧 S01'));
     expect(request.targets.map((target) => target.remoteId),
         second.videos.map((video) => video.id));
     expect(request.targets.map((target) => target.remoteId),
@@ -169,6 +173,8 @@ void main() {
         });
     await controller.openCloudPlayback(
         seriesTitle: request.seriesTitle,
+        workKey: request.workKey,
+        legacySeriesTitles: request.legacySeriesTitles,
         targets: request.targets,
         selectedStableId: request.selectedStableId);
     await controller.changeEpisode(3);
@@ -398,6 +404,9 @@ void main() {
     await tester.pumpWidget(MaterialApp(
         home: MediaCategoryPage(
       category: MediaLibraryCategory.tvSeries,
+      userStatesProvider: () => {
+        series.key: const MediaLibraryUserState(categoryOverride: ['电视剧']),
+      },
       initialize: () async {},
       libraryProvider: () =>
           CloudMediaLibrary(series: [series], filters: const []),

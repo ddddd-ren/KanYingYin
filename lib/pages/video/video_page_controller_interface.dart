@@ -32,6 +32,6 @@ abstract class IVideoPageController {
 
   Future<void> changeEpisode(int episode, {int currentRoad, int offset});
   void cancelQueryRoads();
-  void enterFullScreen();
-  void exitFullScreen();
+  Future<void> enterFullScreen();
+  Future<void> exitFullScreen();
 }

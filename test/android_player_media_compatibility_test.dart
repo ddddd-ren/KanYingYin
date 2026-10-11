@@ -115,13 +115,18 @@ void main() {
     expect(controller, contains("'stereo'"));
     expect(controller, contains("'ad-lavc-downmix'"));
     expect(controller, contains("'yes'"));
-    expect(
-      controller,
-      contains(
-        'await _prepareAudioTrackOutput(player, track);\n'
-        '      await player.setAudioTrack(track);',
-      ),
-    );
+    final selection = controller.substring(
+        controller.indexOf('Future<bool> selectAudioTrack('),
+        controller.indexOf('Future<bool> selectEmbeddedSubtitleTrack('));
+    final prepare =
+        selection.indexOf('await _prepareAudioTrackOutput(player, track);');
+    final apply = selection.indexOf('await player.setAudioTrack(track);');
+    expect(prepare, greaterThanOrEqualTo(0));
+    expect(apply, greaterThan(prepare));
+    expect(selection.substring(prepare, apply),
+        contains('if (!isCurrent()) return false;'));
+    expect(selection, contains('identical(player, mediaPlayer)'));
+    expect(selection, contains('revision == _audioTrackRequestRevision'));
   });
 
   test('Android 播放页使用黑色系统栏表面', () {

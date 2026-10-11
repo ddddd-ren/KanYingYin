@@ -14,6 +14,7 @@ class PlaybackHistoryController extends ChangeNotifier {
 
   final PlaybackHistoryRepository _repository;
   final List<PlaybackHistoryEntry> _entries = <PlaybackHistoryEntry>[];
+  final Map<String, PlaybackHistoryEntry> _pendingUpdates = {};
   Future<void> _loadFuture = Future<void>.value();
   Timer? _persistTimer;
   DateTime? _lastPersistAt;
@@ -56,22 +57,57 @@ class PlaybackHistoryController extends ChangeNotifier {
   Duration resumePosition(String stableKey) =>
       find(stableKey)?.resumePosition ?? Duration.zero;
 
+  PlaybackHistoryEntry? findCloudEntry({
+    required String sourceId,
+    required String remoteId,
+    required String mediaPath,
+  }) {
+    final matched = _entries
+        .where((entry) =>
+            entry.isCloud &&
+            entry.sourceId == sourceId &&
+            (entry.remoteId ?? '') == remoteId &&
+            entry.mediaPath == mediaPath)
+        .take(2)
+        .toList(growable: false);
+    return matched.length == 1 ? matched.single : null;
+  }
+
   Future<void> record(
     PlaybackHistoryEntry entry, {
     bool forcePersist = false,
   }) =>
       _enqueue(() async {
         await ensureLoaded();
+        final previousCloud = entry.isCloud && find(entry.stableKey) == null
+            ? findCloudEntry(
+                sourceId: entry.sourceId,
+                remoteId: entry.remoteId ?? '',
+                mediaPath: entry.mediaPath,
+              )
+            : null;
+        final normalized = previousCloud == null
+            ? entry
+            : entry.copyWith(
+                stableKey: previousCloud.stableKey,
+                posterUrl: _hasText(entry.posterUrl)
+                    ? entry.posterUrl
+                    : previousCloud.posterUrl,
+                posterCachePath: _hasText(entry.posterCachePath)
+                    ? entry.posterCachePath
+                    : previousCloud.posterCachePath,
+              );
         final previousIndex =
-            _entries.indexWhere((item) => item.stableKey == entry.stableKey);
+            _entries.indexWhere((item) => item.stableKey == normalized.stableKey);
         if (previousIndex < 0 &&
-            entry.positionSeconds < minimumInitialPositionSeconds &&
-            !entry.isCompleted) {
+            normalized.positionSeconds < minimumInitialPositionSeconds &&
+            !normalized.isCompleted) {
           return;
         }
-        final nextEntry = _withPosterFallback(entry);
-        _entries.removeWhere((item) => item.stableKey == entry.stableKey);
+        final nextEntry = _withPosterFallback(normalized);
+        _entries.removeWhere((item) => item.stableKey == nextEntry.stableKey);
         _entries.insert(0, nextEntry);
+        _pendingUpdates[nextEntry.stableKey] = nextEntry;
         if (_entries.length > PlaybackHistoryRepository.maxEntries) {
           _entries.removeRange(
             PlaybackHistoryRepository.maxEntries,
@@ -120,28 +156,42 @@ class PlaybackHistoryController extends ChangeNotifier {
 
   Future<void> delete(String stableKey) => _enqueue(() async {
         await ensureLoaded();
-        _entries.removeWhere((entry) => entry.stableKey == stableKey);
-        _persistPending = true;
-        notifyListeners();
         await _flushNow();
+        await _repository.delete(stableKey);
+        _entries.removeWhere((entry) => entry.stableKey == stableKey);
+        notifyListeners();
       });
 
   Future<void> clear() => _enqueue(() async {
         await ensureLoaded();
+        await _repository.clear();
         _entries.clear();
-        _persistPending = true;
+        _pendingUpdates.clear();
+        _persistPending = false;
+        _persistTimer?.cancel();
+        _persistTimer = null;
         notifyListeners();
-        await _flushNow();
       });
 
   Future<void> flush() => _enqueue(_flushNow);
+
+  Future<void> reload() => _enqueue(() async {
+        await _flushNow();
+        _entries
+          ..clear()
+          ..addAll(await _repository.getAll());
+        _backfillPosters();
+        _loaded = true;
+        notifyListeners();
+      });
 
   Future<void> _flushNow() async {
     _persistTimer?.cancel();
     _persistTimer = null;
     if (!_persistPending) return;
     await ensureLoaded();
-    await _repository.replaceAll(_entries);
+    await _repository.mergeAll(_pendingUpdates.values);
+    _pendingUpdates.clear();
     _persistPending = false;
     _lastPersistAt = DateTime.now();
   }

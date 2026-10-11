@@ -109,6 +109,14 @@ class MediaKitLocalMediaProbe implements ILocalMediaProbe {
 
   @override
   Future<String?> captureThumbnail(String filePath, String outputPath) async {
+    return captureThumbnailAt(filePath, outputPath);
+  }
+
+  Future<String?> captureThumbnailAt(
+    String filePath,
+    String outputPath, {
+    Duration? position,
+  }) async {
     MediaKit.ensureInitialized();
     final player = Player();
     final subscriptions = <StreamSubscription<dynamic>>[];
@@ -132,9 +140,9 @@ class MediaKitLocalMediaProbe implements ILocalMediaProbe {
         timeout,
         onTimeout: () => player.state.duration,
       );
-      final position = _thumbnailPosition(duration);
-      if (position > Duration.zero) {
-        await player.seek(position);
+      final capturePosition = _clampCapturePosition(position, duration);
+      if (capturePosition > Duration.zero) {
+        await player.seek(capturePosition);
       }
       await Future<void>.delayed(const Duration(milliseconds: 300));
 
@@ -173,5 +181,17 @@ class MediaKitLocalMediaProbe implements ILocalMediaProbe {
       return Duration(milliseconds: duration.inMilliseconds ~/ 5);
     }
     return const Duration(seconds: 1);
+  }
+
+  Duration _clampCapturePosition(Duration? requested, Duration duration) {
+    final fallback = _thumbnailPosition(duration);
+    if (requested == null || duration <= Duration.zero) return fallback;
+    final latest = duration - const Duration(milliseconds: 100);
+    if (latest <= Duration.zero) return Duration.zero;
+    return requested.compareTo(latest) > 0
+        ? latest
+        : requested.compareTo(Duration.zero) < 0
+            ? Duration.zero
+            : requested;
   }
 }

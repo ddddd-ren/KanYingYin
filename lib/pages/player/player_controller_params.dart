@@ -67,6 +67,9 @@ class PlaybackInitParams {
   final String? subtitleDisplayName;
   final String? subtitleStorageKey;
   final String? stableMediaKey;
+  final String? mediaRevision;
+  final String? trackPreferenceKey;
+  final List<String> legacyTrackPreferenceKeys;
   final PlaybackNetworkRoute networkRoute;
   final String? cloudProviderName;
   final CloudPlaybackTransport transport;
@@ -91,6 +94,9 @@ class PlaybackInitParams {
     this.subtitleDisplayName,
     this.subtitleStorageKey,
     this.stableMediaKey,
+    this.mediaRevision,
+    this.trackPreferenceKey,
+    this.legacyTrackPreferenceKeys = const <String>[],
     this.networkRoute = PlaybackNetworkRoute.inheritProxy,
     this.cloudProviderName,
     this.transport = CloudPlaybackTransport.direct,
@@ -116,6 +122,43 @@ class PlaybackInitParams {
         subtitleDisplayName: subtitleDisplayName,
         subtitleStorageKey: subtitleStorageKey,
         stableMediaKey: stableMediaKey,
+        mediaRevision: mediaRevision,
+        trackPreferenceKey: trackPreferenceKey,
+        legacyTrackPreferenceKeys: legacyTrackPreferenceKeys,
+        networkRoute: networkRoute,
+        cloudProviderName: cloudProviderName,
+        transport: transport,
+        lease: lease,
+        totalBytes: totalBytes,
+        refreshCloudPlayback: refreshCloudPlayback,
+      );
+
+  PlaybackInitParams withDisplayTitles({
+    required String mediaTitle,
+    required String episodeTitle,
+    List<String>? legacyTrackPreferenceKeys,
+  }) =>
+      PlaybackInitParams(
+        videoUrl: videoUrl,
+        offset: offset,
+        isLocalPlayback: isLocalPlayback,
+        mediaId: mediaId,
+        sourceLabel: sourceLabel,
+        episode: episode,
+        httpHeaders: httpHeaders,
+        episodeTitle: episodeTitle,
+        referer: referer,
+        currentRoad: currentRoad,
+        coverUrl: coverUrl,
+        mediaTitle: mediaTitle,
+        subtitlePath: subtitlePath,
+        subtitleDisplayName: subtitleDisplayName,
+        subtitleStorageKey: subtitleStorageKey,
+        stableMediaKey: stableMediaKey,
+        mediaRevision: mediaRevision,
+        trackPreferenceKey: trackPreferenceKey,
+        legacyTrackPreferenceKeys:
+            legacyTrackPreferenceKeys ?? this.legacyTrackPreferenceKeys,
         networkRoute: networkRoute,
         cloudProviderName: cloudProviderName,
         transport: transport,
@@ -149,6 +192,12 @@ PlaybackInitParams mergeRefreshedCloudPlayback({
       subtitleStorageKey:
           refreshed.subtitleStorageKey ?? previous.subtitleStorageKey,
       stableMediaKey: refreshed.stableMediaKey ?? previous.stableMediaKey,
+      mediaRevision: refreshed.mediaRevision ?? previous.mediaRevision,
+      trackPreferenceKey:
+          refreshed.trackPreferenceKey ?? previous.trackPreferenceKey,
+      legacyTrackPreferenceKeys: refreshed.trackPreferenceKey == null
+          ? previous.legacyTrackPreferenceKeys
+          : refreshed.legacyTrackPreferenceKeys,
       networkRoute: refreshed.networkRoute,
       cloudProviderName:
           refreshed.cloudProviderName ?? previous.cloudProviderName,

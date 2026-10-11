@@ -3,6 +3,9 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
+import 'package:hive_ce/hive.dart';
+import 'package:kanyingyin/features/library/application/media_library_user_state_repository.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
@@ -1249,18 +1252,24 @@ void main() {
     expect(find.byTooltip('刷新类型标签'), findsOneWidget);
   });
 
-  testWidgets('本地标签入口显示分类并支持保存自定义标签', (tester) async {
+  testWidgets('本地标签入口可人工确认双分类并保存自定义标签', (tester) async {
     final controller = LocalController();
     controller.localLibraryItems.add(
       _genreLocal('custom-tag', '自定义作品', const <String>['动画']),
     );
     final tagRepository = _MemoryLocalMediaTagRepository();
+    final stateRepository = MediaLibraryUserStateRepository(
+      storage: MemoryMediaLibraryUserStateStorage(),
+    );
+    final series = controller.localMediaLibrary.series.single;
 
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: LibrarySheetContent(
           controller: controller,
           tagRepository: tagRepository,
+          userStateRepository: stateRepository,
+          settings: TypedSettings(_SettingsBox()),
           onPlay: (_, __) {},
           onRefresh: () {},
         ),
@@ -1270,9 +1279,9 @@ void main() {
 
     await tester.tap(find.byTooltip('筛选 TMDB 类型'));
     await tester.pumpAndSettle();
-    expect(find.text('分类'), findsOneWidget);
-    expect(find.text('动漫'), findsOneWidget);
-    expect(find.text('电影'), findsOneWidget);
+    expect(find.text('分类'), findsNothing);
+    expect(_checkedGenreItem('动漫'), findsNothing);
+    expect(_checkedGenreItem('电影'), findsNothing);
     await tester.tapAt(const Offset(2, 2));
     await tester.pumpAndSettle();
 
@@ -1280,15 +1289,32 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('管理标签'));
     await tester.pumpAndSettle();
-    final tagInput = find.byType(TextField).last;
+    expect(find.byKey(const ValueKey('media-classification-dialog')), findsOneWidget);
+    final movie = find.byKey(const ValueKey('classification-category-电影'));
+    final animation = find.byKey(const ValueKey('classification-category-动漫'));
+    expect(tester.widget<CheckboxListTile>(movie).value, isFalse);
+    expect(tester.widget<CheckboxListTile>(animation).value, isFalse);
+    await tester.tap(movie);
+    await tester.pump();
+    await tester.tap(animation);
+    await tester.pump();
+    final tagInput = find.byKey(const ValueKey('classification-custom-tag-input'));
+    await tester.ensureVisible(tagInput);
     await tester.enterText(tagInput, '收藏');
-    await tester.tap(find.byTooltip('添加标签'));
-    await tester.tap(find.text('保存'));
+    await tester.tap(find.byTooltip('添加自定义标签'));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('classification-save')));
     await tester.pumpAndSettle();
 
+    expect(tagRepository.values[series.seriesKey], ['收藏']);
+    expect((await stateRepository.get(series.key))?.categoryOverride,
+        ['电影', '动漫']);
     expect(find.text('收藏'), findsOneWidget);
     await tester.tap(find.byTooltip('筛选 TMDB 类型'));
     await tester.pumpAndSettle();
+    expect(find.text('分类'), findsOneWidget);
+    expect(_checkedGenreItem('动漫'), findsOneWidget);
+    expect(_checkedGenreItem('电影'), findsOneWidget);
     expect(find.text('自定义标签'), findsOneWidget);
     await tester.tap(_checkedGenreItem('收藏'));
     await tester.pumpAndSettle();
@@ -1474,9 +1500,9 @@ LocalMediaIndexItem _genreLocal(
   List<String> genres,
 ) {
   return LocalMediaIndexItem(
-    path: 'C:\\Media\\$id\\$id.mkv',
-    name: '$id.mkv',
-    parentPath: 'C:\\Media\\$id',
+    path: 'C:\\Media\\$title\\$title.mkv',
+    name: '$title.mkv',
+    parentPath: 'C:\\Media\\$title',
     sourcePath: r'C:\Media',
     size: 10,
     modified: DateTime.utc(2026, 8, 4),
@@ -1496,8 +1522,14 @@ LocalMediaIndexItem _genreLocal(
 
 Finder _checkedGenreItem(String value) {
   return find.byWidgetPredicate(
-    (widget) => widget is CheckedPopupMenuItem<String> && widget.value == value,
+    (widget) => widget is CheckedPopupMenuItem<String> &&
+        widget.child is Text && (widget.child as Text).data == value,
   );
+}
+
+class _SettingsBox extends Fake implements Box<Object?> {
+  @override
+  Object? get(Object? key, {Object? defaultValue}) => defaultValue;
 }
 
 class _MemoryLocalMediaTagRepository implements ILocalMediaTagRepository {

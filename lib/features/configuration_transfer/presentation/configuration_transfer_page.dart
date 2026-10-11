@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/features/library/application/media_library_user_state.dart';
 import 'package:flutter/services.dart';
 import 'package:kanyingyin/features/configuration_transfer/application/configuration_archive_codec.dart';
 import 'package:kanyingyin/features/configuration_transfer/application/configuration_importer.dart';
@@ -111,11 +112,14 @@ class _ConfigurationTransferPageState extends State<ConfigurationTransferPage> {
       }
       final password = await _showImportPassword();
       if (password == null || !mounted) return;
-      final session = await widget.service.inspect(
+      var session = await widget.service.inspect(
         bytes,
         password: password,
       );
       if (!mounted) return;
+      final mapped = await _prepareUserDataMapping(session);
+      if (mapped == null || !mounted) return;
+      session = mapped;
       final confirmed = await _showImportPreview(session);
       if (!confirmed || !mounted) return;
       final result = await widget.service.apply(session);
@@ -130,6 +134,95 @@ class _ConfigurationTransferPageState extends State<ConfigurationTransferPage> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<ConfigurationImportSession?> _prepareUserDataMapping(
+      ConfigurationImportSession session) async {
+    final data = session.configuration.userData;
+    if (data == null ||
+        (data.localRoots.isEmpty &&
+            session.configuration.cloudSources.isEmpty)) {
+      return session;
+    }
+    final currentSources = await widget.service.availableSources();
+    if (!mounted) return null;
+    final roots = <String, String>{};
+    final sources = <String, String>{};
+    final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => StatefulBuilder(
+            builder: (context, update) => AlertDialog(
+                  title: const Text('对应媒体位置'),
+                  content: SizedBox(
+                      width: 520,
+                      child: SingleChildScrollView(
+                          child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                              '位置未变化可以直接继续；找不到的视频记录会保留。选择新目录只调整记录路径，不移动视频，也不自动添加扫描目录。'),
+                          for (final root in data.localRoots)
+                            ListTile(
+                              title: Text(root),
+                              subtitle: Text(roots[root] ?? '保留原目录'),
+                              trailing: _capabilities.isWindows
+                                  ? TextButton(
+                                      child: const Text('选择新目录'),
+                                      onPressed: () async {
+                                        final selected =
+                                            await FilePicker.getDirectoryPath(
+                                                dialogTitle: '选择对应的媒体目录');
+                                        if (selected != null &&
+                                            context.mounted) {
+                                          update(() => roots[root] = selected);
+                                        }
+                                      },
+                                    )
+                                  : null,
+                            ),
+                          for (final record
+                              in session.configuration.cloudSources) ...[
+                            const SizedBox(height: 8),
+                            Text('${record.source.name}：合并到现有同类型来源时会更新该来源凭据'),
+                            DropdownButton<String>(
+                              isExpanded: true,
+                              value:
+                                  sources[record.source.id] ?? record.source.id,
+                              items: [
+                                DropdownMenuItem(
+                                    value: record.source.id,
+                                    child: const Text('按原来源标识导入')),
+                                for (final source in currentSources)
+                                  if (source.id != record.source.id &&
+                                      source.type == record.source.type &&
+                                      source.baseUrl == record.source.baseUrl)
+                                    DropdownMenuItem(
+                                        value: source.id,
+                                        child: Text(source.name)),
+                              ],
+                              onChanged: (value) {
+                                if (value != null) {
+                                  update(
+                                      () => sources[record.source.id] = value);
+                                }
+                              },
+                            ),
+                          ],
+                        ],
+                      ))),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('取消')),
+                    FilledButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('查看导入预览')),
+                  ],
+                )));
+    if (confirmed != true) return null;
+    return widget.service
+        .remapSession(session, localRoots: roots, cloudSources: sources);
   }
 
   Future<String?> _showExportPassword(
@@ -277,9 +370,14 @@ class _ConfigurationTransferPageState extends State<ConfigurationTransferPage> {
               Text('保留来源：${summary.preserved} 个'),
               Text('TMDB：${summary.tmdbWillUpdate ? '将更新' : '保留当前配置'}'),
               Text('需要选择媒体目录：${summary.requiresRootSelection} 个'),
+              Text('收藏/待看/合集：${summary.userStateCount} 项'),
+              Text(
+                  '片头片尾：${summary.timelineCount} 个视频，已看/进度：${summary.watchStateCount} 条'),
+              Text(
+                  '书签：${summary.bookmarkCount} 个，观看历史：${summary.historyCount} 条'),
               const SizedBox(height: 16),
               const Text(
-                '导入只合并 TMDB 和个人网盘配置，不会修改或删除视频、字幕、媒体索引、缓存和播放历史。',
+                '导入将合并配置和用户记录，收藏、待看和合集取并集；同位置书签、片头片尾和选轨偏好优先保留本机版本，已看/进度和历史采用较新记录（历史最多 100 条）。不会修改或删除视频、字幕、媒体索引和缓存。',
               ),
             ],
           ),
@@ -439,7 +537,7 @@ class _ConfigurationTransferPageState extends State<ConfigurationTransferPage> {
         : null;
     return KSettingsScaffold(
       title: '配置迁移',
-      description: '用密码加密迁移 TMDB Key 和个人网盘来源、账号凭据。',
+      description: '用密码加密备份配置、收藏、待看、合集、书签、片头片尾、已看/进度、选轨偏好和观看历史。',
       body: KSettingsList(
         sections: <Widget>[
           KSettingsSection(
@@ -468,7 +566,7 @@ class _ConfigurationTransferPageState extends State<ConfigurationTransferPage> {
               ),
             ],
             bottomInfo: const Text(
-              '仅迁移配置，不迁移视频、字幕、媒体索引、缓存或播放历史。',
+              '备份配置和用户记录，不包含视频、字幕、媒体索引或缓存；元数据仍使用 .kyymeta 迁移。',
             ),
           ),
         ],
@@ -524,6 +622,9 @@ String configurationTransferErrorMessage(Object error) {
   }
   if (error is ConfigurationImportException) {
     return '配置写入失败，原配置已保留';
+  }
+  if (error is MediaLibraryClassificationConflict) {
+    return error.toString();
   }
   return '配置迁移失败，请检查文件后重试';
 }

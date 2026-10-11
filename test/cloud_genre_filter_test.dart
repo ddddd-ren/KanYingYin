@@ -3,6 +3,15 @@ import 'package:kanyingyin/features/cloud/application/cloud_genre_filter.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 
 void main() {
+  test('人工清空题材后不会被原始刮削标签再次匹配', () {
+    const filter = CloudGenreFilter();
+    final items = [_item('a', ['科幻'])];
+    expect(filter.apply(items, {'科幻'}, genresFor: (_) => const []), isEmpty);
+    expect(filter.apply(items, {}, genresFor: (_) => const []), items);
+    expect(filter.apply(items, {'收藏'}, genresFor: (_) => const [],
+      customTagsFor: (_) => ['收藏']), items);
+  });
+
   test('标签去重排序且多选按任一匹配', () {
     const filter = CloudGenreFilter();
     final items = <CloudMediaIndexItem>[

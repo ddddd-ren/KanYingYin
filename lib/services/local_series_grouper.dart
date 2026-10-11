@@ -289,10 +289,8 @@ class LocalVideoGroup {
     final original = p.basenameWithoutExtension(episode.name);
     final info = episode.episodeInfo;
     if (info == null) return original;
-    final override = episode.seriesTitleOverride?.trim();
     return const TmdbEpisodeTitleResolver().resolve(
-      seriesTitle:
-          override != null && override.isNotEmpty ? override : info.seriesName,
+      seriesTitle: title,
       seasonNumber: info.seasonNumber,
       episodeNumber: info.episodeNumber,
       episodeName: info.episodeTitle,

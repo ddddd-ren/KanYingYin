@@ -1,10 +1,13 @@
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
 import 'package:kanyingyin/features/library/application/media_card_info.dart';
+import 'package:kanyingyin/features/library/application/media_library_classification.dart';
+import 'package:kanyingyin/features/library/application/media_library_user_state.dart';
 import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/local_media_source.dart';
 import 'package:kanyingyin/modules/media/media_name_analysis.dart';
 import 'package:kanyingyin/services/local_series_grouper.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 
 /// 将本地媒体领域数据转换为媒体库卡片所需的只读展示数据。
 class LibraryMediaViewDataBuilder {
@@ -14,6 +17,10 @@ class LibraryMediaViewDataBuilder {
     LocalVideoGroup group, {
     required bool isScraping,
     String? networkCoverUrl,
+    MediaLibrarySeries? librarySeries,
+    MediaLibraryUserState? userState,
+    MediaClassificationMode classificationMode =
+        MediaClassificationMode.conservative,
   }) {
     final first = group.firstEpisode;
     const resolver = MediaTechnicalBadgeResolver();
@@ -54,6 +61,9 @@ class LibraryMediaViewDataBuilder {
       scrapeLabel: scrapeLabel,
       mediaTypeLabel:
           group.episodes.any((item) => item.hasEpisodeInfo) ? '电视剧' : '电影',
+      librarySeries: librarySeries,
+      userState: userState,
+      classificationMode: classificationMode,
     );
     return LibraryMediaItemViewData(
       id: first.path,

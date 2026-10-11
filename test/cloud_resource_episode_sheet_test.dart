@@ -54,6 +54,87 @@ CloudResourceMediaGroup _episodeGroup({
 }
 
 void main() {
+  testWidgets('来源选集打开期间刷新剧名单集名并保留版本选择', (tester) async {
+    final notifier = ChangeNotifier();
+    addTearDown(notifier.dispose);
+    CloudResourceMediaGroup group(String title, {bool reverseVersions = false}) {
+      final videos = [
+        for (final key in ['a', 'b'])
+          CloudFileEntry(
+            id: 'episode-$key',
+            remotePath: '/work/$key.mkv',
+            name: '$title $key.mkv',
+            size: 1024,
+            modifiedAt: null,
+            isDirectory: false,
+            seasonNumber: 1,
+            episodeNumber: 1,
+            playbackVersionKey: key,
+          ),
+      ];
+      final versions = [
+        for (var index = 0; index < videos.length; index++)
+          CloudResourceVersionGroup(
+            key: ['a', 'b'][index],
+            label: ['版本 A', '版本 B'][index],
+            videos: [videos[index]],
+          ),
+      ];
+      final ordered = reverseVersions ? versions.reversed.toList() : versions;
+      return CloudResourceMediaGroup(
+        stableKey: 'source|$title',
+        seriesName: title,
+        displayName: title,
+        isSeries: true,
+        videos: videos,
+        seasons: [
+          CloudResourceSeasonGroup(
+            seasonNumber: 1,
+            videos: videos,
+            versions: ordered,
+          ),
+        ],
+        versions: ordered,
+        record: null,
+      );
+    }
+
+    var current = group('旧来源剧名');
+    CloudFileEntry? selected;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Builder(builder: (context) => FilledButton(
+          onPressed: () async {
+            selected = await showCloudResourceEpisodeSheet(
+              context: context,
+              sourceId: 'source',
+              group: current,
+              groupProvider: () => current,
+              groupListenable: notifier,
+            );
+          },
+          child: const Text('打开选集'),
+        )),
+      ),
+    ));
+    await tester.tap(find.text('打开选集'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, '版本 B'));
+    await tester.pumpAndSettle();
+    expect(find.text('旧来源剧名 b.mkv'), findsOneWidget);
+
+    current = group('光阴之外', reverseVersions: true);
+    notifier.notifyListeners();
+    await tester.pumpAndSettle();
+    expect(find.text('光阴之外'), findsOneWidget);
+    expect(find.text('光阴之外 b.mkv'), findsOneWidget);
+    expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '版本 B')).selected, isTrue);
+    await tester.tap(find.text('光阴之外 b.mkv'));
+    await tester.pumpAndSettle();
+    expect(selected, same(current.videos.last));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('单季作品选集页不显示第一季标题', (tester) async {
     await tester.pumpWidget(
       MaterialApp(

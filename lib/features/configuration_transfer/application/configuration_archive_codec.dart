@@ -9,7 +9,7 @@ final class ConfigurationArchiveCodec {
   ConfigurationArchiveCodec({Random? random})
       : _random = random ?? Random.secure();
 
-  static const int maxEnvelopeBytes = 512 * 1024;
+  static const int maxEnvelopeBytes = 16 * 1024 * 1024;
   static const int minimumPasswordLength = 8;
   static const int kdfIterations = 600000;
   static const int envelopeVersion = 1;

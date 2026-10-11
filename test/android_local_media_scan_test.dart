@@ -147,6 +147,8 @@ void main() {
     expect(second.items, hasLength(1));
     expect(second.removedCount, 0);
     expect(second.failures, isNotEmpty);
+    expect(second.changes, hasLength(1));
+    expect(second.changes.single.kind, LocalMediaIndexChangeKind.failed);
   });
 }
 

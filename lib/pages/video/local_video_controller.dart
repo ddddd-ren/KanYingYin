@@ -2,16 +2,22 @@ import 'dart:async';
 
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/features/history/domain/playback_history_entry.dart';
+import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/roads/road_module.dart';
 import 'package:kanyingyin/modules/video/local_playback_session.dart';
 import 'package:kanyingyin/modules/video/playback_media_item.dart';
 import 'package:kanyingyin/pages/player/player_controller.dart';
+import 'package:kanyingyin/features/player/application/track_selection_preferences.dart';
 import 'package:kanyingyin/pages/video/video_page_controller_interface.dart';
 import 'package:kanyingyin/services/local_playback_request_builder.dart';
+import 'package:kanyingyin/services/local_episode_parser.dart';
+import 'package:kanyingyin/services/local_series_grouper.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_transport.dart';
 import 'package:kanyingyin/utils/utils.dart';
 import 'package:mobx/mobx.dart';
+import 'package:path/path.dart' as p;
 
 typedef LocalPlayerInitializer = Future<void> Function(
   PlaybackInitParams params,
@@ -33,6 +39,12 @@ class LocalVideoController implements IVideoPageController {
   LocalPlaybackSession? _session;
   List<CloudPlaybackTarget>? _cloudTargets;
   String? _cloudSeriesTitle;
+  String _cloudTrackPreferenceKey = '';
+  int? _cloudMediaId;
+  final Map<String, String> _cloudEpisodeTitles = {};
+  List<String> _cloudLegacySeriesTitles = const [];
+  String _localRawSeriesTitle = '';
+  List<String> _localLegacySeriesTitles = const [];
   PlaybackInitParams? _preparedCloudParams;
   final CloudPlaybackOperationCoordinator _playbackOperations =
       CloudPlaybackOperationCoordinator();
@@ -49,6 +61,8 @@ class LocalVideoController implements IVideoPageController {
   final Observable<bool> _loading = Observable(true);
   final Observable<String?> _errorMessage = Observable(null);
   final Observable<bool> _isFullscreen = Observable(false);
+  Future<void>? _fullscreenTransition;
+  bool _fullscreenTarget = false;
   final Observable<bool> _isPip = Observable(false);
   final Observable<bool> _showTabBody = Observable(true);
   final Observable<CloudRangeRelayStatus?> _relayStatus = Observable(null);
@@ -114,6 +128,80 @@ class LocalVideoController implements IVideoPageController {
   @override
   bool get isCloudPlayback => _cloudTargets != null;
 
+  CloudPlaybackTarget? get currentCloudPlaybackTarget {
+    final targets = _cloudTargets;
+    return targets != null &&
+            currentEpisode >= 1 &&
+            currentEpisode <= targets.length
+        ? targets[currentEpisode - 1]
+        : null;
+  }
+
+  bool refreshCloudSourceTitles(Iterable<MediaLibrarySeries> sourceSeries) {
+    final current = currentCloudPlaybackTarget;
+    final targets = _cloudTargets;
+    if (current == null || targets == null) return false;
+    bool matches(CloudPlaybackTarget target, MediaLibraryEpisode episode) =>
+        episode.sourceId == target.sourceId &&
+        (target.remoteId.trim().isNotEmpty
+            ? episode.remoteId == target.remoteId
+            : episode.remotePath == target.remotePath);
+    final matched = sourceSeries
+        .where((series) =>
+            series.sourceKind == MediaSourceKind.cloud &&
+            series.sourceId == current.sourceId &&
+            series.episodes.any((episode) => matches(current, episode)))
+        .take(2)
+        .toList(growable: false);
+    if (matched.length != 1 || matched.single.title.trim().isEmpty) return false;
+    final series = matched.single;
+    var changed = _cloudSeriesTitle != series.title;
+    for (final target in targets) {
+      final episodes = series.episodes
+          .where((episode) => matches(target, episode))
+          .take(2)
+          .toList(growable: false);
+      if (episodes.length != 1 || episodes.single.name.trim().isEmpty) continue;
+      final name = episodes.single.name;
+      if ((_cloudEpisodeTitles[target.stableId] ?? target.title) != name) {
+        _cloudEpisodeTitles[target.stableId] = name;
+        changed = true;
+      }
+    }
+    _cloudLegacySeriesTitles =
+        List<String>.unmodifiable(series.legacySeriesTitles);
+    _cloudSeriesTitle = series.title;
+    final prepared = _preparedCloudParams;
+    if (prepared != null) {
+      final target = targets[prepared.episode - 1];
+      _preparedCloudParams = prepared.withDisplayTitles(
+        mediaTitle: series.title,
+        episodeTitle: _cloudEpisodeTitles[target.stableId] ?? target.title,
+        legacyTrackPreferenceKeys: _cloudLegacyTrackPreferenceKeys(current.sourceId),
+      );
+    }
+    if (!changed) return false;
+    title = series.title;
+    mediaItem = PlaybackMediaItem(
+      id: mediaItem.id,
+      title: series.title,
+      displayTitle: series.title,
+      summary: mediaItem.summary,
+      artworkUrl: mediaItem.artworkUrl,
+    );
+    if (roadList.isNotEmpty) {
+      final road = roadList.first;
+      roadList[0] = Road(
+        name: road.name,
+        data: road.data,
+        identifier: targets
+            .map((target) => _cloudEpisodeTitles[target.stableId] ?? target.title)
+            .toList(growable: false),
+      );
+    }
+    return true;
+  }
+
   @override
   CloudRangeRelayStatus? get relayStatus => _relayStatus.value;
 
@@ -168,7 +256,7 @@ class LocalVideoController implements IVideoPageController {
         source: PlaybackHistorySource.cloud,
         sourceId: target.sourceId,
         seriesTitle: _cloudSeriesTitle ?? title,
-        episodeTitle: target.title,
+        episodeTitle: _cloudEpisodeTitles[target.stableId] ?? target.title,
         mediaPath: target.remotePath,
         remoteId: target.remoteId,
         episodeIndex: target.episodeNumber ?? currentEpisode,
@@ -200,13 +288,38 @@ class LocalVideoController implements IVideoPageController {
     return null;
   }
 
-  void openSession(LocalPlaybackSession session) {
+  void openSession(LocalPlaybackSession session,
+      {List<String>? legacySeriesTitles, String? originalFileName}) {
     _playbackSessionToken = _playbackOperations.beginSession();
     _cloudTargets = null;
     _cloudSeriesTitle = null;
+    _cloudTrackPreferenceKey = '';
+    _cloudMediaId = null;
+    _cloudEpisodeTitles.clear();
+    _cloudLegacySeriesTitles = const [];
     _replacePreparedCloudParams(null);
     _trackRelayLease(null, null);
     _session = session;
+    final rawEpisode = session.episodes.first;
+    final rawPath = originalFileName == null
+        ? rawEpisode.path
+        : p.join(p.dirname(rawEpisode.path), originalFileName);
+    _localRawSeriesTitle = const LocalSeriesGrouper()
+        .group([
+          LocalFileItem(
+            path: rawPath,
+            name: p.basename(rawPath),
+            size: 0,
+            modified: DateTime.fromMillisecondsSinceEpoch(0),
+            isDirectory: false,
+            isVideo: true,
+            episodeInfo: LocalEpisodeParser().parse(rawPath),
+          ),
+        ])
+        .single
+        .title;
+    _localLegacySeriesTitles = List<String>.unmodifiable(
+        legacySeriesTitles ?? [session.seriesTitle]);
     title = session.seriesTitle;
     currentRoad = 0;
     currentEpisode = session.currentIndex + 1;
@@ -243,6 +356,8 @@ class LocalVideoController implements IVideoPageController {
 
   Future<void> openCloudPlayback({
     required String seriesTitle,
+    String? workKey,
+    List<String>? legacySeriesTitles,
     required List<CloudPlaybackTarget> targets,
     required String selectedStableId,
     CloudPlaybackInitializer? resolver,
@@ -271,6 +386,14 @@ class LocalVideoController implements IVideoPageController {
       _resolveCloudPlayback = playbackResolver;
       _cloudTargets = List<CloudPlaybackTarget>.unmodifiable(targets);
       _cloudSeriesTitle = seriesTitle;
+      final stableWorkKey = workKey?.trim();
+      _cloudTrackPreferenceKey = stableWorkKey?.isNotEmpty == true
+          ? 'cloud-work|$sourceId|$stableWorkKey'
+          : 'cloud|$sourceId|$seriesTitle';
+      _cloudMediaId = _stableId('$sourceId|$seriesTitle');
+      _cloudEpisodeTitles.clear();
+      _cloudLegacySeriesTitles =
+          List<String>.unmodifiable(legacySeriesTitles ?? [seriesTitle]);
       _playbackSessionToken = sessionToken;
       _replacePreparedCloudParams(_cloudParams(
         resolved,
@@ -302,6 +425,7 @@ class LocalVideoController implements IVideoPageController {
   Future<void> openFilePlayback({
     required String filePath,
     required String seriesTitle,
+    List<String>? legacySeriesTitles,
     List<Map<String, String>>? directoryFiles,
     List<LocalPlaybackEntry>? playbackEntries,
     bool playlistAlreadyIsolated = false,
@@ -323,6 +447,11 @@ class LocalVideoController implements IVideoPageController {
         currentEpisodeId: session.currentEpisodeId,
         coverPath: session.coverPath,
       ),
+      legacySeriesTitles: legacySeriesTitles,
+      originalFileName: playbackEntries
+          ?.where((entry) => entry.location.stableId == session.episodes.first.id)
+          .firstOrNull
+          ?.name,
     );
   }
 
@@ -352,6 +481,12 @@ class LocalVideoController implements IVideoPageController {
       mediaTitle: currentSession.seriesTitle,
       subtitlePath: episode.subtitlePath,
       stableMediaKey: _localHistoryKey(episode.id),
+      trackPreferenceKey:
+          'local-work-id|${currentSession.seriesId}|${Uri.encodeComponent(_localRawSeriesTitle.trim().toLowerCase())}',
+      legacyTrackPreferenceKeys: {
+        for (final oldTitle in _localLegacySeriesTitles)
+          localWorkTrackPreferenceKey(currentSession.seriesId, oldTitle),
+      }.toList(growable: false),
     );
   }
 
@@ -465,11 +600,11 @@ class LocalVideoController implements IVideoPageController {
       videoUrl: resolved.videoUrl,
       offset: offset,
       isLocalPlayback: false,
-      mediaId: _stableId('${target.sourceId}|${_cloudSeriesTitle ?? ''}'),
+      mediaId: _cloudMediaId ?? _stableId(target.sourceId),
       sourceLabel: '网盘媒体库',
       episode: episode,
       httpHeaders: resolved.httpHeaders,
-      episodeTitle: target.title,
+      episodeTitle: _cloudEpisodeTitles[target.stableId] ?? target.title,
       referer: '',
       currentRoad: 0,
       mediaTitle: _cloudSeriesTitle,
@@ -477,6 +612,11 @@ class LocalVideoController implements IVideoPageController {
       subtitleDisplayName: target.subtitleDisplayName,
       subtitleStorageKey: target.subtitleOffsetKey,
       stableMediaKey: '${target.sourceId}|${target.stableId}',
+      trackPreferenceKey: _cloudTrackPreferenceKey,
+      legacyTrackPreferenceKeys:
+          _cloudLegacyTrackPreferenceKeys(target.sourceId),
+      mediaRevision:
+          'remote:${target.size ?? resolved.totalBytes ?? ''}:${target.modifiedAt?.microsecondsSinceEpoch ?? ''}',
       networkRoute: resolved.networkRoute,
       cloudProviderName: resolved.cloudProviderName,
       transport: resolved.transport,
@@ -488,6 +628,11 @@ class LocalVideoController implements IVideoPageController {
       },
     );
   }
+
+  List<String> _cloudLegacyTrackPreferenceKeys(String sourceId) => {
+        for (final oldTitle in _cloudLegacySeriesTitles)
+          if (oldTitle.trim().isNotEmpty) 'cloud|$sourceId|$oldTitle',
+      }.toList(growable: false);
 
   @override
   void cancelQueryRoads() {}
@@ -524,15 +669,36 @@ class LocalVideoController implements IVideoPageController {
   }
 
   @override
-  void enterFullScreen() {
-    Utils.enterFullScreen();
-    isFullscreen = true;
-  }
+  Future<void> enterFullScreen() => _setFullscreen(true);
 
   @override
-  void exitFullScreen() {
-    Utils.exitFullScreen();
-    isFullscreen = false;
+  Future<void> exitFullScreen() => _setFullscreen(false);
+
+  Future<void>? get fullscreenTransition => _fullscreenTransition;
+
+  Future<void> _setFullscreen(bool value) {
+    _fullscreenTarget = value;
+    if (_fullscreenTransition == null && isFullscreen == value) {
+      return Future<void>.value();
+    }
+    return _fullscreenTransition ??= _applyFullscreenTarget();
+  }
+
+  Future<void> _applyFullscreenTarget() async {
+    // 所有入口共享原生完成信号，切换期间仅保留最后一次目标。
+    try {
+      while (isFullscreen != _fullscreenTarget) {
+        final target = _fullscreenTarget;
+        if (target) {
+          await Utils.enterFullScreen();
+        } else {
+          await Utils.exitFullScreen();
+        }
+        isFullscreen = target;
+      }
+    } finally {
+      _fullscreenTransition = null;
+    }
   }
 
   PlaybackMediaItem _buildMediaItem(LocalPlaybackSession session) {

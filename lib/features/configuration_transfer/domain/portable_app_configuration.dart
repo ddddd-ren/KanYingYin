@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:kanyingyin/features/configuration_transfer/domain/portable_user_data.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 
@@ -134,9 +135,10 @@ final class PortableAppConfiguration {
     required this.appVersion,
     required this.tmdbApiKey,
     required this.cloudSources,
+    this.userData,
   });
 
-  static const int currentFormatVersion = 1;
+  static const int currentFormatVersion = 3;
   static const int maxCloudSourceCount = 100;
 
   factory PortableAppConfiguration.create({
@@ -144,6 +146,7 @@ final class PortableAppConfiguration {
     required String appVersion,
     required String tmdbApiKey,
     required List<PortableCloudSourceConfiguration> cloudSources,
+    PortableUserData? userData,
   }) =>
       PortableAppConfiguration._validated(
         formatVersion: currentFormatVersion,
@@ -151,6 +154,7 @@ final class PortableAppConfiguration {
         appVersion: appVersion,
         tmdbApiKey: tmdbApiKey,
         cloudSources: cloudSources,
+        userData: userData,
       );
 
   factory PortableAppConfiguration.fromJson(Map<String, Object?> json) {
@@ -164,6 +168,10 @@ final class PortableAppConfiguration {
       exportedAt: exportedAt,
       appVersion: json['appVersion'],
       tmdbApiKey: json['tmdbApiKey'],
+      userData: json['userData'] == null
+          ? null
+          : PortableUserData.fromJson(
+              Map<String, Object?>.from(json['userData'] as Map)),
       cloudSources: sourcesJson.map((value) {
         if (value is! Map<Object?, Object?>) {
           throw const PortableConfigurationValidationException(
@@ -183,8 +191,11 @@ final class PortableAppConfiguration {
     required Object? appVersion,
     required Object? tmdbApiKey,
     required List<PortableCloudSourceConfiguration> cloudSources,
+    PortableUserData? userData,
   }) {
-    if (formatVersion != currentFormatVersion) {
+    if (formatVersion != 1 &&
+        formatVersion != 2 &&
+        formatVersion != currentFormatVersion) {
       throw const PortableConfigurationValidationException(
         'unsupported_format_version',
       );
@@ -214,6 +225,7 @@ final class PortableAppConfiguration {
       exportedAt: exportedAt.toUtc(),
       appVersion: appVersion.trim(),
       tmdbApiKey: tmdbApiKey.trim(),
+      userData: userData,
       cloudSources: List<PortableCloudSourceConfiguration>.unmodifiable(
         cloudSources,
       ),
@@ -225,6 +237,7 @@ final class PortableAppConfiguration {
   final String appVersion;
   final String tmdbApiKey;
   final List<PortableCloudSourceConfiguration> cloudSources;
+  final PortableUserData? userData;
 
   Map<String, Object?> toJson() => <String, Object?>{
         'formatVersion': formatVersion,
@@ -233,6 +246,7 @@ final class PortableAppConfiguration {
         'tmdbApiKey': tmdbApiKey,
         'cloudSources':
             cloudSources.map((value) => value.toJson()).toList(growable: false),
+        if (userData != null) 'userData': userData!.toJson(),
       };
 
   @override

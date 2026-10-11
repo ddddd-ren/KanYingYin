@@ -10,11 +10,15 @@ typedef CloudResourceSubtitleResolver = CloudRemoteRef? Function(
 class CloudResourcePlaybackRequest {
   CloudResourcePlaybackRequest({
     required this.seriesTitle,
+    this.workKey,
+    this.legacySeriesTitles = const <String>[],
     required List<CloudPlaybackTarget> targets,
     required this.selectedStableId,
   }) : targets = List<CloudPlaybackTarget>.unmodifiable(targets);
 
   final String seriesTitle;
+  final String? workKey;
+  final List<String> legacySeriesTitles;
   final List<CloudPlaybackTarget> targets;
   final String selectedStableId;
 }
@@ -24,6 +28,7 @@ CloudResourcePlaybackRequest buildCloudResourcePlaybackRequest({
   required CloudResourceMediaGroup group,
   required CloudFileEntry selected,
   required CloudResourceSubtitleResolver subtitleFor,
+  List<String>? legacySeriesTitles,
 }) {
   List<CloudFileEntry>? seasonVideos;
   final versionKey = selected.playbackVersionKey;
@@ -74,6 +79,8 @@ CloudResourcePlaybackRequest buildCloudResourcePlaybackRequest({
       subtitleRemotePath: subtitle?.path,
       posterUrl: posterUrl,
       posterCachePath: posterCachePath,
+      size: video.size,
+      modifiedAt: video.modifiedAt,
     );
   }).toList(growable: false);
   final selectedTargets = targets
@@ -88,6 +95,8 @@ CloudResourcePlaybackRequest buildCloudResourcePlaybackRequest({
   }
   return CloudResourcePlaybackRequest(
     seriesTitle: group.displayName,
+    workKey: group.workKey,
+    legacySeriesTitles: legacySeriesTitles ?? group.legacySeriesTitles,
     targets: targets,
     selectedStableId: selectedTargets.single.stableId,
   );

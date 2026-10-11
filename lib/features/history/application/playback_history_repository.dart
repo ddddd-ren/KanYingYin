@@ -1,6 +1,7 @@
 import 'package:kanyingyin/features/history/domain/playback_history_entry.dart';
 import 'package:kanyingyin/utils/storage.dart';
 import 'package:synchronized/synchronized.dart';
+import 'package:kanyingyin/utils/user_data_mutation_lock.dart';
 
 abstract interface class PlaybackHistoryStorage {
   Object get synchronizationIdentity;
@@ -52,7 +53,9 @@ class PlaybackHistoryRepository {
   PlaybackHistoryRepository({PlaybackHistoryStorage? storage})
       : _storage = storage ?? HivePlaybackHistoryStorage() {
     final identity = _storage.synchronizationIdentity;
-    _lock = _locks[identity] ??= Lock();
+    _lock = _storage is HivePlaybackHistoryStorage
+        ? userDataMutationLock
+        : (_locks[identity] ??= Lock());
   }
 
   static const int maxEntries = 100;
@@ -106,6 +109,26 @@ class PlaybackHistoryRepository {
               .map<Object?>((item) => item.toJson())
               .toList(growable: false),
         );
+      });
+
+  Future<void> mergeAll(Iterable<PlaybackHistoryEntry> entries) =>
+      _lock.synchronized(() async {
+        final unique = {
+          for (final entry in await _readAll()) entry.stableKey: entry
+        };
+        for (final entry in entries) {
+          final previous = unique[entry.stableKey];
+          if (previous == null ||
+              !entry.updatedAt.isBefore(previous.updatedAt)) {
+            unique[entry.stableKey] = entry;
+          }
+        }
+        final records = unique.values.toList()
+          ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+        await _storage.write(records
+            .take(maxEntries)
+            .map<Object?>((entry) => entry.toJson())
+            .toList());
       });
 
   Future<void> delete(String stableKey) => _lock.synchronized(() async {

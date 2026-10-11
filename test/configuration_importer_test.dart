@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/features/configuration_transfer/application/configuration_user_data_store.dart';
+import 'package:kanyingyin/features/configuration_transfer/domain/portable_user_data.dart';
 import 'package:kanyingyin/features/configuration_transfer/application/configuration_importer.dart';
 import 'package:kanyingyin/features/configuration_transfer/domain/portable_app_configuration.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
@@ -136,6 +138,126 @@ void main() {
       ),
     );
   });
+
+  test('用户数据合并保留缺失媒体，失败时恢复全部用户数据和 TMDB', () async {
+    final previous = PortableUserData.fromJson({
+      'states': {
+        'missing': {'favorite': true}
+      },
+      'bookmarks': {
+        'local|missing.mp4': [
+          {'positionMillis': 1000}
+        ]
+      },
+    });
+    final store = _UserDataStore(previous);
+    final configuration = PortableAppConfiguration.create(
+      exportedAt: DateTime.utc(2026),
+      appVersion: '2.1.219',
+      tmdbApiKey: 'new-key',
+      cloudSources: [],
+      userData: PortableUserData.fromJson({
+        'states': {
+          'new': {'watchLater': true}
+        }
+      }),
+    );
+    final subject = ConfigurationImporter(
+        sourceRepository: repository,
+        tmdbCredentialManager: tmdbManager,
+        userDataStore: store);
+    expect((await subject.preview(configuration)).userStateCount, 1);
+    store.failNextWrite = true;
+    await expectLater(subject.apply(configuration),
+        throwsA(isA<ConfigurationImportException>()));
+    expect(store.value.toJson(), previous.toJson());
+    expect(tmdbManager.read(), 'old-key');
+    await subject.apply(configuration);
+    expect(store.value.states.keys, containsAll(['missing', 'new']));
+    expect(store.value.bookmarks.keys, contains('local|missing.mp4'));
+  });
+
+  test('来源写入失败也回滚已写入的用户数据', () async {
+    final previous = PortableUserData.fromJson({
+      'states': {
+        'old': {'favorite': true}
+      },
+      'watchStates': {
+        'source|old': {
+          'watched': true,
+          'positionMillis': 1,
+          'durationMillis': 2,
+          'updatedAtMillis': 1
+        }
+      },
+      'timelineSegments': {
+        'local|old': {
+          'fingerprint': 'file:1:2',
+          'durationMillis': 100000,
+          'segments': [
+            {'kind': 'intro', 'startMillis': 0, 'endMillis': 1000}
+          ]
+        }
+      },
+    });
+    final store = _UserDataStore(previous);
+    final sources = CloudSourceRepository(
+        storage: sourceStorage,
+        credentialStore: _FailOnCredentialStore('added'));
+    final base = _configurationWithTwoSourcesAndTmdb();
+    final config = PortableAppConfiguration.create(
+        exportedAt: base.exportedAt,
+        appVersion: base.appVersion,
+        tmdbApiKey: base.tmdbApiKey,
+        cloudSources: base.cloudSources,
+        userData: PortableUserData.fromJson({
+          'states': {
+            'new': {'watchLater': true}
+          },
+          'watchStates': {
+            'source|new': {
+              'watched': true,
+              'positionMillis': 1,
+              'durationMillis': 2,
+              'updatedAtMillis': 1
+            }
+          },
+          'timelineSegments': {
+            'local|new': {
+              'fingerprint': 'file:1:2',
+              'durationMillis': 100000,
+              'segments': [
+                {'kind': 'intro', 'startMillis': 0, 'endMillis': 1000}
+              ]
+            }
+          },
+        }));
+    await expectLater(
+        ConfigurationImporter(
+                sourceRepository: sources,
+                tmdbCredentialManager: tmdbManager,
+                userDataStore: store)
+            .apply(config),
+        throwsA(isA<ConfigurationImportException>()));
+    expect(store.value.toJson(), previous.toJson());
+    expect(tmdbManager.read(), 'old-key');
+  });
+}
+
+class _UserDataStore implements ConfigurationUserDataStore {
+  _UserDataStore(this.value);
+  PortableUserData value;
+  bool failNextWrite = false;
+  @override
+  Future<PortableUserData> capture() async => value;
+  @override
+  Future<void> replace(PortableUserData data) async {
+    value = data;
+    if (failNextWrite) {
+      failNextWrite = false;
+      throw StateError('模拟部分写入失败');
+    }
+  }
 }
 
 CloudSource _source(String id, String name) => CloudSource(

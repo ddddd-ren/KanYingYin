@@ -2,7 +2,9 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/features/configuration_transfer/application/configuration_archive_codec.dart';
 import 'package:kanyingyin/features/configuration_transfer/application/configuration_importer.dart';
 import 'package:kanyingyin/features/configuration_transfer/application/configuration_transfer_service.dart';
+import 'package:kanyingyin/features/configuration_transfer/application/configuration_user_data_store.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
+import 'package:kanyingyin/features/history/application/playback_history_controller.dart';
 import 'package:kanyingyin/features/episode_matching/application/cloud_episode_match_service.dart';
 import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
@@ -69,14 +71,19 @@ void registerCloudBindings(Injector i) {
     ),
   );
   i.addSingleton<ConfigurationArchiveCodec>(ConfigurationArchiveCodec.new);
+  i.addSingleton<ConfigurationUserDataStore>(
+      () => SettingsConfigurationUserDataStore(Modular.get<TypedSettings>()));
   i.addSingleton<ConfigurationImporter>(
     () => ConfigurationImporter(
+      userDataStore: Modular.get<ConfigurationUserDataStore>(),
       sourceRepository: Modular.get<CloudSourceRepository>(),
       tmdbCredentialManager: Modular.get<TmdbCredentialManager>(),
     ),
   );
   i.addSingleton<ConfigurationTransferService>(
     () => ConfigurationTransferService(
+      flushUserData: Modular.get<PlaybackHistoryController>().flush,
+      userDataStore: Modular.get<ConfigurationUserDataStore>(),
       sourceRepository: Modular.get<CloudSourceRepository>(),
       tmdbCredentialManager: Modular.get<TmdbCredentialManager>(),
       importer: Modular.get<ConfigurationImporter>(),

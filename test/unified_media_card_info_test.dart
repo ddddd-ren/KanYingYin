@@ -5,6 +5,59 @@ import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 
 void main() {
+  test('动漫卡片的详情和徽标不再显示电视剧', () {
+    final metadata = TmdbMetadata(
+      id: 10,
+      mediaType: TmdbMediaType.tv,
+      title: '动画作品',
+      genres: const ['动画'],
+      language: 'zh-CN',
+      matchedAt: DateTime.utc(2026, 10, 11),
+      matchConfidence: 1,
+    );
+    final series = MediaLibrarySeries(
+      key: 'cloud|animation',
+      seriesKey: 'animation',
+      title: '动画作品',
+      sourceKind: MediaSourceKind.cloud,
+      sourceId: 'cloud',
+      sourceName: '网盘',
+      isAvailable: true,
+      episodes: const [],
+      genres: metadata.genres,
+      mediaType: metadata.mediaType,
+      tmdbMetadata: metadata,
+    );
+
+    final info = UnifiedMediaCardInfoBuilder.forSeries(series);
+
+    expect(info.details, contains('动漫'));
+    expect(info.details, isNot(contains('电视剧')));
+    expect(info.subtitle, isNot(contains('电视剧')));
+    expect(info.badges.map((badge) => badge.label), contains('动漫'));
+    expect(series.mediaType, TmdbMediaType.tv);
+  });
+
+  for (final sourceKind in MediaSourceKind.values) {
+    for (final title in ['光阴之外', '光阴之外 第 2 季', '光阴之外 S01']) {
+      test('${sourceKind.name} 卡片原样显示来源剧名 $title', () {
+        final series = _series(
+          sourceKind: sourceKind,
+          sourceId: sourceKind.name,
+          sourceName: sourceKind.name,
+          title: title,
+          sizes: const [1024],
+          episodes: const [1],
+          hasSubtitle: false,
+        );
+
+        final info = UnifiedMediaCardInfoBuilder.forSeries(series);
+
+        expect(info.title, title);
+      });
+    }
+  }
+
   test('本地和网盘系列卡使用统一的季度集数详情和徽标顺序', () {
     final local = _series(
       sourceKind: MediaSourceKind.local,

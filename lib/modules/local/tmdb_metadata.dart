@@ -220,6 +220,123 @@ class TmdbSeasonMetadata {
       );
 }
 
+class TmdbPersonMetadata {
+  const TmdbPersonMetadata({
+    required this.id,
+    required this.name,
+    this.character,
+    this.job,
+    this.profileUrl,
+  });
+
+  factory TmdbPersonMetadata.fromJson(Map<Object?, Object?> json) {
+    return TmdbPersonMetadata(
+      id: _asInt(json['id']),
+      name: _asString(json['name']) ?? '',
+      character: _asString(json['character']),
+      job: _asString(json['job']),
+      profileUrl: _asString(json['profileUrl'] ?? json['profile_path']),
+    );
+  }
+
+  final int id;
+  final String name;
+  final String? character;
+  final String? job;
+  final String? profileUrl;
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'id': id,
+        'name': name,
+        if (character != null) 'character': character,
+        if (job != null) 'job': job,
+        if (profileUrl != null) 'profileUrl': profileUrl,
+      };
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is TmdbPersonMetadata &&
+            id == other.id &&
+            name == other.name &&
+            character == other.character &&
+            job == other.job &&
+            profileUrl == other.profileUrl;
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, character, job, profileUrl);
+}
+
+class TmdbSimilarMetadata {
+  const TmdbSimilarMetadata({
+    required this.id,
+    required this.mediaType,
+    required this.title,
+    this.originalTitle,
+    this.overview,
+    this.posterUrl,
+    this.rating,
+  });
+
+  factory TmdbSimilarMetadata.fromJson(
+    Map<Object?, Object?> json, {
+    required TmdbMediaType fallbackMediaType,
+  }) {
+    final rawMediaType = _asString(json['mediaType'] ?? json['media_type']);
+    return TmdbSimilarMetadata(
+      id: _asInt(json['id']),
+      mediaType: rawMediaType == TmdbMediaType.movie.name
+          ? TmdbMediaType.movie
+          : rawMediaType == TmdbMediaType.tv.name
+              ? TmdbMediaType.tv
+              : fallbackMediaType,
+      title: _asString(json['title'] ?? json['name']) ?? '',
+      originalTitle: _asString(json['originalTitle'] ??
+          json['original_title'] ??
+          json['original_name']),
+      overview: _asString(json['overview']),
+      posterUrl: _asString(json['posterUrl'] ?? json['poster_path']),
+      rating: _asDouble(json['rating'] ?? json['vote_average']),
+    );
+  }
+
+  final int id;
+  final TmdbMediaType mediaType;
+  final String title;
+  final String? originalTitle;
+  final String? overview;
+  final String? posterUrl;
+  final double? rating;
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'id': id,
+        'mediaType': mediaType.name,
+        'title': title,
+        if (originalTitle != null) 'originalTitle': originalTitle,
+        if (overview != null) 'overview': overview,
+        if (posterUrl != null) 'posterUrl': posterUrl,
+        if (rating != null) 'rating': rating,
+      };
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is TmdbSimilarMetadata &&
+            id == other.id &&
+            mediaType == other.mediaType &&
+            title == other.title &&
+            originalTitle == other.originalTitle &&
+            overview == other.overview &&
+            posterUrl == other.posterUrl &&
+            rating == other.rating;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id, mediaType, title, originalTitle, overview, posterUrl, rating);
+}
+
 class TmdbMetadata {
   final int id;
   final TmdbMediaType mediaType;
@@ -238,6 +355,9 @@ class TmdbMetadata {
   final double matchConfidence;
   final List<String> genres;
   final List<TmdbSeasonMetadata> seasons;
+  final List<TmdbPersonMetadata> cast;
+  final List<TmdbPersonMetadata> directors;
+  final List<TmdbSimilarMetadata> similar;
   final TmdbImageOverride imageOverride;
 
   const TmdbMetadata({
@@ -258,16 +378,19 @@ class TmdbMetadata {
     this.backdropUrl,
     this.genres = const <String>[],
     this.seasons = const <TmdbSeasonMetadata>[],
+    this.cast = const <TmdbPersonMetadata>[],
+    this.directors = const <TmdbPersonMetadata>[],
+    this.similar = const <TmdbSimilarMetadata>[],
     this.imageOverride = const TmdbImageOverride(),
   });
 
   factory TmdbMetadata.fromJson(Map<String, dynamic> json) {
+    final parsedMediaType = TmdbMediaType.values
+        .where((value) => value.name == json['mediaType'])
+        .firstOrNull;
     return TmdbMetadata(
       id: _asInt(json['id']),
-      mediaType: TmdbMediaType.values.firstWhere(
-        (value) => value.name == json['mediaType'],
-        orElse: () => TmdbMediaType.tv,
-      ),
+      mediaType: parsedMediaType ?? TmdbMediaType.tv,
       title: json['title'] as String? ?? '',
       aliases: _asStringList(json['aliases']),
       originalTitle: _asString(json['originalTitle']),
@@ -283,7 +406,9 @@ class TmdbMetadata {
         _asInt(json['matchedAtMillis']),
         isUtc: true,
       ),
-      matchConfidence: _asDouble(json['matchConfidence']) ?? 0,
+      // 未知类型仅沿用旧结构兼容，不能保留可靠匹配的证据。
+      matchConfidence:
+          parsedMediaType == null ? 0 : _asDouble(json['matchConfidence']) ?? 0,
       genres: _asStringList(json['genres']),
       seasons: json['seasons'] is List
           ? (json['seasons'] as List)
@@ -295,6 +420,12 @@ class TmdbMetadata {
               )
               .toList(growable: false)
           : const <TmdbSeasonMetadata>[],
+      cast: _peopleFromJson(json['cast']),
+      directors: _peopleFromJson(json['directors']),
+      similar: _similarFromJson(
+        json['similar'],
+        fallbackMediaType: parsedMediaType ?? TmdbMediaType.tv,
+      ),
       imageOverride: TmdbImageOverride.fromJson(json['imageOverride']),
     );
   }
@@ -319,6 +450,13 @@ class TmdbMetadata {
       if (genres.isNotEmpty) 'genres': genres,
       if (seasons.isNotEmpty)
         'seasons': seasons.map((item) => item.toJson()).toList(growable: false),
+      if (cast.isNotEmpty)
+        'cast': cast.map((item) => item.toJson()).toList(growable: false),
+      if (directors.isNotEmpty)
+        'directors':
+            directors.map((item) => item.toJson()).toList(growable: false),
+      if (similar.isNotEmpty)
+        'similar': similar.map((item) => item.toJson()).toList(growable: false),
       if (!imageOverride.isEmpty) 'imageOverride': imageOverride.toJson(),
     };
   }
@@ -339,6 +477,9 @@ class TmdbMetadata {
     double? matchConfidence,
     List<String>? genres,
     List<TmdbSeasonMetadata>? seasons,
+    List<TmdbPersonMetadata>? cast,
+    List<TmdbPersonMetadata>? directors,
+    List<TmdbSimilarMetadata>? similar,
     TmdbImageOverride? imageOverride,
   }) {
     return TmdbMetadata(
@@ -359,6 +500,9 @@ class TmdbMetadata {
       matchConfidence: matchConfidence ?? this.matchConfidence,
       genres: genres ?? this.genres,
       seasons: seasons ?? this.seasons,
+      cast: cast ?? this.cast,
+      directors: directors ?? this.directors,
+      similar: similar ?? this.similar,
       imageOverride: imageOverride ?? this.imageOverride,
     );
   }
@@ -384,6 +528,9 @@ class TmdbMetadata {
             matchConfidence == other.matchConfidence &&
             _listsEqual(genres, other.genres) &&
             _listsEqual(seasons, other.seasons) &&
+            _listsEqual(cast, other.cast) &&
+            _listsEqual(directors, other.directors) &&
+            _listsEqual(similar, other.similar) &&
             imageOverride == other.imageOverride;
   }
 
@@ -406,8 +553,37 @@ class TmdbMetadata {
         matchConfidence,
         Object.hashAll(genres),
         Object.hashAll(seasons),
+        Object.hashAll(cast),
+        Object.hashAll(directors),
+        Object.hashAll(similar),
         imageOverride,
       ]);
+}
+
+List<TmdbPersonMetadata> _peopleFromJson(Object? value) {
+  if (value is! List) return const <TmdbPersonMetadata>[];
+  return value
+      .whereType<Map<Object?, Object?>>()
+      .map(TmdbPersonMetadata.fromJson)
+      .where((person) => person.id > 0 && person.name.isNotEmpty)
+      .toList(growable: false);
+}
+
+List<TmdbSimilarMetadata> _similarFromJson(
+  Object? value, {
+  required TmdbMediaType fallbackMediaType,
+}) {
+  if (value is! List) return const <TmdbSimilarMetadata>[];
+  return value
+      .whereType<Map<Object?, Object?>>()
+      .map(
+        (json) => TmdbSimilarMetadata.fromJson(
+          json,
+          fallbackMediaType: fallbackMediaType,
+        ),
+      )
+      .where((item) => item.id > 0 && item.title.isNotEmpty)
+      .toList(growable: false);
 }
 
 int _asInt(Object? value) {

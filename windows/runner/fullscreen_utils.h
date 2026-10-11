@@ -23,19 +23,20 @@ class FullscreenUtils {
   static void ExitNativeFullscreen(HWND window, Completion completion = {});
 
  private:
-  static constexpr auto kFlutterViewWindowClassName = L"FLUTTERVIEW";
   static constexpr UINT_PTR kTransitionTimerId = 0x4B59;
   static constexpr UINT kTransitionDurationMs = 180;
 
   static void StartTransition(HWND window, const RECT& start, const RECT& end,
                               Completion completion);
   static void FinishTransition();
+  static void DeferTransition(Completion next);
   static void CALLBACK TransitionTimerProc(HWND window, UINT message,
                                            UINT_PTR timer_id, DWORD tick);
   static LONG Interpolate(LONG start, LONG end, double progress);
 
   static bool fullscreen_;
   static RECT rect_before_fullscreen_;
+  static LONG_PTR style_before_fullscreen_;
   static bool transition_active_;
   static RECT transition_start_;
   static RECT transition_end_;

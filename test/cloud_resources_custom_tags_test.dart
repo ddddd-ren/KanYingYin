@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/features/library/application/media_library_classification.dart';
+import 'package:kanyingyin/features/library/application/media_library_user_state.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
@@ -75,6 +77,22 @@ void main() {
 
     await controller.reloadSourcesAndSnapshot(preferredSourceId: sourceA.id);
     final groupA = controller.collection.groups.single;
+    controller.updateClassifications({
+      groupA.stableKey: const MediaLibraryUserState(
+        categoryOverride: ['动漫'], genreOverride: ['科幻'],
+      ),
+    }, MediaClassificationMode.conservative);
+    expect(controller.availableGenres, ['科幻']);
+    controller.toggleGenre('科幻');
+    expect(controller.collection.groups.single.stableKey, groupA.stableKey);
+    controller.updateClassifications({
+      groupA.stableKey: const MediaLibraryUserState(
+        categoryOverride: ['动漫'], genreOverride: [],
+      ),
+    }, MediaClassificationMode.conservative);
+    expect(controller.availableGenres, isEmpty);
+    expect(controller.selectedGenres, isEmpty);
+    expect(controller.collection.groups, hasLength(1));
     await controller.saveCustomTags(groupA, const <String>['收藏']);
     expect(controller.availableCustomTags, <String>['收藏']);
     controller.toggleGenre('收藏');

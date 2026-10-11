@@ -3,7 +3,54 @@ part of '../cloud_resources_controller.dart';
 /// 过滤与集合派生：搜索关键字、流派、自定义标签与可见条目/集合视图。
 mixin _CloudFilterTagsMixin on _CloudResourcesControllerBase {
   List<String> get availableGenres =>
-      _genreFilter.availableGenres(_indexedItems.values);
+      _classificationGenres.values.expand((genres) => genres).toSet().toList()..sort();
+
+  List<MediaLibrarySeries> get _classificationSeries {
+    final cached = _classificationSeriesCache;
+    if (cached != null) return cached;
+    final source = selectedSource;
+    if (source == null) return const [];
+    final fullCollection = _workTmdbCoordinator != null && _works.isNotEmpty
+        ? _collectionGrouper.group(
+            items: _indexedItems.values.toList(growable: false),
+            works: _works,
+            recordsByWorkKey: workTmdbRecords,
+            query: '',
+          )
+        : _collectionGrouper.group(
+            sourceId: source.id,
+            entries: entries,
+            records: tmdbRecords,
+            minSizeBytes: _minRecognizedVideoSizeBytesProvider(),
+            query: '',
+          );
+    return _classificationSeriesCache = _mediaLibraryAdapter.convert(
+      source: source,
+      collection: fullCollection,
+      indexedItems: _indexedItems.values,
+    );
+  }
+
+  MediaLibrarySeries? classificationSeriesForGroup(CloudResourceMediaGroup group) =>
+      _classificationSeries.where((series) => series.key == group.stableKey).firstOrNull;
+
+  Map<String, List<String>> get _classificationGenres {
+    final cached = _classificationGenresCache;
+    if (cached != null) return cached;
+    final result = <String, List<String>>{};
+    for (final series in _classificationSeries) {
+      final genres = const MediaClassificationResolver().resolve(
+        series, state: _classificationStates[series.key], mode: classificationMode,
+      ).genres;
+      for (final episode in series.episodes) {
+        result[episode.stableId] = genres;
+      }
+    }
+    return _classificationGenresCache = result;
+  }
+
+  Iterable<String> _effectiveGenres(CloudMediaIndexItem item) =>
+      _classificationGenres['${item.sourceId}|${item.remoteId}'] ?? const [];
 
   List<String> get availableCustomTags {
     final tags = <String>{};
@@ -28,6 +75,7 @@ mixin _CloudFilterTagsMixin on _CloudResourcesControllerBase {
           _indexedItems.values,
           _selectedGenres,
           customTagsFor: _customTagsForItem,
+          genresFor: _effectiveGenres,
         )
         .where(
           (item) =>
@@ -166,6 +214,7 @@ mixin _CloudFilterTagsMixin on _CloudResourcesControllerBase {
     await _mediaTagRepository.saveForResource(source.id, key, tags);
     if (selectedSource?.id != source.id) return;
     final saved = await _mediaTagRepository.getBySource(source.id);
+    if (selectedSource?.id != source.id) return;
     _customTagsByResourceKey
       ..clear()
       ..addAll(saved);
@@ -182,11 +231,13 @@ mixin _CloudFilterTagsMixin on _CloudResourcesControllerBase {
       <CloudMediaIndexItem>[item],
       _selectedGenres,
       customTagsFor: _customTagsForItem,
+      genresFor: _effectiveGenres,
     ).isNotEmpty;
   }
 
   @override
   void _reconcileSelectedGenres() {
+    if (_selectedGenres.isEmpty) return;
     final retained = _genreFilter.retainAvailable(
       _selectedGenres,
       availableTags,

@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:synchronized/synchronized.dart';
 import 'package:kanyingyin/features/cloud/application/cloud_directory_scope_tree.dart';
 import 'package:kanyingyin/features/cloud/application/cloud_genre_filter.dart';
+import 'package:kanyingyin/features/library/application/media_library_classification.dart';
+import 'package:kanyingyin/features/library/application/media_library_user_state.dart';
 import 'package:kanyingyin/features/cloud/application/cloud_resource_tmdb_facade.dart';
 import 'package:kanyingyin/features/episode_matching/application/cloud_episode_match_service.dart';
 import 'package:kanyingyin/features/episode_matching/application/manual_episode_match_controller.dart';
@@ -241,6 +243,23 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
   final Map<String, List<String>> _customTagsByResourceKey =
       <String, List<String>>{};
   final Set<String> _selectedGenres = <String>{};
+  Map<String, MediaLibraryUserState> _classificationStates = const {};
+  MediaClassificationMode classificationMode = MediaClassificationMode.conservative;
+  List<MediaLibrarySeries>? _classificationSeriesCache;
+  Map<String, List<String>>? _classificationGenresCache;
+
+  Map<String, MediaLibraryUserState> get classificationStates => _classificationStates;
+
+  void updateClassifications(
+    Map<String, MediaLibraryUserState> states,
+    MediaClassificationMode mode,
+  ) {
+    _classificationStates = Map.unmodifiable(states);
+    classificationMode = mode;
+    _invalidateCollection();
+    _reconcileSelectedGenres();
+    _notify();
+  }
   List<CloudHiddenVideo> _hiddenVideos = <CloudHiddenVideo>[];
   int _hiddenVideosRevision = 0;
   List<CloudWorkIdentity> _works = <CloudWorkIdentity>[];
@@ -360,6 +379,8 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
   void _invalidateCollection() {
     _collectionCache = null;
     _collectionMinSizeBytes = null;
+    _classificationSeriesCache = null;
+    _classificationGenresCache = null;
   }
 
   void _invalidateDirectoryScopeTree() {

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/features/library/application/media_card_info.dart';
 import 'package:kanyingyin/features/library/application/media_category_runtime.dart';
@@ -14,6 +15,9 @@ import 'package:path/path.dart' as p;
 Future<void> showMediaLibraryDetailsDialog({
   required BuildContext context,
   required MediaLibrarySeries series,
+  MediaLibrarySeries Function()? seriesProvider,
+  Listenable? libraryListenable,
+  bool observeLibrary = false,
   AppPlatformCapabilities? capabilities,
   FutureOr<void> Function()? onPlay,
 }) {
@@ -26,6 +30,9 @@ Future<void> showMediaLibraryDetailsDialog({
       showDragHandle: true,
       builder: (_) => MediaLibraryDetailsDialog(
         series: series,
+        seriesProvider: seriesProvider,
+        libraryListenable: libraryListenable,
+        observeLibrary: observeLibrary,
         asSheet: true,
         onPlay: onPlay,
       ),
@@ -35,6 +42,9 @@ Future<void> showMediaLibraryDetailsDialog({
     context: context,
     builder: (context) => MediaLibraryDetailsDialog(
       series: series,
+      seriesProvider: seriesProvider,
+      libraryListenable: libraryListenable,
+      observeLibrary: observeLibrary,
       onPlay: onPlay,
     ),
   );
@@ -44,17 +54,38 @@ class MediaLibraryDetailsDialog extends StatelessWidget {
   const MediaLibraryDetailsDialog({
     super.key,
     required this.series,
+    this.seriesProvider,
+    this.libraryListenable,
+    this.observeLibrary = false,
     this.asSheet = false,
     this.onPlay,
   });
 
   final MediaLibrarySeries series;
+  final MediaLibrarySeries Function()? seriesProvider;
+  final Listenable? libraryListenable;
+  final bool observeLibrary;
   final bool asSheet;
   final FutureOr<void> Function()? onPlay;
 
   @override
   Widget build(BuildContext context) {
-    final content = _buildContent(context);
+    Widget content() => _buildDialog(context);
+    Widget observed() => observeLibrary
+        ? Observer(builder: (_) => content())
+        : Builder(builder: (_) => content());
+    final listenable = libraryListenable;
+    return listenable == null
+        ? observed()
+        : ListenableBuilder(
+            listenable: listenable,
+            builder: (_, __) => observed(),
+          );
+  }
+
+  Widget _buildDialog(BuildContext context) {
+    final current = seriesProvider?.call() ?? series;
+    final content = _buildContent(context, current);
     if (asSheet) {
       return SafeArea(
         top: false,
@@ -71,7 +102,7 @@ class MediaLibraryDetailsDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildContent(BuildContext context) {
+  Widget _buildContent(BuildContext context, MediaLibrarySeries series) {
     final resources = series.episodes;
     final totalSize = resources.fold<int>(
       0,
@@ -133,6 +164,32 @@ class MediaLibraryDetailsDialog extends StatelessWidget {
                       _detail(context, '类型标签', series.genres.join(' · ')),
                     if (series.tmdbOverview?.trim().isNotEmpty == true)
                       _detail(context, '简介', series.tmdbOverview!.trim()),
+                    if (series.tmdbMetadata?.cast.isNotEmpty == true)
+                      _detail(
+                        context,
+                        '主演',
+                        series.tmdbMetadata!.cast
+                            .map((person) => person.character == null
+                                ? person.name
+                                : '${person.name}（${person.character}）')
+                            .join(' · '),
+                      ),
+                    if (series.tmdbMetadata?.directors.isNotEmpty == true)
+                      _detail(
+                        context,
+                        '导演',
+                        series.tmdbMetadata!.directors
+                            .map((person) => person.name)
+                            .join(' · '),
+                      ),
+                    if (series.tmdbMetadata?.similar.isNotEmpty == true)
+                      _detail(
+                        context,
+                        '相似作品',
+                        series.tmdbMetadata!.similar
+                            .map((item) => item.title)
+                            .join(' · '),
+                      ),
                     const Divider(height: 28),
                     Text(
                       '资源明细',

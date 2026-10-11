@@ -63,6 +63,9 @@ class PlayerOverlayPresenter extends StatefulWidget {
     required this.coordinator,
     required this.videoInfoBuilder,
     required this.child,
+    this.otherBuilder,
+    this.otherShowDragHandle = false,
+    this.otherUseSafeArea = false,
     this.isScrollControlled = true,
     this.constraints,
     this.clipBehavior = Clip.antiAlias,
@@ -70,7 +73,10 @@ class PlayerOverlayPresenter extends StatefulWidget {
 
   final PlayerOverlayCoordinator coordinator;
   final WidgetBuilder videoInfoBuilder;
+  final WidgetBuilder? otherBuilder;
   final Widget child;
+  final bool otherShowDragHandle;
+  final bool otherUseSafeArea;
   final bool isScrollControlled;
   final BoxConstraints? constraints;
   final Clip clipBehavior;
@@ -104,40 +110,57 @@ class _PlayerOverlayPresenterState extends State<PlayerOverlayPresenter> {
   void _handleOverlayChanged() {
     final generation = ++_requestGeneration;
     final coordinator = widget.coordinator;
-    if (coordinator.visible == PlayerOverlay.videoInfo) {
-      _scheduleVideoInfo(generation, coordinator);
+    final builder = switch (coordinator.visible) {
+      PlayerOverlay.videoInfo => widget.videoInfoBuilder,
+      PlayerOverlay.other => widget.otherBuilder,
+      _ => null,
+    };
+    if (builder != null) {
+      if (_activeRequest?.overlay != coordinator.visible) {
+        _closeOwnedSheet();
+      }
+      _scheduleOverlay(generation, coordinator, coordinator.visible, builder);
     } else {
       _closeOwnedSheet();
     }
   }
 
-  void _scheduleVideoInfo(
+  void _scheduleOverlay(
     int generation,
     PlayerOverlayCoordinator coordinator,
+    PlayerOverlay overlay,
+    WidgetBuilder builder,
   ) {
     if (!mounted || _activeRequest != null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted ||
           generation != _requestGeneration ||
           !identical(widget.coordinator, coordinator) ||
-          coordinator.visible != PlayerOverlay.videoInfo ||
+          coordinator.visible != overlay ||
           _activeRequest != null) {
         return;
       }
-      unawaited(_showVideoInfo(generation, coordinator));
+      unawaited(_showOverlay(generation, coordinator, overlay, builder));
     });
   }
 
-  Future<void> _showVideoInfo(
+  Future<void> _showOverlay(
     int generation,
     PlayerOverlayCoordinator coordinator,
+    PlayerOverlay overlay,
+    WidgetBuilder builder,
   ) async {
-    final request = _PlayerOverlayRequest(generation, coordinator);
+    final request = _PlayerOverlayRequest(generation, coordinator, overlay);
     _activeRequest = request;
     try {
       await showModalBottomSheet<void>(
         context: context,
         isScrollControlled: widget.isScrollControlled,
+        showDragHandle: request.overlay == PlayerOverlay.other
+            ? widget.otherShowDragHandle
+            : null,
+        useSafeArea:
+            request.overlay == PlayerOverlay.other && widget.otherUseSafeArea,
         constraints: widget.constraints,
         clipBehavior: widget.clipBehavior,
         builder: (context) {
@@ -147,12 +170,12 @@ class _PlayerOverlayPresenterState extends State<PlayerOverlayPresenter> {
           if (request.closeRequested ||
               request.generation != _requestGeneration ||
               !identical(widget.coordinator, request.coordinator) ||
-              request.coordinator.visible != PlayerOverlay.videoInfo) {
+              request.coordinator.visible != request.overlay) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               _closeRequest(request);
             });
           }
-          return widget.videoInfoBuilder(context);
+          return builder(context);
         },
       );
     } finally {
@@ -163,10 +186,23 @@ class _PlayerOverlayPresenterState extends State<PlayerOverlayPresenter> {
         final isCurrentRequest = request.generation == _requestGeneration &&
             identical(widget.coordinator, request.coordinator);
         if (isCurrentRequest &&
-            request.coordinator.visible == PlayerOverlay.videoInfo) {
-          request.coordinator.closeVideoInfo();
-        } else if (widget.coordinator.visible == PlayerOverlay.videoInfo) {
-          _scheduleVideoInfo(_requestGeneration, widget.coordinator);
+            request.coordinator.visible == request.overlay) {
+          request.coordinator.close(request.overlay);
+        } else {
+          final currentOverlay = widget.coordinator.visible;
+          final currentBuilder = switch (currentOverlay) {
+            PlayerOverlay.videoInfo => widget.videoInfoBuilder,
+            PlayerOverlay.other => widget.otherBuilder,
+            _ => null,
+          };
+          if (currentBuilder != null) {
+            _scheduleOverlay(
+              _requestGeneration,
+              widget.coordinator,
+              currentOverlay,
+              currentBuilder,
+            );
+          }
         }
       }
     }
@@ -203,10 +239,11 @@ class _PlayerOverlayPresenterState extends State<PlayerOverlayPresenter> {
 }
 
 class _PlayerOverlayRequest {
-  _PlayerOverlayRequest(this.generation, this.coordinator);
+  _PlayerOverlayRequest(this.generation, this.coordinator, this.overlay);
 
   final int generation;
   final PlayerOverlayCoordinator coordinator;
+  final PlayerOverlay overlay;
   NavigatorState? navigator;
   ModalRoute<dynamic>? route;
   bool closeRequested = false;

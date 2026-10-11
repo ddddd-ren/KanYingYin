@@ -2,13 +2,160 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/local/local_episode.dart';
+import 'package:kanyingyin/modules/local/media_location.dart';
 import 'package:kanyingyin/modules/video/local_playback_session.dart';
 import 'package:kanyingyin/pages/player/player_controller.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/pages/video/video_page_controller_interface.dart';
+import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
+import 'package:kanyingyin/services/local_playback_request_builder.dart';
 import 'package:mobx/mobx.dart';
 
 void main() {
+  test('播放中的来源改名只更新展示，保留身份进度与播放顺序', () async {
+    final initialized = <PlaybackInitParams>[];
+    var resolvedCount = 0;
+    final controller = LocalVideoController(
+      initializePlayer: (params) async => initialized.add(params),
+      resolveCloudPlayback: (target) async {
+        resolvedCount++;
+        return CloudResolvedPlayback(
+            target: target,
+            videoUrl: 'https://example.invalid/${target.remoteId}',
+            httpHeaders: const {});
+      },
+    );
+    final targets = [
+      for (final episode in [1, 2])
+        CloudPlaybackTarget(
+          sourceId: 'source-a',
+          remoteId: 'remote-$episode',
+          remotePath: '/Original/E$episode.mkv',
+          stableId: 'old-view-$episode',
+          title: '旧剧名 第 $episode 集',
+          subtitleRemotePath: '/Original/E$episode.ass',
+        ),
+    ];
+    MediaLibrarySeries sourceSeries(String title) => MediaLibrarySeries(
+          key: 'work-1',
+          seriesKey: 'work-1',
+          title: title,
+          sourceKind: MediaSourceKind.cloud,
+          sourceId: 'source-a',
+          sourceName: '来源',
+          isAvailable: true,
+          legacySeriesTitles: const [],
+          episodes: [
+            for (final episode in [2, 1])
+              MediaLibraryEpisode.cloud(
+                stableId: 'remote-$episode',
+                name: '$title 第 $episode 集',
+                sourceId: 'source-a',
+                sourceName: '来源',
+                isAvailable: true,
+                remoteId: 'remote-$episode',
+                remotePath: '/Original/E$episode.mkv',
+              ),
+          ],
+        );
+    await controller.openCloudPlayback(
+      seriesTitle: '旧剧名',
+      targets: targets,
+      selectedStableId: targets.first.stableId,
+    );
+    final mediaId = controller.mediaItem.id;
+    expect(controller.refreshCloudSourceTitles([sourceSeries('来源剧名')]), isTrue);
+    expect(initialized, isEmpty);
+    expect(resolvedCount, 1);
+    expect(controller.mediaItem.id, mediaId);
+    expect(controller.title, '来源剧名');
+    expect(controller.mediaItem.effectiveTitle, '来源剧名');
+    expect(controller.roadList.single.data,
+        ['/Original/E1.mkv', '/Original/E2.mkv']);
+    expect(controller.roadList.single.identifier,
+        ['来源剧名 第 1 集', '来源剧名 第 2 集']);
+    await controller.changeEpisode(1, offset: 29);
+    final playing = initialized.single;
+    expect(playing.offset, 29);
+    expect(playing.mediaTitle, '来源剧名');
+    expect(playing.episodeTitle, '来源剧名 第 1 集');
+    expect(playing.mediaId, mediaId);
+    expect(playing.stableMediaKey, 'source-a|old-view-1');
+    expect(playing.trackPreferenceKey, 'cloud|source-a|旧剧名');
+    expect(playing.legacyTrackPreferenceKeys, isEmpty);
+    expect(
+        mergeRefreshedCloudPlayback(
+          previous: playing.withDisplayTitles(
+            mediaTitle: '旧剧名',
+            episodeTitle: '旧剧名 第 1 集',
+            legacyTrackPreferenceKeys: const ['unsafe-old-key'],
+          ),
+          refreshed: playing,
+          position: const Duration(seconds: 29),
+        ).legacyTrackPreferenceKeys,
+        isEmpty);
+    expect(controller.refreshCloudSourceTitles([sourceSeries('最终来源剧名')]),
+        isTrue);
+    expect(initialized, hasLength(1));
+    expect(resolvedCount, 1);
+    final history = controller.buildPlaybackHistoryEntry(
+        position: const Duration(seconds: 29),
+        duration: const Duration(minutes: 30))!;
+    expect(history.seriesTitle, '最终来源剧名');
+    expect(history.episodeTitle, '最终来源剧名 第 1 集');
+    expect(history.positionSeconds, 29);
+    expect(history.stableKey, playing.stableMediaKey);
+    expect(controller.currentCloudPlaybackTarget, targets.first);
+    final refreshed = await playing.refreshCloudPlayback!();
+    expect(refreshed.mediaTitle, '最终来源剧名');
+    expect(refreshed.trackPreferenceKey, playing.trackPreferenceKey);
+    expect(refreshed.subtitleStorageKey, playing.subtitleStorageKey);
+    expect(controller.refreshCloudSourceTitles([
+      sourceSeries('错误标题一'),
+      sourceSeries('错误标题二'),
+    ]), isFalse);
+    expect(controller.title, '最终来源剧名');
+    await controller.changeEpisode(2, offset: 0);
+    expect(initialized.last.mediaTitle, '最终来源剧名');
+    expect(initialized.last.episodeTitle, '最终来源剧名 第 2 集');
+    expect(initialized.last.trackPreferenceKey, playing.trackPreferenceKey);
+    expect(initialized.last.stableMediaKey, 'source-a|old-view-2');
+  });
+
+  test('调用者明确禁用旧标题兼容时不补入当前名或原始名', () async {
+    final local = LocalVideoController();
+    local.openSession(
+        LocalPlaybackSession(
+          seriesId: 'same-directory',
+          seriesTitle: '同名作品',
+          episodes: const [
+            LocalEpisode(id: 'e1', path: 'Original.S01E01.mkv', title: '第 1 集')
+          ],
+          currentEpisodeId: 'e1',
+        ),
+        legacySeriesTitles: const []);
+    expect(local.createPlaybackParams().legacyTrackPreferenceKeys, isEmpty);
+    final initialized = <PlaybackInitParams>[];
+    final cloud = LocalVideoController(
+      initializePlayer: (params) async => initialized.add(params),
+      resolveCloudPlayback: (target) async => CloudResolvedPlayback(
+          target: target, videoUrl: 'https://example.invalid', httpHeaders: const {}),
+    );
+    await cloud.openCloudPlayback(
+      seriesTitle: '同名作品',
+      workKey: 'work-a',
+      legacySeriesTitles: const [],
+      targets: const [
+        CloudPlaybackTarget(
+            sourceId: 'source-a', remotePath: '/a.mkv', stableId: 'a', title: 'a')
+      ],
+      selectedStableId: 'a',
+    );
+    await cloud.changeEpisode(1);
+    expect(initialized.single.legacyTrackPreferenceKeys, isEmpty);
+  });
+
   test('本地控制器生成播放器初始化参数', () {
     final controller = LocalVideoController();
     controller.openSession(
@@ -33,6 +180,130 @@ void main() {
     expect(params.episodeTitle, '第1集');
     expect(params.subtitlePath, r'D:\Video\01.ass');
     expect(params.isLocalPlayback, isTrue);
+  });
+
+  test('本地作品选轨身份不随展示改名或新增剧集变化，同目录其他作品隔离', () {
+    PlaybackInitParams params(String title, String rawSeries,
+        {bool extraEpisode = false, String directoryId = 'file:d:\\video'}) {
+      final controller = LocalVideoController();
+      controller.openSession(
+        LocalPlaybackSession(
+          seriesId: directoryId,
+          seriesTitle: title,
+          episodes: [
+            LocalEpisode(
+                id: 'e1',
+                path: 'D:\\Video\\$rawSeries.S01E01.mkv',
+                title: '第1集'),
+            LocalEpisode(
+                id: 'e2',
+                path: 'D:\\Video\\$rawSeries.S01E02.mkv',
+                title: '第2集'),
+            if (extraEpisode)
+              LocalEpisode(
+                  id: 'e3',
+                  path: 'D:\\Video\\$rawSeries.S01E03.mkv',
+                  title: '第3集'),
+          ],
+          currentEpisodeId: 'e2',
+        ),
+        legacySeriesTitles: const ['旧剧名 S01'],
+      );
+      return controller.createPlaybackParams();
+    }
+
+    final original = params('旧剧名 S01', 'Original');
+    final renamed = params('来源剧名', 'Original', extraEpisode: true);
+    expect(renamed.trackPreferenceKey, original.trackPreferenceKey);
+    expect(renamed.trackPreferenceKey,
+        isNot(params('来源剧名', 'Other').trackPreferenceKey));
+    expect(renamed.trackPreferenceKey,
+        isNot(params('来源剧名', 'Original', directoryId: 'other').trackPreferenceKey));
+    expect(renamed.legacyTrackPreferenceKeys,
+        contains('local-work|file:d:\\video|${Uri.encodeComponent('旧剧名 s01')}'));
+  });
+
+  test('云作品选轨身份跨集和改名保持稳定，精确继承旧剧名键', () async {
+    Future<List<PlaybackInitParams>> open(String title, String sourceId) async {
+      final initialized = <PlaybackInitParams>[];
+      final controller = LocalVideoController(
+        initializePlayer: (params) async => initialized.add(params),
+        resolveCloudPlayback: (target) async => CloudResolvedPlayback(
+            target: target, videoUrl: 'https://example.invalid', httpHeaders: const {}),
+      );
+      final targets = [
+        for (final episode in [1, 2])
+          CloudPlaybackTarget(
+              sourceId: sourceId,
+              remotePath: '/Original/E$episode.mkv',
+              stableId: 'e$episode',
+              title: '第 $episode 集'),
+      ];
+      await controller.openCloudPlayback(
+        seriesTitle: title,
+        workKey: 'work-id',
+        legacySeriesTitles: const ['旧剧名 S01'],
+        targets: targets,
+        selectedStableId: 'e1',
+      );
+      await controller.changeEpisode(1);
+      await controller.changeEpisode(2);
+      return initialized;
+    }
+
+    final old = await open('旧剧名 S01', 'source-a');
+    final renamed = await open('来源剧名', 'source-a');
+    expect(renamed.first.trackPreferenceKey, 'cloud-work|source-a|work-id');
+    expect(renamed.last.trackPreferenceKey, old.first.trackPreferenceKey);
+    expect(renamed.first.legacyTrackPreferenceKeys,
+        contains('cloud|source-a|旧剧名 S01'));
+    expect((await open('来源剧名', 'source-b')).first.trackPreferenceKey,
+        isNot(renamed.first.trackPreferenceKey));
+    expect(renamed.first.withOffset(9).legacyTrackPreferenceKeys,
+        renamed.first.legacyTrackPreferenceKeys);
+    expect(
+        mergeRefreshedCloudPlayback(
+                previous: renamed.first,
+                refreshed: renamed.last,
+                position: const Duration(seconds: 10))
+            .legacyTrackPreferenceKeys,
+        renamed.last.legacyTrackPreferenceKeys);
+  });
+
+  test('Android 文档作品选轨使用原始文件名，新增前一集不会改变身份', () async {
+    final parent = MediaLocation.document(
+        uri: 'content://media/document/parent',
+        treeUri: 'content://media/tree/root');
+    final controller = LocalVideoController();
+    final first = LocalPlaybackEntry(
+      location: MediaLocation.document(
+          uri: 'content://media/document/opaque-1', treeUri: parent.treeUri!),
+      parentLocation: parent,
+      name: 'Original.S01E01.mkv',
+      title: '来源剧名 第 1 集',
+    );
+    final second = LocalPlaybackEntry(
+      location: MediaLocation.document(
+          uri: 'content://media/document/opaque-2', treeUri: parent.treeUri!),
+      parentLocation: parent,
+      name: 'Original.S01E02.mkv',
+      title: '来源剧名 第 2 集',
+    );
+    await controller.openFilePlayback(
+        filePath: second.location.value,
+        seriesTitle: '旧剧名',
+        playbackEntries: [second],
+        playlistAlreadyIsolated: true,
+        autoLoadSubtitle: false);
+    final oldKey = controller.createPlaybackParams().trackPreferenceKey;
+    await controller.openFilePlayback(
+        filePath: second.location.value,
+        seriesTitle: '来源剧名',
+        playbackEntries: [first, second],
+        playlistAlreadyIsolated: true,
+        autoLoadSubtitle: false);
+    expect(controller.createPlaybackParams().trackPreferenceKey, oldKey);
+    expect(oldKey, contains(Uri.encodeComponent('original')));
   });
 
   test('本地观看历史保存媒体真实集数', () {
@@ -233,13 +504,18 @@ void main() {
         "await _trySetNativeSubtitleProperty(platform, 'secondary-sid', 'no')",
       ),
     );
-    expect(
-      controller,
-      contains(
-        'await _clearSubtitleTrackForSwitch();\n'
-        '      await player.setSubtitleTrack(track);',
-      ),
-    );
+    final selection = controller.substring(
+        controller.indexOf('Future<bool> selectEmbeddedSubtitleTrack('),
+        controller.indexOf('void _resetEmbeddedTrackState()'));
+    final clear = selection.indexOf('await _clearSubtitleTrackForSwitch();');
+    final apply = selection.indexOf('await player.setSubtitleTrack(track);');
+    expect(clear, greaterThanOrEqualTo(0));
+    expect(apply, greaterThan(clear));
+    expect(selection.substring(clear, apply),
+        contains('if (!isCurrent()) return false;'));
+    expect(selection, contains('identical(player, mediaPlayer)'));
+    expect(selection, contains('revision == _subtitleTrackRequestRevision'));
+    expect(selection, contains('canApplyAutomaticSelection(automaticRevision)'));
   });
 
   test('播放器集成轨道语言确认并保护退出后的旧结果', () {
@@ -257,7 +533,11 @@ void main() {
     expect(source, contains('Future<String?> confirmTrackLanguage('));
     expect(source,
         isNot(contains('if (pendingTrackLanguages.isNotEmpty) return;')));
-    expect(source, contains('availableEmbeddedSubtitleTracks.firstOrNull'));
+    expect(source, contains('selectTrackByPreferences('));
+    expect(source, contains('_trackPreferences.load('));
+    expect(source, contains('globalTrackPreference('));
+    expect(
+        source, isNot(contains('availableEmbeddedSubtitleTracks.firstOrNull')));
     expect(item, isNot(contains('_scheduleTrackLanguageConfirmation')));
     expect(item, contains('barrierDismissible: true'));
     expect(dialog, contains('稍后确认'));
@@ -276,8 +556,8 @@ void main() {
         item,
         contains(
             'if (!_acceptingInput || _fullscreenTransitionActive) return;'));
-    expect(item, contains('await Utils.enterFullScreen();'));
-    expect(item, contains('await Utils.exitFullScreen();'));
+    expect(item, contains('await videoPageController.enterFullScreen();'));
+    expect(item, contains('await videoPageController.exitFullScreen();'));
     expect(item, contains('displayVideoController();'));
     expect(fullPanel, isNot(contains('AnimatedPositioned')));
     expect(compactPanel, isNot(contains('AnimatedPositioned')));

@@ -1,4 +1,5 @@
 import 'package:hive_ce/hive.dart';
+import 'package:kanyingyin/modules/media/media_custom_tags.dart';
 import 'package:kanyingyin/utils/storage.dart';
 
 abstract interface class ILocalMediaTagRepository {
@@ -11,8 +12,8 @@ abstract interface class ILocalMediaTagRepository {
 final class LocalMediaTagRepository implements ILocalMediaTagRepository {
   LocalMediaTagRepository({Box<Object?>? box}) : _providedBox = box;
 
-  static const int maxTagLength = 32;
-  static const int maxTagsPerSeries = 30;
+  static const int maxTagLength = MediaCustomTags.maxTagLength;
+  static const int maxTagsPerSeries = MediaCustomTags.maxTags;
 
   final Box<Object?>? _providedBox;
 
@@ -60,16 +61,6 @@ final class LocalMediaTagRepository implements ILocalMediaTagRepository {
   }
 
   static List<String> _normalizeTags(Iterable<Object?> values) {
-    final result = <String>[];
-    final normalized = <String>{};
-    for (final value in values) {
-      final tag = value?.toString().trim() ?? '';
-      if (tag.isEmpty || tag.length > maxTagLength) continue;
-      final identity = tag.toLowerCase();
-      if (!normalized.add(identity)) continue;
-      result.add(tag);
-      if (result.length == maxTagsPerSeries) break;
-    }
-    return List<String>.unmodifiable(result);
+    return MediaCustomTags.normalize(values);
   }
 }

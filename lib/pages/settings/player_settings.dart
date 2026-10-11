@@ -5,12 +5,15 @@ import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/features/player/application/player_platform_policy.dart';
 import 'package:kanyingyin/features/player/application/player_color_profile.dart';
+import 'package:kanyingyin/features/player/application/track_selection_preferences.dart';
+import 'package:kanyingyin/pages/player/models/embedded_track_info.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/platform/android/android_system_service.dart';
 import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/utils/diagnostic_log_exporter.dart';
 import 'package:kanyingyin/utils/logger.dart';
+import 'package:kanyingyin/utils/user_data_mutation_lock.dart';
 
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 
@@ -220,6 +223,13 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
         body: KSettingsList(
           maxWidth: 1000,
           sections: [
+            KSettingsSection(
+                title: const Text('选轨偏好'),
+                description: const Text('手动选择优先；同一作品的下一集沿用语言偏好。外置字幕不受影响。'),
+                tiles: [
+                  _preferredLanguageTile(EmbeddedTrackType.audio),
+                  _preferredLanguageTile(EmbeddedTrackType.subtitle),
+                ]),
             KSettingsSection(
               tiles: [
                 KSettingsTile<bool>.switchTile(
@@ -595,5 +605,94 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
         ),
       ),
     );
+  }
+
+  Widget _preferredLanguageTile(EmbeddedTrackType type) {
+    final audio = type == EmbeddedTrackType.audio;
+    final key = audio
+        ? SettingBoxKey.preferredAudioLanguage
+        : SettingBoxKey.preferredSubtitleLanguage;
+    final code =
+        setting.read<String>(key, defaultValue: audio ? 'zh' : 'zh-Hans');
+    final title = audio ? '首选音轨语言' : '首选字幕语言';
+    return KSettingsTile<void>.navigation(
+        title: Text(title),
+        value: Text(globalTrackPreference(code, type)?.label ?? '跟随视频默认'),
+        onPressed: (_) async {
+          var saving = false;
+          String? error;
+          final choices = <String, String>{
+            'auto': '跟随视频默认',
+            if (!audio) 'off': '关闭字幕',
+            for (final choice in commonTrackLanguageChoices)
+              if (audio
+                  ? ![
+                      TrackLanguageKind.simplifiedChinese,
+                      TrackLanguageKind.traditionalChinese,
+                      TrackLanguageKind.bilingualChinese
+                    ].contains(choice.kind)
+                  : ![
+                      TrackLanguageKind.mandarin,
+                      TrackLanguageKind.cantonese,
+                      TrackLanguageKind.taiwaneseMandarin
+                    ].contains(choice.kind))
+                choice.code: choice.label
+          };
+          await showDialog<void>(
+              context: context,
+              builder: (dialogContext) => StatefulBuilder(
+                  builder: (_, setDialogState) => AlertDialog(
+                          title: Text(title),
+                          content: SizedBox(
+                              width: 360,
+                              child: SingleChildScrollView(
+                                  child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                    if (error != null)
+                                      Text(error!,
+                                          style: TextStyle(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .error)),
+                                    for (final choice in choices.entries)
+                                      ListTile(
+                                          title: Text(choice.value),
+                                          leading: Icon(choice.key == code
+                                              ? Icons.check_circle_outline
+                                              : Icons.circle_outlined),
+                                          enabled: !saving,
+                                          onTap: () async {
+                                            setDialogState(() {
+                                              saving = true;
+                                              error = null;
+                                            });
+                                            try {
+                                              await userDataMutationLock
+                                                  .synchronized(() => setting
+                                                      .write(key, choice.key));
+                                              if (dialogContext.mounted) {
+                                                Navigator.of(dialogContext)
+                                                    .pop();
+                                              }
+                                              if (mounted) setState(() {});
+                                            } on Object {
+                                              if (dialogContext.mounted) {
+                                                setDialogState(() {
+                                                  saving = false;
+                                                  error = '保存失败，请重试';
+                                                });
+                                              }
+                                            }
+                                          }),
+                                  ]))),
+                          actions: [
+                            TextButton(
+                                onPressed: saving
+                                    ? null
+                                    : () => Navigator.of(dialogContext).pop(),
+                                child: const Text('取消'))
+                          ])));
+        });
   }
 }

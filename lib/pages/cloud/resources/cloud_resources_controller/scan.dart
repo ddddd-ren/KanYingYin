@@ -31,7 +31,6 @@ mixin _CloudScanMixin on _CloudResourcesControllerBase {
     _customTagsByResourceKey
       ..clear()
       ..addAll(customTags);
-    _reconcileSelectedGenres();
     final tree = _mediaTreeResolver.resolve(
       sourceId: source.id,
       configuredRoots:
@@ -55,6 +54,7 @@ mixin _CloudScanMixin on _CloudResourcesControllerBase {
         .toList(growable: false);
     _invalidateDirectoryScopeTree();
     _reconcileDirectoryScope();
+    _reconcileSelectedGenres();
     await reloadMediaLibrarySnapshot(force: true);
   }
 

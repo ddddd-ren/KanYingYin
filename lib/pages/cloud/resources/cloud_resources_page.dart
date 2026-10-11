@@ -7,6 +7,11 @@ import 'package:kanyingyin/features/cloud/application/cloud_resources_toolbar.da
 import 'package:kanyingyin/features/episode_matching/application/cloud_episode_match_service.dart';
 import 'package:kanyingyin/features/episode_matching/presentation/manual_episode_match_dialog.dart';
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
+import 'package:kanyingyin/features/library/application/media_library_classification.dart';
+import 'package:kanyingyin/features/library/application/media_library_user_state.dart';
+import 'package:kanyingyin/features/library/application/media_library_user_state_repository.dart';
+import 'package:kanyingyin/features/library/presentation/media_classification_dialog.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
@@ -23,7 +28,6 @@ import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
-import 'package:kanyingyin/repositories/cloud_media_tag_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
@@ -51,6 +55,8 @@ String cloudPlaybackFailureDiagnostic(
 
 typedef CloudSourceAddCallback = FutureOr<String?> Function();
 
+enum _CloudAddAction { quark, baidu, xunlei, openList }
+
 class CloudResourcesPage extends StatefulWidget {
   const CloudResourcesPage({
     super.key,
@@ -63,6 +69,8 @@ class CloudResourcesPage extends StatefulWidget {
     this.onPlayRequest,
     this.onDeleteSource,
     this.capabilities,
+    this.userStateRepository,
+    this.settings,
   });
 
   final CloudResourcesController? controller;
@@ -75,6 +83,8 @@ class CloudResourcesPage extends StatefulWidget {
       onPlayRequest;
   final FutureOr<void> Function(String sourceId)? onDeleteSource;
   final AppPlatformCapabilities? capabilities;
+  final MediaLibraryUserStateRepository? userStateRepository;
+  final TypedSettings? settings;
 
   @override
   State<CloudResourcesPage> createState() => _CloudResourcesPageState();
@@ -93,6 +103,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
   int _batchTotal = 0;
   bool _autoOrganizing = false;
   CloudResourceAutoOrganizeProgress? _autoOrganizeProgress;
+  late final MediaLibraryUserStateRepository _userStateRepository;
 
   @override
   void initState() {
@@ -100,11 +111,17 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     _controller = widget.controller ?? Modular.get<CloudResourcesController>();
     _capabilities = widget.capabilities ?? detectAppPlatform();
     _controller.addListener(_refresh);
+    _userStateRepository = widget.userStateRepository ?? MediaLibraryUserStateRepository();
+    MediaLibraryUserStateRepository.changes.addListener(_reloadClassifications);
+    _controller.mediaLibrarySnapshotListenable.addListener(_reloadClassifications);
+    _reloadClassifications();
     _controller.ensureLoaded(startScan: !_capabilities.isAndroidTv);
   }
 
   @override
   void dispose() {
+    MediaLibraryUserStateRepository.changes.removeListener(_reloadClassifications);
+    _controller.mediaLibrarySnapshotListenable.removeListener(_reloadClassifications);
     _playbackNavigation.invalidate();
     _controller.removeListener(_refresh);
     super.dispose();
@@ -112,6 +129,24 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
 
   void _refresh() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _reloadClassifications() async {
+    try {
+      final states = await _userStateRepository.reconcile({
+        for (final series in _controller.mediaLibrarySnapshot.series)
+          series.key: series.episodes.map((episode) => episode.stableId).toSet(),
+      });
+      final settings = widget.settings ?? Modular.get<TypedSettings>();
+      final value = settings.readRaw(SettingBoxKey.mediaClassificationMode);
+      if (!mounted) return;
+      _controller.updateClassifications(states, MediaClassificationMode.values.firstWhere(
+        (mode) => mode.name == value,
+        orElse: () => MediaClassificationMode.conservative,
+      ));
+    } on Object {
+      // 暂不可读时保留当前选择，不因恢复失败清空人工分类。
+    }
   }
 
   Future<void> _addCloudSource(_CloudAddAction action) async {
@@ -157,11 +192,28 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     final generation = _playbackNavigation.tryBegin();
     if (generation == null) return;
     try {
+      await _controller.ensureMediaLibrarySnapshot();
+      if (!mounted ||
+          !_playbackNavigation.isCurrent(generation) ||
+          _controller.selectedSource?.id != source.id) {
+        return;
+      }
+      final currentGroups = _controller.collection.groups.where((candidate) =>
+          candidate.videos.any((video) =>
+              video.id == entry.id && video.remotePath == entry.remotePath));
+      final matches = currentGroups.take(2).toList(growable: false);
+      final currentGroup = matches.length == 1 ? matches.single : group;
+      final sourceSeries = _controller.mediaLibrarySnapshot.series
+          .where((series) =>
+              series.sourceId == source.id &&
+              series.seriesKey == currentGroup.workKey)
+          .firstOrNull;
       final request = buildCloudResourcePlaybackRequest(
         sourceId: source.id,
-        group: group,
+        group: currentGroup,
         selected: entry,
         subtitleFor: _matchingSubtitle,
+        legacySeriesTitles: sourceSeries?.legacySeriesTitles ?? const [],
       );
       final callback = widget.onPlayRequest;
       if (callback != null) {
@@ -170,6 +222,8 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       }
       await Modular.get<LocalVideoController>().openCloudPlayback(
         seriesTitle: request.seriesTitle,
+        workKey: request.workKey,
+        legacySeriesTitles: request.legacySeriesTitles,
         targets: request.targets,
         selectedStableId: request.selectedStableId,
         resolver: _playbackResolver.resolve,
@@ -203,15 +257,32 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     }
     final source = _controller.selectedSource;
     if (source == null || !mounted) return;
+    var currentGroup = group;
     final selected = await showCloudResourceEpisodeSheet(
       context: context,
       sourceId: source.id,
       group: group,
+      groupListenable: _controller,
+      userStatesProvider: () => _controller.classificationStates,
+      classificationModeProvider: () => _controller.classificationMode,
+      classificationSeriesForGroup: _controller.classificationSeriesForGroup,
+      groupProvider: () {
+        if (_controller.selectedSource?.id != source.id) return currentGroup;
+        final matches = _controller.collection.groups.where((candidate) =>
+            candidate.videos.any((video) => currentGroup.videos.any((original) =>
+                original.id.isNotEmpty
+                    ? video.id == original.id
+                    : video.remotePath == original.remotePath)))
+          .take(2)
+          .toList(growable: false);
+        if (matches.length == 1) currentGroup = matches.single;
+        return currentGroup;
+      },
       subtitleVideoKeys: _subtitleVideoKeys(source.id),
       sourceName: source.name,
       capabilities: _capabilities,
     );
-    if (selected != null && mounted) await _play(group, selected);
+    if (selected != null && mounted) await _play(currentGroup, selected);
   }
 
   Future<void> _hideVideos(CloudResourceMediaGroup group) async {
@@ -634,20 +705,43 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
   }
 
   Future<void> _editTags(CloudResourceMediaGroup group) async {
-    final tags = await showDialog<List<String>>(
-      context: context,
-      builder: (_) => _CloudMediaTagEditorDialog(
-        title: group.displayName,
-        initialTags: _controller.customTagsForGroup(group),
-      ),
+    final sourceId = _controller.selectedSource?.id;
+    final series = _controller.classificationSeriesForGroup(group);
+    if (series == null) return;
+    final initialTags = _controller.customTagsForGroup(group);
+    final initialFilters = _controller.selectedGenres;
+    final saved = await showMediaClassificationDialog(
+      context,
+      series: series,
+      state: _controller.classificationStates[series.key] ?? MediaLibraryUserState.empty,
+      mode: _controller.classificationMode,
+      customTags: initialTags,
+      onSave: (state, tags) async {
+        if (_controller.selectedSource?.id != sourceId) {
+          throw StateError('网盘来源已切换，请返回当前来源后重试');
+        }
+        try {
+          await _controller.saveCustomTags(group, tags);
+          await _userStateRepository.saveClassification(
+            series.key,
+            categories: state.categoryOverride,
+            genres: state.genreOverride,
+            mediaIds: series.episodes.map((episode) => episode.stableId),
+          );
+        } on Object {
+          if (_controller.selectedSource?.id == sourceId) {
+            await _controller.saveCustomTags(group, initialTags);
+            _controller.clearGenres();
+            for (final tag in initialFilters) {
+              _controller.toggleGenre(tag);
+            }
+          }
+          rethrow;
+        }
+        await _reloadClassifications();
+      },
     );
-    if (!mounted || tags == null) return;
-    try {
-      await _controller.saveCustomTags(group, tags);
-      if (mounted) _showMessage('标签已保存');
-    } on Object {
-      if (mounted) _showMessage('标签保存失败，请稍后重试');
-    }
+    if (saved == true && mounted) _showMessage('标签已保存');
   }
 
   Future<void> _showMediaDetails(CloudResourceMediaGroup group) {
@@ -1349,6 +1443,9 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
               sourceId: _controller.selectedSource!.id,
               sourceName: _controller.selectedSource!.name,
               collection: _controller.collection,
+              userStates: _controller.classificationStates,
+              classificationMode: _controller.classificationMode,
+              classificationSeriesForGroup: _controller.classificationSeriesForGroup,
               scrapingKeys: _controller.tmdbScrapingKeys,
               searchQuery: _controller.query,
               hiddenVideoCount: _controller.hiddenVideos.length,
@@ -1394,119 +1491,3 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     );
   }
 }
-
-class _CloudMediaTagEditorDialog extends StatefulWidget {
-  const _CloudMediaTagEditorDialog({
-    required this.title,
-    required this.initialTags,
-  });
-
-  final String title;
-  final List<String> initialTags;
-
-  @override
-  State<_CloudMediaTagEditorDialog> createState() =>
-      _CloudMediaTagEditorDialogState();
-}
-
-class _CloudMediaTagEditorDialogState
-    extends State<_CloudMediaTagEditorDialog> {
-  late final TextEditingController _inputController;
-  late final List<String> _tags;
-
-  @override
-  void initState() {
-    super.initState();
-    _inputController = TextEditingController();
-    _tags = List<String>.from(widget.initialTags);
-  }
-
-  @override
-  void dispose() {
-    _inputController.dispose();
-    super.dispose();
-  }
-
-  void _addTag() {
-    final value = _inputController.text.trim();
-    if (value.isEmpty || value.length > CloudMediaTagRepository.maxTagLength) {
-      return;
-    }
-    if (_tags.any((tag) => tag.toLowerCase() == value.toLowerCase())) {
-      _inputController.clear();
-      return;
-    }
-    if (_tags.length >= CloudMediaTagRepository.maxTagsPerResource) return;
-    setState(() {
-      _tags.add(value);
-      _inputController.clear();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('管理标签 · ${widget.title}'),
-      content: SizedBox(
-        width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    key: const ValueKey<String>('cloud-tag-input'),
-                    controller: _inputController,
-                    maxLength: CloudMediaTagRepository.maxTagLength,
-                    decoration: const InputDecoration(
-                      labelText: '新增标签',
-                      hintText: '例如：收藏、待看',
-                      isDense: true,
-                    ),
-                    onSubmitted: (_) => _addTag(),
-                  ),
-                ),
-                IconButton(
-                  key: const ValueKey<String>('cloud-tag-add'),
-                  tooltip: '添加标签',
-                  onPressed: _addTag,
-                  icon: const Icon(Icons.add),
-                ),
-              ],
-            ),
-            if (_tags.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: _tags
-                    .map(
-                      (tag) => InputChip(
-                        label: Text(tag),
-                        onDeleted: () => setState(() => _tags.remove(tag)),
-                      ),
-                    )
-                    .toList(growable: false),
-              ),
-            ],
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          key: const ValueKey<String>('cloud-tag-save'),
-          onPressed: () => Navigator.of(context).pop(List<String>.from(_tags)),
-          child: const Text('保存'),
-        ),
-      ],
-    );
-  }
-}
-
-enum _CloudAddAction { quark, baidu, xunlei, openList }

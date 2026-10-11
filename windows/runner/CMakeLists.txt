@@ -29,6 +29,18 @@ target_compile_options(kanyingyin_external_player_tests PRIVATE /utf-8)
 target_compile_definitions(kanyingyin_external_player_tests PRIVATE "NOMINMAX")
 target_link_libraries(kanyingyin_external_player_tests PRIVATE shell32.lib ole32.lib)
 
+add_executable(kanyingyin_fullscreen_tests EXCLUDE_FROM_ALL
+  "fullscreen_utils_test.cpp"
+  "fullscreen_utils.cpp"
+)
+apply_standard_settings(kanyingyin_fullscreen_tests)
+target_compile_options(kanyingyin_fullscreen_tests PRIVATE /utf-8)
+target_compile_definitions(kanyingyin_fullscreen_tests PRIVATE "NOMINMAX")
+target_link_libraries(kanyingyin_fullscreen_tests PRIVATE user32.lib)
+set_target_properties(kanyingyin_fullscreen_tests PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests"
+)
+
 # Apply the standard set of build settings. This can be removed for applications
 # that need different build settings.
 apply_standard_settings(${BINARY_NAME})
@@ -63,4 +75,3 @@ add_custom_command(TARGET ${BINARY_NAME}
   COMMAND ${CMAKE_COMMAND} -E remove "$<TARGET_FILE_DIR:${BINARY_NAME}>/${BINARY_NAME}.exp"
   COMMAND ${CMAKE_COMMAND} -E remove "$<TARGET_FILE_DIR:${BINARY_NAME}>/${BINARY_NAME}.lib"
 )
-

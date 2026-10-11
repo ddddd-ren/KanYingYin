@@ -123,6 +123,49 @@ void main() {
       ));
     });
 
+    testWidgets('选集面板快速反向和卸载时不执行过期关闭', (tester) async {
+      installAppPlatformCapabilities(AppPlatformCapabilities.windows);
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      await tester.pumpWidget(const MaterialApp(home: VideoPage()));
+      // post-frame 启动的动画需要先收到首帧，再推进测试时钟。
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      final episodeSlide = find.byWidgetPredicate((widget) =>
+          widget is SlideTransition &&
+          widget.child is SizedBox &&
+          (widget.child! as SizedBox).width == 400);
+      expect(tester.widget<SlideTransition>(episodeSlide).position.value,
+          Offset.zero);
+      void toggle() => tester
+          .widget<IconButton>(find.byWidgetPredicate(
+            (widget) => widget is IconButton && widget.tooltip == '选集',
+          ))
+          .onPressed!();
+      expect(videoController.showTabBody, isTrue);
+      toggle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(videoController.showTabBody, isTrue);
+      toggle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 240));
+      expect(videoController.showTabBody, isTrue);
+      toggle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(videoController.showTabBody, isFalse);
+      toggle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      toggle();
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(tester.takeException(), isNull);
+    });
+
     tearDown(() {
       cleanModular();
     });

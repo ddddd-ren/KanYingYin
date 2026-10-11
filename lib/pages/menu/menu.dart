@@ -40,11 +40,8 @@ class NavigationBarState extends ChangeNotifier {
 
   void updateSelectedIndex(int pageIndex) {
     if (_selectedIndex == pageIndex) return;
+    _selectedIndex = pageIndex;
     notifyListeners();
-    Future.delayed(StyleString.fastAnimationDuration, () {
-      _selectedIndex = pageIndex;
-      notifyListeners();
-    });
   }
 
   void hideNavigate() {

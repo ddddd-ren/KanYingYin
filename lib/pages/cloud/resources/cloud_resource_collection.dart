@@ -90,6 +90,21 @@ class CloudResourceMediaGroup {
   final String displayName;
   final List<String> workKeys;
   final String seriesName;
+
+  List<String> get legacySeriesTitles {
+    final titles = <String>{
+      displayName,
+      seriesName,
+      if (workRecord?.metadata?.title case final title?) title,
+      if (record?.title case final title?) title,
+    }.where((title) => title.trim().isNotEmpty);
+    return [
+      ...titles,
+      if (seasonNumber case final season? when season > 0)
+        for (final title in titles)
+          '$title S${season.toString().padLeft(2, '0')}',
+    ];
+  }
   final bool isSeries;
   final int? seasonNumber;
   final List<CloudFileEntry> videos;

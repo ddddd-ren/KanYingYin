@@ -1,4 +1,5 @@
 import 'package:kanyingyin/utils/storage.dart';
+import 'package:kanyingyin/modules/media/media_custom_tags.dart';
 import 'package:synchronized/synchronized.dart';
 
 /// 网盘媒体标签的持久化边界，标签只保存到看影音本地设置，不改动网盘文件。
@@ -89,8 +90,8 @@ final class CloudMediaTagRepository implements ICloudMediaTagRepository {
 
   static final Expando<Lock> _locks = Expando<Lock>();
 
-  static const int maxTagLength = 32;
-  static const int maxTagsPerResource = 30;
+  static const int maxTagLength = MediaCustomTags.maxTagLength;
+  static const int maxTagsPerResource = MediaCustomTags.maxTags;
 
   final CloudMediaTagStorage _storage;
   late final Lock _lock;
@@ -148,16 +149,7 @@ final class CloudMediaTagRepository implements ICloudMediaTagRepository {
   }
 
   static List<String> normalizeTags(Iterable<Object?> values) {
-    final result = <String>[];
-    final identities = <String>{};
-    for (final value in values) {
-      final tag = value?.toString().trim() ?? '';
-      if (tag.isEmpty || tag.length > maxTagLength) continue;
-      if (!identities.add(tag.toLowerCase())) continue;
-      result.add(tag);
-      if (result.length == maxTagsPerResource) break;
-    }
-    return List<String>.unmodifiable(result);
+    return MediaCustomTags.normalize(values);
   }
 
   Future<Map<String, Map<String, List<String>>>> _readAll() async {

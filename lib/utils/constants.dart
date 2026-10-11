@@ -60,26 +60,16 @@ class _SmoothFadeUpPageTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
+    final progress =
+        animation.drive(CurveTween(curve: StyleString.defaultCurve));
     return FadeTransition(
-      opacity: CurvedAnimation(
-        parent: animation,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
-      ),
+      opacity: progress,
       child: SlideTransition(
         position: Tween<Offset>(
           begin: const Offset(0.0, 0.03),
           end: Offset.zero,
-        ).animate(CurvedAnimation(
-          parent: animation,
-          curve: const Interval(0.0, 0.6, curve: Curves.easeOutCubic),
-        )),
-        child: FadeTransition(
-          opacity: CurvedAnimation(
-            parent: animation,
-            curve: const Interval(0.6, 1.0, curve: Curves.easeIn),
-          ),
-          child: child,
-        ),
+        ).animate(progress),
+        child: child,
       ),
     );
   }

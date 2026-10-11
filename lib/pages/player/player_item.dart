@@ -30,6 +30,10 @@ import 'package:kanyingyin/features/player/presentation/player_shortcut_handler.
 import 'package:kanyingyin/features/player/presentation/tv_remote_key_policy.dart';
 import 'package:kanyingyin/features/player/presentation/player_exit_coordinator.dart';
 import 'package:kanyingyin/features/player/application/anime4k_policy.dart';
+import 'package:kanyingyin/features/player/application/player_bookmark.dart';
+import 'package:kanyingyin/features/player/application/player_chapter.dart';
+import 'package:kanyingyin/features/player/application/player_timeline_segments.dart';
+import 'package:kanyingyin/features/player/presentation/player_timeline_segment_editor.dart';
 import 'package:kanyingyin/features/player/application/player_audio_service_coordinator.dart';
 import 'package:kanyingyin/pages/player/widgets/anime4k_confirm_dialog.dart';
 import 'package:path/path.dart' as p;
@@ -40,6 +44,7 @@ class PlayerItem extends StatefulWidget {
   const PlayerItem({
     super.key,
     required this.openMenu,
+    required this.closeMenu,
     required this.locateEpisode,
     required this.changeEpisode,
     required this.onBackPressed,
@@ -51,6 +56,7 @@ class PlayerItem extends StatefulWidget {
   });
 
   final VoidCallback openMenu;
+  final VoidCallback closeMenu;
   final VoidCallback locateEpisode;
   final Future<void> Function(int episode, {int currentRoad, int offset})
       changeEpisode;
@@ -71,6 +77,12 @@ class PlayerItemState extends State<PlayerItem>
         WidgetsBindingObserver,
         SingleTickerProviderStateMixin {
   final TypedSettings setting = Modular.get<TypedSettings>();
+  late final PlayerBookmarkRepository _bookmarkRepository =
+      PlayerBookmarkRepository(
+    TypedSettingsPlayerBookmarkStorage(setting),
+  );
+  String? _bookmarkSheetMediaKey;
+  List<PlayerChapter> _bookmarkSheetChapters = const [];
   final PlayerController playerController = Modular.get<PlayerController>();
   final IVideoPageController videoPageController =
       Modular.get<IVideoPageController>();
@@ -680,15 +692,13 @@ class PlayerItemState extends State<PlayerItem>
     final entering = !videoPageController.isFullscreen;
     try {
       if (entering) {
-        await Utils.enterFullScreen();
+        widget.closeMenu();
+        await videoPageController.enterFullScreen();
       } else {
-        await Utils.exitFullScreen();
+        await videoPageController.exitFullScreen();
       }
       if (!_acceptingInput || !mounted) return;
-      videoPageController.isFullscreen = entering;
-      if (entering) {
-        videoPageController.showTabBody = false;
-      } else if (!Utils.isDesktop()) {
+      if (!videoPageController.isFullscreen && !Utils.isDesktop()) {
         widget.locateEpisode();
         videoPageController.showTabBody = true;
       }
@@ -819,7 +829,9 @@ class PlayerItemState extends State<PlayerItem>
       playerController.isBuffering = snapshot.buffering;
       playerController.currentPosition = snapshot.position;
       playerController.buffer = snapshot.buffer;
+      final durationChanged = playerController.duration != snapshot.duration;
       playerController.duration = snapshot.duration;
+      if (durationChanged) playerController.refreshTimelineSegments();
       playerController.completed = snapshot.completed;
       _syncAudioServiceState();
       // 音量相关
@@ -1102,6 +1114,184 @@ class PlayerItemState extends State<PlayerItem>
     _overlayCoordinator.openVideoInfo();
   }
 
+  Future<void> showPlayerBookmarks() async {
+    if (!_canUsePlayer) return;
+    final mediaKey = playerController.currentStableMediaKey;
+    if (mediaKey == null) {
+      AppDialog.showToast(message: '当前媒体暂不支持书签');
+      return;
+    }
+    final chapters = await playerController.loadEmbeddedChapters();
+    if (!_canUsePlayer || mediaKey != playerController.currentStableMediaKey) {
+      return;
+    }
+    _bookmarkSheetMediaKey = mediaKey;
+    _bookmarkSheetChapters = chapters;
+    _overlayCoordinator.open(PlayerOverlay.other);
+  }
+
+  Widget _buildPlayerBookmarks(BuildContext context) {
+    final mediaKey = _bookmarkSheetMediaKey;
+    if (mediaKey == null) return const SizedBox.shrink();
+    final chapters = _bookmarkSheetChapters;
+    var bookmarks = _bookmarkRepository.load(mediaKey);
+    return StatefulBuilder(
+      builder: (context, setState) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 520),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('片头/片尾区间'),
+                  subtitle: Text(playerController.timelineSegmentRepository
+                              .load(mediaKey)
+                              ?.matches(
+                                  playerController.timelineMediaFingerprint,
+                                  playerController.duration) ==
+                          false
+                      ? '视频身份或时长已变化，原区间已保留，请重新确认'
+                      : '按当前视频设置，仅显示标记，不自动跳过或切集'),
+                  trailing: TextButton(
+                      onPressed: () async {
+                        if (mediaKey !=
+                                playerController.currentStableMediaKey ||
+                            playerController.duration <= Duration.zero) {
+                          return;
+                        }
+                        final fingerprint =
+                            playerController.timelineMediaFingerprint;
+                        final duration = playerController.duration;
+                        await showDialog<void>(
+                            context: context,
+                            builder: (_) => PlayerTimelineSegmentEditor(
+                                  duration: duration,
+                                  position: () =>
+                                      playerController.playerPosition,
+                                  initial: playerController
+                                          .timelineSegmentRepository
+                                          .load(mediaKey)
+                                          ?.segments ??
+                                      const [],
+                                  chapters: chapters,
+                                  onSave: (segments) async {
+                                    if (mediaKey !=
+                                            playerController
+                                                .currentStableMediaKey ||
+                                        fingerprint !=
+                                            playerController
+                                                .timelineMediaFingerprint ||
+                                        duration != playerController.duration) {
+                                      throw const FormatException(
+                                          '视频已切换或时长变化，请重新打开区间编辑器');
+                                    }
+                                    await playerController
+                                        .timelineSegmentRepository
+                                        .save(mediaKey,
+                                            fingerprint: fingerprint,
+                                            duration: duration,
+                                            segments: segments);
+                                    playerController.refreshTimelineSegments();
+                                  },
+                                ));
+                        if (context.mounted) setState(() {});
+                      },
+                      child: const Text('管理')),
+                ),
+                for (final segment in playerController.timelineSegmentRepository
+                        .load(mediaKey)
+                        ?.segments ??
+                    <PlayerTimelineSegment>[])
+                  ListTile(
+                      dense: true,
+                      title: Text(
+                          '${segment.label}：${formatPlayerTimelineTime(segment.start)} — ${formatPlayerTimelineTime(segment.end)}')),
+                if (chapters.isNotEmpty) ...[
+                  const ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.menu_book_outlined),
+                    title: Text('内嵌章节'),
+                    subtitle: Text('来自当前媒体文件，点击时间跳转'),
+                  ),
+                  for (final chapter in chapters)
+                    ListTile(
+                      leading: const Icon(Icons.bookmark_border),
+                      title: Text(_formatBookmarkPosition(chapter.position)),
+                      subtitle: Text(chapter.title),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        playerController.seek(chapter.position);
+                      },
+                    ),
+                ],
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.bookmark_outline),
+                  title: const Text('手动书签'),
+                  subtitle: Text(
+                    chapters.isEmpty
+                        ? '当前媒体没有可用的内嵌章节，可在当前位置添加书签'
+                        : '在内嵌章节之外保存自己的定位点',
+                  ),
+                  trailing: FilledButton.tonalIcon(
+                    onPressed: () async {
+                      bookmarks = await _bookmarkRepository.add(
+                        mediaKey,
+                        playerController.playerPosition,
+                        label: '手动书签',
+                      );
+                      if (context.mounted) setState(() {});
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('添加'),
+                  ),
+                ),
+                if (bookmarks.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: Center(child: Text('暂无书签')),
+                  ),
+                for (final bookmark in bookmarks)
+                  ListTile(
+                    leading: const Icon(Icons.bookmark),
+                    title: Text(_formatBookmarkPosition(bookmark.position)),
+                    subtitle: Text(
+                      bookmark.label.isEmpty ? '手动书签' : bookmark.label,
+                    ),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      playerController.seek(bookmark.position);
+                    },
+                    trailing: IconButton(
+                      tooltip: '删除书签',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () async {
+                        bookmarks = await _bookmarkRepository.remove(
+                          mediaKey,
+                          bookmark,
+                        );
+                        if (context.mounted) setState(() {});
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  String _formatBookmarkPosition(Duration position) {
+    final hours = position.inHours;
+    final minutes = position.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = position.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return hours > 0 ? '$hours:$minutes:$seconds' : '$minutes:$seconds';
+  }
+
   Widget _buildVideoInfo(BuildContext context) {
     return DefaultTabController(
       length: 2,
@@ -1167,9 +1357,15 @@ class PlayerItemState extends State<PlayerItem>
   @override
   void onWindowRestore() {}
 
+  void _refreshTimelineSegments() {
+    if (mounted) playerController.refreshTimelineSegments();
+  }
+
   @override
   void initState() {
     super.initState();
+    PlayerTimelineSegmentRepository.changes
+        .addListener(_refreshTimelineSegments);
     _capabilities = widget.capabilities ?? detectAppPlatform();
     _exitCoordinator = widget.exitCoordinator;
     _exitCoordinator.addListener(_stopInteractiveWorkForExit);
@@ -1230,6 +1426,8 @@ class PlayerItemState extends State<PlayerItem>
 
   @override
   void dispose() {
+    PlayerTimelineSegmentRepository.changes
+        .removeListener(_refreshTimelineSegments);
     // Don't dispose player here
     // We need to reuse the player after episode is changed and player item is disposed
     // We dispose player after video page disposed
@@ -1309,16 +1507,14 @@ class PlayerItemState extends State<PlayerItem>
                     playerController.setVolume(volume);
                   }
                 },
-                child: SizedBox(
-                  height: videoPageController.isFullscreen ||
-                          videoPageController.isPip
-                      ? (MediaQuery.of(context).size.height)
-                      : (MediaQuery.of(context).size.width * 9.0 / (16.0)),
-                  width: MediaQuery.of(context).size.width,
+                child: SizedBox.expand(
                   child: Stack(alignment: Alignment.center, children: [
                     PlayerOverlayPresenter(
                       coordinator: _overlayCoordinator,
                       videoInfoBuilder: _buildVideoInfo,
+                      otherBuilder: _buildPlayerBookmarks,
+                      otherShowDragHandle: true,
+                      otherUseSafeArea: true,
                       constraints: BoxConstraints(
                         maxHeight: MediaQuery.of(context).size.height * 3 / 4,
                         maxWidth: (Utils.isDesktop() || Utils.isTablet())
@@ -1400,6 +1596,7 @@ class PlayerItemState extends State<PlayerItem>
                               cancelHideTimer: cancelHideTimer,
                               showVideoInfo: showVideoInfo,
                               showSubtitleSettings: showSubtitleSettings,
+                              showBookmarks: showPlayerBookmarks,
                               onConfirmTrackLanguage:
                                   _showTrackLanguageConfirmationForTrack,
                               pauseForTimedShutdown:
@@ -1427,6 +1624,7 @@ class PlayerItemState extends State<PlayerItem>
                               cancelHideTimer: cancelHideTimer,
                               showVideoInfo: showVideoInfo,
                               showSubtitleSettings: showSubtitleSettings,
+                              showBookmarks: showPlayerBookmarks,
                               onConfirmTrackLanguage:
                                   _showTrackLanguageConfirmationForTrack,
                               pauseForTimedShutdown:

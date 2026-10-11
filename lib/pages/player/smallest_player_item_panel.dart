@@ -19,6 +19,7 @@ import 'package:kanyingyin/features/player/application/anime4k_policy.dart';
 import 'package:kanyingyin/pages/player/widgets/anime4k_status_label.dart';
 import 'package:kanyingyin/features/player/presentation/player_network_speed_presenter.dart';
 import 'package:kanyingyin/features/player/presentation/tv_remote_key_policy.dart';
+import 'package:kanyingyin/features/player/presentation/player_timeline_progress_bar.dart';
 
 class SmallestPlayerItemPanel extends StatefulWidget {
   const SmallestPlayerItemPanel({
@@ -37,6 +38,7 @@ class SmallestPlayerItemPanel extends StatefulWidget {
     required this.skipOP,
     required this.showVideoInfo,
     required this.showSubtitleSettings,
+    this.showBookmarks,
     required this.onConfirmTrackLanguage,
     required this.pauseForTimedShutdown,
     this.disableAnimations = false,
@@ -60,6 +62,7 @@ class SmallestPlayerItemPanel extends StatefulWidget {
   final void Function() cancelHideTimer;
   final void Function() showVideoInfo;
   final VoidCallback showSubtitleSettings;
+  final VoidCallback? showBookmarks;
   final void Function(EmbeddedTrackInfo track) onConfirmTrackLanguage;
   final VoidCallback pauseForTimedShutdown;
   final bool disableAnimations;
@@ -487,13 +490,18 @@ class _SmallestPlayerItemPanelState extends State<SmallestPlayerItemPanel> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ProgressBar(
+                PlayerTimelineProgressBar(
+                  segments: playerController.timelineSegments.toList(),
                   thumbRadius: 8,
                   thumbGlowRadius: 18,
                   timeLabelLocation: TimeLabelLocation.none,
                   progress: playerController.currentPosition,
                   buffered: playerController.buffer,
                   total: playerController.duration,
+                  videoPath: playerController.isLocalPlayback
+                      ? playerController.videoUrl
+                      : null,
+                  enablePreview: !playerController.lowMemoryMode,
                   onSeek: (duration) {
                     playerController.seek(duration);
                   },
@@ -626,6 +634,16 @@ class _SmallestPlayerItemPanelState extends State<SmallestPlayerItemPanel> {
                 );
               },
               menuChildren: [
+                if (widget.showBookmarks != null)
+                  MenuItemButton(
+                    onPressed: widget.showBookmarks,
+                    child: Container(
+                      height: 48,
+                      constraints: const BoxConstraints(minWidth: 112),
+                      alignment: Alignment.centerLeft,
+                      child: const Text('书签/章节'),
+                    ),
+                  ),
                 SubmenuButton(
                   menuChildren: List<MenuItemButton>.generate(
                     3,

@@ -13,6 +13,7 @@ class WindowUtils {
       await platform.invokeMethod('enterFullscreen');
     } on PlatformException catch (e) {
       AppLogger().e("进入 Windows 原生全屏失败：'${e.message}'。");
+      rethrow;
     }
   }
 
@@ -22,6 +23,7 @@ class WindowUtils {
       await platform.invokeMethod('exitFullscreen');
     } on PlatformException catch (e) {
       AppLogger().e("退出 Windows 原生全屏失败：'${e.message}'。");
+      rethrow;
     }
   }
 

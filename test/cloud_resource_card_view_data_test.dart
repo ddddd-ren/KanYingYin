@@ -36,7 +36,7 @@ void main() {
     expect(data.kind, CloudResourceCardKind.media);
     expect(data.title, '自定义片名');
     expect(data.subtitle, '目录原名');
-    expect(data.details, '8.7 ★  ·  电视剧  ·  2025');
+    expect(data.details, '8.7 ★  ·  剧集  ·  2025');
     expect(data.posterCachePath, r'C:\cache\poster.jpg');
     expect(data.posterUrl, '/poster.jpg');
     expect(data.badges.map((badge) => badge.label), <String>['已刮削']);
@@ -339,7 +339,7 @@ void main() {
 
     expect(data.title, '目录原名');
     expect(data.subtitle, isEmpty);
-    expect(data.details, '电影');
+    expect(data.details, '影片');
     expect(data.details, isNot(contains('··')));
   });
 }

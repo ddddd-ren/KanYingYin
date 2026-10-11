@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/bean/dialog/async_confirmation_dialog.dart';
 import 'package:kanyingyin/bean/widget/skeleton_loader.dart';
@@ -10,9 +11,11 @@ import 'package:kanyingyin/features/history/domain/playback_history_entry.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_presentation.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
-import 'package:kanyingyin/services/local_media_library_builder.dart';
+import 'package:kanyingyin/services/cloud/cloud_source_path_scope.dart';
 import 'package:kanyingyin/services/local_episode_parser.dart';
 import 'package:kanyingyin/services/local_playback_request_builder.dart';
 import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
@@ -20,9 +23,94 @@ import 'package:kanyingyin/widgets/cloud_poster_image.dart';
 import 'package:kanyingyin/widgets/poster_cover.dart';
 import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 import 'package:kanyingyin/utils/time_utils.dart';
+import 'package:kanyingyin/utils/logger.dart';
 import 'package:path/path.dart' as p;
 
 final _historyEpisodeParser = LocalEpisodeParser();
+
+String _localHistoryMediaId(String path) => path.startsWith('content://')
+    ? 'document:$path'
+    : LocalMediaIndexItem.normalizePath(path);
+
+bool _matchesCloudHistoryEpisode(
+  PlaybackHistoryEntry entry,
+  MediaLibraryEpisode episode,
+) {
+  if (episode.sourceKind != MediaSourceKind.cloud ||
+      episode.sourceId != entry.sourceId) {
+    return false;
+  }
+  final remoteId = entry.remoteId?.trim() ?? '';
+  return remoteId.isNotEmpty
+      ? episode.remoteId == remoteId
+      : episode.remotePath != null &&
+          CloudSourcePathScope.normalizePath(episode.remotePath!) ==
+              CloudSourcePathScope.normalizePath(entry.mediaPath);
+}
+
+MediaLibrarySeries? findCloudPlaybackHistorySourceSeries(
+  PlaybackHistoryEntry entry,
+  Iterable<MediaLibrarySeries> series,
+) {
+  if (!entry.isCloud) return null;
+  final matches = series.where((candidate) =>
+      candidate.sourceKind == MediaSourceKind.cloud &&
+      candidate.sourceId == entry.sourceId &&
+      candidate.episodes.any((episode) =>
+          _matchesCloudHistoryEpisode(entry, episode)));
+  final unique = matches.take(2).toList(growable: false);
+  return unique.length == 1 ? unique.single : null;
+}
+
+List<CloudPlaybackTarget> buildCloudPlaybackHistoryTargets(
+  MediaLibrarySeries series,
+  MediaLibraryEpisode selected, {
+  bool useSourcePlaybackIds = false,
+}) =>
+    [
+      for (final episode in series.playbackEpisodesFor(selected))
+        if (episode.remoteId != null && episode.remotePath != null)
+          CloudPlaybackTarget(
+            sourceId: episode.sourceId,
+            remoteId: episode.remoteId!,
+            remotePath: episode.remotePath!,
+            stableId: useSourcePlaybackIds
+                ? '${episode.sourceId}:${episode.remoteId}:${episode.remotePath}'
+                : episode.stableId,
+            title: episode.name,
+            episodeNumber: episode.episodeNumber,
+            subtitleRemoteId: episode.subtitleRemoteRefs.firstOrNull?.id,
+            subtitleRemotePath: episode.subtitleRemoteRefs.firstOrNull?.path,
+            posterUrl: episode.tmdbPosterUrl ?? series.tmdbPosterUrl,
+            posterCachePath: episode.posterCachePath ?? series.posterCachePath,
+            size: episode.size,
+            modifiedAt: episode.modifiedAt,
+          ),
+    ];
+
+String cloudPlaybackHistoryIndexedStableId(
+  PlaybackHistoryEntry entry,
+  String remoteId,
+  String remotePath,
+) =>
+    entry.stableKey.startsWith('${entry.sourceId}|${entry.sourceId}:')
+        ? '${entry.sourceId}:$remoteId:$remotePath'
+        : '${entry.sourceId}|$remoteId';
+
+PlaybackHistoryEntry resolvePlaybackHistorySeriesTitle(
+  PlaybackHistoryEntry entry,
+  Iterable<MediaLibrarySeries> cloudSeries, {
+  Map<String, String> localSourceTitlesByMediaId = const <String, String>{},
+}) {
+  final title = entry.isCloud
+      ? findCloudPlaybackHistorySourceSeries(entry, cloudSeries)?.title
+      : localSourceTitlesByMediaId[_localHistoryMediaId(entry.mediaPath)];
+  if (title == null || title.trim().isEmpty || title == entry.seriesTitle) {
+    return entry;
+  }
+  // 只替换界面快照，避免改名触发观看时间重排或覆盖播放进度。
+  return entry.copyWith(seriesTitle: title);
+}
 
 String formatPlaybackHistoryTitle(PlaybackHistoryEntry entry) {
   final raw =
@@ -61,8 +149,7 @@ PlaybackHistoryEntry resolveLocalPlaybackHistoryPoster(
   String? Function(Iterable<String>) posterUrlForPaths,
 ) {
   if (entry.isCloud) return entry;
-  final indexed =
-      localItemsById[LocalMediaIndexItem.normalizePath(entry.mediaPath)];
+  final indexed = localItemsById[_localHistoryMediaId(entry.mediaPath)];
   if (indexed == null) return entry;
   final cachedPoster = entry.posterCachePath?.trim();
   return entry.copyWith(
@@ -88,6 +175,8 @@ class _HistoryPageState extends State<HistoryPage> {
   final PlaybackHistoryController _history =
       Modular.get<PlaybackHistoryController>();
   final LocalController _local = Modular.get<LocalController>();
+  final CloudResourcesController _cloud =
+      Modular.get<CloudResourcesController>();
   final LocalVideoController _video = Modular.get<LocalVideoController>();
   final CloudPlaybackResolver _cloudResolver = CloudPlaybackResolver();
   bool _opening = false;
@@ -98,12 +187,28 @@ class _HistoryPageState extends State<HistoryPage> {
     super.initState();
     _local.reloadLocalLibraryIndex();
     unawaited(_history.ensureLoaded());
+    unawaited(_ensureSourceTitles());
+  }
+
+  Future<void> _ensureSourceTitles() async {
+    try {
+      await _cloud.ensureMediaLibrarySnapshot();
+    } on Object catch (error, stackTrace) {
+      AppLogger().w(
+        'HistoryPage: 来源剧名加载失败，保留观看历史快照',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: _history,
+      animation: Listenable.merge([
+        _history,
+        _cloud.mediaLibrarySnapshotListenable,
+      ]),
       builder: (context, _) => KSettingsScaffold(
         title: '观看历史',
         actions: [
@@ -113,7 +218,7 @@ class _HistoryPageState extends State<HistoryPage> {
             icon: const Icon(Icons.delete_sweep_outlined),
           ),
         ],
-        body: _historyBody(),
+        body: Observer(builder: (_) => _historyBody()),
       ),
     );
   }
@@ -136,6 +241,8 @@ class _HistoryPageState extends State<HistoryPage> {
     final localItemsById = <String, LocalMediaIndexItem>{
       for (final item in _local.localLibraryItems) item.id: item,
     };
+    final localSourceTitles = _local.localSourceTitlesByMediaId;
+    final cloudSeries = _cloud.mediaLibrarySnapshot.series;
     final rows = <Object>[];
     String? previousSection;
     for (final entry in entries) {
@@ -215,8 +322,13 @@ class _HistoryPageState extends State<HistoryPage> {
                         ),
                       );
                     }
+                    final original = row as PlaybackHistoryEntry;
                     final entry = resolveLocalPlaybackHistoryPoster(
-                      row as PlaybackHistoryEntry,
+                      resolvePlaybackHistorySeriesTitle(
+                        original,
+                        cloudSeries,
+                        localSourceTitlesByMediaId: localSourceTitles,
+                      ),
                       localItemsById,
                       _local.tmdbPosterUrlForPaths,
                     );
@@ -226,7 +338,7 @@ class _HistoryPageState extends State<HistoryPage> {
                       ),
                       entry: entry,
                       enabled: !_opening,
-                      onTap: () => _open(entry),
+                      onTap: () => _open(original),
                       onDelete: () => _delete(entry),
                     );
                   },
@@ -269,8 +381,14 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   Future<void> _openLocal(PlaybackHistoryEntry entry) async {
+    final resolved = resolvePlaybackHistorySeriesTitle(
+      entry,
+      const <MediaLibrarySeries>[],
+      localSourceTitlesByMediaId: _local.localSourceTitlesByMediaId,
+    );
     final LocalMediaIndexItem? indexed = _local.localLibraryItems
-        .where((candidate) => candidate.path == entry.mediaPath)
+        .where((candidate) =>
+            candidate.id == _localHistoryMediaId(entry.mediaPath))
         .firstOrNull;
     if (indexed == null) {
       if (!File(entry.mediaPath).existsSync()) {
@@ -278,20 +396,21 @@ class _HistoryPageState extends State<HistoryPage> {
       }
       await _video.openFilePlayback(
         filePath: entry.mediaPath,
-        seriesTitle: entry.seriesTitle,
+        seriesTitle: resolved.seriesTitle,
+        legacySeriesTitles: [entry.seriesTitle],
       );
       return;
     }
     // 使用媒体库中同系列剧集恢复原有选集顺序。
-    final series = const LocalMediaLibraryBuilder()
-        .buildSeries(_local.localLibraryItems)
+    final series = _local.localLibrarySeries
         .where((value) =>
-            value.episodes.any((episode) => episode.path == entry.mediaPath))
+            value.episodes.any((episode) => episode.id == indexed.id))
         .firstOrNull;
     if (series == null) {
       await _video.openFilePlayback(
         filePath: indexed.path,
-        seriesTitle: entry.seriesTitle,
+        seriesTitle: resolved.seriesTitle,
+        legacySeriesTitles: [entry.seriesTitle],
       );
       return;
     }
@@ -299,15 +418,22 @@ class _HistoryPageState extends State<HistoryPage> {
         .map((episode) => <String, String>{
               'path': episode.path,
               'name': episode.name,
-              'title': episode.displayTitle,
+              'title': episode.playbackTitleFor(resolved.seriesTitle),
             })
         .toList(growable: false);
     final playbackEntries = series.episodes
-        .map(LocalPlaybackEntry.fromIndexItem)
+        .map((episode) => LocalPlaybackEntry(
+              location: episode.location,
+              parentLocation: episode.parentLocation,
+              name: episode.name,
+              title: episode.playbackTitleFor(resolved.seriesTitle),
+              subtitlePath: episode.subtitlePath,
+            ))
         .toList(growable: false);
     await _video.openFilePlayback(
-      filePath: entry.mediaPath,
-      seriesTitle: series.displayTitle,
+      filePath: indexed.path,
+      seriesTitle: resolved.seriesTitle,
+      legacySeriesTitles: series.legacySeriesTitles,
       directoryFiles: directoryFiles,
       playbackEntries: playbackEntries,
       playlistAlreadyIsolated: true,
@@ -315,6 +441,43 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   Future<void> _openCloud(PlaybackHistoryEntry entry) async {
+    await _ensureSourceTitles();
+    final sourceSeries = findCloudPlaybackHistorySourceSeries(
+      entry,
+      _cloud.mediaLibrarySnapshot.series,
+    );
+    if (sourceSeries != null) {
+      final selectedMatches = sourceSeries.episodes
+          .where((episode) => _matchesCloudHistoryEpisode(entry, episode))
+          .take(2)
+          .toList(growable: false);
+      if (selectedMatches.length != 1) {
+        throw StateError('无法唯一定位来源剧集');
+      }
+      final selected = selectedMatches.single;
+      final targets = buildCloudPlaybackHistoryTargets(
+        sourceSeries,
+        selected,
+        useSourcePlaybackIds: entry.stableKey
+            .startsWith('${entry.sourceId}|${entry.sourceId}:'),
+      );
+      if (targets.isEmpty) throw StateError('网盘文件不在当前媒体库中');
+      final selectedTarget = targets.where((target) =>
+          target.sourceId == selected.sourceId &&
+          target.remoteId == selected.remoteId &&
+          target.remotePath == selected.remotePath).single;
+      await _video.openCloudPlayback(
+        seriesTitle: sourceSeries.title.trim().isEmpty
+            ? entry.seriesTitle
+            : sourceSeries.title,
+        workKey: sourceSeries.seriesKey,
+        legacySeriesTitles: sourceSeries.legacySeriesTitles,
+        targets: targets,
+        selectedStableId: selectedTarget.stableId,
+        resolver: _cloudResolver.resolve,
+      );
+      return;
+    }
     await _local.reloadCloudLibraryIndex();
     final indexed = _local.cloudLibraryItems.where(
       (item) =>
@@ -346,14 +509,19 @@ class _HistoryPageState extends State<HistoryPage> {
         sourceId: candidate.sourceId,
         remoteId: candidate.remoteId,
         remotePath: candidate.remotePath,
-        stableId:
-            '${candidate.sourceId}:${candidate.remoteId}:${candidate.remotePath}',
+        stableId: cloudPlaybackHistoryIndexedStableId(
+          entry,
+          candidate.remoteId,
+          candidate.remotePath,
+        ),
         title: candidate.displayName,
         episodeNumber: candidate.episodeNumber,
         subtitleRemoteId: subtitle?.id,
         subtitleRemotePath: subtitle?.path,
         posterUrl: candidate.tmdbPosterUrl,
         posterCachePath: candidate.posterCachePath,
+        size: candidate.size,
+        modifiedAt: candidate.modifiedAt,
       );
     }).toList(growable: false);
     final selected = targets
@@ -367,6 +535,7 @@ class _HistoryPageState extends State<HistoryPage> {
     await _video.openCloudPlayback(
       seriesTitle:
           entry.seriesTitle.isEmpty ? item.seriesName : entry.seriesTitle,
+      legacySeriesTitles: [entry.seriesTitle],
       targets: targets,
       selectedStableId: selected.stableId,
       resolver: _cloudResolver.resolve,

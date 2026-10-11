@@ -2,8 +2,57 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/configuration_transfer/domain/portable_app_configuration.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
 import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
+import 'package:kanyingyin/features/configuration_transfer/domain/portable_user_data.dart';
 
 void main() {
+  test('用户数据备份兼容旧包且目录重映射不误匹配相邻目录', () {
+    final legacy = PortableAppConfiguration.create(
+      exportedAt: DateTime.utc(2026),
+      appVersion: '2.1.219',
+      tmdbApiKey: '',
+      cloudSources: [],
+    ).toJson()
+      ..['formatVersion'] = 1;
+    legacy.remove('userData');
+    expect(PortableAppConfiguration.fromJson(legacy).userData, isNull);
+    final data = PortableUserData.fromJson({
+      'states': {
+        'old': {
+          'favorite': true,
+          'mediaIds': ['d:\\movies\\a.mp4']
+        }
+      },
+      'bookmarks': {
+        'local|d:\\movies\\a.mp4': [
+          {'positionMillis': 1000, 'label': '书签'}
+        ],
+        'local|d:\\movies2\\b.mp4': [
+          {'positionMillis': 2000}
+        ],
+      },
+      'history': [],
+      'localRoots': ['d:\\movies'],
+    });
+    final mapped = data.remap(localRoots: {'d:\\movies': 'e:\\videos'});
+    expect(mapped.bookmarks.keys, contains('local|e:\\videos\\a.mp4'));
+    expect(mapped.bookmarks.keys, contains('local|d:\\movies2\\b.mp4'));
+    expect(mapped.states['old']!.mediaIds, ['e:\\videos\\a.mp4']);
+    final cloud = PortableUserData.fromJson({
+      'bookmarks': {
+        'source|source|video': [
+          {'positionMillis': 1000}
+        ],
+        'source|source:video:/folder/video.mp4': [
+          {'positionMillis': 2000}
+        ],
+      }
+    }).remap(cloudSources: {'source': 'target'});
+    expect(
+        cloud.bookmarks.keys,
+        containsAll(
+            ['target|target|video', 'target|target:video:/folder/video.mp4']));
+  });
+
   test('便携配置往返时保留秘密但清除设备扫描状态', () {
     final exported = PortableAppConfiguration.create(
       exportedAt: DateTime.utc(2026, 8, 7, 1, 2, 3),

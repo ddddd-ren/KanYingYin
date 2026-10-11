@@ -10,6 +10,57 @@ import 'package:kanyingyin/pages/cloud/resources/cloud_resource_media_library_ad
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 
 void main() {
+  test('同来源不同作品共用旧剧名时不自动转移选轨偏好', () {
+    const source = CloudSource(
+      id: 'quark',
+      type: CloudSourceType.quark,
+      name: '夸克网盘',
+      baseUrl: 'https://pan.quark.cn',
+      rootPaths: <String>['/剧'],
+    );
+    final metadata = TmdbMetadata(
+      id: 42,
+      mediaType: TmdbMediaType.tv,
+      title: '旧同名剧',
+      language: 'zh-CN',
+      matchedAt: DateTime.utc(2026, 10, 11),
+      matchConfidence: 1,
+    );
+    final groups = [
+      for (final key in ['a', 'b'])
+        CloudResourceMediaGroup(
+          stableKey: key,
+          workKey: key,
+          displayName: '来源剧名$key',
+          seriesName: '来源剧名$key',
+          isSeries: true,
+          seasonNumber: 1,
+          videos: const [],
+          seasons: const [],
+          record: null,
+          workRecord: CloudWorkTmdbRecord.matched(
+            sourceId: source.id,
+            workKey: key,
+            workRootId: key,
+            workRootPath: '/剧/$key',
+            remoteName: key,
+            metadata: metadata,
+            checkedAt: DateTime.utc(2026, 10, 11),
+          ),
+        ),
+    ];
+    final result = const CloudResourceMediaLibraryAdapter().convert(
+      source: source,
+      collection: CloudResourceCollection(groups: groups),
+      indexedItems: const [],
+    );
+    for (final series in result) {
+      expect(series.legacySeriesTitles, isNot(contains('旧同名剧')));
+      expect(series.legacySeriesTitles, isNot(contains('旧同名剧 S01')));
+      expect(series.legacySeriesTitles, contains(series.title));
+    }
+  });
+
   test('网盘成品组转换后保留作品和剧集身份', () {
     const source = CloudSource(
       id: 'quark',
@@ -84,6 +135,8 @@ void main() {
     expect(series.single.title, group.displayName);
     expect(series.single.mediaType, TmdbMediaType.tv);
     expect(series.single.genres, <String>['动画']);
+    expect(series.single.tmdbMetadata, same(record.metadata));
+    expect(series.single.tmdbMetadata?.matchConfidence, 1);
     expect(series.single.tmdbPosterUrl, '/picked-season.jpg');
     expect(series.single.posterCachePath, isNull);
     expect(series.single.episodes.map((item) => item.remoteId), <String>[

@@ -39,6 +39,7 @@ class ImmersiveMediaCard extends StatefulWidget {
     this.onTap,
     this.onLongPress,
     this.onSecondaryTap,
+    this.watchProgress,
   });
 
   final Widget cover;
@@ -54,6 +55,7 @@ class ImmersiveMediaCard extends StatefulWidget {
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final VoidCallback? onSecondaryTap;
+  final double? watchProgress;
 
   @override
   State<ImmersiveMediaCard> createState() => _ImmersiveMediaCardState();
@@ -131,6 +133,18 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
                       ),
                     if (widget.trailing != null)
                       Positioned(top: 4, right: 4, child: widget.trailing!),
+                    if (widget.watchProgress case final progress?
+                        when progress > 0)
+                      Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: IgnorePointer(
+                              child: Semantics(
+                                  label: '观看进度 ${(progress * 100).round()}%',
+                                  child: LinearProgressIndicator(
+                                      value: progress.clamp(0, 1),
+                                      minHeight: 3)))),
                   ],
                 ),
               ),

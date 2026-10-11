@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "2.1.215"
+  #define MyAppVersion "2.1.224"
 #endif
 #ifndef BuildDir
   #define BuildDir "..\..\..\build\windows\x64\runner\Release"
@@ -16,6 +16,7 @@
 AppId={{50DD11C1-8DE7-4C2F-87F1-82D53B9D2C54}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
+VersionInfoVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={code:DefaultInstallDir}
 DisableDirPage=no

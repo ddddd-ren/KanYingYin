@@ -6,7 +6,7 @@ import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/local_playback_request_builder.dart';
 
 void main() {
-  test('索引中的 TMDB 集名进入本地播放列表标识', () async {
+  test('来源剧名和 TMDB 集名进入本地播放列表且保留媒体路径', () async {
     final item = LocalMediaIndexItem(
       path: r'D:\Anime\Show\Show.S01E01.mkv',
       name: 'Show.S01E01.mkv',
@@ -41,24 +41,25 @@ void main() {
 
     final request = await LocalPlaybackRequestBuilder().build(
       filePath: item.path,
-      fileName: '异世界悠闲农家',
+      fileName: '来源剧名 S01',
       playbackEntries: <LocalPlaybackEntry>[
-        LocalPlaybackEntry.fromIndexItem(item),
+        LocalPlaybackEntry(
+          location: item.location,
+          parentLocation: item.parentLocation,
+          name: item.name,
+          title: item.playbackTitleFor('来源剧名 S01'),
+          subtitlePath: item.subtitlePath,
+        ),
       ],
       playlistAlreadyIsolated: true,
       autoLoadSubtitle: false,
     );
 
     expect(request.road.identifier, <String>[
-      '异世界悠闲农家 S01E01 万能农具',
+      '来源剧名 S01E01 万能农具',
     ]);
-  });
-
-  test('本地媒体库页面把索引最终标题传给播放请求', () {
-    final source = File('lib/pages/local/local_page.dart').readAsStringSync();
-
-    expect(source, contains('return item.displayTitle;'));
-    expect(source, contains("'title': indexed.displayTitle"));
+    expect(request.title, '来源剧名 S01');
+    expect(request.videoPath, item.path);
   });
 
   test('LocalPlaybackRequestBuilder builds playlist request', () async {

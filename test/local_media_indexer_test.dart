@@ -3,15 +3,67 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
+import 'package:kanyingyin/modules/local/media_location.dart';
 import 'package:kanyingyin/repositories/local_media_index_repository.dart';
 import 'package:kanyingyin/repositories/local_series_title_override_repository.dart';
 import 'package:kanyingyin/services/local_media_indexer.dart';
+import 'package:kanyingyin/services/local_media_entry_provider.dart';
+import 'package:kanyingyin/services/file_system_media_entry_provider.dart';
 import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/services/local_media_probe.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
+  test('根目录暂时失效时保留旧索引并报告不可用', () async {
+    final dir = await Directory.systemTemp.createTemp('kyy_scan_offline_');
+    addTearDown(() => dir.delete(recursive: true));
+    final video = File(p.join(dir.path, 'Show S01E01.mkv'));
+    await video.writeAsString('video');
+    final repository = _MemoryMediaIndexRepository();
+    final provider = _FailingDirectoryProvider();
+    final indexer = LocalMediaIndexer(
+        repository: repository,
+        entryProviders: [provider],
+        minRecognizedVideoSizeBytes: 0);
+    await indexer.indexSource(dir.path);
+    provider.accessible = false;
+    final result = await indexer.indexSource(dir.path);
+    expect(result.sourceAccessible, isFalse);
+    expect(result.removedCount, 0);
+    expect(repository.getAll().single.path, video.path);
+    expect(result.changes.map((value) => value.kind),
+        isNot(contains(LocalMediaIndexChangeKind.removed)));
+  });
+
+  test('读取失败的子树保留旧记录且恢复后能重新扫描', () async {
+    final dir = await Directory.systemTemp.createTemp('kyy_scan_partial_');
+    addTearDown(() => dir.delete(recursive: true));
+    final child = await Directory(p.join(dir.path, 'Show')).create();
+    final deep = await Directory(p.join(child.path, 'Season 1')).create();
+    final video = File(p.join(deep.path, 'Show S01E01.mkv'));
+    await video.writeAsString('video');
+    final repository = _MemoryMediaIndexRepository();
+    final provider = _FailingDirectoryProvider();
+    final indexer = LocalMediaIndexer(
+        repository: repository,
+        entryProviders: [provider],
+        minRecognizedVideoSizeBytes: 0);
+    await indexer.indexSource(dir.path);
+    await File(p.join(dir.path, 'New.mkv')).writeAsString('new');
+    provider.failedPath = child.path;
+    final failed = await indexer.indexSource(dir.path);
+    expect(failed.failures, isNotEmpty);
+    expect(failed.removedCount, 0);
+    expect(repository.getAll().map((item) => item.path), contains(video.path));
+    provider.failedPath = null;
+    await video.delete();
+    final recovered = await indexer.indexSource(dir.path);
+    expect(recovered.removedCount, 1);
+    expect(repository.getAll().map((item) => item.path),
+        isNot(contains(video.path)));
+  });
+
   test('LocalMediaIndexer recursively indexes videos with metadata', () async {
     final tempDir = await Directory.systemTemp.createTemp('kanyingyin_index_');
     addTearDown(() async {
@@ -736,6 +788,7 @@ void main() {
     expect(result.addedCount, 0);
     expect(result.removedCount, 0);
     expect(repository.getAll().single.path, renamed.path);
+    expect(result.mediaIdAliases, {original.id: repository.getAll().single.id});
     expect(repository.getAll().single.effectiveTmdbIdentity, 'tv:42');
   });
 
@@ -780,6 +833,7 @@ void main() {
 
     expect(result.addedCount, 1);
     expect(result.removedCount, 1);
+    expect(result.mediaIdAliases, isEmpty);
     expect(repository.getAll().single.tmdb, isNull);
     expect(
       repository.getAll().single.durationMillis,
@@ -833,6 +887,23 @@ void main() {
     expect(result.removedCount, 2);
     expect(repository.getAll().map((item) => item.tmdb), everyElement(isNull));
   });
+}
+
+class _FailingDirectoryProvider implements LocalMediaEntryProvider {
+  bool accessible = true;
+  String? failedPath;
+  final _delegate = const FileSystemMediaEntryProvider();
+  @override
+  bool supports(MediaLocation location) => location.isFile;
+  @override
+  Future<bool> canAccess(MediaLocation location) async => accessible;
+  @override
+  Future<List<LocalMediaEntry>> listChildren(MediaLocation directory) {
+    if (directory.value == failedPath) {
+      throw const FileSystemException('目录读取失败');
+    }
+    return _delegate.listChildren(directory);
+  }
 }
 
 LocalMediaIndexer _testIndexer({

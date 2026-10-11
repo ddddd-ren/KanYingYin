@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/features/library/application/media_library_classification.dart';
+import 'package:kanyingyin/features/library/application/media_library_user_state.dart';
 import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/features/library/application/media_card_info.dart';
@@ -33,6 +35,10 @@ class CloudResourceCardViewData {
     required bool scraping,
     required bool hasSubtitle,
     String sourceName = '',
+    MediaLibrarySeries? librarySeries,
+    MediaLibraryUserState? userState,
+    MediaClassificationMode classificationMode =
+        MediaClassificationMode.conservative,
   }) {
     final hasMetadata = record?.status == CloudResourceTmdbStatus.matched ||
         record?.status == CloudResourceTmdbStatus.conflict;
@@ -43,21 +49,6 @@ class CloudResourceCardViewData {
     final title = effectiveTitle != null && effectiveTitle.isNotEmpty
         ? effectiveTitle
         : entry.name;
-    final details = <String>[];
-    if (hasMetadata) {
-      final rating = record?.rating;
-      if (rating != null) details.add('${rating.toStringAsFixed(1)} ★');
-      final mediaType = record?.mediaType;
-      if (mediaType != null) details.add(_formatMediaType(mediaType));
-      final year = _releaseYear(record?.releaseDate);
-      if (year != null) details.add(year);
-    }
-    if (!entry.isDirectory) {
-      details.add(_formatBytes(entry.size));
-      final modifiedAt = entry.modifiedAt;
-      if (modifiedAt != null) details.add(_formatDate(modifiedAt));
-    }
-
     final badges = <ImmersiveMediaCardBadge>[];
     if (kind == CloudResourceCardKind.media) {
       if (!entry.isDirectory && hasSubtitle) {
@@ -71,8 +62,9 @@ class CloudResourceCardViewData {
       badges.add(_scrapeBadge(record?.status, scraping: scraping));
     }
 
-    final unified = kind == CloudResourceCardKind.media
-        ? UnifiedMediaCardInfoBuilder.forSeries(
+    final series = kind == CloudResourceCardKind.directory
+        ? null
+        : librarySeries ??
             MediaLibrarySeries(
               key: entry.id,
               seriesKey: record?.effectiveTitle ?? entry.name,
@@ -110,9 +102,32 @@ class CloudResourceCardViewData {
                   (entry.seasonNumber != null || entry.episodeNumber != null
                       ? TmdbMediaType.tv
                       : TmdbMediaType.movie),
-            ),
+              genres: record?.genres ?? const [],
+            );
+    final unified = series != null
+        ? UnifiedMediaCardInfoBuilder.forSeries(
+            series,
+            userState: userState,
+            classificationMode: classificationMode,
           )
         : null;
+    final details = <String>[];
+    final rating = hasMetadata ? record?.rating : null;
+    if (rating != null) details.add('${rating.toStringAsFixed(1)} ★');
+    if (series != null &&
+        (hasMetadata ||
+            librarySeries != null ||
+            userState?.categoryOverride != null)) {
+      final label = _classificationLabel(series, userState, classificationMode);
+      if (label != null) details.add(label);
+    }
+    final year = hasMetadata ? _releaseYear(record?.releaseDate) : null;
+    if (year != null) details.add(year);
+    if (!entry.isDirectory) {
+      details.add(_formatBytes(entry.size));
+      final modifiedAt = entry.modifiedAt;
+      if (modifiedAt != null) details.add(_formatDate(modifiedAt));
+    }
     return CloudResourceCardViewData(
       kind: kind,
       title: title,
@@ -144,6 +159,10 @@ class CloudResourceCardViewData {
     required bool scraping,
     bool hasSubtitle = false,
     String sourceName = '',
+    MediaLibrarySeries? librarySeries,
+    MediaLibraryUserState? userState,
+    MediaClassificationMode classificationMode =
+        MediaClassificationMode.conservative,
   }) {
     final record = group.workRecord;
     final matched = record?.status == CloudWorkTmdbStatus.matched;
@@ -151,11 +170,52 @@ class CloudResourceCardViewData {
     final posterOverride = metadata?.imageOverride.posterForSeason(
       group.seasonNumber ?? group.seasonMetadata?.seasonNumber,
     );
+    final series = librarySeries ??
+        MediaLibrarySeries(
+          key: group.stableKey,
+          seriesKey: group.seriesName,
+          title: group.displayName,
+          sourceKind: MediaSourceKind.cloud,
+          sourceId: sourceName,
+          sourceName: sourceName.isEmpty ? '网盘' : '来源：$sourceName',
+          isAvailable: true,
+          episodes: [
+            for (final video in group.videos)
+              MediaLibraryEpisode.cloud(
+                stableId: video.id,
+                name: video.name,
+                sourceId: sourceName.isEmpty ? 'cloud' : sourceName,
+                sourceName: sourceName.isEmpty ? '网盘' : '来源：$sourceName',
+                isAvailable: true,
+                remoteId: video.id,
+                remotePath: video.remotePath,
+                size: video.size,
+                modifiedAt: video.modifiedAt,
+                seasonNumber: video.seasonNumber,
+                episodeNumber: video.episodeNumber,
+                subtitleRemotePaths:
+                    hasSubtitle ? const ['/subtitle.srt'] : const [],
+                releaseTags: video.releaseTags,
+              ),
+          ],
+          tmdbTitle: matched ? metadata?.title : null,
+          tmdbRating: matched ? metadata?.rating : null,
+          tmdbReleaseDate: matched ? metadata?.releaseDate : null,
+          tmdbPosterUrl: matched ? posterOverride ?? metadata?.posterUrl : null,
+          mediaType: metadata?.mediaType ?? group.record?.mediaType,
+          genres: metadata?.genres ?? group.record?.genres ?? const [],
+          tmdbMetadata: metadata,
+        );
+    final unified = UnifiedMediaCardInfoBuilder.forSeries(
+      series,
+      userState: userState,
+      classificationMode: classificationMode,
+    );
     final details = <String>[];
     final rating = metadata?.rating;
     if (rating != null) details.add('${rating.toStringAsFixed(1)} ★');
-    final mediaType = metadata?.mediaType;
-    if (mediaType != null) details.add(_formatMediaType(mediaType));
+    final label = _classificationLabel(series, userState, classificationMode);
+    if (label != null) details.add(label);
     final year = _releaseYear(metadata?.releaseDate);
     if (year != null) details.add(year);
     if (group.isSeries) {
@@ -163,41 +223,6 @@ class CloudResourceCardViewData {
     } else if (group.videos.isNotEmpty) {
       details.add(_formatBytes(group.videos.first.size));
     }
-    final unified = UnifiedMediaCardInfoBuilder.forSeries(
-      MediaLibrarySeries(
-        key: group.stableKey,
-        seriesKey: group.seriesName,
-        title: group.displayName,
-        sourceKind: MediaSourceKind.cloud,
-        sourceId: sourceName,
-        sourceName: sourceName.isEmpty ? '网盘' : '来源：$sourceName',
-        isAvailable: true,
-        episodes: [
-          for (final video in group.videos)
-            MediaLibraryEpisode.cloud(
-              stableId: video.id,
-              name: video.name,
-              sourceId: sourceName.isEmpty ? 'cloud' : sourceName,
-              sourceName: sourceName.isEmpty ? '网盘' : '来源：$sourceName',
-              isAvailable: true,
-              remoteId: video.id,
-              remotePath: video.remotePath,
-              size: video.size,
-              modifiedAt: video.modifiedAt,
-              seasonNumber: video.seasonNumber,
-              episodeNumber: video.episodeNumber,
-              subtitleRemotePaths:
-                  hasSubtitle ? const ['/subtitle.srt'] : const [],
-              releaseTags: video.releaseTags,
-            ),
-        ],
-        tmdbTitle: matched ? metadata?.title : null,
-        tmdbRating: matched ? metadata?.rating : null,
-        tmdbReleaseDate: matched ? metadata?.releaseDate : null,
-        tmdbPosterUrl: matched ? posterOverride ?? metadata?.posterUrl : null,
-        mediaType: metadata?.mediaType,
-      ),
-    );
     return CloudResourceCardViewData(
       kind: CloudResourceCardKind.media,
       title: group.displayName,
@@ -304,10 +329,19 @@ class CloudResourceCardViewData {
     );
   }
 
-  static String _formatMediaType(TmdbMediaType mediaType) {
-    return switch (mediaType) {
-      TmdbMediaType.movie => '电影',
-      TmdbMediaType.tv => '电视剧',
+  static String? _classificationLabel(
+    MediaLibrarySeries series,
+    MediaLibraryUserState? userState,
+    MediaClassificationMode mode,
+  ) {
+    final result = const MediaClassificationResolver()
+        .resolve(series, state: userState, mode: mode);
+    if (result.categories.isNotEmpty) return result.categories.join(' · ');
+    if (userState?.categoryOverride != null) return '未分类';
+    return switch (series.mediaType) {
+      TmdbMediaType.movie => '影片',
+      TmdbMediaType.tv => '剧集',
+      null => null,
     };
   }
 

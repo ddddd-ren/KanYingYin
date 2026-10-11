@@ -1,6 +1,10 @@
 // ignore_for_file: avoid_print
 
 import 'dart:async';
+import 'dart:io';
+import 'package:kanyingyin/features/player/application/player_bookmark.dart';
+import 'package:kanyingyin/features/player/application/player_timeline_segments.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
@@ -24,6 +28,7 @@ import 'package:kanyingyin/features/player/application/anime4k_coordinator.dart'
 import 'package:kanyingyin/features/player/application/anime4k_policy.dart';
 import 'package:kanyingyin/features/player/application/anime4k_shader_executor.dart';
 import 'package:kanyingyin/features/player/application/embedded_track_language_preferences.dart';
+import 'package:kanyingyin/features/player/application/track_selection_preferences.dart';
 import 'package:kanyingyin/features/player/application/player_runtime_preferences.dart';
 import 'package:kanyingyin/features/player/application/player_color_profile.dart';
 import 'package:kanyingyin/features/player/application/player_decoder_recovery_policy.dart';
@@ -31,6 +36,7 @@ import 'package:kanyingyin/features/player/application/player_resource_disposer.
 import 'package:kanyingyin/features/player/application/subtitle_preferences.dart';
 import 'package:kanyingyin/features/player/application/truehd_fallback_policy.dart';
 import 'package:kanyingyin/pages/player/models/embedded_track_info.dart';
+import 'package:kanyingyin/features/player/application/player_chapter.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/utils/external_player.dart';
@@ -157,6 +163,8 @@ abstract class _PlayerController with Store {
       EmbeddedTrackSelectionState();
   final SubtitleTrackSelectionState _subtitleTrackSelection =
       SubtitleTrackSelectionState();
+  int _audioTrackRequestRevision = 0;
+  int _subtitleTrackRequestRevision = 0;
   final TrackLanguageConfirmationState _trackLanguageConfirmationState =
       TrackLanguageConfirmationState();
 
@@ -194,6 +202,81 @@ abstract class _PlayerController with Store {
 
   // 播放器实时状态
   bool get hasActivePlayer => !_disposeRequested && mediaPlayer != null;
+  String _timelineMediaRevision = '';
+  // shortcut: 以大小、修改时间和时长检测替换；需要识别相同元数据的内容替换时再引入内容哈希。
+  String get timelineMediaFingerprint => _timelineMediaRevision;
+  final ObservableList<PlayerTimelineSegment> timelineSegments =
+      ObservableList();
+  late final PlayerTimelineSegmentRepository timelineSegmentRepository =
+      PlayerTimelineSegmentRepository(TypedSettingsPlayerBookmarkStorage(
+          _runtimePreferences.settings,
+          storageKey: SettingBoxKey.playerTimelineSegments));
+  void refreshTimelineSegments() {
+    final key = currentStableMediaKey;
+    timelineSegments
+      ..clear()
+      ..addAll(key == null
+          ? const []
+          : timelineSegmentRepository.visibleSegments(key,
+              fingerprint: timelineMediaFingerprint, duration: duration));
+  }
+
+  String? get currentStableMediaKey {
+    final stable = _lastInitParams?.stableMediaKey?.trim();
+    if (stable != null && stable.isNotEmpty) return stable;
+    final fallback = videoUrl.trim();
+    return fallback.isEmpty ? null : fallback;
+  }
+
+  late final TrackSelectionPreferences _trackPreferences =
+      TrackSelectionPreferences(TypedSettingsPlayerBookmarkStorage(
+          _runtimePreferences.settings,
+          storageKey: SettingBoxKey.trackSelectionPreferences));
+  String get _trackPreferenceKey => _lastInitParams?.trackPreferenceKey ?? '';
+  Future<void> _rememberTrack(String workKey, EmbeddedTrackInfo? track) async {
+    if (track == null || workKey.isEmpty) return;
+    try {
+      await _trackPreferences.save(workKey, track);
+    } on Object {
+      AppDialog.showToast(message: '已切换轨道，但跨集偏好保存失败');
+    }
+  }
+
+  Future<List<PlayerChapter>> loadEmbeddedChapters() async {
+    final platform = mediaPlayer?.platform;
+    if (_disposeRequested || platform is! NativePlayer) {
+      return const <PlayerChapter>[];
+    }
+    try {
+      final count = int.tryParse(
+            await platform.getProperty('chapter-list/count'),
+          ) ??
+          0;
+      if (count <= 0) return const <PlayerChapter>[];
+      final chapters = <PlayerChapter>[];
+      for (var index = 0; index < count && index < 200; index++) {
+        final time = await platform.getProperty('chapter-list/$index/time');
+        try {
+          final title = await platform.getProperty('chapter-list/$index/title');
+          chapters.add(PlayerChapter.fromMpvValues(
+            index: index,
+            title: title,
+            time: time,
+          ));
+        } on FormatException {
+          // 单个章节损坏时保留其他章节。
+        }
+      }
+      return List<PlayerChapter>.unmodifiable(chapters);
+    } on Object catch (error, stackTrace) {
+      AppLogger().w(
+        'PlayerController: failed to read embedded chapters',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return const <PlayerChapter>[];
+    }
+  }
 
   bool get anime4kShadersAvailable =>
       anime4kSupported && shadersController.shadersDirectory != null;
@@ -387,6 +470,9 @@ abstract class _PlayerController with Store {
       _resetEmbeddedTrackState();
     }
     _lastInitParams = params;
+    timelineSegments.clear();
+    _timelineMediaRevision =
+        params.mediaRevision ?? 'remote:${params.totalBytes ?? ''}';
     _embeddedTrackCoordinator.beginMedia(_currentTrackLanguageMediaKey());
     videoUrl = params.videoUrl;
     isLocalPlayback = params.isLocalPlayback;
@@ -418,6 +504,17 @@ abstract class _PlayerController with Store {
     buffer = Duration.zero;
     duration = Duration.zero;
     completed = false;
+    if (params.isLocalPlayback) {
+      try {
+        final stat = await File(params.videoUrl).stat();
+        _timelineMediaRevision = stat.type == FileSystemEntityType.file
+            ? 'file:${stat.size}:${stat.modified.microsecondsSinceEpoch}'
+            : 'unverified:${mediaToken.hashCode}';
+      } on FileSystemException {
+        _timelineMediaRevision = 'unverified:${mediaToken.hashCode}';
+      }
+      if (!_isMediaOperationActive(mediaToken, lifecycleToken)) return false;
+    }
     final runtimeSettings = _runtimePreferences.load();
     androidAutoEnterPip = runtimeSettings.androidAutoEnterPip;
     playerSpeed = runtimeSettings.playSpeed;
@@ -918,11 +1015,18 @@ abstract class _PlayerController with Store {
     if (!LocalSubtitleMatcher.isSupportedSubtitlePath(subtitlePath)) {
       return false;
     }
+    final player = mediaPlayer;
+    final params = _lastInitParams;
+    if (player == null) return false;
     _subtitleTrackSelection.markManualSelection();
+    final revision = ++_subtitleTrackRequestRevision;
+    bool isCurrent() => !_disposeRequested &&
+        identical(player, mediaPlayer) &&
+        identical(params, _lastInitParams) &&
+        revision == _subtitleTrackRequestRevision;
     try {
       await _clearSubtitleTrackForSwitch();
-      final player = mediaPlayer;
-      if (player == null) return false;
+      if (!isCurrent()) return false;
       await player.setSubtitleTrack(
         SubtitleTrack.uri(
           MediaUriUtils.toPlayableUri(
@@ -935,13 +1039,16 @@ abstract class _PlayerController with Store {
           language: 'auto',
         ),
       );
+      if (!isCurrent()) return false;
       final pp = player.platform;
       if (pp is NativePlayer) {
         await _setFlutterSubtitleMode(pp);
       }
+      if (!isCurrent()) return false;
       _setCurrentSubtitlePath(subtitlePath);
       selectedEmbeddedSubtitleTrackId = '';
       await applySubtitleStyle(save: false);
+      if (!isCurrent()) return false;
       AppLogger().i('PlayerController: loaded subtitle $subtitlePath');
       return true;
     } catch (e) {
@@ -951,31 +1058,48 @@ abstract class _PlayerController with Store {
     }
   }
 
-  Future<void> _disableSubtitleTrack({bool clearCurrentPath = false}) async {
-    if (clearCurrentPath) {
-      _setCurrentSubtitlePath('');
-    }
-    selectedEmbeddedSubtitleTrackId = '';
+  Future<bool> _disableSubtitleTrack({bool clearCurrentPath = false}) async {
     final player = mediaPlayer;
-    if (player == null) return;
+    final params = _lastInitParams;
+    final revision = _subtitleTrackRequestRevision;
+    if (player == null) return false;
+    bool isCurrent() => !_disposeRequested &&
+        identical(player, mediaPlayer) &&
+        identical(params, _lastInitParams) &&
+        revision == _subtitleTrackRequestRevision;
     try {
       await player.setSubtitleTrack(SubtitleTrack.no());
     } catch (e) {
       AppLogger().w(
           'PlayerController: failed to disable media_kit subtitle track',
           error: e);
+      return false;
     }
+    if (!isCurrent()) return false;
     final pp = player.platform;
     if (pp is NativePlayer) {
-      await _trySetNativeSubtitleProperty(pp, 'sub-visibility', 'no');
-      await _trySetNativeSubtitleProperty(pp, 'secondary-sub-visibility', 'no');
-      await _trySetNativeSubtitleProperty(pp, 'sid', 'no');
-      await _trySetNativeSubtitleProperty(pp, 'secondary-sid', 'no');
+      for (final property in [
+        'sub-visibility',
+        'secondary-sub-visibility',
+        'sid',
+        'secondary-sid'
+      ]) {
+        if (!isCurrent()) return false;
+        await _trySetNativeSubtitleProperty(pp, property, 'no');
+      }
     }
+    if (!isCurrent()) return false;
+    if (clearCurrentPath) {
+      _setCurrentSubtitlePath('');
+    }
+    selectedEmbeddedSubtitleTrackId = '';
+    return true;
   }
 
-  Future<void> _clearSubtitleTrackForSwitch() {
-    return _disableSubtitleTrack(clearCurrentPath: true);
+  Future<void> _clearSubtitleTrackForSwitch() async {
+    if (!await _disableSubtitleTrack(clearCurrentPath: true)) {
+      throw StateError('字幕关闭失败');
+    }
   }
 
   Future<void> _prepareSubtitleTrackState(NativePlayer player) async {
@@ -1015,20 +1139,41 @@ abstract class _PlayerController with Store {
   @action
   Future<bool> selectAudioTrack(String trackId, {bool manual = true}) async {
     final player = mediaPlayer;
+    final params = _lastInitParams;
+    final workKey = _trackPreferenceKey;
     if (player == null) return false;
     final track = player.state.tracks.audio
         .where((item) => item.id == trackId)
         .firstOrNull;
     if (track == null) return false;
+    if (!manual && !_embeddedTrackSelection.canAutomaticallySelectAudio) {
+      return false;
+    }
+    if (manual) _embeddedTrackSelection.markAudioSelectedManually();
+    final revision = ++_audioTrackRequestRevision;
+    bool isCurrent() => !_disposeRequested &&
+        identical(player, mediaPlayer) &&
+        identical(params, _lastInitParams) &&
+        revision == _audioTrackRequestRevision &&
+        (manual || _embeddedTrackSelection.canAutomaticallySelectAudio);
     final previousId = selectedAudioTrackId;
     try {
       await _prepareAudioTrackOutput(player, track);
+      if (!isCurrent()) return false;
       await player.setAudioTrack(track);
+      if (!isCurrent()) return false;
       selectedAudioTrackId = track.id;
-      if (manual) _embeddedTrackSelection.markAudioSelectedManually();
+      if (manual) {
+        await _rememberTrack(
+            workKey,
+            availableAudioTracks
+                .where((value) => value.id == track.id)
+                .firstOrNull);
+      }
       AppLogger().i('PlayerController: selected audio track ${track.id}');
       return true;
     } catch (e) {
+      if (!isCurrent()) return false;
       selectedAudioTrackId = previousId;
       AppLogger().e(
           'PlayerController: failed to select audio track ${track.id}',
@@ -1042,33 +1187,61 @@ abstract class _PlayerController with Store {
   Future<bool> selectEmbeddedSubtitleTrack(String trackId,
       {bool manual = true}) async {
     final player = mediaPlayer;
+    final params = _lastInitParams;
+    final workKey = _trackPreferenceKey;
+    final automaticRevision = _subtitleTrackSelection.beginAutomaticSelection();
     if (player == null) return false;
     final track = player.state.tracks.subtitle
         .where((item) => item.id == trackId && !item.uri && !item.data)
         .firstOrNull;
     if (track == null) return false;
+    if (!manual &&
+        !_subtitleTrackSelection.canApplyAutomaticSelection(automaticRevision)) {
+      return false;
+    }
     final previousId = selectedEmbeddedSubtitleTrackId;
     if (manual) {
       _subtitleTrackSelection.markManualSelection();
     }
+    final revision = ++_subtitleTrackRequestRevision;
+    bool isCurrent() => !_disposeRequested &&
+        identical(player, mediaPlayer) &&
+        identical(params, _lastInitParams) &&
+        revision == _subtitleTrackRequestRevision &&
+        (manual ||
+            _subtitleTrackSelection.canApplyAutomaticSelection(automaticRevision));
     try {
       await _clearSubtitleTrackForSwitch();
+      if (!isCurrent()) return false;
       await player.setSubtitleTrack(track);
+      if (!isCurrent()) return false;
       final platform = player.platform;
       if (platform is NativePlayer) {
         await _trySetNativeSubtitleProperty(platform, 'sub-visibility', 'yes');
+        if (!isCurrent()) return false;
         await _trySetNativeSubtitleProperty(platform, 'secondary-sid', 'no');
+        if (!isCurrent()) return false;
         await _trySetNativeSubtitleProperty(
           platform,
           'secondary-sub-visibility',
           'no',
         );
+        if (!isCurrent()) return false;
         await _trySetNativeSubtitleProperty(platform, 'sid', track.id);
       }
+      if (!isCurrent()) return false;
       selectedEmbeddedSubtitleTrackId = track.id;
+      if (manual) {
+        await _rememberTrack(
+            workKey,
+            availableEmbeddedSubtitleTracks
+                .where((value) => value.id == track.id)
+                .firstOrNull);
+      }
       AppLogger().i('PlayerController: selected embedded subtitle ${track.id}');
       return true;
     } catch (e) {
+      if (!isCurrent()) return false;
       selectedEmbeddedSubtitleTrackId = previousId;
       AppLogger().e(
         'PlayerController: failed to select embedded subtitle ${track.id}',
@@ -1080,6 +1253,8 @@ abstract class _PlayerController with Store {
   }
 
   void _resetEmbeddedTrackState() {
+    _audioTrackRequestRevision++;
+    _subtitleTrackRequestRevision++;
     _embeddedTrackSelection.reset();
     _subtitleTrackSelection.reset();
     _trackLanguageConfirmationState.reset();
@@ -1266,34 +1441,68 @@ abstract class _PlayerController with Store {
   }
 
   Future<void> _selectDefaultEmbeddedTracks() async {
+    final params = _lastInitParams;
+    if (params != null && params.legacyTrackPreferenceKeys.isNotEmpty) {
+      try {
+        await _trackPreferences.migrate(
+          params.trackPreferenceKey ?? '',
+          params.legacyTrackPreferenceKeys,
+        );
+      } on Object catch (error) {
+        AppLogger().w('PlayerController: track preference migration failed',
+            error: error);
+      }
+      if (!identical(params, _lastInitParams) || _disposeRequested) return;
+    }
     final shouldSelectAudio = _embeddedTrackSelection.beginAutomaticSelection(
       hasAudioTracks: availableAudioTracks.isNotEmpty,
     );
     final automaticSubtitleSelection =
         _subtitleTrackSelection.beginAutomaticSelection();
     final current = mediaPlayer?.state.track;
-    final audio = selectPreferredAudioTrack(
+    final audio = selectTrackByPreferences(
       availableAudioTracks,
+      series: _trackPreferences.load(
+          _trackPreferenceKey, EmbeddedTrackType.audio,
+          legacyWorkKeys: params?.legacyTrackPreferenceKeys ?? const []),
+      global: globalTrackPreference(
+          _runtimePreferences.settings.read<String>(
+              SettingBoxKey.preferredAudioLanguage,
+              defaultValue: 'zh'),
+          EmbeddedTrackType.audio),
       defaultTrackId: current?.audio.id,
     );
-    final subtitle = selectPreferredSubtitleTrack(
-          availableEmbeddedSubtitleTracks,
-          defaultTrackId: current?.subtitle.id,
-        ) ??
-        availableEmbeddedSubtitleTracks.firstOrNull;
+    final seriesSubtitle = _trackPreferences.load(
+        _trackPreferenceKey, EmbeddedTrackType.subtitle,
+        legacyWorkKeys: params?.legacyTrackPreferenceKeys ?? const []);
+    final globalSubtitle = globalTrackPreference(
+        _runtimePreferences.settings.read<String>(
+            SettingBoxKey.preferredSubtitleLanguage,
+            defaultValue: 'zh-Hans'),
+        EmbeddedTrackType.subtitle);
+    final subtitle = selectTrackByPreferences(
+      availableEmbeddedSubtitleTracks,
+      series: seriesSubtitle,
+      global: globalSubtitle,
+      defaultTrackId: current?.subtitle.id,
+    );
     if (shouldSelectAudio &&
         audio != null &&
         _embeddedTrackSelection.canAutomaticallySelectAudio) {
       await selectAudioTrack(audio.id, manual: false);
     }
     if (!_subtitleTrackSelection.canApplyAutomaticSelection(
-      automaticSubtitleSelection,
-    )) {
+          automaticSubtitleSelection,
+        ) ||
+        !identical(params, _lastInitParams) ||
+        _disposeRequested) {
       return;
     }
     if (subtitle != null && currentSubtitlePath.isEmpty) {
       await selectEmbeddedSubtitleTrack(subtitle.id, manual: false);
-    } else if (subtitle == null && currentSubtitlePath.isEmpty) {
+    } else if (currentSubtitlePath.isEmpty &&
+        (seriesSubtitle?.code == 'off' ||
+            (seriesSubtitle == null && globalSubtitle?.code == 'off'))) {
       await _disableSubtitleTrack();
     }
     AppLogger().i(
@@ -1370,9 +1579,24 @@ abstract class _PlayerController with Store {
 
   @action
   Future<void> clearSubtitle() async {
+    final workKey = _trackPreferenceKey;
+    final player = mediaPlayer;
+    final params = _lastInitParams;
     _subtitleTrackSelection.markManualSelection();
+    final revision = ++_subtitleTrackRequestRevision;
     try {
-      await _disableSubtitleTrack(clearCurrentPath: true);
+      await _clearSubtitleTrackForSwitch();
+      if (_disposeRequested ||
+          !identical(player, mediaPlayer) ||
+          !identical(params, _lastInitParams) ||
+          revision != _subtitleTrackRequestRevision) {
+        return;
+      }
+      try {
+        await _trackPreferences.saveSubtitleOff(workKey);
+      } on Object {
+        AppDialog.showToast(message: '字幕已关闭，但跨集偏好保存失败');
+      }
       AppLogger().i('PlayerController: subtitle disabled');
     } catch (e) {
       AppLogger().w('PlayerController: failed to disable subtitle', error: e);

@@ -1,4 +1,5 @@
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:flutter/foundation.dart';
 import 'package:kanyingyin/features/library/application/media_category_runtime.dart';
 import 'package:kanyingyin/features/library/application/media_library_category.dart';
 import 'package:kanyingyin/features/library/presentation/media_category_page.dart';
@@ -35,7 +36,20 @@ class MediaCategoryModule extends Module {
         libraryProvider: () => runtime.library,
         onPlayEpisode: runtime.playEpisode,
         onHideEpisodes: runtime.hideEpisodes,
-        libraryListenable: cloudController.mediaLibrarySnapshotListenable,
+        userStatesProvider: () => runtime.userStates,
+        onUserStateChanged: runtime.saveUserState,
+        onClassificationChanged: runtime.saveClassification,
+        reconcileUserStates: runtime.reconcileUserStates,
+        onRelinkUserState: runtime.relinkUserState,
+        watchStatesProvider: () => runtime.watchStates,
+        onWatchedChanged: runtime.setWatched,
+        classificationModeProvider: () => runtime.classificationMode,
+        onClassificationModeChanged: runtime.setClassificationMode,
+        onDispose: runtime.dispose,
+        libraryListenable: Listenable.merge([
+          cloudController.mediaLibrarySnapshotListenable,
+          runtime,
+        ]),
       );
     });
   }

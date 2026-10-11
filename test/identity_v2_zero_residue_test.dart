@@ -5,6 +5,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/utils/app_identity.dart';
 
 void main() {
+  test('上游署名仅放行明确文档，不豁免活动源码', () {
+    expect(_allowsAttribution('UPSTREAM.md'), isTrue);
+    expect(_allowsAttribution('lib/services/UPSTREAM.dart'), isFalse);
+    expect(_allowsAttribution('lib/utils/app_identity.dart'), isFalse);
+    expect(_allowsAttribution('windows/runner/main.cpp'), isFalse);
+  });
   test('所有项目文本统一使用看影音产品名称', () {
     final forbiddenNames = <String>[
       String.fromCharCodes([23601, 30475]),
@@ -221,6 +227,7 @@ String? _yamlField(String block, String key) {
 bool _allowsAttribution(String path) {
   final normalized = path.replaceAll('\\', '/');
   return normalized == 'README.md' ||
+      normalized == 'UPSTREAM.md' ||
       normalized == 'lib/pages/about/about_page.dart' ||
       normalized == 'test/about_page_content_test.dart' ||
       normalized == 'test/version_consistency_test.dart' ||

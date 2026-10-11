@@ -108,6 +108,8 @@ class PlaybackHistoryEntry {
   }
 
   PlaybackHistoryEntry copyWith({
+    String? stableKey,
+    String? seriesTitle,
     int? positionSeconds,
     int? durationSeconds,
     DateTime? updatedAt,
@@ -115,10 +117,10 @@ class PlaybackHistoryEntry {
     String? posterCachePath,
   }) {
     return PlaybackHistoryEntry(
-      stableKey: stableKey,
+      stableKey: stableKey ?? this.stableKey,
       source: source,
       sourceId: sourceId,
-      seriesTitle: seriesTitle,
+      seriesTitle: seriesTitle ?? this.seriesTitle,
       episodeTitle: episodeTitle,
       mediaPath: mediaPath,
       remoteId: remoteId,

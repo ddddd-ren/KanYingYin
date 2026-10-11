@@ -403,6 +403,9 @@ class TmdbClient
           : fallback.backdropUrl,
       genres: _mergeGenres(primary.genres, fallback.genres),
       seasons: _mergeSeasons(primary.seasons, fallback.seasons),
+      cast: _mergePeople(primary.cast, fallback.cast),
+      directors: _mergePeople(primary.directors, fallback.directors),
+      similar: _mergeSimilar(primary.similar, fallback.similar),
       popularity: primary.popularity ?? fallback.popularity,
       voteCount: primary.voteCount ?? fallback.voteCount,
     );
@@ -439,7 +442,11 @@ class TmdbClient
     final response = await _withEndpointRecovery(
       (dio, baseUrl) => dio.get<Map<String, dynamic>>(
         '$baseUrl/${mediaType == TmdbMediaType.movie ? 'movie' : 'tv'}/$id',
-        queryParameters: {..._authenticationQuery, 'language': language},
+        queryParameters: {
+          ..._authenticationQuery,
+          'language': language,
+          'append_to_response': 'credits,similar',
+        },
         options: _authenticationOptions,
       ),
     );
@@ -474,7 +481,55 @@ class TmdbClient
       matchConfidence: 0,
       genres: _genreNames(json['genres']),
       seasons: _seasonsFromJson(json, mediaType),
+      cast: _castFromJson(json['credits']),
+      directors: _directorsFromJson(json['credits']),
+      similar: _similarFromJson(json['similar'], mediaType),
     );
+  }
+
+  List<TmdbPersonMetadata> _castFromJson(Object? value) {
+    if (value is! Map) return const <TmdbPersonMetadata>[];
+    final cast = value['cast'];
+    if (cast is! List) return const <TmdbPersonMetadata>[];
+    return cast
+        .whereType<Map<Object?, Object?>>()
+        .map(TmdbPersonMetadata.fromJson)
+        .where((person) => person.id > 0 && person.name.isNotEmpty)
+        .take(20)
+        .toList(growable: false);
+  }
+
+  List<TmdbPersonMetadata> _directorsFromJson(Object? value) {
+    if (value is! Map) return const <TmdbPersonMetadata>[];
+    final crew = value['crew'];
+    if (crew is! List) return const <TmdbPersonMetadata>[];
+    return crew
+        .whereType<Map<Object?, Object?>>()
+        .where((item) => _asString(item['job']) == 'Director')
+        .map(TmdbPersonMetadata.fromJson)
+        .where((person) => person.id > 0 && person.name.isNotEmpty)
+        .take(10)
+        .toList(growable: false);
+  }
+
+  List<TmdbSimilarMetadata> _similarFromJson(
+    Object? value,
+    TmdbMediaType fallbackMediaType,
+  ) {
+    if (value is! Map) return const <TmdbSimilarMetadata>[];
+    final results = value['results'];
+    if (results is! List) return const <TmdbSimilarMetadata>[];
+    return results
+        .whereType<Map<Object?, Object?>>()
+        .map(
+          (item) => TmdbSimilarMetadata.fromJson(
+            item,
+            fallbackMediaType: fallbackMediaType,
+          ),
+        )
+        .where((item) => item.id > 0 && item.title.isNotEmpty)
+        .take(20)
+        .toList(growable: false);
   }
 
   List<String> _genreNames(Object? value) {
@@ -648,6 +703,36 @@ class TmdbClient
       result.add(normalized);
     }
     return List<String>.unmodifiable(result);
+  }
+
+  List<TmdbPersonMetadata> _mergePeople(
+    List<TmdbPersonMetadata> primary,
+    List<TmdbPersonMetadata> fallback,
+  ) {
+    final result = <TmdbPersonMetadata>[];
+    final seen = <int>{};
+    for (final person in <TmdbPersonMetadata>[...primary, ...fallback]) {
+      if (person.id <= 0 || !seen.add(person.id)) continue;
+      if (person.name.trim().isEmpty) continue;
+      result.add(person);
+    }
+    return List<TmdbPersonMetadata>.unmodifiable(result.take(20));
+  }
+
+  List<TmdbSimilarMetadata> _mergeSimilar(
+    List<TmdbSimilarMetadata> primary,
+    List<TmdbSimilarMetadata> fallback,
+  ) {
+    final result = <TmdbSimilarMetadata>[];
+    final seen = <String>{};
+    for (final item in <TmdbSimilarMetadata>[...primary, ...fallback]) {
+      final key = '${item.mediaType.name}:${item.id}';
+      if (item.id <= 0 || item.title.trim().isEmpty || !seen.add(key)) {
+        continue;
+      }
+      result.add(item);
+    }
+    return List<TmdbSimilarMetadata>.unmodifiable(result.take(20));
   }
 
   Future<T> _withEndpointRecovery<T>(

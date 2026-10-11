@@ -56,6 +56,91 @@ class LocalMediaIndexFailure {
   });
 }
 
+enum LocalMediaIndexChangeKind { added, updated, removed, failed }
+
+class LocalMediaIndexChange {
+  final LocalMediaIndexChangeKind kind;
+  final String path;
+  final String? message;
+
+  const LocalMediaIndexChange({
+    required this.kind,
+    required this.path,
+    this.message,
+  });
+}
+
+List<LocalMediaIndexChange> buildLocalMediaIndexChanges({
+  required Iterable<LocalMediaIndexItem> previous,
+  required Iterable<LocalMediaIndexItem> current,
+  required Iterable<LocalMediaIndexFailure> failures,
+}) {
+  final oldById = <String, LocalMediaIndexItem>{
+    for (final item in previous) item.id: item,
+  };
+  final changes = <LocalMediaIndexChange>[];
+  final matchedOldIds = <String>{};
+  for (final item in current) {
+    final old = oldById[item.id];
+    if (old == null) {
+      changes.add(LocalMediaIndexChange(
+        kind: LocalMediaIndexChangeKind.added,
+        path: item.path,
+      ));
+      continue;
+    }
+    matchedOldIds.add(old.id);
+    if (_indexItemContentChanged(old, item)) {
+      changes.add(LocalMediaIndexChange(
+        kind: LocalMediaIndexChangeKind.updated,
+        path: item.path,
+      ));
+    }
+  }
+  for (final item in previous) {
+    if (matchedOldIds.contains(item.id) ||
+        current.any((candidate) => candidate.id == item.id)) {
+      continue;
+    }
+    changes.add(LocalMediaIndexChange(
+      kind: LocalMediaIndexChangeKind.removed,
+      path: item.path,
+    ));
+  }
+  for (final failure in failures) {
+    changes.add(LocalMediaIndexChange(
+      kind: LocalMediaIndexChangeKind.failed,
+      path: failure.path,
+      message: failure.message,
+    ));
+  }
+  return List<LocalMediaIndexChange>.unmodifiable(changes);
+}
+
+bool _indexItemContentChanged(
+  LocalMediaIndexItem old,
+  LocalMediaIndexItem current,
+) {
+  return old.path != current.path ||
+      old.name != current.name ||
+      old.size != current.size ||
+      old.modified != current.modified ||
+      old.cover != current.cover ||
+      old.subtitlePath != current.subtitlePath ||
+      old.durationMillis != current.durationMillis ||
+      old.videoWidth != current.videoWidth ||
+      old.videoHeight != current.videoHeight ||
+      old.seriesName != current.seriesName ||
+      old.seasonNumber != current.seasonNumber ||
+      old.episodeNumber != current.episodeNumber ||
+      old.episodeTitle != current.episodeTitle ||
+      old.releaseGroup != current.releaseGroup ||
+      old.resolution != current.resolution ||
+      old.source != current.source ||
+      old.codec != current.codec ||
+      old.pathFingerprint != current.pathFingerprint;
+}
+
 class LocalMediaIndexProgress {
   final String sourcePath;
   final String currentPath;
@@ -104,6 +189,8 @@ class LocalMediaIndexResult {
   final bool cancelled;
   final bool sourceAccessible;
   final List<LocalMediaIndexFailure> failures;
+  final List<LocalMediaIndexChange> changes;
+  final Map<String, String> mediaIdAliases;
 
   const LocalMediaIndexResult({
     required this.sourcePath,
@@ -116,6 +203,8 @@ class LocalMediaIndexResult {
     this.cancelled = false,
     this.sourceAccessible = true,
     this.failures = const <LocalMediaIndexFailure>[],
+    this.changes = const <LocalMediaIndexChange>[],
+    this.mediaIdAliases = const <String, String>{},
   });
 
   int get totalCount => items.length;
@@ -207,17 +296,10 @@ class LocalMediaIndexer
             '目录授权已失效，请重新授权',
           );
         }
-        final removedCount = previousSourceItems.length;
-        await _repository.removeSourceLocation(sourceLocation);
-        return LocalMediaIndexResult(
-          sourcePath: sourcePath,
-          items: const <LocalMediaIndexItem>[],
-          addedCount: 0,
-          updatedCount: 0,
-          reusedCount: 0,
-          removedCount: removedCount,
-          skippedCount: 0,
-          failures: const <LocalMediaIndexFailure>[],
+        return _inaccessibleDocumentResult(
+          sourceLocation,
+          previousSourceItems,
+          '媒体目录暂时不可访问，已保留旧索引',
         );
       }
     } on Object catch (error, stackTrace) {
@@ -233,7 +315,11 @@ class LocalMediaIndexer
           error.toString(),
         );
       }
-      rethrow;
+      return _inaccessibleDocumentResult(
+        sourceLocation,
+        previousSourceItems,
+        '媒体目录访问失败，已保留旧索引',
+      );
     }
 
     onProgress?.call(LocalMediaIndexProgress(
@@ -257,6 +343,7 @@ class LocalMediaIndexer
     final reusedDirectoryIds = <String>{};
     var skippedCount = 0;
     final failures = <LocalMediaIndexFailure>[];
+    final failedDirectories = <String>[];
 
     Future<void> collectDirectory(
       MediaLocation directory,
@@ -268,6 +355,7 @@ class LocalMediaIndexer
       try {
         entries = await provider.listChildren(directory);
       } on Object catch (error, stackTrace) {
+        failedDirectories.add(logicalDirectory);
         skippedCount++;
         failures.add(LocalMediaIndexFailure(
           path: directory.value,
@@ -302,7 +390,6 @@ class LocalMediaIndexer
               ));
       if (unchanged) {
         reusedDirectoryIds.add(dirId);
-        return;
       }
 
       for (final entry in entries) {
@@ -324,6 +411,7 @@ class LocalMediaIndexer
             );
             continue;
           }
+          if (unchanged) continue;
           if (!LocalVideoFileTypes.isVideoPath(name)) continue;
           if (!LocalVideoFileTypes.isRecognizedVideoSize(
             entry.size,
@@ -436,6 +524,7 @@ class LocalMediaIndexer
     var reusedCount = 0;
     var inheritedCount = 0;
     var migratedCount = 0;
+    final mediaIdAliases = <String, String>{};
     var migrationConflictCount = 0;
 
     for (final dirId in reusedDirectoryIds) {
@@ -444,6 +533,21 @@ class LocalMediaIndexer
         previous.remove(item.id);
         indexed.add(item.copyWith(indexedAt: DateTime.now()));
         reusedCount++;
+      }
+    }
+
+    for (final item in previousSourceItems) {
+      final relative = item.location.isFile
+          ? p.relative(item.path, from: sourcePath)
+          : item.path;
+      if (failedDirectories.any((directory) =>
+          directory.isEmpty ||
+          relative == directory ||
+          p.isWithin(directory, relative))) {
+        if (previous.remove(item.id) != null) {
+          indexed.add(item);
+          reusedCount++;
+        }
       }
     }
 
@@ -598,7 +702,10 @@ class LocalMediaIndexer
         );
         final canMigrate = moveCandidate != null &&
             _mediaInfoCompatible(moveCandidate, resolvedItem);
-        if (canMigrate) previous.remove(moveCandidate.id);
+        if (canMigrate) {
+          previous.remove(moveCandidate.id);
+          mediaIdAliases[moveCandidate.id] = resolvedItem.id;
+        }
         final inheritedFrom = oldItem ?? (canMigrate ? moveCandidate : null);
         final allowLogicalRename = inheritedFrom == moveCandidate;
         final canInherit = inheritedFrom != null &&
@@ -691,6 +798,11 @@ class LocalMediaIndexer
       phase: LocalMediaIndexPhase.finished,
     ));
 
+    final changes = buildLocalMediaIndexChanges(
+      previous: previousSourceItems,
+      current: indexed,
+      failures: failures,
+    );
     return LocalMediaIndexResult(
       sourcePath: sourcePath,
       items: indexed,
@@ -699,7 +811,10 @@ class LocalMediaIndexer
       reusedCount: reusedCount,
       removedCount: previous.length,
       skippedCount: skippedCount,
+      sourceAccessible: !failedDirectories.contains(''),
       failures: failures,
+      changes: changes,
+      mediaIdAliases: Map.unmodifiable(mediaIdAliases),
     );
   }
 
@@ -776,6 +891,12 @@ class LocalMediaIndexer
     List<LocalMediaIndexItem> previousItems,
     String message,
   ) {
+    final failures = <LocalMediaIndexFailure>[
+      LocalMediaIndexFailure(
+        path: sourceLocation.value,
+        message: message,
+      ),
+    ];
     return LocalMediaIndexResult(
       sourcePath: sourceLocation.value,
       items: previousItems,
@@ -785,12 +906,12 @@ class LocalMediaIndexer
       removedCount: 0,
       skippedCount: 1,
       sourceAccessible: false,
-      failures: <LocalMediaIndexFailure>[
-        LocalMediaIndexFailure(
-          path: sourceLocation.value,
-          message: message,
-        ),
-      ],
+      failures: failures,
+      changes: buildLocalMediaIndexChanges(
+        previous: previousItems,
+        current: previousItems,
+        failures: failures,
+      ),
     );
   }
 

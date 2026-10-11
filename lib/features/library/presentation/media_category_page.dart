@@ -6,11 +6,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:kanyingyin/features/library/application/media_category_runtime.dart';
 import 'package:kanyingyin/features/library/application/media_library_category.dart';
+import 'package:kanyingyin/features/library/application/media_library_classification.dart';
 import 'package:kanyingyin/features/library/application/media_library_query.dart';
+import 'package:kanyingyin/features/library/application/media_library_user_state.dart';
+import 'package:kanyingyin/features/library/application/media_watch_state.dart';
 import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/features/library/application/media_card_info.dart';
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
+import 'package:kanyingyin/features/library/presentation/media_classification_dialog.dart';
 import 'package:kanyingyin/features/library/presentation/media_library_details_dialog.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_layout_policy.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
@@ -31,6 +35,16 @@ class MediaCategoryPage extends StatefulWidget {
     this.observeLibrary = true,
     this.libraryListenable,
     this.capabilities,
+    this.userStatesProvider,
+    this.onUserStateChanged,
+    this.onClassificationChanged,
+    this.reconcileUserStates,
+    this.onRelinkUserState,
+    this.watchStatesProvider,
+    this.onWatchedChanged,
+    this.classificationModeProvider,
+    this.onClassificationModeChanged,
+    this.onDispose,
   });
 
   final MediaLibraryCategory category;
@@ -42,6 +56,20 @@ class MediaCategoryPage extends StatefulWidget {
   final bool observeLibrary;
   final Listenable? libraryListenable;
   final AppPlatformCapabilities? capabilities;
+  final Map<String, MediaLibraryUserState> Function()? userStatesProvider;
+  final Future<void> Function(String, MediaLibraryUserState)?
+      onUserStateChanged;
+  final Future<void> Function(String, MediaLibraryUserState)?
+      onClassificationChanged;
+  final Future<void> Function()? reconcileUserStates;
+  final Future<void> Function(String, String)? onRelinkUserState;
+  final Map<String, MediaWatchState> Function()? watchStatesProvider;
+  final Future<void> Function(List<MediaLibraryEpisode>, bool)?
+      onWatchedChanged;
+  final MediaClassificationMode Function()? classificationModeProvider;
+  final Future<void> Function(MediaClassificationMode)?
+      onClassificationModeChanged;
+  final VoidCallback? onDispose;
 
   @override
   State<MediaCategoryPage> createState() => _MediaCategoryPageState();
@@ -50,20 +78,40 @@ class MediaCategoryPage extends StatefulWidget {
 class _MediaCategoryPageState extends State<MediaCategoryPage> {
   static const MediaLibraryQuery _queryService = MediaLibraryQuery();
 
+  final _searchController = TextEditingController();
   String _sourceId = 'all';
   String _keyword = '';
+  String _stateFilter = 'all';
+  String _selectedCollection = '';
   bool _loading = true;
   bool _playing = false;
   String? _errorMessage;
   String? _posterWarmupIdentity;
+  String? _stateIdentity;
+  bool _reconcilingStates = false;
+  bool _savingClassificationMode = false;
 
   @override
   void initState() {
     super.initState();
+    MediaWatchStateRepository.changes.addListener(_watchChanged);
     _initialize();
   }
 
+  void _watchChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    MediaWatchStateRepository.changes.removeListener(_watchChanged);
+    _searchController.dispose();
+    widget.onDispose?.call();
+    super.dispose();
+  }
+
   Future<void> _initialize({bool refresh = false}) async {
+    _stateIdentity = null;
     if (mounted) {
       setState(() {
         _loading = true;
@@ -85,6 +133,13 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
     return widget.libraryProvider();
   }
 
+  MediaClassificationMode get _classificationMode =>
+      widget.classificationModeProvider?.call() ??
+      MediaClassificationMode.conservative;
+
+  bool get _canEditClassification =>
+      widget.onClassificationChanged != null || widget.onUserStateChanged != null;
+
   @override
   Widget build(BuildContext context) {
     Widget content() => widget.observeLibrary
@@ -104,24 +159,227 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
 
   Widget _buildContent() {
     final library = _library();
+    _scheduleReconcile(library);
     final sourceId = library.filters.any(
       (filter) => filter.id == _sourceId,
     )
         ? _sourceId
         : 'all';
-    final series = _queryService.apply(
+    final userStates = widget.userStatesProvider?.call() ??
+        const <String, MediaLibraryUserState>{};
+    final filtered = _queryService.apply(
       series: library.series,
       sourceId: sourceId,
       keyword: _keyword,
-      selectedTags: <String>{widget.category.label},
+      selectedCategories: _stateFilter == 'needsConfirmation'
+          ? const <String>{}
+          : <String>{widget.category.label},
+      userStates: userStates,
+      classificationMode: _classificationMode,
+      favoriteOnly: _stateFilter == 'favorite',
+      watchLaterOnly: _stateFilter == 'watchLater',
+      selectedCollection: _selectedCollection,
+      watchStates: widget.watchStatesProvider?.call() ?? const {},
+      watched: _stateFilter == 'watched'
+          ? true
+          : _stateFilter == 'unwatched'
+              ? false
+              : null,
+    );
+    final series = _stateFilter == 'needsConfirmation'
+        ? filtered.where((item) => const MediaClassificationResolver().resolve(
+              item,
+              state: userStates[item.key],
+              mode: _classificationMode,
+            ).needsConfirmation).toList(growable: false)
+        : filtered;
+    final collections = _queryService.availableCollections(
+      library.series,
+      sourceId: sourceId,
+      userStates: userStates,
     );
     return Column(
       children: [
         _header(context, library, series.length, sourceId),
         _searchBar(),
+        _stateFilterBar(collections),
+        if (_stateFilter == 'needsConfirmation')
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Text(_keyword.isEmpty
+                ? '显示当前来源的全部待确认作品，不限当前分类；仍可浏览和播放。'
+                : '显示当前来源符合搜索的待确认作品，不限当前分类；仍可浏览和播放。'),
+          ),
+        if (widget.onRelinkUserState != null)
+          _unlinkedStates(library, userStates),
         Expanded(child: _content(context, series)),
       ],
     );
+  }
+
+  void _scheduleReconcile(CloudMediaLibrary library) {
+    final callback = widget.reconcileUserStates;
+    if (callback == null || _loading || _reconcilingStates) return;
+    final identity = library.series
+        .map((series) =>
+            '${series.key}:${series.episodes.map((e) => e.stableId).join(',')}')
+        .join('\n');
+    if (_stateIdentity == identity) return;
+    _stateIdentity = identity;
+    _reconcilingStates = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        await callback();
+      } on Object {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('媒体状态关联失败，请刷新后重试')),
+          );
+        }
+      } finally {
+        _reconcilingStates = false;
+        if (mounted) setState(() {});
+      }
+    });
+  }
+
+  Widget _unlinkedStates(
+      CloudMediaLibrary library, Map<String, MediaLibraryUserState> states) {
+    final keys = library.series.map((series) => series.key).toSet();
+    final pending = states.keys.where((key) => !keys.contains(key)).toList();
+    if (pending.isEmpty) return const SizedBox.shrink();
+    return Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          icon: const Icon(Icons.link),
+          label: Text('${pending.length} 项收藏/待看记录待关联'),
+          onPressed: () => _relinkState(pending, library),
+        ));
+  }
+
+  Future<void> _relinkState(
+      List<String> pending, CloudMediaLibrary library) async {
+    final oldKey = await showDialog<String>(
+        context: context,
+        builder: (context) =>
+            SimpleDialog(title: const Text('选择待关联记录'), children: [
+              for (final key in pending)
+                SimpleDialogOption(
+                  onPressed: () => Navigator.pop(context, key),
+                  child: Text(key),
+                ),
+            ]));
+    if (oldKey == null || !mounted) return;
+    final targetKey = await showDialog<String>(
+        context: context,
+        builder: (context) =>
+            SimpleDialog(title: const Text('关联到当前作品'), children: [
+              for (final series in library.series)
+                SimpleDialogOption(
+                  onPressed: () => Navigator.pop(context, series.key),
+                  child: Text(
+                      '${series.title} · ${series.sourceName} · ${series.episodes.length} 个视频'),
+                ),
+            ]));
+    if (targetKey == null || !mounted) return;
+    try {
+      await widget.onRelinkUserState!(oldKey, targetKey);
+      if (mounted) setState(() {});
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('关联保存失败，原记录已保留')),
+        );
+      }
+    }
+  }
+
+  Widget _stateFilterBar(List<String> collections) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+      child: Row(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: widget.onClassificationModeChanged == null
+                ? Text('分类门槛：${_classificationMode.label}')
+                : PopupMenuButton<MediaClassificationMode>(
+                    key: const ValueKey('media-classification-mode'),
+                    tooltip: '分类门槛',
+                    enabled: !_savingClassificationMode,
+                    onSelected: _changeClassificationMode,
+                    itemBuilder: (_) => [
+                      for (final mode in MediaClassificationMode.values)
+                        PopupMenuItem(
+                          value: mode,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(mode.label),
+                              Text(mediaClassificationModeDescription(mode),
+                                  style: Theme.of(context).textTheme.bodySmall),
+                            ],
+                          ),
+                        ),
+                    ],
+                    child: Chip(label: Text(_savingClassificationMode
+                        ? '正在保存门槛…'
+                        : '分类门槛：${_classificationMode.label}')),
+                  ),
+          ),
+          for (final entry in const <String, String>{
+            'all': '全部',
+            'needsConfirmation': '待确认',
+            'favorite': '收藏',
+            'watchLater': '待看',
+            'watched': '已看',
+            'unwatched': '未看',
+          }.entries)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(entry.value),
+                selected:
+                    _stateFilter == entry.key && _selectedCollection.isEmpty,
+                onSelected: (_) => setState(() {
+                  _stateFilter = entry.key;
+                  _selectedCollection = '';
+                }),
+              ),
+            ),
+          for (final collection in collections)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(collection),
+                selected: _selectedCollection == collection,
+                onSelected: (_) => setState(() {
+                  _stateFilter = 'all';
+                  _selectedCollection = collection;
+                }),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _changeClassificationMode(MediaClassificationMode mode) async {
+    final callback = widget.onClassificationModeChanged;
+    if (callback == null || _savingClassificationMode || mode == _classificationMode) return;
+    setState(() => _savingClassificationMode = true);
+    try {
+      await callback(mode);
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('分类门槛保存失败，请重试')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingClassificationMode = false);
+    }
   }
 
   Widget _header(
@@ -186,6 +444,11 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
             ),
           ),
           IconButton(
+            tooltip: '检查分类',
+            onPressed: _loading ? null : () => _reviewClassifications(library, sourceId),
+            icon: const Icon(Icons.fact_check_outlined),
+          ),
+          IconButton(
             tooltip: '刷新分类',
             onPressed: _loading ? null : () => _initialize(refresh: true),
             icon: showRefreshProgress
@@ -206,8 +469,11 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
       child: TextField(
         key: const ValueKey<String>('media-category-search'),
+        controller: _searchController,
         decoration: InputDecoration(
-          hintText: '搜索${widget.category.label}',
+          hintText: _stateFilter == 'needsConfirmation'
+              ? '搜索待确认作品'
+              : '搜索${widget.category.label}',
           prefixIcon: const Icon(Icons.search),
           isDense: true,
         ),
@@ -252,7 +518,21 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
           children: [
             Icon(_categoryIcon(), size: 48),
             const SizedBox(height: 12),
-            Text('还没有${widget.category.label}'),
+            Text(_keyword.isNotEmpty
+                ? '没有匹配的作品'
+                : _stateFilter == 'needsConfirmation'
+                    ? '暂无待确认作品'
+                    : _stateFilter != 'all' || _selectedCollection.isNotEmpty
+                        ? '没有符合当前筛选的作品'
+                        : '还没有${widget.category.label}'),
+            if (_keyword.isNotEmpty)
+              TextButton(
+                onPressed: () => setState(() {
+                  _searchController.clear();
+                  _keyword = '';
+                }),
+                child: const Text('清除搜索'),
+              ),
           ],
         ),
       );
@@ -286,7 +566,9 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
   Widget _seriesCard(BuildContext context, MediaLibrarySeries series) {
     final info = UnifiedMediaCardInfoBuilder.forSeries(
       series,
-      categoryLabel: widget.category.label,
+      categoryLabel: _stateFilter == 'needsConfirmation' ? null : widget.category.label,
+      userState: _userState(series),
+      classificationMode: _classificationMode,
     );
     return ImmersiveMediaCard(
       key: ValueKey<String>('media-category-card-${series.key}'),
@@ -299,6 +581,9 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
       badges: info.badges,
       technicalBadges: info.technicalBadges,
       trailing: _seriesMenu(series),
+      watchProgress: widget.watchStatesProvider == null
+          ? null
+          : mediaSeriesProgress(series, widget.watchStatesProvider!()),
       onTap: !series.isAvailable || _playing
           ? null
           : () => _openSeriesFromCard(series),
@@ -308,12 +593,17 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
   Future<void> _openSeriesFromCard(MediaLibrarySeries series) {
     final platform = widget.capabilities ?? detectAppPlatform();
     if (platform.isAndroid && !platform.isAndroidTv) {
+      var currentSeries = series;
       return showMediaLibraryDetailsDialog(
         context: context,
         series: series,
+        seriesProvider: () => currentSeries = _currentSeries(currentSeries),
+        libraryListenable: widget.libraryListenable,
+        observeLibrary: widget.observeLibrary,
         capabilities: platform,
-        onPlay:
-            series.isAvailable && !_playing ? () => _openSeries(series) : null,
+        onPlay: series.isAvailable && !_playing
+            ? () => _openSeries(currentSeries)
+            : null,
       );
     }
     return _openSeries(series);
@@ -336,6 +626,33 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
         icon: const Icon(Icons.more_vert),
         onSelected: (action) => _handleSeriesAction(series, action),
         itemBuilder: (_) => <PopupMenuEntry<_MediaCategoryAction>>[
+          if (_canEditClassification)
+            const PopupMenuItem<_MediaCategoryAction>(
+              value: _MediaCategoryAction.classification,
+              child: Text('编辑分类与标签'),
+            ),
+          if (widget.onWatchedChanged != null)
+            PopupMenuItem(
+                value: _MediaCategoryAction.watched,
+                child: Text(mediaSeriesWatched(
+                        series, widget.watchStatesProvider?.call() ?? const {})
+                    ? '标记未看'
+                    : '标记已看')),
+          PopupMenuItem<_MediaCategoryAction>(
+            value: _MediaCategoryAction.favorite,
+            child: Text(_userState(series).favorite ? '取消收藏' : '收藏'),
+          ),
+          PopupMenuItem<_MediaCategoryAction>(
+            value: _MediaCategoryAction.watchLater,
+            child: Text(
+              _userState(series).watchLater ? '移出待看' : '加入待看',
+            ),
+          ),
+          const PopupMenuItem<_MediaCategoryAction>(
+            value: _MediaCategoryAction.collections,
+            child: Text('管理合集'),
+          ),
+          const PopupMenuDivider(),
           PopupMenuItem<_MediaCategoryAction>(
             value: _MediaCategoryAction.play,
             child: Text(series.episodes.length == 1 ? '播放' : '播放剧集'),
@@ -367,18 +684,49 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
     _MediaCategoryAction action,
   ) async {
     switch (action) {
+      case _MediaCategoryAction.classification:
+        await _editClassification(series);
+        return;
+      case _MediaCategoryAction.watched:
+        try {
+          await widget.onWatchedChanged?.call(
+              series.episodes,
+              !mediaSeriesWatched(
+                  series, widget.watchStatesProvider?.call() ?? const {}));
+          if (mounted) setState(() {});
+        } on Object {
+          if (mounted) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(const SnackBar(content: Text('已看状态保存失败，请重试')));
+          }
+        }
+        return;
+      case _MediaCategoryAction.favorite:
+        await _saveUserState(
+          series,
+          _userState(series).copyWith(
+            favorite: !_userState(series).favorite,
+            updatedAt: DateTime.now(),
+          ),
+        );
+        return;
+      case _MediaCategoryAction.watchLater:
+        await _saveUserState(
+          series,
+          _userState(series).copyWith(
+            watchLater: !_userState(series).watchLater,
+            updatedAt: DateTime.now(),
+          ),
+        );
+        return;
+      case _MediaCategoryAction.collections:
+        await _editCollections(series);
+        return;
       case _MediaCategoryAction.play:
         await _openSeries(series);
         return;
       case _MediaCategoryAction.details:
-        await showMediaLibraryDetailsDialog(
-          context: context,
-          series: series,
-          capabilities: widget.capabilities,
-          onPlay: series.isAvailable && !_playing
-              ? () => _openSeries(series)
-              : null,
-        );
+        await _showSeriesDetails(series);
         return;
       case _MediaCategoryAction.copyPath:
         final path = series.episodes.firstOrNull?.localItem?.path;
@@ -407,6 +755,98 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
         }
         return;
     }
+  }
+
+  MediaLibraryUserState _userState(MediaLibrarySeries series) {
+    return widget.userStatesProvider?.call()[series.key] ??
+        MediaLibraryUserState.empty;
+  }
+
+  Future<void> _showSeriesDetails(MediaLibrarySeries series) {
+    var currentSeries = series;
+    return showMediaLibraryDetailsDialog(
+      context: context,
+      series: series,
+      seriesProvider: () => currentSeries = _currentSeries(currentSeries),
+      libraryListenable: widget.libraryListenable,
+      observeLibrary: widget.observeLibrary,
+      capabilities: widget.capabilities,
+      onPlay: series.isAvailable && !_playing ? () => _openSeries(currentSeries) : null,
+    );
+  }
+
+  Future<void> _editClassification(MediaLibrarySeries series) async {
+    final callback = widget.onClassificationChanged ?? widget.onUserStateChanged;
+    if (callback == null) return;
+    await showMediaClassificationDialog(
+      context,
+      series: series,
+      state: _userState(series),
+      mode: _classificationMode,
+      allowCustomTags: false,
+      onSave: (state, _) => callback(
+        series.key,
+        _userState(series).copyWith(
+          categoryOverride: state.categoryOverride,
+          genreOverride: state.genreOverride,
+          clearCategoryOverride: state.categoryOverride == null,
+          clearGenreOverride: state.genreOverride == null,
+          updatedAt: state.updatedAt,
+        ),
+      ),
+    );
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _reviewClassifications(
+    CloudMediaLibrary library,
+    String sourceId,
+  ) {
+    final source = library.filters.firstWhere((filter) => filter.id == sourceId);
+    return showMediaClassificationReviewDialog(
+      context,
+      series: library.series
+          .where((item) => sourceId == 'all' || item.sourceId == sourceId)
+          .toList(growable: false),
+      sourceLabel: source.label,
+      userStatesProvider: () => widget.userStatesProvider?.call() ?? const {},
+      modeProvider: () => _classificationMode,
+      onEdit: _canEditClassification ? _editClassification : null,
+      onOpen: _showSeriesDetails,
+    );
+  }
+
+  Future<void> _saveUserState(
+    MediaLibrarySeries series,
+    MediaLibraryUserState state,
+  ) async {
+    final callback = widget.onUserStateChanged;
+    if (callback == null) return;
+    try {
+      await callback(series.key, state);
+      if (mounted) setState(() {});
+    } on Object {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('媒体状态保存失败，请重试')),
+      );
+    }
+  }
+
+  Future<void> _editCollections(MediaLibrarySeries series) async {
+    final initial = List<String>.from(_userState(series).collections);
+    final result = await showDialog<List<String>>(
+      context: context,
+      builder: (context) => _CollectionEditorDialog(initial: initial),
+    );
+    if (result == null || !mounted) return;
+    await _saveUserState(
+      series,
+      _userState(series).copyWith(
+        collections: result,
+        updatedAt: DateTime.now(),
+      ),
+    );
   }
 
   Future<List<MediaLibraryEpisode>?> _selectEpisodesToHide(
@@ -522,15 +962,31 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
     );
   }
 
-  Future<void> _openSeries(MediaLibrarySeries series) async {
+  MediaLibrarySeries _currentSeries(MediaLibrarySeries original) {
+    final ids = original.episodes.map((episode) => episode.stableId).toSet();
+    final matches = _library().series
+        .where((series) =>
+            series.sourceKind == original.sourceKind &&
+            series.sourceId == original.sourceId &&
+            series.episodes.any((episode) => ids.contains(episode.stableId)))
+        .take(2)
+        .toList(growable: false);
+    return matches.length == 1 ? matches.single : original;
+  }
+
+  Future<void> _openSeries(MediaLibrarySeries original) async {
+    final series = _currentSeries(original);
     if (series.episodes.isEmpty) return;
-    final episode = series.episodes.length == 1
-        ? series.episodes.single
+    final selection = series.episodes.length == 1
+        ? (series: series, episode: series.episodes.single)
         : await _selectEpisode(series);
-    if (episode == null || !mounted) return;
+    if (selection == null || !mounted) return;
     setState(() => _playing = true);
     try {
-      await widget.onPlayEpisode(series, episode);
+      await widget.onPlayEpisode(
+        _currentSeries(selection.series),
+        selection.episode,
+      );
     } on Object {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -542,121 +998,143 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
     }
   }
 
-  Future<MediaLibraryEpisode?> _selectEpisode(MediaLibrarySeries series) {
-    var selectedVersion = 0;
-    return showModalBottomSheet<MediaLibraryEpisode>(
+  Future<({MediaLibrarySeries series, MediaLibraryEpisode episode})?>
+      _selectEpisode(MediaLibrarySeries original) {
+    var currentSeries = original;
+    String? selectedVersionKey = original.versions.firstOrNull?.key;
+    return showModalBottomSheet<
+        ({MediaLibrarySeries series, MediaLibraryEpisode episode})>(
       context: context,
       isScrollControlled: true,
       builder: (context) => StatefulBuilder(builder: (context, setSheetState) {
-        final episodes = series.versions.isEmpty
-            ? series.episodes
-            : series.versions[selectedVersion].episodes;
-        return SafeArea(
-          child: FocusTraversalGroup(
-            key: const ValueKey<String>('media-category-episode-focus-group'),
-            child: FractionallySizedBox(
-              heightFactor: 0.78,
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            series.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: '关闭',
-                          onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(Icons.close),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (series.versions.isNotEmpty)
+        Widget content() {
+          final series = currentSeries = _currentSeries(currentSeries);
+          final versionIndex = series.versions
+              .indexWhere((version) => version.key == selectedVersionKey);
+          final selectedVersion = versionIndex < 0 ? 0 : versionIndex;
+          final episodes = series.versions.isEmpty
+              ? series.episodes
+              : series.versions[selectedVersion].episodes;
+          return SafeArea(
+            child: FocusTraversalGroup(
+              key: const ValueKey<String>('media-category-episode-focus-group'),
+              child: FractionallySizedBox(
+                heightFactor: 0.78,
+                child: Column(
+                  children: [
                     Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      child: Wrap(spacing: 8, runSpacing: 8, children: [
-                        for (var index = 0;
-                            index < series.versions.length;
-                            index++)
-                          ChoiceChip(
-                            label: Text(series.versions[index].label),
-                            selected: selectedVersion == index,
-                            onSelected: (_) =>
-                                setSheetState(() => selectedVersion = index),
-                          ),
-                      ]),
-                    ),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: episodes.length,
-                      itemBuilder: (context, index) {
-                        final episode = episodes[index];
-                        final local = episode.localItem;
-                        final technicalBadges =
-                            const MediaTechnicalBadgeResolver().resolve(
-                          names: [
-                            episode.name,
-                            if (local != null) local.path,
-                            if (local != null) ...local.originalNames,
-                            if (episode.remotePath != null) episode.remotePath!,
-                          ],
-                          releaseTags: [episode.releaseTags],
-                          resolution: local?.resolution,
-                          videoWidth: local?.videoWidth,
-                          videoHeight: local?.videoHeight,
-                        );
-                        final detailsText =
-                            episode.sourceKind == MediaSourceKind.local
-                                ? local?.path ?? ''
-                                : episode.remotePath ?? '';
-                        return Focus(
-                          autofocus: index == 0,
-                          child: ListTile(
-                            leading: const Icon(Icons.play_circle_outline),
-                            title: Text(
-                              episode.name,
+                      padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              series.title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium,
                             ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (technicalBadges.isNotEmpty) ...[
-                                  const SizedBox(height: 5),
-                                  MediaTechnicalBadgeRow(
-                                    badges: technicalBadges,
-                                  ),
-                                  const SizedBox(height: 4),
-                                ],
-                                Text(
-                                  detailsText,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                if (episode.sharedFromVersionLabel != null)
-                                  Text('共享自${episode.sharedFromVersionLabel}'),
-                              ],
-                            ),
-                            onTap: () => Navigator.of(context).pop(episode),
                           ),
-                        );
-                      },
+                          IconButton(
+                            tooltip: '关闭',
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: const Icon(Icons.close),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                    if (series.versions.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        child: Wrap(spacing: 8, runSpacing: 8, children: [
+                          for (var index = 0;
+                              index < series.versions.length;
+                              index++)
+                            ChoiceChip(
+                              label: Text(series.versions[index].label),
+                              selected: selectedVersion == index,
+                              onSelected: (_) =>
+                                  setSheetState(() => selectedVersionKey =
+                                      series.versions[index].key),
+                            ),
+                        ]),
+                      ),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: episodes.length,
+                        itemBuilder: (context, index) {
+                          final episode = episodes[index];
+                          final local = episode.localItem;
+                          final technicalBadges =
+                              const MediaTechnicalBadgeResolver().resolve(
+                            names: [
+                              episode.name,
+                              if (local != null) local.path,
+                              if (local != null) ...local.originalNames,
+                              if (episode.remotePath != null) episode.remotePath!,
+                            ],
+                            releaseTags: [episode.releaseTags],
+                            resolution: local?.resolution,
+                            videoWidth: local?.videoWidth,
+                            videoHeight: local?.videoHeight,
+                          );
+                          final detailsText =
+                              episode.sourceKind == MediaSourceKind.local
+                                  ? local?.path ?? ''
+                                  : episode.remotePath ?? '';
+                          return Focus(
+                            autofocus: index == 0,
+                            child: ListTile(
+                              leading: const Icon(Icons.play_circle_outline),
+                              title: Text(
+                                episode.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (technicalBadges.isNotEmpty) ...[
+                                    const SizedBox(height: 5),
+                                    MediaTechnicalBadgeRow(
+                                      badges: technicalBadges,
+                                    ),
+                                    const SizedBox(height: 4),
+                                  ],
+                                  Text(
+                                    detailsText,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  if (episode.sharedFromVersionLabel != null)
+                                    Text('共享自${episode.sharedFromVersionLabel}'),
+                                ],
+                              ),
+                              onTap: () => Navigator.of(context).pop(
+                                (series: series, episode: episode),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        );
+          );
+        }
+        Widget observed() => widget.observeLibrary
+            ? Observer(builder: (_) => content())
+            : Builder(builder: (_) => content());
+        final listenable = widget.libraryListenable;
+        return listenable == null
+            ? observed()
+            : ListenableBuilder(
+                listenable: listenable,
+                builder: (_, __) => observed(),
+              );
       }),
     );
   }
@@ -678,7 +1156,106 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
   }
 }
 
-enum _MediaCategoryAction { play, details, copyPath, hide }
+enum _MediaCategoryAction {
+  classification,
+  watched,
+  favorite,
+  watchLater,
+  collections,
+  play,
+  details,
+  copyPath,
+  hide,
+}
+
+class _CollectionEditorDialog extends StatefulWidget {
+  const _CollectionEditorDialog({required this.initial});
+
+  final List<String> initial;
+
+  @override
+  State<_CollectionEditorDialog> createState() =>
+      _CollectionEditorDialogState();
+}
+
+class _CollectionEditorDialogState extends State<_CollectionEditorDialog> {
+  late final List<String> _collections = List<String>.from(widget.initial);
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _add() {
+    final value = _controller.text.trim();
+    if (value.isEmpty ||
+        value.length > MediaLibraryUserState.maxCollectionLength ||
+        _collections.any((item) => item.toLowerCase() == value.toLowerCase()) ||
+        _collections.length >= MediaLibraryUserState.maxCollections) {
+      return;
+    }
+    setState(() {
+      _collections.add(value);
+      _controller.clear();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('管理合集'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _controller,
+              maxLength: MediaLibraryUserState.maxCollectionLength,
+              decoration: const InputDecoration(
+                labelText: '新合集名称',
+                suffixIcon: Icon(Icons.add),
+              ),
+              onSubmitted: (_) => _add(),
+            ),
+            if (_collections.isNotEmpty)
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  for (final collection in _collections)
+                    InputChip(
+                      label: Text(collection),
+                      onDeleted: () => setState(
+                        () => _collections.remove(collection),
+                      ),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () {
+            _add();
+            Navigator.of(context).pop(
+              MediaLibraryUserState.normalizeCollections(_collections),
+            );
+          },
+          child: const Text('保存'),
+        ),
+      ],
+    );
+  }
+}
 
 class _MediaCategoryHideDialog extends StatefulWidget {
   const _MediaCategoryHideDialog({

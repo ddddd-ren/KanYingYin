@@ -20,8 +20,21 @@ class CloudResourceMediaLibraryAdapter {
         if (item.sourceId == source.id)
           _identity(item.remoteId, item.remotePath): item,
     };
+    final legacyTitleOwners = <String, Set<String>>{};
+    for (final group in collection.groups) {
+      for (final title in group.legacySeriesTitles) {
+        legacyTitleOwners.putIfAbsent(title, () => {}).add(group.workKey);
+      }
+    }
     return collection.groups
-        .map((group) => _series(source, group, indexedByIdentity))
+        .map((group) => _series(
+              source,
+              group,
+              indexedByIdentity,
+              group.legacySeriesTitles
+                  .where((title) => legacyTitleOwners[title]?.length == 1)
+                  .toList(growable: false),
+            ))
         .toList(growable: false);
   }
 
@@ -29,6 +42,7 @@ class CloudResourceMediaLibraryAdapter {
     CloudSource source,
     CloudResourceMediaGroup group,
     Map<String, CloudMediaIndexItem> indexedByIdentity,
+    List<String> legacySeriesTitles,
   ) {
     final indexed = group.videos
         .map(
@@ -89,6 +103,7 @@ class CloudResourceMediaLibraryAdapter {
       key: group.stableKey,
       seriesKey: group.workKey,
       title: group.displayName,
+      legacySeriesTitles: legacySeriesTitles,
       sourceKind: MediaSourceKind.cloud,
       sourceId: source.id,
       sourceName: source.name,
@@ -97,6 +112,7 @@ class CloudResourceMediaLibraryAdapter {
           legacy?.mediaType ??
           (group.isSeries ? TmdbMediaType.tv : TmdbMediaType.movie),
       genres: genres,
+      tmdbMetadata: metadata,
       tmdbTitle: metadata?.title ?? legacy?.title ?? firstItem?.tmdbTitle,
       tmdbOverview:
           metadata?.overview ?? legacy?.overview ?? firstItem?.tmdbOverview,

@@ -49,6 +49,8 @@ try {
     }
     . $cleanupHelper
 
+    throw 'Android TV 发布已暂停，禁止执行个人 TV 构建'
+
     $password = [Environment]::GetEnvironmentVariable('KYY_CONFIG_PASSWORD', 'Process')
     if ([string]::IsNullOrWhiteSpace($password)) {
         throw 'Missing KYY_CONFIG_PASSWORD process environment variable'

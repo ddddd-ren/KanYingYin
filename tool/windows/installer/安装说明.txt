@@ -14,3 +14,4 @@ Windows EXE 安装器：
 
 - 旧版安装脚本需要管理员权限，并只把公开证书导入本机 `Cert:\LocalMachine\TrustedPeople`。
 - 不要使用当前用户证书存储，也不要导入 `Cert:\LocalMachine\Root`。
+- 上述旧版脚本仅供历史追溯，当前已停用；当前 Windows 交付使用 Inno Setup EXE。

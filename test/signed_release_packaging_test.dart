@@ -7,6 +7,7 @@ void main() {
     final script =
         await File('tool/windows/build_signed_release.ps1').readAsString();
 
+    expect(script, contains('历史 MSIX 构建脚本已停用'));
     expect(script, contains("'build', 'windows', '--release', '--no-pub'"));
     expect(script, contains("'msix:create'"));
     expect(script, contains("'--build-windows', 'false'"));

@@ -123,12 +123,13 @@ class MediaClassificationResolver {
           reason: category == '动漫' ? '题材包含动画；$reason' : reason,
         ),
     ];
+    const genreReason = '题材标签默认跟随 TMDB，不单独触发确认';
     final genreSuggestions = <MediaClassificationSuggestion>[
       for (final genre in genres)
         MediaClassificationSuggestion(
           label: genre,
           confidence: confidence,
-          reason: reason,
+          reason: genreReason,
         ),
     ];
     final categoryOverride = state?.categoryOverride;
@@ -144,17 +145,15 @@ class MediaClassificationResolver {
       throw ArgumentError.value(
           categoryOverride, 'categoryOverride', '分类无效或相互冲突');
     }
-    final selectedGenres = genreOverride == null
-        ? _automaticSelection(genreSuggestions, mode)
-        : _normalized(genreOverride);
+    // 题材标签默认直接沿用 TMDB；只有用户明确保存了人工覆盖时才使用覆盖值。
+    final selectedGenres =
+        genreOverride == null ? genres : _normalized(genreOverride);
     return MediaClassificationResult(
       categories: List.unmodifiable(selectedCategories),
       genres: List.unmodifiable(selectedGenres),
       categorySuggestions: List.unmodifiable(categorySuggestions),
       genreSuggestions: List.unmodifiable(genreSuggestions),
-      needsConfirmation:
-          (categoryOverride == null && selectedCategories.isEmpty) ||
-              (genreOverride == null && selectedGenres.isEmpty),
+      needsConfirmation: categoryOverride == null && selectedCategories.isEmpty,
       isManual: categoryOverride != null || genreOverride != null,
     );
   }

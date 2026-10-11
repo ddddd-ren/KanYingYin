@@ -1,6 +1,9 @@
 ﻿[CmdletBinding()]
 param()
 
+# 历史 MSIX 安装脚本：当前 Windows 交付只使用 Inno Setup EXE。
+throw '历史 MSIX 安装脚本已停用，当前请使用 Inno Setup EXE'
+
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)

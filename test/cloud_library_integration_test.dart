@@ -1287,7 +1287,7 @@ void main() {
 
     await tester.tap(find.byTooltip('播放选项'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('管理标签'));
+    await tester.tap(find.text('编辑分类与标签'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('media-classification-dialog')), findsOneWidget);
     final movie = find.byKey(const ValueKey('classification-category-电影'));

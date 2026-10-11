@@ -137,6 +137,29 @@ CloudResourceMediaGroup _standaloneMediaGroup() {
   );
 }
 
+CloudResourceMediaGroup _unmatchedMediaGroup() {
+  final base = _standaloneMediaGroup();
+  final video = base.videos.first;
+  final record = CloudResourceTmdbRecord.unmatched(
+    sourceId: 'source',
+    remoteId: video.id,
+    remotePath: video.remotePath,
+    displayName: video.name,
+    resourceKind: CloudResourceKind.standaloneVideo,
+    checkedAt: DateTime.utc(2026, 7, 20),
+  );
+  return CloudResourceMediaGroup(
+    stableKey: base.stableKey,
+    workKey: base.workKey,
+    displayName: base.displayName,
+    seriesName: base.seriesName,
+    isSeries: false,
+    videos: base.videos,
+    seasons: base.seasons,
+    record: record,
+  );
+}
+
 CloudResourceMediaGroup _variantMediaGroup() {
   const videos = <CloudFileEntry>[
     CloudFileEntry(
@@ -768,6 +791,56 @@ void main() {
     await tester.tap(find.byTooltip('资源操作'));
     await tester.pumpAndSettle();
     expect(find.text('重新刮削本季'), findsOneWidget);
+    expect(find.text('TMDB 刮削'), findsNothing);
+    expect(find.text('重新匹配'), findsNothing);
+  });
+
+  testWidgets('未匹配资源菜单只显示 TMDB 刮削动作', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: CloudResourcePosterWall(
+          sourceId: 'source',
+          collection: CloudResourceCollection(
+            groups: <CloudResourceMediaGroup>[_unmatchedMediaGroup()],
+          ),
+          scrapingKeys: const <String>{},
+          onOpenGroup: (_) {},
+          onEditTitle: (_) {},
+          onScrape: (_) {},
+          onRematch: (_) {},
+        ),
+      ),
+    ));
+    await tester.tap(find.byTooltip('资源操作'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('TMDB 刮削'), findsOneWidget);
+    expect(find.text('重新匹配'), findsNothing);
+    expect(find.text('手动确认匹配'), findsNothing);
+  });
+
+  testWidgets('没有分类剧集时不显示编辑分类与标签', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: CloudResourcePosterWall(
+          sourceId: 'source',
+          collection: CloudResourceCollection(
+            groups: <CloudResourceMediaGroup>[_standaloneMediaGroup()],
+          ),
+          scrapingKeys: const <String>{},
+          onOpenGroup: (_) {},
+          onEditTitle: (_) {},
+          onEditTags: (_) {},
+          onScrape: (_) {},
+          onRematch: (_) {},
+          classificationSeriesForGroup: (_) => null,
+        ),
+      ),
+    ));
+    await tester.tap(find.byTooltip('资源操作'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('编辑分类与标签'), findsNothing);
   });
 
   testWidgets('TV 网盘海报和季度缩略图限制解码尺寸', (tester) async {
@@ -1142,6 +1215,9 @@ void main() {
     await tester.tap(find.byTooltip('资源操作'));
     await tester.pumpAndSettle();
     expect(find.text('手动确认匹配'), findsOneWidget);
+    expect(find.text('TMDB 刮削'), findsNothing);
+    expect(find.text('重新匹配'), findsNothing);
+    expect(find.text('重新刮削本季'), findsNothing);
     await tester.tap(find.text('手动确认匹配'));
     await tester.pumpAndSettle();
     expect(manualMatchCalls, 1);
@@ -1808,8 +1884,8 @@ void main() {
 
     await tester.tap(find.byTooltip('资源操作'));
     await tester.pumpAndSettle();
-    expect(find.text('管理标签'), findsOneWidget);
-    await tester.tap(find.text('管理标签'));
+    expect(find.text('编辑分类与标签'), findsOneWidget);
+    await tester.tap(find.text('编辑分类与标签'));
     await tester.pumpAndSettle();
     expect(find.text('编辑分类与标签'), findsOneWidget);
 
@@ -1859,7 +1935,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('资源操作'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('管理标签'));
+    await tester.tap(find.text('编辑分类与标签'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const ValueKey('classification-custom-tag-input')));
     await tester.tap(find.descendant(
@@ -2635,7 +2711,7 @@ void main() {
     fixture.controller.dispose();
   });
 
-  testWidgets('重新匹配显示可编辑搜索词与候选并保存', (tester) async {
+  testWidgets('TMDB 刮削显示可编辑搜索词与候选并保存', (tester) async {
     final coordinator = _ManualTmdbCoordinator();
     final fixture = await _PageFixture.create(
       source: _quarkSource,
@@ -2658,7 +2734,7 @@ void main() {
 
     await tester.tap(find.byTooltip('资源操作'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('重新匹配'));
+    await tester.tap(find.text('TMDB 刮削'));
     await tester.pumpAndSettle();
     expect(
       find.byKey(const ValueKey<String>('tmdb-match-dialog')),

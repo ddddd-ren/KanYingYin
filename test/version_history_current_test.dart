@@ -34,32 +34,32 @@ Future<void> _openVersionChangelogDialog(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('2.1.224 测试版更新弹窗展示分类与标签自主选择', (tester) async {
-    expect(AppVersion.current, '2.1.224');
+  testWidgets('2.1.226 测试版更新弹窗展示分类题材规则调整', (tester) async {
+    expect(AppVersion.current, '2.1.226');
     final entries = versionHistoryForCurrent(AppVersion.current);
     expect(entries, hasLength(1));
     expect(entries.single.isPrerelease, isTrue);
-    expect(entries.single.date, '2026-10-11');
+    expect(entries.single.date, '2026-10-12');
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(body: VersionChangelogContent(versions: entries)),
     ));
-    expect(find.text('v2.1.224  测试版  2026-10-11'), findsOneWidget);
-    for (final text in ['动漫', '可信度', '多标签', '人工选择', '待确认', '原始视频']) {
+    expect(find.text('v2.1.226  测试版  2026-10-12'), findsOneWidget);
+    for (final text in ['题材标签', 'TMDB', '主分类', '待确认', '原始视频']) {
       expect(find.textContaining(text), findsWidgets);
     }
     expect(tester.takeException(), isNull);
   });
 
-  test('Android 2.1.224 更新说明展示分类与标签自主选择', () {
+  test('Android 2.1.226 更新说明展示分类题材规则调整', () {
     final entries = versionHistoryForCurrent(
-      '2.1.224',
+      '2.1.226',
       platform: AppPlatformKind.android,
     );
     expect(entries, hasLength(1));
-    expect(entries.single.version, '2.1.224');
+    expect(entries.single.version, '2.1.226');
     expect(entries.single.isPrerelease, isTrue);
     final changes = entries.single.changes.join('\n');
-    for (final text in ['动漫', '可信度', '多标签', '人工选择', '待确认', '原始视频']) {
+    for (final text in ['题材标签', 'TMDB', '主分类', '待确认', '原始视频']) {
       expect(changes, contains(text));
     }
     expect(changes, isNot(contains('Windows')));

@@ -1,6 +1,9 @@
 [CmdletBinding()]
 param()
 
+# Android TV 发布已暂停，保留脚本仅供历史追溯。
+throw 'Android TV 发布已暂停，禁止执行 TV 测试构建'
+
 $ErrorActionPreference = 'Stop'
 $OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 chcp 65001 > $null

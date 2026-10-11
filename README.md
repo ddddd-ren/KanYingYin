@@ -158,7 +158,7 @@ Android 发布脚本从当前用户的 `KANYINGYIN_ANDROID_*` 环境变量读取
 .\tool\windows\build_exe_release.ps1
 ```
 
-历史 MSIX 配置只用于旧版本追溯，不进入当前交付流程。
+历史 MSIX 配置、签名脚本和安装脚本只用于旧版本追溯，均已停用；当前 Windows 交付只使用 Inno Setup EXE。
 
 ## 项目结构
 

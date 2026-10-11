@@ -319,7 +319,7 @@ class _CloudResourcePosterWallState extends State<CloudResourcePosterWall> {
               group.isWorkScoped ? '修改刮削名称' : '修改剧名',
             ),
           ),
-          if (onEditTags != null)
+          if (_hasClassificationSeries(group) && onEditTags != null)
             const PopupMenuItem(
               value: _ResourceAction.editTags,
               child: Row(
@@ -327,19 +327,13 @@ class _CloudResourcePosterWallState extends State<CloudResourcePosterWall> {
                 children: [
                   Icon(Icons.sell_outlined, size: 18),
                   SizedBox(width: 8),
-                  Text('管理标签'),
+                  Text('编辑分类与标签'),
                 ],
               ),
             ),
-          const PopupMenuItem(
-            value: _ResourceAction.scrape,
-            child: Text('TMDB 刮削'),
-          ),
           PopupMenuItem(
-            value: _ResourceAction.rematch,
-            child: Text(group.isWorkScoped && group.seasonNumber != null
-                ? '重新刮削本季'
-                : '重新匹配'),
+            value: _matchAction(group),
+            child: Text(_matchActionLabel(group)),
           ),
           if (group.isWorkScoped &&
               group.seasonNumber != null &&
@@ -347,11 +341,6 @@ class _CloudResourcePosterWallState extends State<CloudResourcePosterWall> {
             const PopupMenuItem(
               value: _ResourceAction.rescrapeWork,
               child: Text('重新刮削整部剧'),
-            ),
-          if (_needsManualConfirmation(group))
-            const PopupMenuItem(
-              value: _ResourceAction.manualMatch,
-              child: Text('手动确认匹配'),
             ),
           if (onMatchEpisodes != null)
             const PopupMenuItem(
@@ -402,7 +391,35 @@ class _CloudResourcePosterWallState extends State<CloudResourcePosterWall> {
   }
 
   bool _needsManualConfirmation(CloudResourceMediaGroup group) =>
-      group.workRecord?.status == CloudWorkTmdbStatus.conflict;
+      group.isWorkScoped
+          ? group.workRecord?.status == CloudWorkTmdbStatus.conflict
+          : group.record?.status == CloudResourceTmdbStatus.conflict;
+
+  bool _isMatched(CloudResourceMediaGroup group) => group.isWorkScoped
+      ? group.workRecord?.status == CloudWorkTmdbStatus.matched
+      : group.record?.status == CloudResourceTmdbStatus.matched;
+
+  _ResourceAction _matchAction(CloudResourceMediaGroup group) {
+    if (_needsManualConfirmation(group) && onManualMatch != null) {
+      return _ResourceAction.manualMatch;
+    }
+    return _isMatched(group) ? _ResourceAction.rematch : _ResourceAction.scrape;
+  }
+
+  String _matchActionLabel(CloudResourceMediaGroup group) {
+    return switch (_matchAction(group)) {
+      _ResourceAction.manualMatch => '手动确认匹配',
+      _ResourceAction.rematch =>
+        group.isWorkScoped && group.seasonNumber != null ? '重新刮削本季' : '重新匹配',
+      _ResourceAction.scrape => 'TMDB 刮削',
+      _ => 'TMDB 刮削',
+    };
+  }
+
+  bool _hasClassificationSeries(CloudResourceMediaGroup group) {
+    final series = widget.classificationSeriesForGroup?.call(group);
+    return series?.episodes.isNotEmpty == true;
+  }
 
   Widget _mediaPoster(
     BuildContext context,

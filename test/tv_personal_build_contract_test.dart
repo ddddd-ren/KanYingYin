@@ -8,6 +8,7 @@ void main() {
       'tool/android/build_personal_tv.ps1',
     ).readAsStringSync();
 
+    expect(script, contains('Android TV 发布已暂停'));
     expect(script, contains('[string]\$ConfigurationPath'));
     expect(script, contains('[string]\$MetadataPath'));
     expect(script, contains("'KYY_CONFIG_PASSWORD'"));

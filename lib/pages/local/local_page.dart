@@ -127,6 +127,11 @@ class _LocalPageState extends State<LocalPage>
     return matches.length == 1 ? matches.single : null;
   }
 
+  bool _groupHasTmdbMatch(LocalVideoGroup group) {
+    return group.episodes.any((episode) =>
+        episode.tmdbIdentity != null && episode.tmdbIdentity!.isNotEmpty);
+  }
+
   Future<void> _editGroupTags(BuildContext context, LocalVideoGroup group) async {
     final series = _librarySeriesForGroup(group);
     if (series == null) return;
@@ -635,6 +640,7 @@ class _LocalPageState extends State<LocalPage>
   }
 
   Widget _localMediaMenu(BuildContext context, LocalVideoGroup group) {
+    final hasTmdbMatch = _groupHasTmdbMatch(group);
     return Material(
       key: const ValueKey<String>('local-media-action-surface'),
       type: MaterialType.transparency,
@@ -700,19 +706,17 @@ class _LocalPageState extends State<LocalPage>
           if (_librarySeriesForGroup(group) != null)
             const PopupMenuItem<_LocalMediaAction>(
               value: _LocalMediaAction.editTags,
-              child: Text('管理分类与标签'),
+              child: Text('编辑分类与标签'),
             ),
           const PopupMenuItem<_LocalMediaAction>(
             value: _LocalMediaAction.customCover,
             child: Text('自定义封面'),
           ),
-          const PopupMenuItem<_LocalMediaAction>(
-            value: _LocalMediaAction.scrapeTmdb,
-            child: Text('TMDB 刮削'),
-          ),
-          const PopupMenuItem<_LocalMediaAction>(
-            value: _LocalMediaAction.rematchTmdb,
-            child: Text('重新匹配'),
+          PopupMenuItem<_LocalMediaAction>(
+            value: hasTmdbMatch
+                ? _LocalMediaAction.rematchTmdb
+                : _LocalMediaAction.scrapeTmdb,
+            child: Text(hasTmdbMatch ? '重新匹配' : 'TMDB 刮削'),
           ),
           const PopupMenuItem<_LocalMediaAction>(
             value: _LocalMediaAction.matchEpisodes,
@@ -752,6 +756,7 @@ class _LocalPageState extends State<LocalPage>
     final colorScheme = Theme.of(context).colorScheme;
     final pageContext = context;
     final firstEpisode = group.firstEpisode;
+    final hasTmdbMatch = _groupHasTmdbMatch(group);
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -785,7 +790,7 @@ class _LocalPageState extends State<LocalPage>
               if (_librarySeriesForGroup(group) != null)
                 ListTile(
                   leading: const Icon(Icons.label_outline),
-                  title: const Text('管理分类与标签'),
+                  title: const Text('编辑分类与标签'),
                   onTap: () {
                     Navigator.of(context).pop();
                     _editGroupTags(pageContext, group);
@@ -818,21 +823,16 @@ class _LocalPageState extends State<LocalPage>
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.movie_filter_outlined),
-                title: const Text('TMDB 刮削'),
-                onTap: () {
-                  final navigator = Navigator.of(context);
-                  navigator.pop();
-                  _openLocalTmdbDialog(pageContext, group, rematch: false);
-                },
-              ),
-              ListTile(
                 leading: const Icon(Icons.find_replace_outlined),
-                title: const Text('重新匹配'),
+                title: Text(hasTmdbMatch ? '重新匹配' : 'TMDB 刮削'),
                 onTap: () {
                   final navigator = Navigator.of(context);
                   navigator.pop();
-                  _openLocalTmdbDialog(pageContext, group, rematch: true);
+                  _openLocalTmdbDialog(
+                    pageContext,
+                    group,
+                    rematch: hasTmdbMatch,
+                  );
                 },
               ),
               ListTile(

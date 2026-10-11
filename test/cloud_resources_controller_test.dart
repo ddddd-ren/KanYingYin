@@ -561,7 +561,7 @@ void main() {
         preferredSourceId: sourceA.id,
       );
 
-      expect(controller.availableGenres, isEmpty);
+      expect(controller.availableGenres, <String>['科幻', '纪录片']);
       const confirmedGenres = <String, List<String>>{
         'science-fiction': ['科幻'],
         'documentary': ['纪录片'],
@@ -605,7 +605,7 @@ void main() {
       controller.dispose();
     });
 
-    test('旧资源记录通知后更新候选题材但不自动确认', () async {
+    test('旧资源记录通知后直接采用 TMDB 题材且待确认只由主分类决定', () async {
       final credentials = MemoryCloudCredentialStore();
       final sourceRepository = CloudSourceRepository(
         storage: MemoryCloudSourceStorage(),
@@ -680,13 +680,14 @@ void main() {
               controller.collection.groups.single,
             )!,
           );
-      expect(controller.availableGenres, isEmpty);
+      expect(controller.availableGenres, <String>['科幻']);
       expect(controller.visibleIndexedItems.single.tmdbGenres, <String>['科幻']);
       expect(currentClassification().genreSuggestions.map((item) => item.label),
           ['科幻']);
+      expect(currentClassification().genres, ['科幻']);
       expect(currentClassification().needsConfirmation, isTrue);
       controller.toggleGenre('科幻');
-      expect(controller.selectedGenres, isEmpty);
+      expect(controller.selectedGenres, const <String>{'科幻'});
 
       coordinator.publish(
         CloudResourceTmdbRecord.matched(
@@ -709,10 +710,11 @@ void main() {
       );
 
       expect(controller.selectedGenres, isEmpty);
-      expect(controller.availableGenres, isEmpty);
+      expect(controller.availableGenres, <String>['纪录片']);
       expect(controller.visibleIndexedItems.single.tmdbGenres, <String>['纪录片']);
       expect(currentClassification().genreSuggestions.map((item) => item.label),
           ['纪录片']);
+      expect(currentClassification().genres, ['纪录片']);
       expect(currentClassification().needsConfirmation, isTrue);
       controller.dispose();
     });

@@ -626,11 +626,6 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
         icon: const Icon(Icons.more_vert),
         onSelected: (action) => _handleSeriesAction(series, action),
         itemBuilder: (_) => <PopupMenuEntry<_MediaCategoryAction>>[
-          if (_canEditClassification)
-            const PopupMenuItem<_MediaCategoryAction>(
-              value: _MediaCategoryAction.classification,
-              child: Text('编辑分类与标签'),
-            ),
           if (widget.onWatchedChanged != null)
             PopupMenuItem(
                 value: _MediaCategoryAction.watched,
@@ -684,9 +679,6 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
     _MediaCategoryAction action,
   ) async {
     switch (action) {
-      case _MediaCategoryAction.classification:
-        await _editClassification(series);
-        return;
       case _MediaCategoryAction.watched:
         try {
           await widget.onWatchedChanged?.call(
@@ -1157,7 +1149,6 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
 }
 
 enum _MediaCategoryAction {
-  classification,
   watched,
   favorite,
   watchLater,

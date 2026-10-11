@@ -166,6 +166,12 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
     return 0;
   }
 
+  bool _hasTmdbMatch(LocalMediaSeries series) {
+    return series.episodes.any((episode) =>
+        episode.effectiveTmdbIdentity != null &&
+        episode.effectiveTmdbIdentity!.isNotEmpty);
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -522,6 +528,7 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
     final cover = _coverUrl(series);
     final summary = _summary(series);
     final customTags = _customTagsBySeries[series.key] ?? const <String>[];
+    final hasTmdbMatch = _hasTmdbMatch(series);
     return ExpansionTile(
       tilePadding: const EdgeInsets.symmetric(horizontal: 4),
       childrenPadding: const EdgeInsets.only(left: 8, right: 4, bottom: 8),
@@ -611,12 +618,14 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
               children: [
                 Icon(Icons.sell_outlined, size: 18),
                 SizedBox(width: 8),
-                Text('管理标签'),
+                Text('编辑分类与标签'),
               ],
             ),
           ),
-          const PopupMenuItem(value: 'scrape', child: Text('刮削信息')),
-          const PopupMenuItem(value: 'rematch', child: Text('重新匹配')),
+          PopupMenuItem(
+            value: hasTmdbMatch ? 'rematch' : 'scrape',
+            child: Text(hasTmdbMatch ? '重新匹配' : 'TMDB 刮削'),
+          ),
           const PopupMenuItem(
             value: 'matchEpisodes',
             child: Text('匹配剧集'),

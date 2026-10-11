@@ -3,6 +3,11 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('历史 MSIX 安装脚本明确停用', () {
+    final script = File('tool/windows/installer/安装看影音.ps1').readAsStringSync();
+    expect(script, contains('历史 MSIX 安装脚本已停用'));
+  });
+
   test('Inno Setup 使用当前用户安装并允许完全自选目录', () {
     final source = File('tool/windows/installer/看影音测试版.iss').readAsStringSync();
     final instructions =

@@ -238,7 +238,18 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('媒体操作'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('编辑分类与标签'));
+    expect(find.text('编辑分类与标签'), findsNothing);
+    await tester.tapAt(const Offset(2, 2));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('检查分类'));
+    await tester.pumpAndSettle();
+    final review = find.byKey(const ValueKey('media-classification-review'));
+    await tester.tap(
+      find.descendant(
+        of: review,
+        matching: find.byTooltip('编辑分类与标签'),
+      ),
+    );
     await tester.pumpAndSettle();
     states[movie.key] = const MediaLibraryUserState(favorite: true);
     await tester.tap(find.byKey(const ValueKey('classification-category-动漫')));
@@ -278,7 +289,18 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('媒体操作'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('编辑分类与标签'));
+    expect(find.text('编辑分类与标签'), findsNothing);
+    await tester.tapAt(const Offset(2, 2));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('检查分类'));
+    await tester.pumpAndSettle();
+    final review = find.byKey(const ValueKey('media-classification-review'));
+    await tester.tap(
+      find.descendant(
+        of: review,
+        matching: find.byTooltip('编辑分类与标签'),
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('classification-save')));
     await tester.pumpAndSettle();

@@ -27,6 +27,30 @@ class VersionHistory {
 /// 区段拆分到 part 文件，展开顺序与原列表完全一致，不得重排。
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.226',
+    date: '2026-10-12',
+    isPrerelease: true,
+    changes: [
+      '题材标签默认直接采用 TMDB 刮削结果，剧情、喜剧等多题材不再要求逐项确认',
+      '仅电影、动漫、电视剧等主分类在证据不足或存在冲突时进入待确认，保留明确的人工分类覆盖',
+      '分类编辑器和分类检查会把题材标签与主分类分开显示，刷新和重新刮削继续尊重已有人工覆盖',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.225',
+    date: '2026-10-12',
+    isPrerelease: true,
+    changes: [
+      '本地媒体库和个人网盘媒体库的剧集菜单统一提供“编辑分类与标签”，分类页海报菜单去除重复入口',
+      'TMDB 操作按匹配状态合并：未匹配显示“TMDB 刮削”，已匹配显示“重新匹配”，待确认仍保留手动确认',
+      '网盘媒体库仅在存在可分类剧集时显示分类与标签入口，避免对单个视频展示无效操作',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.224',
     date: '2026-10-11',
     isPrerelease: true,
@@ -348,6 +372,38 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '2.1.226' && platform == AppPlatformKind.android) {
+    return const [
+      VersionHistory(
+        version: '2.1.226',
+        date: '2026-10-12',
+        isPrerelease: true,
+        changes: [
+          '题材标签默认直接采用 TMDB 刮削结果，剧情、喜剧等多题材不再要求逐项确认',
+          '仅电影、动漫、电视剧等主分类在证据不足或存在冲突时进入待确认，保留明确的人工分类覆盖',
+          '分类编辑器和分类检查会把题材标签与主分类分开显示，刷新和重新刮削继续尊重已有人工覆盖',
+          '本轮仅同步 Android 手机版本配置，不交付 Android 安装包',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+        ],
+      ),
+    ];
+  }
+  if (currentVersion == '2.1.225' && platform == AppPlatformKind.android) {
+    return const [
+      VersionHistory(
+        version: '2.1.225',
+        date: '2026-10-12',
+        isPrerelease: true,
+        changes: [
+          '本地媒体库和个人网盘媒体库的剧集菜单统一提供“编辑分类与标签”，分类页海报菜单去除重复入口',
+          'TMDB 操作按匹配状态合并，未匹配执行刮削，已匹配执行重新匹配，待确认仍可手动确认',
+          '网盘媒体库仅在存在可分类剧集时显示分类与标签入口，避免对单个视频展示无效操作',
+          '本轮仅同步 Android 手机版本配置，不交付 Android 安装包',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频',
+        ],
+      ),
+    ];
+  }
   if (currentVersion == '2.1.224' && platform == AppPlatformKind.android) {
     return const [
       VersionHistory(

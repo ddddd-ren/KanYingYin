@@ -109,7 +109,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('播放选项'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('管理标签'));
+    await tester.tap(find.text('编辑分类与标签'));
     await tester.pumpAndSettle();
     final input = find.byKey(const ValueKey('classification-custom-tag-input'));
     await tester.ensureVisible(input);
@@ -135,6 +135,41 @@ void main() {
             .checked,
         isTrue);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('本地抽屉剧集菜单按 TMDB 状态只显示一个匹配动作', (tester) async {
+    final controller = LocalController();
+    controller.localLibraryItems.add(
+      _item(1, '待匹配作品', const [], matched: false),
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: LibrarySheetContent(
+          controller: controller,
+          tagRepository: _Tags({}),
+          settings: TypedSettings(_SettingsBox()),
+          onPlay: (_, __) {},
+          onRefresh: () {},
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('播放选项'));
+    await tester.pumpAndSettle();
+    expect(find.text('TMDB 刮削'), findsOneWidget);
+    expect(find.text('刮削信息'), findsNothing);
+    expect(find.text('重新匹配'), findsNothing);
+    await tester.tapAt(const Offset(2, 2));
+    await tester.pumpAndSettle();
+
+    controller.localLibraryItems[0] =
+        _item(1, '待匹配作品', const [], matched: true);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('播放选项'));
+    await tester.pumpAndSettle();
+    expect(find.text('重新匹配'), findsOneWidget);
+    expect(find.text('TMDB 刮削'), findsNothing);
   });
 
   for (final replaceList in [false, true]) {
@@ -230,7 +265,12 @@ Finder _filterItems(String label) => find.byWidgetPredicate((widget) =>
     widget.child is Text &&
     (widget.child as Text).data == label);
 
-LocalMediaIndexItem _item(int id, String title, List<String> genres) =>
+LocalMediaIndexItem _item(
+  int id,
+  String title,
+  List<String> genres, {
+  bool matched = true,
+}) =>
     LocalMediaIndexItem(
       path: 'C:\\Media\\$title\\$title.mkv',
       name: '$title.mkv',
@@ -240,15 +280,17 @@ LocalMediaIndexItem _item(int id, String title, List<String> genres) =>
       modified: DateTime.utc(2026, 10, 11),
       seriesName: title,
       indexedAt: DateTime.utc(2026, 10, 11),
-      tmdb: TmdbMetadata(
-        id: id,
-        mediaType: TmdbMediaType.tv,
-        title: title,
-        genres: genres,
-        language: 'zh-CN',
-        matchedAt: DateTime.utc(2026, 10, 11),
-        matchConfidence: 1,
-      ),
+      tmdb: matched
+          ? TmdbMetadata(
+              id: id,
+              mediaType: TmdbMediaType.tv,
+              title: title,
+              genres: genres,
+              language: 'zh-CN',
+              matchedAt: DateTime.utc(2026, 10, 11),
+              matchConfidence: 1,
+            )
+          : null,
     );
 
 class _Tags implements ILocalMediaTagRepository {

@@ -47,6 +47,7 @@ void main() {
   test('TV 构建脚本保存并验证独立包记录', () {
     final script = File('tool/android/build_tv_test.ps1').readAsStringSync();
 
+    expect(script, contains('Android TV 发布已暂停'));
     for (final text in <String>[
       'private-output',
       'aapt dump badging',

@@ -196,6 +196,7 @@ class _MediaClassificationDialogState
                         const SizedBox(height: 12),
                         _sectionTitle('题材标签', _genreOverride, '清空题材',
                             () => setState(() => _genreOverride = [])),
+                        const Text('题材标签默认跟随 TMDB；只有主动编辑后才会保存人工覆盖。'),
                         if (genreLabels.isEmpty) const Text('暂无题材建议，可保留空选择。'),
                         for (final label in genreLabels)
                           _choice(
@@ -206,10 +207,10 @@ class _MediaClassificationDialogState
                             onChanged: (value) => _selectGenre(label, value),
                           ),
                         const SizedBox(height: 12),
-                        const Text('高可信：资料匹配且类型、题材一致。\n'
+                        const Text('高可信：资料匹配且主分类、题材一致。\n'
                             '中可信：已有记录，但完整匹配依据不足。\n'
                             '低可信：信息缺失、冲突或只有季集线索。\n'
-                            '可信程度表示证据是否充分，不是准确率。'),
+                            '可信程度只影响主分类自动归类，不是准确率。'),
                         if (widget.allowCustomTags) ...[
                           const SizedBox(height: 16),
                           Text('自定义标签', style: textTheme.titleSmall),
@@ -344,9 +345,11 @@ class _MediaClassificationDialogState
 
 String mediaClassificationModeDescription(MediaClassificationMode mode) =>
     switch (mode) {
-      MediaClassificationMode.conservative => '仅高可信的单一候选自动归类，多候选仍需选择。',
-      MediaClassificationMode.standard => '允许中可信的单一候选自动归类，多候选仍需选择。',
-      MediaClassificationMode.manual => '只给出建议，分类和题材均由你选择。',
+      MediaClassificationMode.conservative =>
+        '仅高可信的单一主分类自动归类，多候选仍需选择；题材标签始终跟随 TMDB。',
+      MediaClassificationMode.standard =>
+        '允许中可信的单一主分类自动归类，多候选仍需选择；题材标签始终跟随 TMDB。',
+      MediaClassificationMode.manual => '只给出主分类建议，题材标签始终跟随 TMDB。',
     };
 
 Future<void> showMediaClassificationReviewDialog(

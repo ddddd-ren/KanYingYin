@@ -12,7 +12,22 @@ import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 
 void main() {
-  testWidgets('分类页媒体菜单打开共享分类编辑器并显示对象来源', (tester) async {
+  test('分类门槛说明只约束主分类且题材默认跟随 TMDB', () {
+    expect(
+      mediaClassificationModeDescription(MediaClassificationMode.conservative),
+      contains('题材标签始终跟随 TMDB'),
+    );
+    expect(
+      mediaClassificationModeDescription(MediaClassificationMode.manual),
+      contains('只给出主分类建议'),
+    );
+    expect(
+      mediaClassificationModeDescription(MediaClassificationMode.manual),
+      isNot(contains('题材均由你选择')),
+    );
+  });
+
+  testWidgets('分类页媒体菜单不再提供分类编辑入口', (tester) async {
     final movie = MediaLibrarySeries(
       key: 'cloud|movie',
       seriesKey: 'movie',
@@ -51,15 +66,9 @@ void main() {
     await tester.tap(find.byTooltip('媒体操作'));
     await tester.pumpAndSettle();
 
-    expect(find.text('编辑分类与标签'), findsOneWidget);
-    await tester.tap(find.text('编辑分类与标签'));
-    await tester.pumpAndSettle();
-    final dialog = find.byKey(const ValueKey('media-classification-dialog'));
-    expect(dialog, findsOneWidget);
-    expect(find.descendant(of: dialog, matching: find.text('同名作品')),
-        findsOneWidget);
-    expect(find.descendant(of: dialog, matching: find.text('家庭媒体库')),
-        findsOneWidget);
+    expect(find.text('编辑分类与标签'), findsNothing);
+    expect(find.byKey(const ValueKey('media-classification-dialog')),
+        findsNothing);
   });
 
   testWidgets('分类多选允许电影动漫并阻止动漫电视剧同时勾选', (tester) async {
@@ -89,10 +98,14 @@ void main() {
   testWidgets('题材多选和自定义标签在一次保存中提交', (tester) async {
     MediaLibraryUserState? saved;
     List<String>? tags;
-    await _openEditor(tester, onSave: (state, customTags) async {
-      saved = state;
-      tags = customTags;
-    });
+    await _openEditor(
+      tester,
+      state: const MediaLibraryUserState(genreOverride: []),
+      onSave: (state, customTags) async {
+        saved = state;
+        tags = customTags;
+      },
+    );
     for (final genre in ['动画', '冒险']) {
       final choice = find.byKey(ValueKey('classification-genre-$genre'));
       await tester.ensureVisible(choice);

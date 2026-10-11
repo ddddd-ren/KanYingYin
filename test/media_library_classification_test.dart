@@ -35,15 +35,15 @@ void main() {
     expect(result.needsConfirmation, isTrue);
   });
 
-  test('多个题材必须选择而非自动全选且不阻止明确的单分类', () {
+  test('多个 TMDB 题材自动保留且不阻止明确的单分类', () {
     final result = resolver.resolve(_series(
       metadata: _metadata(genres: ['剧情', '悬疑']),
     ));
 
     expect(result.categories, ['电视剧']);
-    expect(result.genres, isEmpty);
+    expect(result.genres, ['剧情', '悬疑']);
     expect(result.genreSuggestions.map((value) => value.label), ['剧情', '悬疑']);
-    expect(result.needsConfirmation, isTrue);
+    expect(result.needsConfirmation, isFalse);
   });
 
   test('标准模式接受单一中可信旧元数据而保守模式待确认', () {
@@ -54,13 +54,26 @@ void main() {
         resolver.resolve(series, mode: MediaClassificationMode.standard);
 
     expect(conservative.categories, isEmpty);
-    expect(conservative.genres, isEmpty);
+    expect(conservative.genres, ['剧情']);
     expect(conservative.categorySuggestions.single.confidence,
         MediaClassificationConfidence.medium);
     expect(conservative.needsConfirmation, isTrue);
     expect(standard.categories, ['电视剧']);
     expect(standard.genres, ['剧情']);
     expect(standard.needsConfirmation, isFalse);
+  });
+
+  test('低可信题材仍自动沿用 TMDB 且不单独提示确认', () {
+    final result = resolver.resolve(
+      _series(metadata: _metadata(genres: ['剧情'], confidence: 0.3)),
+      mode: MediaClassificationMode.standard,
+    );
+
+    expect(result.genres, ['剧情']);
+    expect(result.categorySuggestions.single.confidence,
+        MediaClassificationConfidence.low);
+    expect(result.genreSuggestions.single.reason, '题材标签默认跟随 TMDB，不单独触发确认');
+    expect(result.genreSuggestions.single.reason, isNot(contains('需要人工确认')));
   });
 
   test('全手动模式保留建议但不自动分类或选择题材', () {
@@ -70,7 +83,7 @@ void main() {
     );
 
     expect(result.categories, isEmpty);
-    expect(result.genres, isEmpty);
+    expect(result.genres, ['动画']);
     expect(result.categorySuggestions.single.label, '动漫');
     expect(result.needsConfirmation, isTrue);
     expect(result.isManual, isFalse);
@@ -173,7 +186,7 @@ void main() {
         ]) {
           final result = resolver.resolve(_series(metadata: value), mode: mode);
           expect(result.categories, isEmpty);
-          expect(result.genres, isEmpty);
+          expect(result.genres, ['剧情']);
           expect(result.categorySuggestions.single.confidence,
               MediaClassificationConfidence.low);
           expect(result.needsConfirmation, isTrue);
@@ -222,7 +235,7 @@ void main() {
     );
 
     expect(result.categories, isEmpty);
-    expect(result.genres, isEmpty);
+    expect(result.genres, ['动画', '剧情']);
     expect(result.categorySuggestions.map((value) => value.label), ['动漫']);
     expect(result.categorySuggestions.single.confidence,
         MediaClassificationConfidence.low);
@@ -239,7 +252,7 @@ void main() {
     );
 
     expect(result.categories, isEmpty);
-    expect(result.genres, isEmpty);
+    expect(result.genres, ['剧情']);
     expect(result.needsConfirmation, isTrue);
   });
 
@@ -273,7 +286,7 @@ void main() {
     expect(result.isManual, isTrue);
   });
 
-  test('人工覆盖的一维不会清除另一维待确认状态', () {
+  test('人工覆盖主分类时仍保留 TMDB 题材且不因题材待确认', () {
     final result = resolver.resolve(
       _series(
           metadata: _metadata(type: TmdbMediaType.movie, genres: ['动画', '冒险'])),
@@ -281,8 +294,8 @@ void main() {
     );
 
     expect(result.categories, ['动漫']);
-    expect(result.genres, isEmpty);
-    expect(result.needsConfirmation, isTrue);
+    expect(result.genres, ['动画', '冒险']);
+    expect(result.needsConfirmation, isFalse);
   });
 
   test('人工动漫与电视剧互斥且只允许已支持的分类', () {

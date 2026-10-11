@@ -12,6 +12,10 @@ $ErrorActionPreference = 'Stop'
 $OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 chcp 65001 > $null
 
+if ($Flavor -eq 'tvTest') {
+    throw 'Android TV 发布已暂停，禁止执行 tvTest 构建'
+}
+
 function Get-PubspecVersion {
     [CmdletBinding()]
     param(

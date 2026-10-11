@@ -7,6 +7,9 @@ param(
   [string]$TimestampUrl = 'http://timestamp.digicert.com'
 )
 
+# 历史 MSIX 构建脚本：当前 Windows 交付只使用 build_exe_release.ps1 和 Inno Setup。
+throw '历史 MSIX 构建脚本已停用，当前请使用 tool/windows/build_exe_release.ps1'
+
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)

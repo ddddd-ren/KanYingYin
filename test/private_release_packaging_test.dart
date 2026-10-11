@@ -9,6 +9,7 @@ void main() {
     final script =
         await File('tool/windows/build_private_release.ps1').readAsString();
 
+    expect(script, contains('历史 MSIX 构建脚本已停用'));
     expect(script, contains("'http://timestamp.digicert.com'"));
     expect(script, contains("'/tr', \$TimestampUrl, '/td', 'SHA256'"));
     expect(script, contains('TimeStamperCertificate'));

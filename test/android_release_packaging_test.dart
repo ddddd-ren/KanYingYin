@@ -74,6 +74,7 @@ void main() {
     final script = File(
       'tool/android/build_signed_release.ps1',
     ).readAsStringSync();
+    expect(script, contains('Android TV 发布已暂停'));
     expect(script, contains(r"$flutter = 'D:\flutter\bin\flutter.bat'"));
     expect(
       script,

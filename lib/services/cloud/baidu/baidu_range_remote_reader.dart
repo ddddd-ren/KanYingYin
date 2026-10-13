@@ -1,9 +1,8 @@
+import 'package:kanyingyin/services/cloud/core/cloud_core.dart';
 import 'dart:async';
 import 'dart:io';
 
 import 'package:kanyingyin/services/cloud/baidu/baidu_request_policy.dart';
-import 'package:kanyingyin/services/cloud/range/cloud_range_relay_protocol.dart';
-import 'package:kanyingyin/services/cloud/range/cloud_range_remote_reader.dart';
 
 typedef BaiduAccessTokenProvider = Future<String> Function();
 typedef BaiduRemoteResourceRefresher = Future<CloudRangeRemoteResource>

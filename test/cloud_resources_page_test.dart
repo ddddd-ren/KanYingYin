@@ -1533,6 +1533,136 @@ void main() {
     }
   });
 
+  testWidgets('来源页提供分类门槛入口并保存设置', (tester) async {
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      entries: [_pageVideo('classification-mode', '/影视/测试.mkv', '测试.mkv')],
+    );
+    addTearDown(fixture.controller.dispose);
+    final settings = _RecordingClassificationSettings();
+
+    await tester.pumpWidget(MaterialApp(
+      home: CloudResourcesPage(
+        controller: fixture.controller,
+        settings: settings,
+        userStateRepository: MediaLibraryUserStateRepository(
+          storage: MemoryMediaLibraryUserStateStorage(),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    final menu = find.byKey(const ValueKey('media-classification-mode'));
+    expect(menu, findsOneWidget);
+    await tester.tap(menu);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('标准'));
+    await tester.pumpAndSettle();
+
+    expect(settings.value, 'standard');
+    expect(fixture.controller.classificationMode.name, 'standard');
+    expect(menu, findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('网盘确认入口覆盖当前来源子目录且保存失败后可重试', (tester) async {
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      mediaTagRepository: CloudMediaTagRepository(storage: MemoryCloudMediaTagStorage()),
+      entries: [
+        _pageVideo('pending-a', '/影视/甲/甲片.mkv', '甲片.mkv'),
+        _pageVideo('pending-b', '/影视/乙/乙片.mkv', '乙片.mkv'),
+      ],
+    );
+    addTearDown(fixture.controller.dispose);
+    final storage = _FailClassificationStorage();
+    final repository = MediaLibraryUserStateRepository(storage: storage);
+    final playback = Completer<void>();
+    addTearDown(() { if (!playback.isCompleted) playback.complete(); });
+    await tester.pumpWidget(MaterialApp(home: CloudResourcesPage(
+      controller: fixture.controller,
+      settings: _DefaultClassificationSettings(),
+      userStateRepository: repository,
+      onPlayRequest: (_) => playback.future,
+    )));
+    await tester.pumpAndSettle();
+    fixture.controller.selectDirectoryScope('/影视/甲');
+    fixture.controller.setQuery('没有匹配的片名');
+    await tester.pumpAndSettle();
+    final menu = find.byKey(const ValueKey('media-classification-mode'));
+    await tester.tap(menu);
+    await tester.pumpAndSettle();
+    expect(find.text('待确认（2）'), findsOneWidget);
+    expect(find.text('已确认（0）'), findsOneWidget);
+    await tester.tap(find.text('待确认（2）'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('编辑分类与标签'), findsNWidgets(2));
+    await tester.tap(find.byTooltip('编辑分类与标签').first);
+    await tester.pumpAndSettle();
+    storage.failNextWrite = true;
+    await tester.tap(find.byKey(const ValueKey('classification-category-电影')));
+    await tester.tap(find.byKey(const ValueKey('classification-save')));
+    await tester.pumpAndSettle();
+    expect(find.text('分类与标签保存失败，已保留选择，请重试。'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('classification-save')));
+    await tester.pumpAndSettle();
+    expect(find.text('待确认（1）'), findsOneWidget);
+    expect(find.text('已确认（1）'), findsOneWidget);
+    expect(find.byTooltip('编辑分类与标签'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ChoiceChip, '已确认（1）'));
+    await tester.pumpAndSettle();
+    expect(find.text('已手动确认'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, '关闭'));
+    await tester.pumpAndSettle();
+    expect(fixture.controller.currentDirectoryScope, '/影视/甲');
+    expect(fixture.controller.query, '没有匹配的片名');
+    await tester.tap(menu);
+    await tester.pumpAndSettle();
+    expect(find.text('待确认（1）'), findsOneWidget);
+    expect(find.text('已确认（1）'), findsOneWidget);
+    await tester.tap(find.text('已确认（1）'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(ListTile).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '播放'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('media-classification-review')), findsNothing);
+    playback.complete();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('确认编辑期间作品移出索引时拒绝保存旧对象', (tester) async {
+    final video = _pageVideo('removed-review', '/影视/待移出.mkv', '待移出.mkv');
+    final fixture = await _PageFixture.create(
+      source: _quarkSource,
+      entries: [video],
+      mediaTagRepository: CloudMediaTagRepository(storage: MemoryCloudMediaTagStorage()),
+    );
+    addTearDown(fixture.controller.dispose);
+    final repository = MediaLibraryUserStateRepository(storage: MemoryMediaLibraryUserStateStorage());
+    await tester.pumpWidget(MaterialApp(home: CloudResourcesPage(
+      controller: fixture.controller,
+      settings: _DefaultClassificationSettings(),
+      userStateRepository: repository,
+    )));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('media-classification-mode')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('待确认（1）'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('编辑分类与标签'));
+    await tester.pumpAndSettle();
+    await fixture.controller.hideVideos([video]);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('classification-category-电影')));
+    await tester.tap(find.byKey(const ValueKey('classification-save')));
+    await tester.pumpAndSettle();
+    expect(find.text('分类与标签保存失败，已保留选择，请重试。'), findsOneWidget);
+    expect((await repository.getAll()).values.any((state) => state.categoryOverride != null), isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('已有来源时更多菜单保留四种添加入口', (tester) async {
     final fixture = await _PageFixture.create(source: _quarkSource);
 
@@ -3283,6 +3413,18 @@ Future<MediaLibraryUserStateRepository> _confirmSampleGenres(
 class _DefaultClassificationSettings extends Fake implements TypedSettings {
   @override
   Object? readRaw(String key, {Object? defaultValue}) => defaultValue;
+}
+
+class _RecordingClassificationSettings extends _DefaultClassificationSettings {
+  Object? value;
+
+  @override
+  Object? readRaw(String key, {Object? defaultValue}) => value ?? defaultValue;
+
+  @override
+  Future<void> write<T>(String key, T next) async {
+    if (key == SettingBoxKey.mediaClassificationMode) value = next;
+  }
 }
 
 class _FailClassificationStorage extends MemoryMediaLibraryUserStateStorage {

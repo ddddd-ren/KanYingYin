@@ -7,6 +7,7 @@ import 'package:kanyingyin/features/cloud/application/cloud_resources_toolbar.da
 import 'package:kanyingyin/features/episode_matching/application/cloud_episode_match_service.dart';
 import 'package:kanyingyin/features/episode_matching/presentation/manual_episode_match_dialog.dart';
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
+import 'package:kanyingyin/features/library/presentation/library_toolbar.dart';
 import 'package:kanyingyin/features/library/application/media_library_classification.dart';
 import 'package:kanyingyin/features/library/application/media_library_user_state.dart';
 import 'package:kanyingyin/features/library/application/media_library_user_state_repository.dart';
@@ -29,6 +30,7 @@ import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/platform/app_platform_io.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_search.dart';
 import 'package:kanyingyin/services/cloud/cloud_work_tmdb_service.dart';
@@ -104,48 +106,109 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
   bool _autoOrganizing = false;
   CloudResourceAutoOrganizeProgress? _autoOrganizeProgress;
   late final MediaLibraryUserStateRepository _userStateRepository;
+  late final TextEditingController _searchController;
 
   @override
   void initState() {
     super.initState();
     _controller = widget.controller ?? Modular.get<CloudResourcesController>();
     _capabilities = widget.capabilities ?? detectAppPlatform();
+    _searchController = TextEditingController(text: _controller.query);
     _controller.addListener(_refresh);
-    _userStateRepository = widget.userStateRepository ?? MediaLibraryUserStateRepository();
+    _userStateRepository =
+        widget.userStateRepository ?? MediaLibraryUserStateRepository();
     MediaLibraryUserStateRepository.changes.addListener(_reloadClassifications);
-    _controller.mediaLibrarySnapshotListenable.addListener(_reloadClassifications);
+    _controller.mediaLibrarySnapshotListenable
+        .addListener(_reloadClassifications);
     _reloadClassifications();
     _controller.ensureLoaded(startScan: !_capabilities.isAndroidTv);
   }
 
   @override
   void dispose() {
-    MediaLibraryUserStateRepository.changes.removeListener(_reloadClassifications);
-    _controller.mediaLibrarySnapshotListenable.removeListener(_reloadClassifications);
+    MediaLibraryUserStateRepository.changes
+        .removeListener(_reloadClassifications);
+    _controller.mediaLibrarySnapshotListenable
+        .removeListener(_reloadClassifications);
     _playbackNavigation.invalidate();
     _controller.removeListener(_refresh);
+    _searchController.dispose();
     super.dispose();
   }
 
   void _refresh() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    if (_searchController.text != _controller.query) {
+      _searchController.value = TextEditingValue(
+        text: _controller.query,
+        selection: TextSelection.collapsed(offset: _controller.query.length),
+      );
+    }
+    setState(() {});
   }
 
   Future<void> _reloadClassifications() async {
     try {
       final states = await _userStateRepository.reconcile({
         for (final series in _controller.mediaLibrarySnapshot.series)
-          series.key: series.episodes.map((episode) => episode.stableId).toSet(),
+          series.key:
+              series.episodes.map((episode) => episode.stableId).toSet(),
       });
       final settings = widget.settings ?? Modular.get<TypedSettings>();
       final value = settings.readRaw(SettingBoxKey.mediaClassificationMode);
       if (!mounted) return;
-      _controller.updateClassifications(states, MediaClassificationMode.values.firstWhere(
-        (mode) => mode.name == value,
-        orElse: () => MediaClassificationMode.conservative,
-      ));
+      _controller.updateClassifications(
+          states,
+          MediaClassificationMode.values.firstWhere(
+            (mode) => mode.name == value,
+            orElse: () => MediaClassificationMode.conservative,
+          ));
     } on Object {
       // 暂不可读时保留当前选择，不因恢复失败清空人工分类。
+    }
+  }
+
+  Future<void> _setClassificationMode(MediaClassificationMode mode) async {
+    final settings = widget.settings ?? Modular.get<TypedSettings>();
+    await settings.write(SettingBoxKey.mediaClassificationMode, mode.name);
+    MediaLibraryUserStateRepository.changes.value++;
+  }
+
+  Future<void> _reviewClassifications(bool needsConfirmation) async {
+    final source = _controller.selectedSource;
+    if (source == null) return;
+    try {
+      await _controller.ensureMediaLibrarySnapshot();
+      await _reloadClassifications();
+      if (!mounted || _controller.selectedSource?.id != source.id) return;
+      await showMediaClassificationReviewDialog(
+        context,
+        seriesProvider: () => _controller.mediaLibrarySnapshot.series
+            .where((item) => item.sourceId == source.id).toList(growable: false),
+        sourceLabel: source.name,
+        userStatesProvider: () => _controller.classificationStates,
+        modeProvider: () => _controller.classificationMode,
+        initialNeedsConfirmation: needsConfirmation,
+        libraryListenable: _controller,
+        onEdit: (series) async {
+          final group = _controller.classificationGroupForSeries(series);
+          if (group == null) {
+            _showMessage('作品已不在当前来源中，请刷新后重试');
+            return;
+          }
+          await _editTags(group, librarySeries: series);
+        },
+        onOpen: (series) async {
+          final group = _controller.classificationGroupForSeries(series);
+          if (group == null) {
+            _showMessage('作品已不在当前来源中，请刷新后重试');
+            return;
+          }
+          await _showMediaDetails(group);
+        },
+      );
+    } on Object {
+      if (mounted) _showMessage('分类列表加载失败，请重试');
     }
   }
 
@@ -268,13 +331,13 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       classificationSeriesForGroup: _controller.classificationSeriesForGroup,
       groupProvider: () {
         if (_controller.selectedSource?.id != source.id) return currentGroup;
-        final matches = _controller.collection.groups.where((candidate) =>
-            candidate.videos.any((video) => currentGroup.videos.any((original) =>
-                original.id.isNotEmpty
+        final matches = _controller.collection.groups
+            .where((candidate) => candidate.videos.any((video) =>
+                currentGroup.videos.any((original) => original.id.isNotEmpty
                     ? video.id == original.id
                     : video.remotePath == original.remotePath)))
-          .take(2)
-          .toList(growable: false);
+            .take(2)
+            .toList(growable: false);
         if (matches.length == 1) currentGroup = matches.single;
         return currentGroup;
       },
@@ -704,21 +767,30 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     }
   }
 
-  Future<void> _editTags(CloudResourceMediaGroup group) async {
+  Future<void> _editTags(CloudResourceMediaGroup group, {MediaLibrarySeries? librarySeries}) async {
     final sourceId = _controller.selectedSource?.id;
-    final series = _controller.classificationSeriesForGroup(group);
+    final series = librarySeries ?? _controller.classificationSeriesForGroup(group);
     if (series == null) return;
     final initialTags = _controller.customTagsForGroup(group);
     final initialFilters = _controller.selectedGenres;
     final saved = await showMediaClassificationDialog(
       context,
       series: series,
-      state: _controller.classificationStates[series.key] ?? MediaLibraryUserState.empty,
+      state: _controller.classificationStates[series.key] ??
+          MediaLibraryUserState.empty,
       mode: _controller.classificationMode,
       customTags: initialTags,
       onSave: (state, tags) async {
         if (_controller.selectedSource?.id != sourceId) {
           throw StateError('网盘来源已切换，请返回当前来源后重试');
+        }
+        final currentSeries = librarySeries == null
+            ? _controller.classificationSeriesForGroup(group)
+            : _controller.mediaLibrarySnapshot.series
+                .where((item) => item.key == series.key && item.sourceId == sourceId)
+                .firstOrNull;
+        if (currentSeries == null) {
+          throw StateError('作品已不在媒体库中，请刷新后重试');
         }
         try {
           await _controller.saveCustomTags(group, tags);
@@ -726,7 +798,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
             series.key,
             categories: state.categoryOverride,
             genres: state.genreOverride,
-            mediaIds: series.episodes.map((episode) => episode.stableId),
+            mediaIds: currentSeries.episodes.map((episode) => episode.stableId),
           );
         } on Object {
           if (_controller.selectedSource?.id == sourceId) {
@@ -744,12 +816,13 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     if (saved == true && mounted) _showMessage('标签已保存');
   }
 
-  Future<void> _showMediaDetails(CloudResourceMediaGroup group) {
-    return showCloudMediaDetailsDialog(
+  Future<void> _showMediaDetails(CloudResourceMediaGroup group) async {
+    Future<void>? playback;
+    await showCloudMediaDetailsDialog(
       context: context,
       item: _controller.detailsFor(group.anchor),
       capabilities: _capabilities,
-      onPlay: () => _openGroup(group),
+      onPlay: () => playback ??= _openGroup(group),
       onLoadImages: (kind) => _controller.loadTmdbImagesForItem(
         _controller.detailsFor(group.anchor),
         kind: kind,
@@ -764,6 +837,7 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
         kind: kind,
       ),
     );
+    await playback;
   }
 
   Future<void> _scrapeSelectedSource() async {
@@ -1008,26 +1082,6 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       autoOrganizing: _autoOrganizing,
       tmdbBusy: _controller.tmdbScrapingKeys.isNotEmpty,
     );
-    final colors = Theme.of(context).colorScheme;
-    final title = Row(children: [
-      Icon(Icons.cloud_outlined, color: colors.primary),
-      const SizedBox(width: 10),
-      Flexible(
-          child: Text('网盘媒体库',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w600))),
-      const SizedBox(width: 10),
-      Text('${selected == null ? 0 : _controller.collection.groups.length} 部',
-          key: const ValueKey('cloud-resource-count'),
-          style: Theme.of(context)
-              .textTheme
-              .bodySmall
-              ?.copyWith(color: colors.outline)),
-    ]);
     final sourceSelector = DropdownButtonHideUnderline(
       child: DropdownButton<String>(
         key: const ValueKey<String>('cloud-source-selector'),
@@ -1070,6 +1124,15 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
         ],
         icon: _cloudFilterIcon(
             icon: Icons.filter_list, availableTags: _controller.availableTags),
+      ),
+      MediaClassificationModeMenu(
+        mode: _controller.classificationMode,
+        compact: true,
+        onChanged: _setClassificationMode,
+        series: _controller.mediaLibrarySnapshot.series
+            .where((item) => item.sourceId == selected?.id).toList(growable: false),
+        userStates: _controller.classificationStates,
+        onReview: selected == null ? null : _reviewClassifications,
       ),
       IconButton(
         tooltip: '刷新当前来源',
@@ -1138,34 +1201,22 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
         ],
       ),
     ];
-    return Padding(
-      key: const ValueKey('cloud-resource-toolbar'),
-      padding: const EdgeInsets.fromLTRB(16, 12, 10, 8),
-      child: LayoutBuilder(builder: (context, constraints) {
-        if (constraints.maxWidth < 600) {
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              title,
-              const SizedBox(height: 4),
-              Row(children: [
-                if (sources.isNotEmpty)
-                  Expanded(child: sourceSelector)
-                else
-                  const Spacer(),
-                ...actions,
-              ]),
-            ],
-          );
-        }
-        return Row(children: [
-          Expanded(child: title),
-          if (sources.isNotEmpty) SizedBox(width: 220, child: sourceSelector),
-          const SizedBox(width: 8),
-          ...actions,
-        ]);
-      }),
+    return LibraryToolbar(
+      key: const ValueKey<String>('cloud-resource-toolbar'),
+      title: '网盘媒体库',
+      titleKey: const ValueKey<String>('cloud-resource-title'),
+      icon: Icons.cloud_outlined,
+      count: selected == null ? 0 : _controller.collection.groups.length,
+      searchController: _searchController,
+      searchKey: const ValueKey<String>('cloud-resource-search'),
+      searchHint: '搜索全部网盘资源',
+      onSearchChanged: _controller.setQuery,
+      onClearSearch: () {
+        _searchController.clear();
+        _controller.setQuery('');
+      },
+      leading: sources.isEmpty ? null : sourceSelector,
+      actions: actions,
     );
   }
 
@@ -1424,18 +1475,6 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
                 ],
               ),
             ),
-          Padding(
-            key: const ValueKey<String>('cloud-resource-search-surface'),
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-            child: TextField(
-              decoration: const InputDecoration(
-                hintText: '搜索全部网盘资源',
-                prefixIcon: Icon(Icons.search),
-                isDense: true,
-              ),
-              onChanged: _controller.setQuery,
-            ),
-          ),
           Expanded(
             key: const ValueKey<String>('cloud-resource-poster-surface'),
             child: CloudResourcePosterWall(
@@ -1445,7 +1484,8 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
               collection: _controller.collection,
               userStates: _controller.classificationStates,
               classificationMode: _controller.classificationMode,
-              classificationSeriesForGroup: _controller.classificationSeriesForGroup,
+              classificationSeriesForGroup:
+                  _controller.classificationSeriesForGroup,
               scrapingKeys: _controller.tmdbScrapingKeys,
               searchQuery: _controller.query,
               hiddenVideoCount: _controller.hiddenVideos.length,

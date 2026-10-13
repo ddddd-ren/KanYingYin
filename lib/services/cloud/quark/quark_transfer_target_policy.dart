@@ -1,6 +1,5 @@
+import 'package:kanyingyin/services/cloud/core/cloud_core.dart';
 import 'package:kanyingyin/modules/cloud/cloud_source.dart';
-import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
-import 'package:kanyingyin/services/cloud/cloud_source_path_scope.dart';
 
 /// 将夸克转存目录持久化为可扫描的媒体目录。
 abstract final class QuarkTransferTargetPolicy {

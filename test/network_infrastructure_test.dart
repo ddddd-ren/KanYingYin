@@ -112,8 +112,10 @@ void main() {
   test('生产网盘海报缓存统一使用 TMDB 图片客户端', () {
     final cloudBindings =
         File('lib/app/bindings/cloud_bindings.dart').readAsStringSync();
-    final localController =
-        File('lib/pages/local/local_controller.dart').readAsStringSync();
+    final localController = File('lib/pages/local/local_controller.dart')
+            .readAsStringSync() +
+        File('lib/pages/local/local_library_application_coordinator.dart')
+            .readAsStringSync();
 
     expect(
       cloudBindings,

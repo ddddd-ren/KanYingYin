@@ -1,8 +1,8 @@
+import 'package:kanyingyin/services/cloud/core/cloud_core.dart';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:kanyingyin/services/cloud/baidu/baidu_models.dart';
-import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 
 abstract interface class BaiduOAuthGateway {
   Uri buildAuthorizationUri({required String state});

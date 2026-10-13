@@ -4,9 +4,7 @@ import 'package:kanyingyin/features/library/application/media_category_runtime.d
 import 'package:kanyingyin/features/library/application/media_library_category.dart';
 import 'package:kanyingyin/features/library/presentation/media_category_page.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
-import 'package:kanyingyin/pages/local/local_controller.dart';
-import 'package:kanyingyin/pages/video/local_video_controller.dart';
-import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
+import 'package:kanyingyin/features/library/application/library_ports.dart';
 
 class MediaCategoryModule extends Module {
   MediaCategoryModule(this.category);
@@ -16,14 +14,12 @@ class MediaCategoryModule extends Module {
   @override
   void routes(r) {
     r.child('/', child: (_) {
-      final cloudController = Modular.get<CloudResourcesController>();
+      final localLibrary = Modular.get<LocalLibraryPort>();
+      final cloudLibrary = Modular.get<CloudLibraryPort>();
       final runtime = MediaCategoryRuntime(
-        localController: Modular.get<LocalController>(),
-        videoController: Modular.get<LocalVideoController>(),
-        refreshCloudLibrary: cloudController.reloadMediaLibrarySnapshot,
-        ensureCloudLibrary: cloudController.ensureMediaLibrarySnapshot,
-        cloudLibraryProvider: () => cloudController.mediaLibrarySnapshot,
-        hideCloudEpisodes: cloudController.hideMediaLibraryEpisodes,
+        localLibrary: localLibrary,
+        cloudLibrary: cloudLibrary,
+        playback: Modular.get<PlaybackPort>(),
         settings: Modular.get<TypedSettings>(),
         navigateToPlayer: () async {
           await Modular.to.pushNamed('/video/');
@@ -38,16 +34,14 @@ class MediaCategoryModule extends Module {
         onHideEpisodes: runtime.hideEpisodes,
         userStatesProvider: () => runtime.userStates,
         onUserStateChanged: runtime.saveUserState,
-        onClassificationChanged: runtime.saveClassification,
         reconcileUserStates: runtime.reconcileUserStates,
         onRelinkUserState: runtime.relinkUserState,
         watchStatesProvider: () => runtime.watchStates,
         onWatchedChanged: runtime.setWatched,
         classificationModeProvider: () => runtime.classificationMode,
-        onClassificationModeChanged: runtime.setClassificationMode,
         onDispose: runtime.dispose,
         libraryListenable: Listenable.merge([
-          cloudController.mediaLibrarySnapshotListenable,
+          cloudLibrary.changes,
           runtime,
         ]),
       );

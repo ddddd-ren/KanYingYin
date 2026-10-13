@@ -420,8 +420,10 @@ void main() {
     ).readAsStringSync();
     final librarySource =
         File('lib/pages/local/library_sheet.dart').readAsStringSync();
-    final controllerSource =
-        File('lib/pages/local/local_controller.dart').readAsStringSync();
+    final controllerSource = File('lib/pages/local/local_controller.dart')
+            .readAsStringSync() +
+        File('lib/pages/local/local_library_application_coordinator.dart')
+            .readAsStringSync();
 
     expect(controllerSource, contains('tmdbPosterUrlForPaths'));
     expect(pageSource, contains('tmdbPosterUrlForPaths'));
@@ -461,8 +463,10 @@ void main() {
   });
 
   test('字幕设置支持按视频调节出现时间', () {
-    final controller =
-        File('lib/pages/player/player_controller.dart').readAsStringSync();
+    final controller = File('lib/pages/player/player_controller.dart')
+            .readAsStringSync() +
+        File('lib/pages/player/player_playback_application_coordinator.dart')
+            .readAsStringSync();
     final overlay = File(
       'lib/pages/player/widgets/subtitle_settings_overlay.dart',
     ).readAsStringSync();
@@ -487,8 +491,10 @@ void main() {
   });
 
   test('外部字幕与内置字幕切换保持互斥', () {
-    final controller =
-        File('lib/pages/player/player_controller.dart').readAsStringSync();
+    final controller = File('lib/pages/player/player_controller.dart')
+            .readAsStringSync() +
+        File('lib/pages/player/player_playback_application_coordinator.dart')
+            .readAsStringSync();
 
     expect(
       controller,
@@ -519,8 +525,10 @@ void main() {
   });
 
   test('播放器集成轨道语言确认并保护退出后的旧结果', () {
-    final source =
-        File('lib/pages/player/player_controller.dart').readAsStringSync();
+    final source = File('lib/pages/player/player_controller.dart')
+            .readAsStringSync() +
+        File('lib/pages/player/player_playback_application_coordinator.dart')
+            .readAsStringSync();
     final item = File('lib/pages/player/player_item.dart').readAsStringSync();
     final dialog = File(
       'lib/pages/player/widgets/track_language_confirmation_dialog.dart',
@@ -702,8 +710,10 @@ void main() {
   });
 
   test('播放器始终记录 mpv 日志且不做无效 TrueHD 视频重建', () {
-    final source =
-        File('lib/pages/player/player_controller.dart').readAsStringSync();
+    final source = File('lib/pages/player/player_controller.dart')
+            .readAsStringSync() +
+        File('lib/pages/player/player_playback_application_coordinator.dart')
+            .readAsStringSync();
 
     expect(
       source,

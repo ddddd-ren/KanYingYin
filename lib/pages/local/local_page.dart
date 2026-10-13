@@ -11,6 +11,7 @@ import 'package:kanyingyin/features/library/application/media_library_classifica
 import 'package:kanyingyin/features/library/application/media_library_user_state.dart';
 import 'package:kanyingyin/features/library/application/media_library_user_state_repository.dart';
 import 'package:kanyingyin/features/library/presentation/media_classification_dialog.dart';
+import 'package:kanyingyin/features/library/presentation/media_library_details_dialog.dart';
 import 'package:kanyingyin/repositories/local_media_tag_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 import 'package:kanyingyin/features/library/presentation/directory_address_dropdown.dart';
@@ -71,6 +72,7 @@ class _LocalPageState extends State<LocalPage>
       const LibraryMediaViewDataBuilder();
   String _searchKeyword = '';
   final _userStateRepository = MediaLibraryUserStateRepository();
+  final _classificationChanges = ValueNotifier<int>(0);
   Map<String, MediaLibraryUserState> _userStates = const {};
   Map<String, MediaLibrarySeries> _librarySeriesByPath = const {};
   MediaClassificationMode _classificationMode = MediaClassificationMode.conservative;
@@ -97,6 +99,7 @@ class _LocalPageState extends State<LocalPage>
     MediaLibraryUserStateRepository.changes.removeListener(_reloadClassifications);
     _scrollController.dispose();
     _searchController.dispose();
+    _classificationChanges.dispose();
     super.dispose();
   }
 
@@ -115,9 +118,18 @@ class _LocalPageState extends State<LocalPage>
           orElse: () => MediaClassificationMode.conservative,
         );
       });
+      _classificationChanges.value++;
     } on Object {
       // 暂不可读时沿用已加载的人工选择。
     }
+  }
+
+  Future<void> _setClassificationMode(MediaClassificationMode mode) async {
+    await Modular.get<TypedSettings>().write(
+      SettingBoxKey.mediaClassificationMode,
+      mode.name,
+    );
+    MediaLibraryUserStateRepository.changes.value++;
   }
 
   MediaLibrarySeries? _librarySeriesForGroup(LocalVideoGroup group) {
@@ -135,6 +147,10 @@ class _LocalPageState extends State<LocalPage>
   Future<void> _editGroupTags(BuildContext context, LocalVideoGroup group) async {
     final series = _librarySeriesForGroup(group);
     if (series == null) return;
+    await _editSeriesTags(context, series);
+  }
+
+  Future<void> _editSeriesTags(BuildContext context, MediaLibrarySeries series) async {
     final tags = LocalMediaTagRepository();
     final initialTags = tags.getAll()[series.seriesKey] ?? const <String>[];
     await showMediaClassificationDialog(
@@ -144,6 +160,9 @@ class _LocalPageState extends State<LocalPage>
       mode: _classificationMode,
       customTags: initialTags,
       onSave: (state, selectedTags) async {
+        if (!localController.localMediaLibrary.series.any((item) => item.key == series.key)) {
+          throw StateError('作品已不在媒体库中，请刷新后重试');
+        }
         try {
           await tags.saveForSeries(series.seriesKey, selectedTags);
           await _userStateRepository.saveClassification(
@@ -157,6 +176,38 @@ class _LocalPageState extends State<LocalPage>
           rethrow;
         }
         await _reloadClassifications();
+      },
+    );
+  }
+
+  Future<void> _reviewClassifications(bool needsConfirmation) {
+    return showMediaClassificationReviewDialog(
+      context,
+      seriesProvider: () => localController.localMediaLibrary.series,
+      sourceLabel: '本地媒体库',
+      userStatesProvider: () => _userStates,
+      modeProvider: () => _classificationMode,
+      initialNeedsConfirmation: needsConfirmation,
+      libraryListenable: _classificationChanges,
+      onEdit: (series) => _editSeriesTags(context, series),
+      onOpen: (series) async {
+        final episodes = series.episodes.map((item) => item.localItem)
+            .whereType<LocalMediaIndexItem>().toList(growable: false);
+        Future<void>? playback;
+        await showMediaLibraryDetailsDialog(
+          context: context,
+          series: series,
+          onPlay: !series.isAvailable || episodes.isEmpty ? null : () => playback ??= _playLibraryEpisode(
+            LocalMediaSeries(
+              key: series.seriesKey,
+              title: series.title,
+              legacySeriesTitles: series.legacySeriesTitles,
+              episodes: episodes,
+            ),
+            episodes.first,
+          ),
+        );
+        await playback;
       },
     );
   }
@@ -961,6 +1012,14 @@ class _LocalPageState extends State<LocalPage>
                       onMatchMetadata: () => _scrapeTmdb(context),
                       onCancelScan: localController.cancelLocalLibraryIndex,
                       onShowFailures: () => _showLibraryFailures(context),
+                      classificationModeControl: MediaClassificationModeMenu(
+                        mode: _classificationMode,
+                        compact: true,
+                        onChanged: _setClassificationMode,
+                        series: localController.localMediaLibrary.series,
+                        userStates: _userStates,
+                        onReview: _reviewClassifications,
+                      ),
                     )),
             Expanded(child: Observer(builder: (_) => _mediaGrid(context))),
           ],

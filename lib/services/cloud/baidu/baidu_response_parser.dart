@@ -1,5 +1,5 @@
+import 'package:kanyingyin/services/cloud/core/cloud_core.dart';
 import 'package:kanyingyin/services/cloud/baidu/baidu_models.dart';
-import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 
 class BaiduResponseParser {
   const BaiduResponseParser();

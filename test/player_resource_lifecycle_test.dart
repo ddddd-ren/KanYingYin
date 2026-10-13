@@ -38,8 +38,10 @@ void main() {
   });
 
   test('播放器在首个异步释放前解除资源所有权且不复用旧实例', () {
-    final source =
-        File('lib/pages/player/player_controller.dart').readAsStringSync();
+    final source = File('lib/pages/player/player_controller.dart')
+            .readAsStringSync() +
+        File('lib/pages/player/player_playback_application_coordinator.dart')
+            .readAsStringSync();
     final disposeStart = source.indexOf(
       'Future<void> _disposePlayerResources()',
     );

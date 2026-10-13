@@ -87,8 +87,10 @@ void main() {
   });
 
   test('播放器初始化异常终止替换会话且不重复释放候选租约', () {
-    final source =
-        File('lib/pages/player/player_controller.dart').readAsStringSync();
+    final source = File('lib/pages/player/player_controller.dart')
+            .readAsStringSync() +
+        File('lib/pages/player/player_playback_application_coordinator.dart')
+            .readAsStringSync();
 
     expect(source, contains('var replacementAborted = false;'));
     expect(

@@ -352,16 +352,126 @@ String mediaClassificationModeDescription(MediaClassificationMode mode) =>
       MediaClassificationMode.manual => '只给出主分类建议，题材标签始终跟随 TMDB。',
     };
 
+class MediaClassificationModeMenu extends StatefulWidget {
+  const MediaClassificationModeMenu({
+    super.key,
+    required this.mode,
+    required this.onChanged,
+    this.compact = false,
+    this.series = const [],
+    this.userStates = const {},
+    this.onReview,
+  });
+
+  final MediaClassificationMode mode;
+  final Future<void> Function(MediaClassificationMode) onChanged;
+  final bool compact;
+  final List<MediaLibrarySeries> series;
+  final Map<String, MediaLibraryUserState> userStates;
+  final Future<void> Function(bool needsConfirmation)? onReview;
+
+  @override
+  State<MediaClassificationModeMenu> createState() =>
+      _MediaClassificationModeMenuState();
+}
+
+class _MediaClassificationModeMenuState
+    extends State<MediaClassificationModeMenu> {
+  bool _saving = false;
+
+  Future<void> _change(MediaClassificationMode mode) async {
+    if (_saving || mode == widget.mode) return;
+    setState(() => _saving = true);
+    try {
+      await widget.onChanged(mode);
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('分类门槛保存失败，请重试')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pending = widget.series.where((item) =>
+        const MediaClassificationResolver().resolve(
+          item, state: widget.userStates[item.key], mode: widget.mode,
+        ).needsConfirmation).length;
+    return PopupMenuButton<String>(
+      key: const ValueKey('media-classification-mode'),
+      tooltip: '分类门槛：${widget.mode.label}',
+      enabled: !_saving,
+      onSelected: (value) async {
+        if (value == 'pending' || value == 'confirmed') {
+          await widget.onReview?.call(value == 'pending');
+        } else {
+          await _change(MediaClassificationMode.values.byName(value));
+        }
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: 'pending',
+          enabled: widget.onReview != null,
+          child: Text('待确认（$pending）'),
+        ),
+        PopupMenuItem(
+          value: 'confirmed',
+          enabled: widget.onReview != null,
+          child: Text('已确认（${widget.series.length - pending}）'),
+        ),
+        const PopupMenuDivider(),
+        for (final mode in MediaClassificationMode.values)
+          PopupMenuItem(
+            value: mode.name,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(mode.label),
+                Text(
+                  mediaClassificationModeDescription(mode),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+      ],
+      icon: widget.compact
+          ? (_saving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.tune_outlined))
+          : null,
+      child: widget.compact
+          ? null
+          : Chip(
+              label: Text(
+                _saving ? '正在保存门槛…' : '分类门槛：${widget.mode.label}',
+              ),
+            ),
+    );
+  }
+}
+
 Future<void> showMediaClassificationReviewDialog(
   BuildContext context, {
-  required List<MediaLibrarySeries> series,
+  required List<MediaLibrarySeries> Function() seriesProvider,
   required String sourceLabel,
   required Map<String, MediaLibraryUserState> Function() userStatesProvider,
   required MediaClassificationMode Function() modeProvider,
+  bool initialNeedsConfirmation = true,
+  Listenable? libraryListenable,
   Future<void> Function(MediaLibrarySeries)? onEdit,
   Future<void> Function(MediaLibrarySeries)? onOpen,
 }) async {
   final scrollState = PageStorageBucket();
+  var needsConfirmation = initialNeedsConfirmation;
   while (context.mounted) {
     ModalRoute<Future<void> Function()>? reviewRoute;
     final action = await showDialog<Future<void> Function()>(
@@ -373,100 +483,117 @@ Future<void> showMediaClassificationReviewDialog(
           Navigator.of(context).pop(action);
         }
 
-        return PageStorage(
-          bucket: scrollState,
-          child: GlassDialog(
-            key: const ValueKey('media-classification-review'),
-            insetPadding: const EdgeInsets.all(16),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: 640,
-                maxHeight: MediaQuery.sizeOf(context).height * 0.8,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text('检查分类',
-                        style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: 8),
-                    Text(
-                        '预览“$sourceLabel”全部 ${series.length} 部作品；编辑并保存后才会改变分类。'),
-                    const SizedBox(height: 12),
-                    Flexible(
-                      child: series.isEmpty
-                          ? const Text('当前来源没有作品。')
-                          : ListView.separated(
-                              key: const PageStorageKey(
-                                  'classification-review-list'),
-                              shrinkWrap: true,
-                              itemCount: series.length,
-                              separatorBuilder: (_, __) => const Divider(),
-                              itemBuilder: (context, index) {
-                                final item = series[index];
-                                final result =
-                                    const MediaClassificationResolver().resolve(
-                                  item,
-                                  state: userStatesProvider()[item.key],
-                                  mode: modeProvider(),
-                                );
-                                return ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  title: Text(item.title),
-                                  subtitle: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(item.sourceName),
-                                      Text(
-                                          '有效分类：${result.categories.isEmpty ? '未分类' : result.categories.join(' · ')}'),
-                                      Text(
-                                          '题材：${result.genres.isEmpty ? '未选择' : result.genres.join(' · ')}'),
-                                      Text(result.needsConfirmation
-                                          ? '待确认'
-                                          : result.isManual
-                                              ? '已手动确认'
-                                              : '已自动归类'),
-                                      for (final suggestion in [
-                                        ...result.categorySuggestions,
-                                        ...result.genreSuggestions,
-                                      ])
-                                        Text(
-                                            '${suggestion.label} · ${suggestion.confidence.label}：${suggestion.reason}'),
-                                      if (result.categorySuggestions.isEmpty)
-                                        const Text('信息不足，暂无分类建议；仍可浏览和播放。'),
-                                    ],
-                                  ),
-                                  onTap: onOpen == null
-                                      ? null
-                                      : () => select(() => onOpen(item)),
-                                  trailing: onEdit == null
-                                      ? null
-                                      : IconButton(
-                                          tooltip: '编辑分类与标签',
-                                          icon: const Icon(Icons.edit_outlined),
-                                          onPressed: () =>
-                                              select(() => onEdit(item)),
-                                        ),
-                                );
-                              },
-                            ),
+        return StatefulBuilder(builder: (context, setState) {
+          Widget content() {
+            final states = userStatesProvider();
+            final mode = modeProvider();
+            final results = {
+              for (final item in seriesProvider())
+                item: const MediaClassificationResolver().resolve(
+                  item, state: states[item.key], mode: mode,
+                ),
+            };
+            final pending = results.values.where((result) => result.needsConfirmation).length;
+            final visible = results.entries.where((entry) =>
+                entry.value.needsConfirmation == needsConfirmation).toList(growable: false);
+            return PageStorage(
+              bucket: scrollState,
+              child: GlassDialog(
+                key: const ValueKey('media-classification-review'),
+                insetPadding: const EdgeInsets.all(16),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: 640,
+                    maxHeight: MediaQuery.sizeOf(context).height * 0.8,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text('分类确认', style: Theme.of(context).textTheme.titleLarge),
+                        const SizedBox(height: 8),
+                        Text('“$sourceLabel” · 共 ${results.length} 部作品'),
+                        const SizedBox(height: 8),
+                        Wrap(spacing: 8, children: [
+                          ChoiceChip(
+                            label: Text('待确认（$pending）'),
+                            selected: needsConfirmation,
+                            onSelected: (_) => setState(() => needsConfirmation = true),
+                          ),
+                          ChoiceChip(
+                            label: Text('已确认（${results.length - pending}）'),
+                            selected: !needsConfirmation,
+                            onSelected: (_) => setState(() => needsConfirmation = false),
+                          ),
+                        ]),
+                        const SizedBox(height: 12),
+                        Flexible(
+                          child: visible.isEmpty
+                              ? Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 24),
+                                  child: Text(needsConfirmation ? '暂无待确认作品' : '暂无已确认作品'),
+                                )
+                              : ListView.separated(
+                                  key: PageStorageKey('classification-review-list-$needsConfirmation'),
+                                  shrinkWrap: true,
+                                  itemCount: visible.length,
+                                  separatorBuilder: (_, __) => const Divider(),
+                                  itemBuilder: (context, index) {
+                                    final item = visible[index].key;
+                                    final result = visible[index].value;
+                                    final categories = states[item.key]?.categoryOverride;
+                                    return ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: Text(item.title),
+                                      subtitle: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(item.sourceName),
+                                          Text('有效分类：${result.categories.isEmpty ? '未分类' : result.categories.join(' · ')}'),
+                                          Text('题材：${result.genres.isEmpty ? '暂无' : result.genres.join(' · ')}'),
+                                          Text(result.needsConfirmation
+                                              ? '待确认'
+                                              : categories != null
+                                                  ? categories.isEmpty ? '手动未分类' : '已手动确认'
+                                                  : '已自动归类'),
+                                          if (result.needsConfirmation)
+                                            for (final suggestion in result.categorySuggestions)
+                                              Text('${suggestion.label} · ${suggestion.confidence.label}：${suggestion.reason}'),
+                                          if (result.needsConfirmation && result.categorySuggestions.isEmpty)
+                                            const Text('信息不足，暂无分类建议；仍可浏览和播放。'),
+                                        ],
+                                      ),
+                                      onTap: onOpen == null ? null : () => select(() => onOpen(item)),
+                                      trailing: onEdit == null ? null : IconButton(
+                                        tooltip: '编辑分类与标签',
+                                        icon: const Icon(Icons.edit_outlined),
+                                        onPressed: () => select(() => onEdit(item)),
+                                      ),
+                                    );
+                                  },
+                                ),
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('关闭'),
+                          ),
+                        ),
+                      ],
                     ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('关闭'),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ),
-        );
+            );
+          }
+
+          return libraryListenable == null
+              ? content()
+              : ListenableBuilder(listenable: libraryListenable, builder: (_, __) => content());
+        });
       },
     );
     // 等退出动画移除原弹层后，再开始下一步任务。

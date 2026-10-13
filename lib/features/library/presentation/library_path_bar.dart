@@ -137,6 +137,7 @@ class LibraryPathBar extends StatelessWidget {
     this.onMatchMetadata,
     this.onCancelScan,
     this.onShowFailures,
+    this.classificationModeControl,
   });
 
   final LibraryPathBarViewData data;
@@ -160,6 +161,7 @@ class LibraryPathBar extends StatelessWidget {
   final FutureOr<void> Function()? onMatchMetadata;
   final FutureOr<void> Function()? onCancelScan;
   final FutureOr<void> Function()? onShowFailures;
+  final Widget? classificationModeControl;
 
   @override
   Widget build(BuildContext context) {
@@ -224,6 +226,8 @@ class LibraryPathBar extends StatelessWidget {
                   data.canNavigateUp ? onNavigateUp : null),
               _button(context, Icons.refresh, '刷新当前目录',
                   data.isLoading ? null : onRefresh),
+              if (classificationModeControl != null)
+                classificationModeControl!,
               PopupMenuButton<LibraryMenuAction>(
                 tooltip: '更多媒体库操作',
                 icon: const Icon(Icons.more_horiz_rounded),

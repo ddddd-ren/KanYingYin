@@ -1,4 +1,4 @@
-import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/core/cloud_core.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_models.dart';
 
 class XunleiResponseParser {

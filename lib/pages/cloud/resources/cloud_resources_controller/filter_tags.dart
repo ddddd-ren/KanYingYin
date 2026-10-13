@@ -31,6 +31,19 @@ mixin _CloudFilterTagsMixin on _CloudResourcesControllerBase {
     );
   }
 
+  CloudResourceMediaGroup? classificationGroupForSeries(MediaLibrarySeries series) {
+    if (series.sourceId != selectedSource?.id) return null;
+    final ids = series.episodes.map((episode) => episode.stableId).toSet();
+    // 检查列表使用完整索引的作品身份，不使用当前目录的旧式分组键。
+    return _collectionGrouper.group(
+      items: _indexedItems.values.where((item) =>
+          ids.contains('${item.sourceId}|${item.remoteId}')).toList(growable: false),
+      works: _works,
+      recordsByWorkKey: workTmdbRecords,
+      query: '',
+    ).groups.where((group) => group.stableKey == series.key).firstOrNull;
+  }
+
   MediaLibrarySeries? classificationSeriesForGroup(CloudResourceMediaGroup group) =>
       _classificationSeries.where((series) => series.key == group.stableKey).firstOrNull;
 

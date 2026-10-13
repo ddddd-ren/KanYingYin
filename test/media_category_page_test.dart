@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/features/library/application/media_library_category.dart';
-import 'package:kanyingyin/features/library/application/media_library_classification.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/features/library/presentation/media_category_page.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
@@ -43,272 +42,31 @@ void main() {
     expect(find.byType(ImmersiveMediaCard), findsNothing);
   });
 
-  testWidgets('检查分类预览当前来源完整库且不会自动保存', (tester) async {
-    final movie = _series(
-      key: 'local|movie',
-      title: '电影作品',
-      sourceKind: MediaSourceKind.local,
-      sourceId: 'local',
-      sourceName: '本地',
-      mediaType: TmdbMediaType.movie,
-    );
-    const unknown = MediaLibrarySeries(
-      key: 'local|unknown',
-      seriesKey: 'unknown',
-      title: '未识别作品',
-      sourceKind: MediaSourceKind.local,
-      sourceId: 'local',
-      sourceName: '本地',
-      isAvailable: true,
-      episodes: [],
-    );
-    var saves = 0;
-    await tester.pumpWidget(MaterialApp(
-      home: MediaCategoryPage(
-        category: MediaLibraryCategory.movie,
-        initialize: () async {},
-        libraryProvider: () => CloudMediaLibrary(
-          series: [movie, unknown],
-          filters: const [MediaLibrarySourceFilter('all', '全部', null)],
+  for (final category in MediaLibraryCategory.values) {
+    testWidgets('${category.label}移除状态筛选和分类检查并保留搜索刷新', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: MediaCategoryPage(
+          category: category,
+          initialize: () async {},
+          libraryProvider: () => const CloudMediaLibrary(
+            series: [],
+            filters: [MediaLibrarySourceFilter('all', '全部', null)],
+          ),
+          onPlayEpisode: (_, __) async {},
+          observeLibrary: false,
         ),
-        onPlayEpisode: (_, __) async {},
-        observeLibrary: false,
-        onUserStateChanged: (_, __) async => saves++,
-      ),
-    ));
-    await tester.pumpAndSettle();
+      ));
+      await tester.pumpAndSettle();
 
-    expect(find.byTooltip('检查分类'), findsOneWidget);
-    await tester.tap(find.byTooltip('检查分类'));
-    await tester.pumpAndSettle();
-    final preview = find.byKey(const ValueKey('media-classification-review'));
-    expect(find.descendant(of: preview, matching: find.text('电影作品')), findsOneWidget);
-    expect(find.descendant(of: preview, matching: find.text('未识别作品')), findsOneWidget);
-    expect(saves, 0);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('分类门槛通过持久化回调保存后才切换', (tester) async {
-    var mode = MediaClassificationMode.conservative;
-    final saved = <MediaClassificationMode>[];
-    await tester.pumpWidget(MaterialApp(
-      home: MediaCategoryPage(
-        category: MediaLibraryCategory.movie,
-        initialize: () async {},
-        libraryProvider: () => const CloudMediaLibrary(
-          series: [],
-          filters: [MediaLibrarySourceFilter('all', '全部', null)],
-        ),
-        onPlayEpisode: (_, __) async {},
-        observeLibrary: false,
-        classificationModeProvider: () => mode,
-        onClassificationModeChanged: (value) async {
-          saved.add(value);
-          mode = value;
-        },
-      ),
-    ));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('media-classification-mode')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('标准'));
-    await tester.pumpAndSettle();
-
-    expect(saved, [MediaClassificationMode.standard]);
-    expect(find.text('分类门槛：标准'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('待确认筛选跨出当前分类并仍可进入详情播放', (tester) async {
-    final unknown = MediaLibrarySeries(
-      key: 'cloud|unknown',
-      seriesKey: 'unknown',
-      title: '尚未识别的作品',
-      sourceKind: MediaSourceKind.cloud,
-      sourceId: 'cloud',
-      sourceName: '网盘',
-      isAvailable: true,
-      episodes: [
-        MediaLibraryEpisode.cloud(
-          stableId: 'unknown-episode',
-          name: '来源视频.mkv',
-          sourceId: 'cloud',
-          sourceName: '网盘',
-          isAvailable: true,
-          remoteId: 'unknown-episode',
-          remotePath: '/来源视频.mkv',
-        ),
-      ],
-    );
-    MediaLibrarySeries? played;
-    await tester.pumpWidget(MaterialApp(
-      home: MediaCategoryPage(
-        category: MediaLibraryCategory.movie,
-        initialize: () async {},
-        libraryProvider: () => CloudMediaLibrary(
-          series: [unknown],
-          filters: const [MediaLibrarySourceFilter('all', '全部', null)],
-        ),
-        onPlayEpisode: (series, _) async => played = series,
-        observeLibrary: false,
-        capabilities: AppPlatformCapabilities.android,
-      ),
-    ));
-    await tester.pumpAndSettle();
-    expect(find.byType(ImmersiveMediaCard), findsNothing);
-    await tester.tap(find.widgetWithText(ChoiceChip, '待确认'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byType(ImmersiveMediaCard));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('media-details-dialog')), findsOneWidget);
-    await tester.tap(find.widgetWithText(FilledButton, '播放'));
-    await tester.pumpAndSettle();
-
-    expect(played, same(unknown));
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('待确认搜索无匹配显示筛选空态并能清除搜索', (tester) async {
-    const unknown = MediaLibrarySeries(
-      key: 'cloud|pending-search',
-      seriesKey: 'pending-search',
-      title: '仍需确认的作品',
-      sourceKind: MediaSourceKind.cloud,
-      sourceId: 'cloud',
-      sourceName: '家庭网盘',
-      isAvailable: true,
-      episodes: [],
-    );
-    await tester.pumpWidget(MaterialApp(
-      home: MediaCategoryPage(
-        category: MediaLibraryCategory.movie,
-        initialize: () async {},
-        libraryProvider: () => const CloudMediaLibrary(
-          series: [unknown],
-          filters: [MediaLibrarySourceFilter('all', '全部', null)],
-        ),
-        onPlayEpisode: (_, __) async {},
-        observeLibrary: false,
-      ),
-    ));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ChoiceChip, '待确认'));
-    await tester.pumpAndSettle();
-    expect(find.byType(ImmersiveMediaCard), findsOneWidget);
-    final search = find.byKey(const ValueKey('media-category-search'));
-    await tester.enterText(search, '不存在的标题');
-    await tester.pumpAndSettle();
-
-    expect(find.text('暂无待确认作品'), findsNothing);
-    expect(find.text('没有匹配的作品'), findsOneWidget);
-    expect(find.textContaining('符合搜索的待确认作品'), findsOneWidget);
-    expect(find.textContaining('全部待确认作品'), findsNothing);
-    await tester.tap(find.widgetWithText(TextButton, '清除搜索'));
-    await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(search).controller?.text, isEmpty);
-    expect(find.byType(ImmersiveMediaCard), findsOneWidget);
-    expect(find.textContaining('全部待确认作品'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('分类保存不覆盖编辑期间更新的收藏状态', (tester) async {
-    final movie = _series(
-      key: 'local|concurrent',
-      title: '并行状态作品',
-      sourceKind: MediaSourceKind.local,
-      sourceId: 'local',
-      sourceName: '本地',
-      mediaType: TmdbMediaType.movie,
-    );
-    final states = <String, MediaLibraryUserState>{};
-    await tester.pumpWidget(MaterialApp(
-      home: MediaCategoryPage(
-        category: MediaLibraryCategory.movie,
-        initialize: () async {},
-        libraryProvider: () => CloudMediaLibrary(
-          series: [movie],
-          filters: const [MediaLibrarySourceFilter('all', '全部', null)],
-        ),
-        onPlayEpisode: (_, __) async {},
-        observeLibrary: false,
-        userStatesProvider: () => states,
-        onUserStateChanged: (key, state) async => states[key] = state,
-      ),
-    ));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('媒体操作'));
-    await tester.pumpAndSettle();
-    expect(find.text('编辑分类与标签'), findsNothing);
-    await tester.tapAt(const Offset(2, 2));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('检查分类'));
-    await tester.pumpAndSettle();
-    final review = find.byKey(const ValueKey('media-classification-review'));
-    await tester.tap(
-      find.descendant(
-        of: review,
-        matching: find.byTooltip('编辑分类与标签'),
-      ),
-    );
-    await tester.pumpAndSettle();
-    states[movie.key] = const MediaLibraryUserState(favorite: true);
-    await tester.tap(find.byKey(const ValueKey('classification-category-动漫')));
-    await tester.tap(find.byKey(const ValueKey('classification-save')));
-    await tester.pumpAndSettle();
-
-    expect(states[movie.key]?.favorite, isTrue);
-    expect(states[movie.key]?.categoryOverride, ['电影', '动漫']);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('分类编辑优先使用独立原子保存回调', (tester) async {
-    final movie = _series(
-      key: 'local|classification',
-      title: '独立分类保存作品',
-      sourceKind: MediaSourceKind.local,
-      sourceId: 'local',
-      sourceName: '本地',
-      mediaType: TmdbMediaType.movie,
-    );
-    var userStateSaves = 0;
-    var classificationSaves = 0;
-    await tester.pumpWidget(MaterialApp(
-      home: MediaCategoryPage(
-        category: MediaLibraryCategory.movie,
-        initialize: () async {},
-        libraryProvider: () => CloudMediaLibrary(
-          series: [movie],
-          filters: const [MediaLibrarySourceFilter('all', '全部', null)],
-        ),
-        onPlayEpisode: (_, __) async {},
-        observeLibrary: false,
-        onUserStateChanged: (_, __) async => userStateSaves++,
-        onClassificationChanged: (_, __) async => classificationSaves++,
-      ),
-    ));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('媒体操作'));
-    await tester.pumpAndSettle();
-    expect(find.text('编辑分类与标签'), findsNothing);
-    await tester.tapAt(const Offset(2, 2));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('检查分类'));
-    await tester.pumpAndSettle();
-    final review = find.byKey(const ValueKey('media-classification-review'));
-    await tester.tap(
-      find.descendant(
-        of: review,
-        matching: find.byTooltip('编辑分类与标签'),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('classification-save')));
-    await tester.pumpAndSettle();
-
-    expect(classificationSaves, 1);
-    expect(userStateSaves, 0);
-    expect(tester.takeException(), isNull);
-  });
+      expect(find.byType(ChoiceChip), findsNothing);
+      expect(find.byTooltip('检查分类'), findsNothing);
+      expect(find.byKey(const ValueKey('media-classification-mode')), findsNothing);
+      expect(find.byKey(const ValueKey('media-category-search')), findsOneWidget);
+      expect(find.byKey(const ValueKey('media-category-source-filter')), findsOneWidget);
+      expect(find.byTooltip('刷新分类'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   for (final (title, season) in const [
     ('光阴之外', 1),
@@ -512,7 +270,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('手动已看保存后筛选和卡片进度同步刷新', (tester) async {
+  testWidgets('移除筛选后仍可标记已看并刷新卡片进度', (tester) async {
     final movie = _series(
         key: 'local|done',
         title: '待看电影',
@@ -552,9 +310,8 @@ void main() {
             .widget<ImmersiveMediaCard>(find.byType(ImmersiveMediaCard))
             .watchProgress,
         1);
-    await tester.tap(find.text('未看'));
-    await tester.pumpAndSettle();
-    expect(find.byType(ImmersiveMediaCard), findsNothing);
+    expect(find.widgetWithText(ChoiceChip, '未看'), findsNothing);
+    expect(find.byType(ImmersiveMediaCard), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
   testWidgets('待关联记录使用完整媒体库候选而非当前分类', (tester) async {

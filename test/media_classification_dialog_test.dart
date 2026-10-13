@@ -12,6 +12,107 @@ import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 
 void main() {
+  testWidgets('窄屏确认列表区分自动人工和手动未分类且保存后更新计数', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 568);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final items = [
+      for (final title in ['待定作品', '自动作品', '手动作品', '清空作品'])
+        MediaLibrarySeries(
+          key: title,
+          seriesKey: title,
+          title: title,
+          sourceKind: MediaSourceKind.local,
+          sourceId: 'local',
+          sourceName: '本地',
+          isAvailable: true,
+          episodes: const [],
+          mediaType: TmdbMediaType.movie,
+          genres: const ['剧情'],
+        ),
+    ];
+    final states = <String, MediaLibraryUserState>{
+      '手动作品': const MediaLibraryUserState(categoryOverride: ['电影']),
+      '清空作品': const MediaLibraryUserState(categoryOverride: []),
+      '自动作品': const MediaLibraryUserState(genreOverride: ['喜剧']),
+    };
+    var mode = MediaClassificationMode.conservative;
+    var failSave = true;
+    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(
+      body: TextButton(
+        child: const Text('打开确认'),
+        onPressed: () => showMediaClassificationReviewDialog(
+          context,
+          seriesProvider: () => items,
+          sourceLabel: '本地媒体库',
+          userStatesProvider: () => states,
+          modeProvider: () => mode,
+          onEdit: (item) => showMediaClassificationDialog(
+            context,
+            series: item,
+            state: states[item.key] ?? MediaLibraryUserState.empty,
+            mode: mode,
+            allowCustomTags: false,
+            onSave: (state, _) async {
+              if (failSave) throw StateError('模拟写入失败');
+              states[item.key] = state;
+            },
+          ).then((_) {}),
+        ),
+      ),
+    ))));
+    await tester.tap(find.text('打开确认'));
+    await tester.pumpAndSettle();
+    expect(find.text('待确认（2）'), findsOneWidget);
+    expect(find.text('已确认（2）'), findsOneWidget);
+    expect(find.text('手动作品'), findsNothing);
+    await tester.tap(find.byTooltip('编辑分类与标签').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('classification-category-电影')));
+    await tester.tap(find.byKey(const ValueKey('classification-save')));
+    await tester.pumpAndSettle();
+    expect(find.text('分类与标签保存失败，已保留选择，请重试。'), findsOneWidget);
+    expect(states.containsKey('待定作品'), isFalse);
+    failSave = false;
+    await tester.tap(find.byKey(const ValueKey('classification-save')));
+    await tester.pumpAndSettle();
+    expect(find.text('待确认（1）'), findsOneWidget);
+    expect(find.text('已确认（3）'), findsOneWidget);
+    expect(find.text('待定作品'), findsNothing);
+    mode = MediaClassificationMode.standard;
+    await tester.tap(find.widgetWithText(ChoiceChip, '已确认（3）'));
+    await tester.pumpAndSettle();
+    expect(find.text('待确认（0）'), findsOneWidget);
+    expect(find.text('已确认（4）'), findsOneWidget);
+    expect(find.text('已自动归类'), findsOneWidget);
+    final scrollable = find.descendant(
+      of: find.byKey(const ValueKey('media-classification-review')),
+      matching: find.byType(Scrollable),
+    );
+    await tester.scrollUntilVisible(find.text('手动未分类'), 120, scrollable: scrollable);
+    expect(find.text('手动未分类'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ChoiceChip, '待确认（0）'));
+    await tester.pumpAndSettle();
+    expect(find.text('暂无待确认作品'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('分类菜单提供待确认和已确认入口', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: MediaClassificationModeMenu(
+          mode: MediaClassificationMode.conservative,
+          onChanged: (_) async {},
+        ),
+      ),
+    ));
+    await tester.tap(find.byKey(const ValueKey('media-classification-mode')));
+    await tester.pumpAndSettle();
+    expect(find.text('待确认（0）'), findsOneWidget);
+    expect(find.text('已确认（0）'), findsOneWidget);
+  });
+
   test('分类门槛说明只约束主分类且题材默认跟随 TMDB', () {
     expect(
       mediaClassificationModeDescription(MediaClassificationMode.conservative),
@@ -25,6 +126,25 @@ void main() {
       mediaClassificationModeDescription(MediaClassificationMode.manual),
       isNot(contains('题材均由你选择')),
     );
+  });
+
+  testWidgets('分类门槛保存失败时提示重试并保留当前值', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: MediaClassificationModeMenu(
+          mode: MediaClassificationMode.conservative,
+          onChanged: (_) async => throw StateError('保存失败'),
+        ),
+      ),
+    ));
+    await tester.tap(find.byKey(const ValueKey('media-classification-mode')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('标准'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('分类门槛保存失败，请重试'), findsOneWidget);
+    expect(find.text('分类门槛：保守'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('分类页媒体菜单不再提供分类编辑入口', (tester) async {
@@ -277,7 +397,9 @@ void main() {
           episodes: const [],
         ),
     ];
-    final states = <String, MediaLibraryUserState>{};
+    final states = <String, MediaLibraryUserState>{
+      for (final item in items) item.key: const MediaLibraryUserState(categoryOverride: []),
+    };
     final review = find.byKey(const ValueKey('media-classification-review'),
         skipOffstage: false);
     await tester.pumpWidget(MaterialApp(
@@ -285,7 +407,8 @@ void main() {
         body: TextButton(
           onPressed: () => showMediaClassificationReviewDialog(
             context,
-            series: items,
+            seriesProvider: () => items,
+            initialNeedsConfirmation: false,
             sourceLabel: '家庭网盘',
             userStatesProvider: () => states,
             modeProvider: () => MediaClassificationMode.conservative,
@@ -323,7 +446,7 @@ void main() {
 
     expect(review, findsOneWidget);
     expect(find.byType(Dialog, skipOffstage: false), findsOneWidget);
-    expect(find.textContaining('预览“家庭网盘”全部 10 部作品'), findsOneWidget);
+    expect(find.text('“家庭网盘” · 共 10 部作品'), findsOneWidget);
     expect(tester.state<ScrollableState>(scrollable).position.pixels,
         closeTo(previousOffset, 0.1));
     expect(find.descendant(of: tile, matching: find.text('有效分类：电影')), findsOneWidget);
@@ -352,7 +475,7 @@ void main() {
         body: TextButton(
           onPressed: () => showMediaClassificationReviewDialog(
             context,
-            series: const [series],
+            seriesProvider: () => const [series],
             sourceLabel: '家庭网盘',
             userStatesProvider: () => const {},
             modeProvider: () => MediaClassificationMode.conservative,
@@ -377,7 +500,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(review, findsOneWidget);
     expect(find.byType(Dialog, skipOffstage: false), findsOneWidget);
-    expect(find.textContaining('预览“家庭网盘”全部 1 部作品'), findsOneWidget);
+    expect(find.text('“家庭网盘” · 共 1 部作品'), findsOneWidget);
     await tester.tap(find.widgetWithText(TextButton, '关闭'));
     await tester.pumpAndSettle();
     expect(review, findsNothing);

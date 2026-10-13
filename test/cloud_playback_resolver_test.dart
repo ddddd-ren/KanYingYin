@@ -727,8 +727,10 @@ void main() {
       initialized.single.subtitleDisplayName,
       '测试动画 S01E01 简体中文.ass',
     );
-    final playerSource =
-        File('lib/pages/player/player_controller.dart').readAsStringSync();
+    final playerSource = File('lib/pages/player/player_controller.dart')
+            .readAsStringSync() +
+        File('lib/pages/player/player_playback_application_coordinator.dart')
+            .readAsStringSync();
     expect(
       playerSource,
       contains('displayName: initParams.subtitleDisplayName'),

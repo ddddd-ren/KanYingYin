@@ -20,8 +20,10 @@ void main() {
   });
 
   test('TV 不应用 Windows 色彩方案', () {
-    final controller =
-        File('lib/pages/player/player_controller.dart').readAsStringSync();
+    final controller = File('lib/pages/player/player_controller.dart')
+            .readAsStringSync() +
+        File('lib/pages/player/player_playback_application_coordinator.dart')
+            .readAsStringSync();
 
     expect(controller, contains('_capabilities.isWindows'));
     expect(

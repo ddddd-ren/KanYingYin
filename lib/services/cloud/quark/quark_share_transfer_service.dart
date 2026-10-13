@@ -1,8 +1,8 @@
+import 'package:kanyingyin/services/cloud/core/cloud_core.dart';
 import 'dart:async';
 
 import 'package:kanyingyin/modules/cloud/quark/quark_share_entry.dart';
 import 'package:kanyingyin/modules/cloud/quark/quark_transfer_task.dart';
-import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_api_client.dart';
 
 typedef QuarkTransferDelay = Future<void> Function(Duration duration);

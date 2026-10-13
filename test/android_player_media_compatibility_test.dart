@@ -12,8 +12,10 @@ void main() {
   late String videoPage;
 
   setUpAll(() {
-    controller =
-        File('lib/pages/player/player_controller.dart').readAsStringSync();
+    controller = File('lib/pages/player/player_controller.dart')
+            .readAsStringSync() +
+        File('lib/pages/player/player_playback_application_coordinator.dart')
+            .readAsStringSync();
     mainActivity = File(
       'android/app/src/main/kotlin/com/kanyingyin/player/MainActivity.kt',
     ).readAsStringSync();
@@ -116,8 +118,8 @@ void main() {
     expect(controller, contains("'ad-lavc-downmix'"));
     expect(controller, contains("'yes'"));
     final selection = controller.substring(
-        controller.indexOf('Future<bool> selectAudioTrack('),
-        controller.indexOf('Future<bool> selectEmbeddedSubtitleTrack('));
+        controller.lastIndexOf('Future<bool> selectAudioTrack('),
+        controller.lastIndexOf('Future<bool> selectEmbeddedSubtitleTrack('));
     final prepare =
         selection.indexOf('await _prepareAudioTrackOutput(player, track);');
     final apply = selection.indexOf('await player.setAudioTrack(track);');

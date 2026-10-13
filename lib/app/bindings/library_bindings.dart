@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/core/app_version.dart';
 import 'package:kanyingyin/features/scraped_metadata_transfer/application/scraped_metadata_archive_codec.dart';
@@ -7,8 +8,11 @@ import 'package:kanyingyin/features/scraped_metadata_transfer/application/scrape
 import 'package:kanyingyin/features/scraped_metadata_transfer/application/scraped_metadata_transfer_service.dart';
 import 'package:kanyingyin/features/library/application/local_library_metadata_coordinator.dart';
 import 'package:kanyingyin/features/library/application/local_library_preferences.dart';
+import 'package:kanyingyin/features/library/application/library_ports.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/pages/local/local_controller.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
+import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/platform/android/android_document_provider.dart';
 import 'package:kanyingyin/platform/android/android_platform_channel.dart';
 import 'package:kanyingyin/providers/cloud_library_controller.dart';
@@ -29,6 +33,9 @@ import 'package:kanyingyin/services/media_recognition_settings.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
+import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
+import 'package:kanyingyin/services/local_playback_request_builder.dart';
 
 /// 注册本地媒体库及其与网盘媒体索引的集成依赖。
 void registerLibraryBindings(Injector i) {
@@ -135,4 +142,95 @@ void registerLibraryBindings(Injector i) {
       ),
     ),
   );
+  i.addSingleton<LocalLibraryPort>(
+    () => _LocalControllerLibraryPort(Modular.get<LocalController>()),
+  );
+  i.addSingleton<CloudLibraryPort>(
+    () => _CloudResourcesLibraryPort(
+      Modular.get<CloudResourcesController>(),
+    ),
+  );
+  i.addSingleton<PlaybackPort>(
+    () => _LocalVideoPlaybackPort(Modular.get<LocalVideoController>()),
+  );
+}
+
+class _LocalControllerLibraryPort implements LocalLibraryPort {
+  _LocalControllerLibraryPort(this._controller);
+
+  final LocalController _controller;
+
+  @override
+  CloudMediaLibrary get library => _controller.localMediaLibrary;
+
+  @override
+  void reloadAvailableLibrary() {
+    _controller.reloadAvailableLocalLibraryIndex();
+  }
+}
+
+class _CloudResourcesLibraryPort implements CloudLibraryPort {
+  _CloudResourcesLibraryPort(this._controller);
+
+  final CloudResourcesController _controller;
+
+  @override
+  CloudMediaLibrary get library => _controller.mediaLibrarySnapshot;
+
+  @override
+  Listenable get changes => _controller.mediaLibrarySnapshotListenable;
+
+  @override
+  Future<void> ensureLibrary() => _controller.ensureMediaLibrarySnapshot();
+
+  @override
+  Future<void> refreshLibrary() => _controller.reloadMediaLibrarySnapshot();
+
+  @override
+  Future<void> hideEpisodes(Iterable<MediaLibraryEpisode> episodes) =>
+      _controller.hideMediaLibraryEpisodes(episodes);
+}
+
+class _LocalVideoPlaybackPort implements PlaybackPort {
+  _LocalVideoPlaybackPort(this._controller);
+
+  final LocalVideoController _controller;
+
+  @override
+  Future<void> openFile({
+    required String filePath,
+    required String seriesTitle,
+    List<String>? legacySeriesTitles,
+    List<Map<String, String>>? directoryFiles,
+    List<LocalPlaybackEntry>? playbackEntries,
+    bool playlistAlreadyIsolated = false,
+    bool autoLoadSubtitle = true,
+  }) =>
+      _controller.openFilePlayback(
+        filePath: filePath,
+        seriesTitle: seriesTitle,
+        legacySeriesTitles: legacySeriesTitles,
+        directoryFiles: directoryFiles,
+        playbackEntries: playbackEntries,
+        playlistAlreadyIsolated: playlistAlreadyIsolated,
+        autoLoadSubtitle: autoLoadSubtitle,
+      );
+
+  @override
+  Future<void> openCloud({
+    required String seriesTitle,
+    String? workKey,
+    List<String>? legacySeriesTitles,
+    required List<CloudPlaybackTarget> targets,
+    required String selectedStableId,
+    MediaCategoryCloudPlaybackResolver? resolver,
+  }) =>
+      _controller.openCloudPlayback(
+        seriesTitle: seriesTitle,
+        workKey: workKey,
+        legacySeriesTitles: legacySeriesTitles,
+        targets: targets,
+        selectedStableId: selectedStableId,
+        resolver: resolver,
+      );
 }

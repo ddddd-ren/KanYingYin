@@ -1,4 +1,4 @@
-import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
+import 'package:kanyingyin/services/cloud/core/cloud_core.dart';
 import 'package:kanyingyin/services/cloud/quark/quark_models.dart';
 import 'package:kanyingyin/modules/cloud/quark/quark_transfer_task.dart';
 

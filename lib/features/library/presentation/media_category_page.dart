@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:kanyingyin/features/library/application/media_category_runtime.dart';
 import 'package:kanyingyin/features/library/application/media_library_category.dart';
+import 'package:kanyingyin/features/library/presentation/library_toolbar.dart';
 import 'package:kanyingyin/features/library/application/media_library_classification.dart';
 import 'package:kanyingyin/features/library/application/media_library_query.dart';
 import 'package:kanyingyin/features/library/application/media_library_user_state.dart';
@@ -14,7 +15,6 @@ import 'package:kanyingyin/features/library/application/media_technical_badges.d
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/features/library/application/media_card_info.dart';
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
-import 'package:kanyingyin/features/library/presentation/media_classification_dialog.dart';
 import 'package:kanyingyin/features/library/presentation/media_library_details_dialog.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_layout_policy.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
@@ -37,13 +37,11 @@ class MediaCategoryPage extends StatefulWidget {
     this.capabilities,
     this.userStatesProvider,
     this.onUserStateChanged,
-    this.onClassificationChanged,
     this.reconcileUserStates,
     this.onRelinkUserState,
     this.watchStatesProvider,
     this.onWatchedChanged,
     this.classificationModeProvider,
-    this.onClassificationModeChanged,
     this.onDispose,
   });
 
@@ -59,16 +57,12 @@ class MediaCategoryPage extends StatefulWidget {
   final Map<String, MediaLibraryUserState> Function()? userStatesProvider;
   final Future<void> Function(String, MediaLibraryUserState)?
       onUserStateChanged;
-  final Future<void> Function(String, MediaLibraryUserState)?
-      onClassificationChanged;
   final Future<void> Function()? reconcileUserStates;
   final Future<void> Function(String, String)? onRelinkUserState;
   final Map<String, MediaWatchState> Function()? watchStatesProvider;
   final Future<void> Function(List<MediaLibraryEpisode>, bool)?
       onWatchedChanged;
   final MediaClassificationMode Function()? classificationModeProvider;
-  final Future<void> Function(MediaClassificationMode)?
-      onClassificationModeChanged;
   final VoidCallback? onDispose;
 
   @override
@@ -81,15 +75,12 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
   final _searchController = TextEditingController();
   String _sourceId = 'all';
   String _keyword = '';
-  String _stateFilter = 'all';
-  String _selectedCollection = '';
   bool _loading = true;
   bool _playing = false;
   String? _errorMessage;
   String? _posterWarmupIdentity;
   String? _stateIdentity;
   bool _reconcilingStates = false;
-  bool _savingClassificationMode = false;
 
   @override
   void initState() {
@@ -137,8 +128,6 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
       widget.classificationModeProvider?.call() ??
       MediaClassificationMode.conservative;
 
-  bool get _canEditClassification =>
-      widget.onClassificationChanged != null || widget.onUserStateChanged != null;
 
   @override
   Widget build(BuildContext context) {
@@ -167,49 +156,17 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
         : 'all';
     final userStates = widget.userStatesProvider?.call() ??
         const <String, MediaLibraryUserState>{};
-    final filtered = _queryService.apply(
+    final series = _queryService.apply(
       series: library.series,
       sourceId: sourceId,
       keyword: _keyword,
-      selectedCategories: _stateFilter == 'needsConfirmation'
-          ? const <String>{}
-          : <String>{widget.category.label},
+      selectedCategories: <String>{widget.category.label},
       userStates: userStates,
       classificationMode: _classificationMode,
-      favoriteOnly: _stateFilter == 'favorite',
-      watchLaterOnly: _stateFilter == 'watchLater',
-      selectedCollection: _selectedCollection,
-      watchStates: widget.watchStatesProvider?.call() ?? const {},
-      watched: _stateFilter == 'watched'
-          ? true
-          : _stateFilter == 'unwatched'
-              ? false
-              : null,
-    );
-    final series = _stateFilter == 'needsConfirmation'
-        ? filtered.where((item) => const MediaClassificationResolver().resolve(
-              item,
-              state: userStates[item.key],
-              mode: _classificationMode,
-            ).needsConfirmation).toList(growable: false)
-        : filtered;
-    final collections = _queryService.availableCollections(
-      library.series,
-      sourceId: sourceId,
-      userStates: userStates,
     );
     return Column(
       children: [
         _header(context, library, series.length, sourceId),
-        _searchBar(),
-        _stateFilterBar(collections),
-        if (_stateFilter == 'needsConfirmation')
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text(_keyword.isEmpty
-                ? '显示当前来源的全部待确认作品，不限当前分类；仍可浏览和播放。'
-                : '显示当前来源符合搜索的待确认作品，不限当前分类；仍可浏览和播放。'),
-          ),
         if (widget.onRelinkUserState != null)
           _unlinkedStates(library, userStates),
         Expanded(child: _content(context, series)),
@@ -294,93 +251,6 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
     }
   }
 
-  Widget _stateFilterBar(List<String> collections) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-      child: Row(
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: widget.onClassificationModeChanged == null
-                ? Text('分类门槛：${_classificationMode.label}')
-                : PopupMenuButton<MediaClassificationMode>(
-                    key: const ValueKey('media-classification-mode'),
-                    tooltip: '分类门槛',
-                    enabled: !_savingClassificationMode,
-                    onSelected: _changeClassificationMode,
-                    itemBuilder: (_) => [
-                      for (final mode in MediaClassificationMode.values)
-                        PopupMenuItem(
-                          value: mode,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(mode.label),
-                              Text(mediaClassificationModeDescription(mode),
-                                  style: Theme.of(context).textTheme.bodySmall),
-                            ],
-                          ),
-                        ),
-                    ],
-                    child: Chip(label: Text(_savingClassificationMode
-                        ? '正在保存门槛…'
-                        : '分类门槛：${_classificationMode.label}')),
-                  ),
-          ),
-          for (final entry in const <String, String>{
-            'all': '全部',
-            'needsConfirmation': '待确认',
-            'favorite': '收藏',
-            'watchLater': '待看',
-            'watched': '已看',
-            'unwatched': '未看',
-          }.entries)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                label: Text(entry.value),
-                selected:
-                    _stateFilter == entry.key && _selectedCollection.isEmpty,
-                onSelected: (_) => setState(() {
-                  _stateFilter = entry.key;
-                  _selectedCollection = '';
-                }),
-              ),
-            ),
-          for (final collection in collections)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                label: Text(collection),
-                selected: _selectedCollection == collection,
-                onSelected: (_) => setState(() {
-                  _stateFilter = 'all';
-                  _selectedCollection = collection;
-                }),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _changeClassificationMode(MediaClassificationMode mode) async {
-    final callback = widget.onClassificationModeChanged;
-    if (callback == null || _savingClassificationMode || mode == _classificationMode) return;
-    setState(() => _savingClassificationMode = true);
-    try {
-      await callback(mode);
-    } on Object {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('分类门槛保存失败，请重试')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _savingClassificationMode = false);
-    }
-  }
 
   Widget _header(
     BuildContext context,
@@ -388,97 +258,57 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
     int count,
     String sourceId,
   ) {
-    final colors = Theme.of(context).colorScheme;
     final showRefreshProgress = _loading && library.series.isNotEmpty;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 10, 8),
-      child: Row(
-        children: [
-          Icon(_categoryIcon(), color: colors.primary),
-          const SizedBox(width: 10),
-          Text(
-            widget.category.label,
-            key: const ValueKey<String>('media-category-title'),
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            '$count 部',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.outline,
-                ),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 220),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    key: const ValueKey<String>(
-                      'media-category-source-filter',
-                    ),
-                    value: sourceId,
-                    isExpanded: true,
-                    borderRadius: BorderRadius.circular(8),
-                    items: [
-                      for (final filter in library.filters)
-                        DropdownMenuItem<String>(
-                          value: filter.id,
-                          child: Text(
-                            filter.label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) setState(() => _sourceId = value);
-                    },
-                  ),
+    return LibraryToolbar(
+      title: widget.category.label,
+      titleKey: const ValueKey<String>('media-category-title'),
+      icon: _categoryIcon(),
+      count: count,
+      searchController: _searchController,
+      searchKey: const ValueKey<String>('media-category-search'),
+      searchHint: '搜索${widget.category.label}',
+      onSearchChanged: (value) => setState(() => _keyword = value.trim()),
+      onClearSearch: () => setState(() {
+        _searchController.clear();
+        _keyword = '';
+      }),
+      leading: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          key: const ValueKey<String>('media-category-source-filter'),
+          value: sourceId,
+          isExpanded: true,
+          borderRadius: BorderRadius.circular(8),
+          items: [
+            for (final filter in library.filters)
+              DropdownMenuItem<String>(
+                value: filter.id,
+                child: Text(
+                  filter.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-            ),
-          ),
-          IconButton(
-            tooltip: '检查分类',
-            onPressed: _loading ? null : () => _reviewClassifications(library, sourceId),
-            icon: const Icon(Icons.fact_check_outlined),
-          ),
-          IconButton(
-            tooltip: '刷新分类',
-            onPressed: _loading ? null : () => _initialize(refresh: true),
-            icon: showRefreshProgress
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.refresh),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _searchBar() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-      child: TextField(
-        key: const ValueKey<String>('media-category-search'),
-        controller: _searchController,
-        decoration: InputDecoration(
-          hintText: _stateFilter == 'needsConfirmation'
-              ? '搜索待确认作品'
-              : '搜索${widget.category.label}',
-          prefixIcon: const Icon(Icons.search),
-          isDense: true,
+          ],
+          onChanged: (value) {
+            if (value != null) {
+              setState(() => _sourceId = value);
+            }
+          },
         ),
-        onChanged: (value) => setState(() => _keyword = value.trim()),
       ),
+      actions: [
+        IconButton(
+          tooltip: '刷新分类',
+          onPressed: _loading ? null : () => _initialize(refresh: true),
+          icon: showRefreshProgress
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.refresh),
+        ),
+      ],
     );
   }
 
@@ -520,11 +350,7 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
             const SizedBox(height: 12),
             Text(_keyword.isNotEmpty
                 ? '没有匹配的作品'
-                : _stateFilter == 'needsConfirmation'
-                    ? '暂无待确认作品'
-                    : _stateFilter != 'all' || _selectedCollection.isNotEmpty
-                        ? '没有符合当前筛选的作品'
-                        : '还没有${widget.category.label}'),
+                : '还没有${widget.category.label}'),
             if (_keyword.isNotEmpty)
               TextButton(
                 onPressed: () => setState(() {
@@ -566,7 +392,7 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
   Widget _seriesCard(BuildContext context, MediaLibrarySeries series) {
     final info = UnifiedMediaCardInfoBuilder.forSeries(
       series,
-      categoryLabel: _stateFilter == 'needsConfirmation' ? null : widget.category.label,
+      categoryLabel: widget.category.label,
       userState: _userState(series),
       classificationMode: _classificationMode,
     );
@@ -763,50 +589,12 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
       libraryListenable: widget.libraryListenable,
       observeLibrary: widget.observeLibrary,
       capabilities: widget.capabilities,
-      onPlay: series.isAvailable && !_playing ? () => _openSeries(currentSeries) : null,
+      onPlay: series.isAvailable && !_playing
+          ? () => _openSeries(currentSeries)
+          : null,
     );
   }
 
-  Future<void> _editClassification(MediaLibrarySeries series) async {
-    final callback = widget.onClassificationChanged ?? widget.onUserStateChanged;
-    if (callback == null) return;
-    await showMediaClassificationDialog(
-      context,
-      series: series,
-      state: _userState(series),
-      mode: _classificationMode,
-      allowCustomTags: false,
-      onSave: (state, _) => callback(
-        series.key,
-        _userState(series).copyWith(
-          categoryOverride: state.categoryOverride,
-          genreOverride: state.genreOverride,
-          clearCategoryOverride: state.categoryOverride == null,
-          clearGenreOverride: state.genreOverride == null,
-          updatedAt: state.updatedAt,
-        ),
-      ),
-    );
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _reviewClassifications(
-    CloudMediaLibrary library,
-    String sourceId,
-  ) {
-    final source = library.filters.firstWhere((filter) => filter.id == sourceId);
-    return showMediaClassificationReviewDialog(
-      context,
-      series: library.series
-          .where((item) => sourceId == 'all' || item.sourceId == sourceId)
-          .toList(growable: false),
-      sourceLabel: source.label,
-      userStatesProvider: () => widget.userStatesProvider?.call() ?? const {},
-      modeProvider: () => _classificationMode,
-      onEdit: _canEditClassification ? _editClassification : null,
-      onOpen: _showSeriesDetails,
-    );
-  }
 
   Future<void> _saveUserState(
     MediaLibrarySeries series,
@@ -956,7 +744,8 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
 
   MediaLibrarySeries _currentSeries(MediaLibrarySeries original) {
     final ids = original.episodes.map((episode) => episode.stableId).toSet();
-    final matches = _library().series
+    final matches = _library()
+        .series
         .where((series) =>
             series.sourceKind == original.sourceKind &&
             series.sourceId == original.sourceId &&
@@ -1045,8 +834,8 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
                             ChoiceChip(
                               label: Text(series.versions[index].label),
                               selected: selectedVersion == index,
-                              onSelected: (_) =>
-                                  setSheetState(() => selectedVersionKey =
+                              onSelected: (_) => setSheetState(() =>
+                                  selectedVersionKey =
                                       series.versions[index].key),
                             ),
                         ]),
@@ -1063,7 +852,8 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
                               episode.name,
                               if (local != null) local.path,
                               if (local != null) ...local.originalNames,
-                              if (episode.remotePath != null) episode.remotePath!,
+                              if (episode.remotePath != null)
+                                episode.remotePath!,
                             ],
                             releaseTags: [episode.releaseTags],
                             resolution: local?.resolution,
@@ -1100,7 +890,8 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   if (episode.sharedFromVersionLabel != null)
-                                    Text('共享自${episode.sharedFromVersionLabel}'),
+                                    Text(
+                                        '共享自${episode.sharedFromVersionLabel}'),
                                 ],
                               ),
                               onTap: () => Navigator.of(context).pop(
@@ -1117,6 +908,7 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
             ),
           );
         }
+
         Widget observed() => widget.observeLibrary
             ? Observer(builder: (_) => content())
             : Builder(builder: (_) => content());

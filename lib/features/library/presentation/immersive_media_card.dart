@@ -7,6 +7,8 @@ import 'package:kanyingyin/platform/app_platform_io.dart';
 
 enum ImmersiveMediaCardOverlayMode { hover, always }
 
+enum ImmersiveMediaCardDisplayMode { poster, compact, history }
+
 class ImmersiveMediaCardBadge {
   const ImmersiveMediaCardBadge({
     required this.icon,
@@ -29,6 +31,7 @@ class ImmersiveMediaCard extends StatefulWidget {
     required this.cover,
     required this.title,
     required this.overlayMode,
+    this.displayMode = ImmersiveMediaCardDisplayMode.poster,
     this.capabilities,
     this.subtitle = '',
     this.details = '',
@@ -51,6 +54,7 @@ class ImmersiveMediaCard extends StatefulWidget {
   final Widget? trailing;
   final bool loading;
   final ImmersiveMediaCardOverlayMode overlayMode;
+  final ImmersiveMediaCardDisplayMode displayMode;
   final AppPlatformCapabilities? capabilities;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
@@ -67,6 +71,9 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.displayMode != ImmersiveMediaCardDisplayMode.poster) {
+      return _buildCompactCard(context);
+    }
     final colors = Theme.of(context).colorScheme;
     final platform = widget.capabilities ?? detectAppPlatform();
     final mobileAndroid = platform.isAndroid && !platform.isAndroidTv;
@@ -152,6 +159,158 @@ class _ImmersiveMediaCardState extends State<ImmersiveMediaCard> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildCompactCard(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final posterSize =
+        widget.displayMode == ImmersiveMediaCardDisplayMode.history
+            ? const Size(72, 108)
+            : const Size(64, 88);
+    final progress = widget.watchProgress?.clamp(0, 1).toDouble();
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: TvFocusSurface(
+        enabled: widget.onTap != null && !widget.loading,
+        onPressed: widget.onTap,
+        reserveFocusSpace: false,
+        onFocusChange: (focused) {
+          if (mounted) setState(() => _focused = focused);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          transform: Matrix4.translationValues(0, _hovered ? -2 : 0, 0),
+          child: Focus(
+            canRequestFocus: false,
+            child: Material(
+              color: colors.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(12),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: widget.onTap,
+                onLongPress: widget.onLongPress,
+                onSecondaryTap: widget.onSecondaryTap,
+                canRequestFocus: false,
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: posterSize.width,
+                        height: posterSize.height,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              widget.cover,
+                              if (progress case final value? when value > 0)
+                                Align(
+                                  alignment: Alignment.bottomCenter,
+                                  child: LinearProgressIndicator(
+                                    value: value,
+                                    minHeight: 3,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            if (widget.subtitle.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                widget.subtitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: colors.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                            if (widget.details.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                widget.details,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: colors.outline,
+                                ),
+                              ),
+                            ],
+                            if (widget.badges.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 4,
+                                runSpacing: 4,
+                                children: widget.badges
+                                    .take(widget.displayMode ==
+                                            ImmersiveMediaCardDisplayMode
+                                                .history
+                                        ? 2
+                                        : widget.badges.length)
+                                    .map(
+                                      (badge) => _buildCompactBadge(
+                                        context,
+                                        badge,
+                                      ),
+                                    )
+                                    .toList(growable: false),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      if (widget.trailing != null) ...[
+                        const SizedBox(width: 4),
+                        widget.trailing!,
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactBadge(
+    BuildContext context,
+    ImmersiveMediaCardBadge badge,
+  ) {
+    return InputChip(
+      key: badge.key,
+      avatar: badge.loading
+          ? const SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(strokeWidth: 1.8),
+            )
+          : Icon(badge.icon, size: 14),
+      label: Text(badge.label),
+      labelStyle: Theme.of(context).textTheme.labelSmall,
+      visualDensity: VisualDensity.compact,
+      onPressed: badge.onTap,
     );
   }
 

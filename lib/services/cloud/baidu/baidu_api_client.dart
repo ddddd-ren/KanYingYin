@@ -1,11 +1,10 @@
+import 'package:kanyingyin/services/cloud/core/cloud_core.dart';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:kanyingyin/services/cloud/baidu/baidu_models.dart';
 import 'package:kanyingyin/services/cloud/baidu/baidu_request_policy.dart';
 import 'package:kanyingyin/services/cloud/baidu/baidu_response_parser.dart';
-import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
-import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 
 abstract interface class BaiduApi {
   Future<BaiduAccount> account();

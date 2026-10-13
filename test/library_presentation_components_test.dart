@@ -11,12 +11,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/bean/widget/glass_surface.dart';
 import 'package:kanyingyin/bean/widget/skeleton_loader.dart';
+import 'package:kanyingyin/features/library/application/media_library_classification.dart';
 import 'package:kanyingyin/features/library/application/media_technical_badges.dart';
 import 'package:kanyingyin/features/library/presentation/directory_address_dropdown.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
 import 'package:kanyingyin/features/library/presentation/library_media_grid.dart';
 import 'package:kanyingyin/features/library/presentation/library_path_bar.dart';
 import 'package:kanyingyin/features/library/presentation/library_source_menu.dart';
+import 'package:kanyingyin/features/library/presentation/media_classification_dialog.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_focus_surface.dart';
 import 'package:kanyingyin/platform/app_platform.dart';
 import 'package:kanyingyin/widgets/poster_cover.dart';
@@ -133,6 +135,7 @@ void main() {
       Future<String?> Function(String path)? onPathSubmitted,
       DirectoryChildrenLoader? onLoadChildDirectories,
       DirectoryChildSelected? onChildDirectorySelected,
+      Widget? classificationModeControl,
     }) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = Size(width, 900);
@@ -181,6 +184,7 @@ void main() {
                   },
               onLoadChildDirectories: onLoadChildDirectories,
               onChildDirectorySelected: onChildDirectorySelected,
+              classificationModeControl: classificationModeControl,
             ),
           ),
         ),
@@ -205,6 +209,27 @@ void main() {
         expect(
           find.byKey(const ValueKey('library-path-search-surface')),
           findsOneWidget,
+        );
+        expect(tester.takeException(), isNull, reason: '窗口宽度 $width');
+      }
+    });
+
+    testWidgets('来源工具栏在窄屏保留分类门槛入口且无溢出', (tester) async {
+      for (final width in <double>[1280, 390, 320]) {
+        await pumpPathBar(
+          tester,
+          width: width,
+          classificationModeControl: MediaClassificationModeMenu(
+            mode: MediaClassificationMode.conservative,
+            compact: true,
+            onChanged: (_) async {},
+          ),
+        );
+
+        expect(
+          find.byTooltip('分类门槛：保守'),
+          findsOneWidget,
+          reason: '窗口宽度 $width',
         );
         expect(tester.takeException(), isNull, reason: '窗口宽度 $width');
       }
@@ -1374,6 +1399,7 @@ void main() {
       'lib/features/library/application/library_media_view_data_builder.dart',
     ).readAsStringSync();
     expect(source, contains('LibraryPathBar('));
+    expect(source, contains('classificationModeControl: MediaClassificationModeMenu('));
     expect(source, contains('LibrarySourceMenu('));
     expect(source, contains('LibrarySourceMenuViewData('));
     expect(

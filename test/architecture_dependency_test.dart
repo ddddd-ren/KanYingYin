@@ -191,6 +191,43 @@ import 'package:flutter_modular/flutter_modular.dart';
     expect(forbidden, isEmpty, reason: _formatImports(forbidden));
   });
 
+  test('features 不新增对 pages 的跨代依赖', () {
+    const existingLegacyImports = <String>{
+      'lib/features/configuration_transfer/domain/portable_user_data.dart|'
+          'lib/pages/player/models/embedded_track_info.dart',
+      'lib/features/history/presentation/history_page.dart|'
+          'lib/pages/local/local_controller.dart',
+      'lib/features/history/presentation/history_page.dart|'
+          'lib/pages/cloud/resources/cloud_resources_controller.dart',
+      'lib/features/history/presentation/history_page.dart|'
+          'lib/pages/video/local_video_controller.dart',
+      'lib/features/history/presentation/history_page.dart|'
+          'lib/pages/local/tmdb_match_sheet.dart',
+      'lib/features/player/application/embedded_track_coordinator.dart|'
+          'lib/pages/player/models/embedded_track_info.dart',
+      'lib/features/player/application/embedded_track_language_preferences.dart|'
+          'lib/pages/player/models/embedded_track_info.dart',
+      'lib/features/player/application/track_selection_preferences.dart|'
+          'lib/pages/player/models/embedded_track_info.dart',
+      'lib/features/scraped_metadata_transfer/presentation/'
+          'scraped_metadata_transfer_page.dart|'
+          'lib/pages/local/local_directory_picker.dart',
+    };
+    final forbidden = _dartFiles(
+      Directory('${libDirectory.path}${Platform.pathSeparator}features'),
+    )
+        .expand((file) => _imports(file, projectRoot: projectRoot))
+        .where((import) =>
+            import.uri.startsWith('lib/pages/') &&
+            !existingLegacyImports.contains(
+              '${_projectRelativePath(File(import.path), projectRoot)}|'
+              '${import.uri}',
+            ))
+        .toList(growable: false);
+
+    expect(forbidden, isEmpty, reason: _formatImports(forbidden));
+  });
+
   test('core 不反向依赖业务和表现层', () {
     final coreDirectory =
         Directory('${libDirectory.path}${Platform.pathSeparator}core');
@@ -314,6 +351,51 @@ import 'package:flutter_modular/flutter_modular.dart';
       expect(source, isNot(contains('_directories')), reason: relativePath);
     }
   });
+
+  test('网盘供应商适配器不跨供应商依赖，core 不反向依赖供应商', () {
+    const providers = <String>['baidu', 'quark', 'xunlei', 'openlist'];
+    for (final provider in providers) {
+      final directory = Directory(
+        '${libDirectory.path}${Platform.pathSeparator}services'
+        '${Platform.pathSeparator}cloud${Platform.pathSeparator}$provider',
+      );
+      final forbidden = _dartFiles(directory)
+          .expand((file) => _imports(file, projectRoot: projectRoot))
+          .where(
+            (import) =>
+                _isProjectUri(import.uri) &&
+                !_isAllowedCloudProviderUri(import.uri, provider),
+          )
+          .toList(growable: false);
+
+      expect(
+        forbidden,
+        isEmpty,
+        reason: '$provider 适配器存在越过公共边界的依赖:\n'
+            '${_formatImports(forbidden)}',
+      );
+    }
+
+    final coreDirectory = Directory(
+      '${libDirectory.path}${Platform.pathSeparator}services'
+      '${Platform.pathSeparator}cloud${Platform.pathSeparator}core',
+    );
+    final reverseDependencies = _dartFiles(coreDirectory)
+        .expand((file) => _imports(file, projectRoot: projectRoot))
+        .where(
+          (import) =>
+              _isProjectUri(import.uri) &&
+              RegExp(r'^lib/services/cloud/(?:baidu|quark|xunlei|openlist)/')
+                  .hasMatch(import.uri),
+        )
+        .toList(growable: false);
+
+    expect(
+      reverseDependencies,
+      isEmpty,
+      reason: _formatImports(reverseDependencies),
+    );
+  });
 }
 
 Directory _findProjectRoot() {
@@ -382,6 +464,15 @@ String _comparablePath(String path) {
   return Platform.isWindows ? normalized.toLowerCase() : normalized;
 }
 
+String _projectRelativePath(File file, Directory projectRoot) {
+  final projectPath = _comparablePath(projectRoot.absolute.path);
+  final filePath = _comparablePath(file.absolute.path);
+  final prefix = '$projectPath/';
+  return filePath.startsWith(prefix)
+      ? filePath.substring(prefix.length)
+      : filePath;
+}
+
 bool _isProjectUri(String uri) => uri.startsWith('lib/');
 
 bool _isFlutterModularUri(String uri) =>
@@ -394,6 +485,14 @@ bool _isAllowedCoreNetworkUri(String uri) =>
     uri.startsWith('lib/core/') ||
     uri.startsWith('dart:') ||
     uri.startsWith('package:dio/');
+
+bool _isAllowedCloudProviderUri(String uri, String provider) =>
+    uri.startsWith('lib/services/cloud/core/') ||
+    uri.startsWith('lib/services/cloud/$provider/') ||
+    uri == 'lib/services/cloud/cloud_request_diagnostics.dart' ||
+    uri.startsWith('lib/modules/cloud/') ||
+    uri.startsWith('lib/platform/') ||
+    uri.startsWith('lib/utils/');
 
 Iterable<String> _directiveUris(File file) sync* {
   final unit = parseFile(

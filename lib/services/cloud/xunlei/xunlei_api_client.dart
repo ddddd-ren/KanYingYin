@@ -1,3 +1,4 @@
+import 'package:kanyingyin/services/cloud/core/cloud_core.dart';
 export 'package:kanyingyin/services/cloud/xunlei/xunlei_models.dart'
     show XunleiVerificationRequired;
 
@@ -5,7 +6,6 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:kanyingyin/services/cloud/cloud_request_diagnostics.dart';
-import 'package:kanyingyin/services/cloud/cloud_drive_client.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_models.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_request_policy.dart';
 import 'package:kanyingyin/services/cloud/xunlei/xunlei_response_parser.dart';

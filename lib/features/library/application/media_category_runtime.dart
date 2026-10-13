@@ -5,11 +5,10 @@ import 'package:kanyingyin/features/library/application/media_watch_state.dart';
 import 'package:kanyingyin/features/player/application/player_bookmark.dart';
 import 'package:kanyingyin/features/library/application/media_library_user_state.dart';
 import 'package:kanyingyin/features/library/application/media_library_user_state_repository.dart';
+import 'package:kanyingyin/features/library/application/library_ports.dart';
 import 'package:kanyingyin/modules/cloud/cloud_hidden_video.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
-import 'package:kanyingyin/pages/local/local_controller.dart';
-import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/repositories/cloud_hidden_video_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
@@ -34,29 +33,18 @@ typedef MediaCategoryHideEpisodesAction = Future<void> Function(
   MediaLibrarySeries series,
   List<MediaLibraryEpisode> episodes,
 );
-typedef MediaCategoryCloudLibraryRefresh = Future<void> Function();
-typedef MediaCategoryCloudLibraryProvider = CloudMediaLibrary Function();
-typedef MediaCategoryCloudHideAction = Future<void> Function(
-  Iterable<MediaLibraryEpisode> episodes,
-);
 
 class MediaCategoryRuntime extends ChangeNotifier {
   MediaCategoryRuntime({
-    required LocalController localController,
-    required LocalVideoController videoController,
-    required MediaCategoryCloudLibraryRefresh refreshCloudLibrary,
-    MediaCategoryCloudLibraryRefresh? ensureCloudLibrary,
-    required MediaCategoryCloudLibraryProvider cloudLibraryProvider,
-    required MediaCategoryCloudHideAction hideCloudEpisodes,
+    required LocalLibraryPort localLibrary,
+    required CloudLibraryPort cloudLibrary,
+    required PlaybackPort playback,
     required TypedSettings settings,
     required Future<void> Function() navigateToPlayer,
     MediaLibraryUserStateRepository? userStateRepository,
-  })  : _localController = localController,
-        _videoController = videoController,
-        _refreshCloudLibrary = refreshCloudLibrary,
-        _ensureCloudLibrary = ensureCloudLibrary ?? refreshCloudLibrary,
-        _cloudLibraryProvider = cloudLibraryProvider,
-        _hideCloudEpisodes = hideCloudEpisodes,
+  })  : _localLibrary = localLibrary,
+        _cloudLibrary = cloudLibrary,
+        _playback = playback,
         _settings = settings,
         _navigateToPlayer = navigateToPlayer,
         _userStateRepository =
@@ -64,12 +52,9 @@ class MediaCategoryRuntime extends ChangeNotifier {
     MediaLibraryUserStateRepository.changes.addListener(_reloadUserStates);
   }
 
-  final LocalController _localController;
-  final LocalVideoController _videoController;
-  final MediaCategoryCloudLibraryRefresh _refreshCloudLibrary;
-  final MediaCategoryCloudLibraryRefresh _ensureCloudLibrary;
-  final MediaCategoryCloudLibraryProvider _cloudLibraryProvider;
-  final MediaCategoryCloudHideAction _hideCloudEpisodes;
+  final LocalLibraryPort _localLibrary;
+  final CloudLibraryPort _cloudLibrary;
+  final PlaybackPort _playback;
   final TypedSettings _settings;
   final Future<void> Function() _navigateToPlayer;
   final MediaLibraryUserStateRepository _userStateRepository;
@@ -82,14 +67,11 @@ class MediaCategoryRuntime extends ChangeNotifier {
 
   MediaClassificationMode get classificationMode =>
       MediaClassificationMode.values.firstWhere(
-        (mode) => mode.name == _settings.readRaw(SettingBoxKey.mediaClassificationMode),
+        (mode) =>
+            mode.name ==
+            _settings.readRaw(SettingBoxKey.mediaClassificationMode),
         orElse: () => MediaClassificationMode.conservative,
       );
-
-  Future<void> setClassificationMode(MediaClassificationMode mode) async {
-    await _settings.write(SettingBoxKey.mediaClassificationMode, mode.name);
-    MediaLibraryUserStateRepository.changes.value++;
-  }
 
   Future<void> _reloadUserStates() async {
     try {
@@ -108,6 +90,7 @@ class MediaCategoryRuntime extends ChangeNotifier {
     MediaLibraryUserStateRepository.changes.removeListener(_reloadUserStates);
     super.dispose();
   }
+
   late final MediaWatchStateRepository _watchRepository =
       MediaWatchStateRepository(TypedSettingsPlayerBookmarkStorage(_settings,
           storageKey: SettingBoxKey.mediaWatchStates));
@@ -118,15 +101,15 @@ class MediaCategoryRuntime extends ChangeNotifier {
 
   Future<void> initialize() async {
     _userStates = await _userStateRepository.getAll();
-    _localController.reloadAvailableLocalLibraryIndex();
-    await _ensureCloudLibrary();
+    _localLibrary.reloadAvailableLibrary();
+    await _cloudLibrary.ensureLibrary();
     await reconcileUserStates();
   }
 
   Future<void> refresh() async {
     _userStates = await _userStateRepository.getAll();
-    _localController.reloadAvailableLocalLibraryIndex();
-    await _refreshCloudLibrary();
+    _localLibrary.reloadAvailableLibrary();
+    await _cloudLibrary.refreshLibrary();
     await reconcileUserStates();
   }
 
@@ -179,8 +162,8 @@ class MediaCategoryRuntime extends ChangeNotifier {
       });
 
   CloudMediaLibrary get library {
-    final local = _localController.localMediaLibrary;
-    final cloud = _cloudLibraryProvider();
+    final local = _localLibrary.library;
+    final cloud = _cloudLibrary.library;
     return CloudMediaLibrary(
       series: <MediaLibrarySeries>[...local.series, ...cloud.series],
       filters: <MediaLibrarySourceFilter>[
@@ -198,7 +181,7 @@ class MediaCategoryRuntime extends ChangeNotifier {
     if (series.sourceKind != MediaSourceKind.cloud) {
       throw ArgumentError.value(series.sourceKind, 'series', '只能隐藏网盘视频');
     }
-    await _hideCloudEpisodes(episodes);
+    await _cloudLibrary.hideEpisodes(episodes);
   }
 
   Future<void> playEpisode(
@@ -232,29 +215,29 @@ class MediaCategoryRuntime extends ChangeNotifier {
         .toList(growable: false);
     final selected = episode.localItem;
     if (selected == null || items.isEmpty) return false;
-    await _videoController.openFilePlayback(
+    await _playback.openFile(
       filePath: selected.path,
       seriesTitle: series.title,
       legacySeriesTitles: series.legacySeriesTitles,
       directoryFiles: [
         for (final entry in series.episodes)
           if (entry.localItem case final item?)
-          <String, String>{
-            'path': item.path,
-            'name': item.name,
-            'title': p.basenameWithoutExtension(entry.name),
-          },
+            <String, String>{
+              'path': item.path,
+              'name': item.name,
+              'title': p.basenameWithoutExtension(entry.name),
+            },
       ],
       playbackEntries: [
         for (final entry in series.episodes)
           if (entry.localItem case final item?)
-          LocalPlaybackEntry(
-            location: item.location,
-            parentLocation: item.parentLocation,
-            name: item.name,
-            title: p.basenameWithoutExtension(entry.name),
-            subtitlePath: item.subtitlePath,
-          ),
+            LocalPlaybackEntry(
+              location: item.location,
+              parentLocation: item.parentLocation,
+              name: item.name,
+              title: p.basenameWithoutExtension(entry.name),
+              subtitlePath: item.subtitlePath,
+            ),
       ],
       playlistAlreadyIsolated: true,
       autoLoadSubtitle: _settings.getTyped<bool>(
@@ -292,7 +275,7 @@ class MediaCategoryRuntime extends ChangeNotifier {
           ),
     ];
     if (targets.isEmpty) return false;
-    await _videoController.openCloudPlayback(
+    await _playback.openCloud(
       seriesTitle: series.title,
       workKey: series.seriesKey,
       legacySeriesTitles: series.legacySeriesTitles,

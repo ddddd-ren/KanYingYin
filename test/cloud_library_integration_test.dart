@@ -1289,7 +1289,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('编辑分类与标签'));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('media-classification-dialog')), findsOneWidget);
+    expect(find.byKey(const ValueKey('media-classification-dialog')),
+        findsOneWidget);
     final movie = find.byKey(const ValueKey('classification-category-电影'));
     final animation = find.byKey(const ValueKey('classification-category-动漫'));
     expect(tester.widget<CheckboxListTile>(movie).value, isFalse);
@@ -1298,7 +1299,8 @@ void main() {
     await tester.pump();
     await tester.tap(animation);
     await tester.pump();
-    final tagInput = find.byKey(const ValueKey('classification-custom-tag-input'));
+    final tagInput =
+        find.byKey(const ValueKey('classification-custom-tag-input'));
     await tester.ensureVisible(tagInput);
     await tester.enterText(tagInput, '收藏');
     await tester.tap(find.byTooltip('添加自定义标签'));
@@ -1522,8 +1524,10 @@ LocalMediaIndexItem _genreLocal(
 
 Finder _checkedGenreItem(String value) {
   return find.byWidgetPredicate(
-    (widget) => widget is CheckedPopupMenuItem<String> &&
-        widget.child is Text && (widget.child as Text).data == value,
+    (widget) =>
+        widget is CheckedPopupMenuItem<String> &&
+        widget.child is Text &&
+        (widget.child as Text).data == value,
   );
 }
 

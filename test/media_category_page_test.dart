@@ -60,9 +60,12 @@ void main() {
 
       expect(find.byType(ChoiceChip), findsNothing);
       expect(find.byTooltip('检查分类'), findsNothing);
-      expect(find.byKey(const ValueKey('media-classification-menu')), findsNothing);
-      expect(find.byKey(const ValueKey('media-category-search')), findsOneWidget);
-      expect(find.byKey(const ValueKey('media-category-source-filter')), findsOneWidget);
+      expect(find.byKey(const ValueKey('media-classification-menu')),
+          findsNothing);
+      expect(
+          find.byKey(const ValueKey('media-category-search')), findsOneWidget);
+      expect(find.byKey(const ValueKey('media-category-source-filter')),
+          findsOneWidget);
       expect(find.byTooltip('刷新分类'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
@@ -152,7 +155,8 @@ void main() {
     await tester.tap(find.byType(ImmersiveMediaCard));
     await tester.pumpAndSettle();
     final dialog = find.byKey(const ValueKey<String>('media-details-dialog'));
-    expect(find.descendant(of: dialog, matching: find.text('旧来源剧名')), findsOneWidget);
+    expect(find.descendant(of: dialog, matching: find.text('旧来源剧名')),
+        findsOneWidget);
 
     current = _series(
       key: 'source|details-refresh',
@@ -164,12 +168,15 @@ void main() {
     );
     notifier.notifyListeners();
     await tester.pumpAndSettle();
-    expect(find.descendant(of: dialog, matching: find.text('光阴之外')), findsOneWidget);
-    expect(find.descendant(of: dialog, matching: find.text('旧来源剧名')), findsNothing);
+    expect(find.descendant(of: dialog, matching: find.text('光阴之外')),
+        findsOneWidget);
+    expect(find.descendant(of: dialog, matching: find.text('旧来源剧名')),
+        findsNothing);
     sourceExists = false;
     notifier.notifyListeners();
     await tester.pumpAndSettle();
-    expect(find.descendant(of: dialog, matching: find.text('光阴之外')), findsOneWidget);
+    expect(find.descendant(of: dialog, matching: find.text('光阴之外')),
+        findsOneWidget);
     await tester.tap(find.widgetWithText(FilledButton, '播放'));
     await tester.pumpAndSettle();
     expect(played, same(current));
@@ -255,10 +262,16 @@ void main() {
     current = series('光阴之外', reverseVersions: true);
     notifier.notifyListeners();
     await tester.pumpAndSettle();
-    final sheet = find.byKey(const ValueKey<String>('media-category-episode-focus-group'));
-    expect(find.descendant(of: sheet, matching: find.text('光阴之外')), findsOneWidget);
+    final sheet = find
+        .byKey(const ValueKey<String>('media-category-episode-focus-group'));
+    expect(find.descendant(of: sheet, matching: find.text('光阴之外')),
+        findsOneWidget);
     expect(find.text('光阴之外 来源版本 b'), findsOneWidget);
-    expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '版本 B')).selected, isTrue);
+    expect(
+        tester
+            .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '版本 B'))
+            .selected,
+        isTrue);
     sourceExists = false;
     notifier.notifyListeners();
     await tester.pumpAndSettle();

@@ -18,14 +18,17 @@ void main() {
       final storage = MemoryMediaLibraryUserStateStorage();
       final classificationRepository =
           MediaLibraryUserStateRepository(storage: storage);
-      final ordinaryRepository = MediaLibraryUserStateRepository(storage: storage);
-      await ordinaryRepository.save('work', const MediaLibraryUserState(
-        favorite: true,
-        collections: ['旧合集'],
-        mediaIds: ['old-id'],
-        categoryOverride: ['电影'],
-        genreOverride: ['剧情'],
-      ));
+      final ordinaryRepository =
+          MediaLibraryUserStateRepository(storage: storage);
+      await ordinaryRepository.save(
+          'work',
+          const MediaLibraryUserState(
+            favorite: true,
+            collections: ['旧合集'],
+            mediaIds: ['old-id'],
+            categoryOverride: ['电影'],
+            genreOverride: ['剧情'],
+          ));
       final stale = (await ordinaryRepository.get('work'))!;
       final updatedAt = DateTime.utc(2026, 10, 11);
       final classificationSave = classificationRepository.saveClassification(
@@ -54,7 +57,8 @@ void main() {
       expect(saved.watchLater, isTrue);
       expect(saved.collections, ['稍后再看']);
       expect(saved.mediaIds, ['current-id']);
-      expect(saved.updatedAt?.millisecondsSinceEpoch, updatedAt.millisecondsSinceEpoch);
+      expect(saved.updatedAt?.millisecondsSinceEpoch,
+          updatedAt.millisecondsSinceEpoch);
     });
   }
 
@@ -68,7 +72,10 @@ void main() {
     );
     await repository.save('work', stale);
     await repository.saveClassification(
-      'work', categories: null, genres: null, mediaIds: ['one'],
+      'work',
+      categories: null,
+      genres: null,
+      mediaIds: ['one'],
     );
     expect(await repository.get('work'), isNull);
 
@@ -87,7 +94,10 @@ void main() {
     const stale = MediaLibraryUserState(favorite: true);
     await repository.save('work', stale);
     await repository.saveClassification(
-      'work', categories: [], genres: [], mediaIds: ['one'],
+      'work',
+      categories: [],
+      genres: [],
+      mediaIds: ['one'],
     );
 
     await repository.save('work', stale.copyWith(favorite: false),
@@ -190,11 +200,19 @@ void main() {
   test('未知分类、互斥分类及非列表覆盖在边界拒绝', () {
     for (final raw in <Map<Object?, Object?>>[
       {'categoryOverride': '电影'},
-      {'categoryOverride': ['未知分类']},
-      {'categoryOverride': ['动漫', '电视剧']},
-      {'categoryOverride': [1]},
+      {
+        'categoryOverride': ['未知分类']
+      },
+      {
+        'categoryOverride': ['动漫', '电视剧']
+      },
+      {
+        'categoryOverride': [1]
+      },
       {'genreOverride': '科幻'},
-      {'genreOverride': [1]},
+      {
+        'genreOverride': [1]
+      },
     ]) {
       expect(() => MediaLibraryUserState.fromJson(raw), throwsFormatException,
           reason: raw.toString());
@@ -237,24 +255,31 @@ void main() {
       expect(result['old']!.toJson()[field], ['电影']);
       expect(result['new']!.toJson()[field], <String>[]);
       final before = await storage.read();
-      await expectLater(repository.relink('old', 'new', {'video:1'}),
-          throwsA(predicate<Object>((error) => error.toString().contains('冲突'))));
+      await expectLater(
+          repository.relink('old', 'new', {'video:1'}),
+          throwsA(
+              predicate<Object>((error) => error.toString().contains('冲突'))));
       expect(await storage.read(), before);
     });
   }
 
   test('分类保存失败保留磁盘原状态', () async {
     final storage = _FailingStorage({
-      'work': {'categoryOverride': ['电影']}
+      'work': {
+        'categoryOverride': ['电影']
+      }
     });
     final repository = MediaLibraryUserStateRepository(storage: storage);
     storage.failNextWrite = true;
     await expectLater(
-        repository.save('work', MediaLibraryUserState.fromJson({
-          'categoryOverride': <String>[],
-        })),
+        repository.save(
+            'work',
+            MediaLibraryUserState.fromJson({
+              'categoryOverride': <String>[],
+            })),
         throwsStateError);
-    expect((await repository.get('work'))!.toJson()['categoryOverride'], ['电影']);
+    expect(
+        (await repository.get('work'))!.toJson()['categoryOverride'], ['电影']);
   });
 
   test('部分媒体仍缺失时不把原作品状态转移到残缺分组', () async {

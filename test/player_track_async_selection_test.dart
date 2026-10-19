@@ -49,7 +49,8 @@ void main() {
           capabilities: AppPlatformCapabilities.windows);
       final player = _Player(blockFirstDisable: true);
       controller.mediaPlayer = player;
-      final pending = controller.selectEmbeddedSubtitleTrack('1', manual: false);
+      final pending =
+          controller.selectEmbeddedSubtitleTrack('1', manual: false);
       await player.disableStarted.future;
       expect(await controller.selectEmbeddedSubtitleTrack('2'), isTrue);
       if (fails) {
@@ -165,9 +166,13 @@ class _Player extends Fake implements Player {
   PlatformPlayer? get platform => null;
   @override
   PlayerState get state => const PlayerState(
-      tracks: Tracks(
-          audio: [AudioTrack('1', null, 'ja'), AudioTrack('2', null, 'en')],
-          subtitle: [SubtitleTrack('1', null, 'zh'), SubtitleTrack('2', null, 'en')]));
+          tracks: Tracks(audio: [
+        AudioTrack('1', null, 'ja'),
+        AudioTrack('2', null, 'en')
+      ], subtitle: [
+        SubtitleTrack('1', null, 'zh'),
+        SubtitleTrack('2', null, 'en')
+      ]));
   @override
   Future<void> setAudioTrack(AudioTrack track) {
     if (track.id == '2') return Future.value();

@@ -236,8 +236,7 @@ class _MediaClassificationDialogState
                                       'classification-custom-tag-input'),
                                   controller: _tagInput,
                                   enabled: !_saving,
-                                  maxLength:
-                                      MediaCustomTags.maxTagLength,
+                                  maxLength: MediaCustomTags.maxTagLength,
                                   decoration: InputDecoration(
                                     labelText: '新增自定义标签',
                                     errorText: _tagError,
@@ -370,10 +369,15 @@ class MediaClassificationReviewMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pending = series.where((item) =>
-        const MediaClassificationResolver().resolve(
-          item, state: userStates[item.key], mode: mode,
-        ).needsConfirmation).length;
+    final pending = series
+        .where((item) => const MediaClassificationResolver()
+            .resolve(
+              item,
+              state: userStates[item.key],
+              mode: mode,
+            )
+            .needsConfirmation)
+        .length;
     return PopupMenuButton<bool>(
       key: const ValueKey('media-classification-menu'),
       tooltip: '分类确认',
@@ -428,12 +432,18 @@ Future<void> showMediaClassificationReviewDialog(
             final results = {
               for (final item in seriesProvider())
                 item: const MediaClassificationResolver().resolve(
-                  item, state: states[item.key], mode: mode,
+                  item,
+                  state: states[item.key],
+                  mode: mode,
                 ),
             };
-            final pending = results.values.where((result) => result.needsConfirmation).length;
-            final visible = results.entries.where((entry) =>
-                entry.value.needsConfirmation == needsConfirmation).toList(growable: false);
+            final pending = results.values
+                .where((result) => result.needsConfirmation)
+                .length;
+            final visible = results.entries
+                .where((entry) =>
+                    entry.value.needsConfirmation == needsConfirmation)
+                .toList(growable: false);
             return PageStorage(
               bucket: scrollState,
               child: GlassDialog(
@@ -450,7 +460,8 @@ Future<void> showMediaClassificationReviewDialog(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text('分类确认', style: Theme.of(context).textTheme.titleLarge),
+                        Text('分类确认',
+                            style: Theme.of(context).textTheme.titleLarge),
                         const SizedBox(height: 8),
                         Text('“$sourceLabel” · 共 ${results.length} 部作品'),
                         const SizedBox(height: 8),
@@ -458,57 +469,79 @@ Future<void> showMediaClassificationReviewDialog(
                           ChoiceChip(
                             label: Text('待确认（$pending）'),
                             selected: needsConfirmation,
-                            onSelected: (_) => setState(() => needsConfirmation = true),
+                            onSelected: (_) =>
+                                setState(() => needsConfirmation = true),
                           ),
                           ChoiceChip(
                             label: Text('已确认（${results.length - pending}）'),
                             selected: !needsConfirmation,
-                            onSelected: (_) => setState(() => needsConfirmation = false),
+                            onSelected: (_) =>
+                                setState(() => needsConfirmation = false),
                           ),
                         ]),
                         const SizedBox(height: 12),
                         Flexible(
                           child: visible.isEmpty
                               ? Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 24),
-                                  child: Text(needsConfirmation ? '暂无待确认作品' : '暂无已确认作品'),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 24),
+                                  child: Text(needsConfirmation
+                                      ? '暂无待确认作品'
+                                      : '暂无已确认作品'),
                                 )
                               : ListView.separated(
-                                  key: PageStorageKey('classification-review-list-$needsConfirmation'),
+                                  key: PageStorageKey(
+                                      'classification-review-list-$needsConfirmation'),
                                   shrinkWrap: true,
                                   itemCount: visible.length,
                                   separatorBuilder: (_, __) => const Divider(),
                                   itemBuilder: (context, index) {
                                     final item = visible[index].key;
                                     final result = visible[index].value;
-                                    final categories = states[item.key]?.categoryOverride;
+                                    final categories =
+                                        states[item.key]?.categoryOverride;
                                     return ListTile(
                                       contentPadding: EdgeInsets.zero,
                                       title: Text(item.title),
                                       subtitle: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(item.sourceName),
-                                          Text('有效分类：${result.categories.isEmpty ? '未分类' : result.categories.join(' · ')}'),
-                                          Text('题材：${result.genres.isEmpty ? '暂无' : result.genres.join(' · ')}'),
+                                          Text(
+                                              '有效分类：${result.categories.isEmpty ? '未分类' : result.categories.join(' · ')}'),
+                                          Text(
+                                              '题材：${result.genres.isEmpty ? '暂无' : result.genres.join(' · ')}'),
                                           Text(result.needsConfirmation
                                               ? '待确认'
                                               : categories != null
-                                                  ? categories.isEmpty ? '手动未分类' : '已手动确认'
+                                                  ? categories.isEmpty
+                                                      ? '手动未分类'
+                                                      : '已手动确认'
                                                   : '已自动归类'),
                                           if (result.needsConfirmation)
-                                            for (final suggestion in result.categorySuggestions)
-                                              Text('${suggestion.label} · ${suggestion.confidence.label}：${suggestion.reason}'),
-                                          if (result.needsConfirmation && result.categorySuggestions.isEmpty)
+                                            for (final suggestion
+                                                in result.categorySuggestions)
+                                              Text(
+                                                  '${suggestion.label} · ${suggestion.confidence.label}：${suggestion.reason}'),
+                                          if (result.needsConfirmation &&
+                                              result
+                                                  .categorySuggestions.isEmpty)
                                             const Text('信息不足，暂无分类建议；仍可浏览和播放。'),
                                         ],
                                       ),
-                                      onTap: onOpen == null ? null : () => select(() => onOpen(item)),
-                                      trailing: onEdit == null ? null : IconButton(
-                                        tooltip: '编辑分类与标签',
-                                        icon: const Icon(Icons.edit_outlined),
-                                        onPressed: () => select(() => onEdit(item)),
-                                      ),
+                                      onTap: onOpen == null
+                                          ? null
+                                          : () => select(() => onOpen(item)),
+                                      trailing: onEdit == null
+                                          ? null
+                                          : IconButton(
+                                              tooltip: '编辑分类与标签',
+                                              icon: const Icon(
+                                                  Icons.edit_outlined),
+                                              onPressed: () =>
+                                                  select(() => onEdit(item)),
+                                            ),
                                     );
                                   },
                                 ),
@@ -530,7 +563,8 @@ Future<void> showMediaClassificationReviewDialog(
 
           return libraryListenable == null
               ? content()
-              : ListenableBuilder(listenable: libraryListenable, builder: (_, __) => content());
+              : ListenableBuilder(
+                  listenable: libraryListenable, builder: (_, __) => content());
         });
       },
     );

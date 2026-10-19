@@ -39,29 +39,31 @@ void main() {
     };
     var mode = MediaClassificationMode.conservative;
     var failSave = true;
-    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(
-      body: TextButton(
-        child: const Text('打开确认'),
-        onPressed: () => showMediaClassificationReviewDialog(
-          context,
-          seriesProvider: () => items,
-          sourceLabel: '本地媒体库',
-          userStatesProvider: () => states,
-          modeProvider: () => mode,
-          onEdit: (item) => showMediaClassificationDialog(
-            context,
-            series: item,
-            state: states[item.key] ?? MediaLibraryUserState.empty,
-            mode: mode,
-            allowCustomTags: false,
-            onSave: (state, _) async {
-              if (failSave) throw StateError('模拟写入失败');
-              states[item.key] = state;
-            },
-          ).then((_) {}),
-        ),
-      ),
-    ))));
+    await tester.pumpWidget(MaterialApp(
+        home: Builder(
+            builder: (context) => Scaffold(
+                  body: TextButton(
+                    child: const Text('打开确认'),
+                    onPressed: () => showMediaClassificationReviewDialog(
+                      context,
+                      seriesProvider: () => items,
+                      sourceLabel: '本地媒体库',
+                      userStatesProvider: () => states,
+                      modeProvider: () => mode,
+                      onEdit: (item) => showMediaClassificationDialog(
+                        context,
+                        series: item,
+                        state: states[item.key] ?? MediaLibraryUserState.empty,
+                        mode: mode,
+                        allowCustomTags: false,
+                        onSave: (state, _) async {
+                          if (failSave) throw StateError('模拟写入失败');
+                          states[item.key] = state;
+                        },
+                      ).then((_) {}),
+                    ),
+                  ),
+                ))));
     await tester.tap(find.text('打开确认'));
     await tester.pumpAndSettle();
     expect(find.text('待确认（2）'), findsOneWidget);
@@ -90,7 +92,8 @@ void main() {
       of: find.byKey(const ValueKey('media-classification-review')),
       matching: find.byType(Scrollable),
     );
-    await tester.scrollUntilVisible(find.text('手动未分类'), 120, scrollable: scrollable);
+    await tester.scrollUntilVisible(find.text('手动未分类'), 120,
+        scrollable: scrollable);
     expect(find.text('手动未分类'), findsOneWidget);
     await tester.tap(find.widgetWithText(ChoiceChip, '待确认（0）'));
     await tester.pumpAndSettle();
@@ -411,45 +414,53 @@ void main() {
         ),
     ];
     final states = <String, MediaLibraryUserState>{
-      for (final item in items) item.key: const MediaLibraryUserState(categoryOverride: []),
+      for (final item in items)
+        item.key: const MediaLibraryUserState(categoryOverride: []),
     };
     final review = find.byKey(const ValueKey('media-classification-review'),
         skipOffstage: false);
     await tester.pumpWidget(MaterialApp(
-      home: Builder(builder: (context) => Scaffold(
-        body: TextButton(
-          onPressed: () => showMediaClassificationReviewDialog(
-            context,
-            seriesProvider: () => items,
-            initialNeedsConfirmation: false,
-            sourceLabel: '家庭网盘',
-            userStatesProvider: () => states,
-            modeProvider: () => MediaClassificationMode.conservative,
-            onEdit: (series) async {
-              expect(review, findsNothing);
-              await showMediaClassificationDialog(
-                context,
-                series: series,
-                state: states[series.key] ?? MediaLibraryUserState.empty,
-                mode: MediaClassificationMode.conservative,
-                allowCustomTags: false,
-                onSave: (state, _) async => states[series.key] = state,
-              );
-            },
-          ),
-          child: const Text('开始检查'),
-        ),
-      )),
+      home: Builder(
+          builder: (context) => Scaffold(
+                body: TextButton(
+                  onPressed: () => showMediaClassificationReviewDialog(
+                    context,
+                    seriesProvider: () => items,
+                    initialNeedsConfirmation: false,
+                    sourceLabel: '家庭网盘',
+                    userStatesProvider: () => states,
+                    modeProvider: () => MediaClassificationMode.conservative,
+                    onEdit: (series) async {
+                      expect(review, findsNothing);
+                      await showMediaClassificationDialog(
+                        context,
+                        series: series,
+                        state:
+                            states[series.key] ?? MediaLibraryUserState.empty,
+                        mode: MediaClassificationMode.conservative,
+                        allowCustomTags: false,
+                        onSave: (state, _) async => states[series.key] = state,
+                      );
+                    },
+                  ),
+                  child: const Text('开始检查'),
+                ),
+              )),
     ));
     await tester.tap(find.text('开始检查'));
     await tester.pumpAndSettle();
-    final scrollable = find.descendant(of: review, matching: find.byType(Scrollable));
-    await tester.scrollUntilVisible(find.text('检查作品 6'), 160, scrollable: scrollable);
-    final tile = find.ancestor(of: find.text('检查作品 6'), matching: find.byType(ListTile));
+    final scrollable =
+        find.descendant(of: review, matching: find.byType(Scrollable));
+    await tester.scrollUntilVisible(find.text('检查作品 6'), 160,
+        scrollable: scrollable);
+    final tile =
+        find.ancestor(of: find.text('检查作品 6'), matching: find.byType(ListTile));
     await tester.ensureVisible(tile);
     await tester.pumpAndSettle();
-    final previousOffset = tester.state<ScrollableState>(scrollable).position.pixels;
-    await tester.tap(find.descendant(of: tile, matching: find.byTooltip('编辑分类与标签')));
+    final previousOffset =
+        tester.state<ScrollableState>(scrollable).position.pixels;
+    await tester
+        .tap(find.descendant(of: tile, matching: find.byTooltip('编辑分类与标签')));
     await tester.pumpAndSettle();
     expect(review, findsNothing);
     expect(find.byType(Dialog, skipOffstage: false), findsOneWidget);
@@ -462,7 +473,8 @@ void main() {
     expect(find.text('“家庭网盘” · 共 10 部作品'), findsOneWidget);
     expect(tester.state<ScrollableState>(scrollable).position.pixels,
         closeTo(previousOffset, 0.1));
-    expect(find.descendant(of: tile, matching: find.text('有效分类：电影')), findsOneWidget);
+    expect(find.descendant(of: tile, matching: find.text('有效分类：电影')),
+        findsOneWidget);
     expect(states['family|6']?.categoryOverride, ['电影']);
     await tester.tap(find.widgetWithText(TextButton, '关闭'));
     await tester.pumpAndSettle();
@@ -484,22 +496,24 @@ void main() {
     final review = find.byKey(const ValueKey('media-classification-review'),
         skipOffstage: false);
     await tester.pumpWidget(MaterialApp(
-      home: Builder(builder: (context) => Scaffold(
-        body: TextButton(
-          onPressed: () => showMediaClassificationReviewDialog(
-            context,
-            seriesProvider: () => const [series],
-            sourceLabel: '家庭网盘',
-            userStatesProvider: () => const {},
-            modeProvider: () => MediaClassificationMode.conservative,
-            onOpen: (series) async {
-              expect(review, findsNothing);
-              await showMediaLibraryDetailsDialog(context: context, series: series);
-            },
-          ),
-          child: const Text('开始检查'),
-        ),
-      )),
+      home: Builder(
+          builder: (context) => Scaffold(
+                body: TextButton(
+                  onPressed: () => showMediaClassificationReviewDialog(
+                    context,
+                    seriesProvider: () => const [series],
+                    sourceLabel: '家庭网盘',
+                    userStatesProvider: () => const {},
+                    modeProvider: () => MediaClassificationMode.conservative,
+                    onOpen: (series) async {
+                      expect(review, findsNothing);
+                      await showMediaLibraryDetailsDialog(
+                          context: context, series: series);
+                    },
+                  ),
+                  child: const Text('开始检查'),
+                ),
+              )),
     ));
     await tester.tap(find.text('开始检查'));
     await tester.pumpAndSettle();

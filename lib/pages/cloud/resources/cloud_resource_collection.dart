@@ -54,7 +54,6 @@ class CloudResourceVersionGroup {
   final String key;
   final String label;
   final List<CloudFileEntry> videos;
-
 }
 
 class CloudResourceMediaGroup {
@@ -105,6 +104,7 @@ class CloudResourceMediaGroup {
           '$title S${season.toString().padLeft(2, '0')}',
     ];
   }
+
   final bool isSeries;
   final int? seasonNumber;
   final List<CloudFileEntry> videos;

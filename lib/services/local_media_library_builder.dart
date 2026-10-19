@@ -8,7 +8,8 @@ class LocalMediaLibraryBuilder {
   List<LocalMediaSeries> buildSeries(
     Iterable<LocalMediaIndexItem> items, {
     Map<String, String> sourceTitlesByMediaId = const <String, String>{},
-    Map<String, List<String>> legacyTitlesByMediaId = const <String, List<String>>{},
+    Map<String, List<String>> legacyTitlesByMediaId =
+        const <String, List<String>>{},
   }) {
     final sourceItems = items.toList(growable: false);
     final indexedByPath = {
@@ -64,10 +65,10 @@ class LocalMediaLibraryBuilder {
     final ids = mediaIds.toList(growable: false);
     if (ids.isEmpty) return const <String>[];
     return (titlesByMediaId[ids.first] ?? const <String>[])
-        .where((title) => ids.every((id) =>
-            (titlesByMediaId[id] ?? const <String>[]).any(
-              (candidate) => candidate.toLowerCase() == title.toLowerCase(),
-            )))
+        .where((title) =>
+            ids.every((id) => (titlesByMediaId[id] ?? const <String>[]).any(
+                  (candidate) => candidate.toLowerCase() == title.toLowerCase(),
+                )))
         .toList(growable: false);
   }
 

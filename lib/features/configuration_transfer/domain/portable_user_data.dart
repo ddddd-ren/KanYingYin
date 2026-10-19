@@ -177,7 +177,8 @@ class PortableUserData {
           'preferredAudioLanguage': preferredAudioLanguage,
         if (preferredSubtitleLanguage != null)
           'preferredSubtitleLanguage': preferredSubtitleLanguage,
-        if (classificationMode != null) 'classificationMode': classificationMode,
+        if (classificationMode != null)
+          'classificationMode': classificationMode,
       };
 
   PortableUserData remap(

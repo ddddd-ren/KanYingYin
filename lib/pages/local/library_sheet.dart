@@ -65,18 +65,22 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
   Map<String, List<String>> _customTagsBySeries = <String, List<String>>{};
   late final MediaLibraryUserStateRepository _userStateRepository;
   Map<String, MediaLibraryUserState> _userStates = const {};
-  MediaClassificationMode _classificationMode = MediaClassificationMode.conservative;
+  MediaClassificationMode _classificationMode =
+      MediaClassificationMode.conservative;
   late final ReactionDisposer _disposeClassificationReaction;
 
-  int get _selectedTagCount => _selectedCategories.length +
-      _selectedGenres.length + _selectedCustomTags.length;
+  int get _selectedTagCount =>
+      _selectedCategories.length +
+      _selectedGenres.length +
+      _selectedCustomTags.length;
 
   @override
   void initState() {
     super.initState();
     _tagRepository = widget.tagRepository ?? LocalMediaTagRepository();
     _reloadCustomTags();
-    _userStateRepository = widget.userStateRepository ?? MediaLibraryUserStateRepository();
+    _userStateRepository =
+        widget.userStateRepository ?? MediaLibraryUserStateRepository();
     MediaLibraryUserStateRepository.changes.addListener(_reloadClassifications);
     _disposeClassificationReaction = reaction(
       (_) => widget.controller.localLibraryItems.toList(growable: false),
@@ -89,7 +93,8 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
     try {
       final states = await _userStateRepository.reconcile({
         for (final series in widget.controller.localMediaLibrary.series)
-          series.key: series.episodes.map((episode) => episode.stableId).toSet(),
+          series.key:
+              series.episodes.map((episode) => episode.stableId).toSet(),
       });
       final settings = widget.settings ?? Modular.get<TypedSettings>();
       final value = settings.readRaw(SettingBoxKey.mediaClassificationMode);
@@ -117,7 +122,8 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
   @override
   void dispose() {
     _disposeClassificationReaction();
-    MediaLibraryUserStateRepository.changes.removeListener(_reloadClassifications);
+    MediaLibraryUserStateRepository.changes
+        .removeListener(_reloadClassifications);
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -455,8 +461,8 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
         enabled: false,
         child: Text('TMDB 类型'),
       ));
-      entries.addAll(genres.map(
-          (value) => _checkedTagItem(value, 'genre', _selectedGenres)));
+      entries.addAll(genres
+          .map((value) => _checkedTagItem(value, 'genre', _selectedGenres)));
     }
     if (customTags.isNotEmpty) {
       if (entries.isNotEmpty) entries.add(_menuSpacing());
@@ -718,7 +724,8 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
       _customTagsBySeries[series.key] ?? const <String>[],
     );
     final media = widget.controller.localMediaLibrary.series
-        .where((item) => item.seriesKey == series.key).firstOrNull;
+        .where((item) => item.seriesKey == series.key)
+        .firstOrNull;
     if (media == null) return;
     final saved = await showMediaClassificationDialog(
       context,

@@ -128,7 +128,6 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
       widget.classificationModeProvider?.call() ??
       MediaClassificationMode.conservative;
 
-
   @override
   Widget build(BuildContext context) {
     Widget content() => widget.observeLibrary
@@ -250,7 +249,6 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
       }
     }
   }
-
 
   Widget _header(
     BuildContext context,
@@ -594,7 +592,6 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
           : null,
     );
   }
-
 
   Future<void> _saveUserState(
     MediaLibrarySeries series,

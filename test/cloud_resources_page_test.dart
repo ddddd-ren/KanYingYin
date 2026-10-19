@@ -1184,7 +1184,8 @@ void main() {
       await tester.tap(find.widgetWithText(ChoiceChip, version.label));
       await tester.pumpAndSettle();
       expect(find.byType(ListTile), findsNWidgets(6));
-      expect(find.text('S03E01 · ${version.videos.first.variantLabel}'), findsOneWidget);
+      expect(find.text('S03E01 · ${version.videos.first.variantLabel}'),
+          findsOneWidget);
     }
     expect(find.textContaining('第 2 集'), findsNothing);
   });
@@ -1564,7 +1565,8 @@ void main() {
     await tester.tap(find.text('待确认（1）'));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('media-classification-review')), findsOneWidget);
+    expect(find.byKey(const ValueKey('media-classification-review')),
+        findsOneWidget);
     expect(settings.value, 'standard');
     expect(fixture.controller.classificationMode.name, 'standard');
     expect(menu, findsOneWidget);
@@ -1574,7 +1576,8 @@ void main() {
   testWidgets('网盘确认入口覆盖当前来源子目录且保存失败后可重试', (tester) async {
     final fixture = await _PageFixture.create(
       source: _quarkSource,
-      mediaTagRepository: CloudMediaTagRepository(storage: MemoryCloudMediaTagStorage()),
+      mediaTagRepository:
+          CloudMediaTagRepository(storage: MemoryCloudMediaTagStorage()),
       entries: [
         _pageVideo('pending-a', '/影视/甲/甲片.mkv', '甲片.mkv'),
         _pageVideo('pending-b', '/影视/乙/乙片.mkv', '乙片.mkv'),
@@ -1584,8 +1587,11 @@ void main() {
     final storage = _FailClassificationStorage();
     final repository = MediaLibraryUserStateRepository(storage: storage);
     final playback = Completer<void>();
-    addTearDown(() { if (!playback.isCompleted) playback.complete(); });
-    await tester.pumpWidget(MaterialApp(home: CloudResourcesPage(
+    addTearDown(() {
+      if (!playback.isCompleted) playback.complete();
+    });
+    await tester.pumpWidget(MaterialApp(
+        home: CloudResourcesPage(
       controller: fixture.controller,
       settings: _DefaultClassificationSettings(),
       userStateRepository: repository,
@@ -1632,7 +1638,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, '播放'));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('media-classification-review')), findsNothing);
+    expect(find.byKey(const ValueKey('media-classification-review')),
+        findsNothing);
     playback.complete();
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
@@ -1643,11 +1650,14 @@ void main() {
     final fixture = await _PageFixture.create(
       source: _quarkSource,
       entries: [video],
-      mediaTagRepository: CloudMediaTagRepository(storage: MemoryCloudMediaTagStorage()),
+      mediaTagRepository:
+          CloudMediaTagRepository(storage: MemoryCloudMediaTagStorage()),
     );
     addTearDown(fixture.controller.dispose);
-    final repository = MediaLibraryUserStateRepository(storage: MemoryMediaLibraryUserStateStorage());
-    await tester.pumpWidget(MaterialApp(home: CloudResourcesPage(
+    final repository = MediaLibraryUserStateRepository(
+        storage: MemoryMediaLibraryUserStateStorage());
+    await tester.pumpWidget(MaterialApp(
+        home: CloudResourcesPage(
       controller: fixture.controller,
       settings: _DefaultClassificationSettings(),
       userStateRepository: repository,
@@ -1665,7 +1675,11 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('classification-save')));
     await tester.pumpAndSettle();
     expect(find.text('分类与标签保存失败，已保留选择，请重试。'), findsOneWidget);
-    expect((await repository.getAll()).values.any((state) => state.categoryOverride != null), isFalse);
+    expect(
+        (await repository.getAll())
+            .values
+            .any((state) => state.categoryOverride != null),
+        isFalse);
     expect(tester.takeException(), isNull);
   });
 
@@ -1787,10 +1801,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('网盘媒体库'), findsOneWidget);
-    expect(find.descendant(
-      of: find.byKey(const ValueKey('cloud-source-selector')),
-      matching: find.text('夸克媒体库'),
-    ), findsOneWidget);
+    expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('cloud-source-selector')),
+          matching: find.text('夸克媒体库'),
+        ),
+        findsOneWidget);
     expect(find.text('动漫'), findsNothing);
     expect(find.text('第01集.mkv'), findsOneWidget);
     expect(find.text('第01集.ass'), findsNothing);
@@ -1885,7 +1901,8 @@ void main() {
     );
     final states = await _confirmSampleGenres(fixture.controller, indexedItems);
     await tester.pumpWidget(
-      MaterialApp(home: CloudResourcesPage(
+      MaterialApp(
+          home: CloudResourcesPage(
         controller: fixture.controller,
         userStateRepository: states,
         settings: _DefaultClassificationSettings(),
@@ -1945,7 +1962,8 @@ void main() {
     );
     final states = await _confirmSampleGenres(fixture.controller, indexedItems);
     await tester.pumpWidget(
-      MaterialApp(home: CloudResourcesPage(
+      MaterialApp(
+          home: CloudResourcesPage(
         controller: fixture.controller,
         userStateRepository: states,
         settings: _DefaultClassificationSettings(),
@@ -2008,7 +2026,8 @@ void main() {
       ),
     );
     await tester.pumpWidget(
-      MaterialApp(home: CloudResourcesPage(
+      MaterialApp(
+          home: CloudResourcesPage(
         controller: fixture.controller,
         userStateRepository: MediaLibraryUserStateRepository(
           storage: MemoryMediaLibraryUserStateStorage(),
@@ -2025,7 +2044,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('编辑分类与标签'), findsOneWidget);
 
-    await tester.ensureVisible(find.byKey(const ValueKey('classification-custom-tag-input')));
+    await tester.ensureVisible(
+        find.byKey(const ValueKey('classification-custom-tag-input')));
     await tester.enterText(
       find.byKey(const ValueKey('classification-custom-tag-input')),
       '收藏',
@@ -2047,53 +2067,57 @@ void main() {
   });
 
   for (final tagReadFailure in [true, false]) {
-  testWidgets('${tagReadFailure ? '标签回读' : '分类写入'}失败时恢复旧标签和筛选且保留编辑', (tester) async {
-    final entry = _pageVideo('rollback-video', '/影视/回滚.mkv', '回滚.mkv');
-    final tags = _FailAfterWriteTagRepository();
-    final fixture = await _PageFixture.create(
-      source: _quarkSource,
-      entries: [entry],
-      snapshotOnly: true,
-      indexedItems: [_pageIndexedVideo(entry, const [])],
-      mediaTagRepository: tags,
-    );
-    final stateStorage = _FailClassificationStorage();
-    final states = MediaLibraryUserStateRepository(storage: stateStorage);
-    await tester.pumpWidget(MaterialApp(home: CloudResourcesPage(
-      controller: fixture.controller,
-      userStateRepository: states,
-      settings: _DefaultClassificationSettings(),
-    )));
-    await tester.pumpAndSettle();
-    final group = fixture.controller.collection.groups.single;
-    await fixture.controller.saveCustomTags(group, ['收藏']);
-    fixture.controller.toggleGenre('收藏');
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('资源操作'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('编辑分类与标签'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const ValueKey('classification-custom-tag-input')));
-    await tester.tap(find.descendant(
-      of: find.widgetWithText(InputChip, '收藏'),
-      matching: find.byIcon(Icons.clear),
-    ));
-    await tester.enterText(find.byKey(const ValueKey('classification-custom-tag-input')), '新增');
-    await tester.tap(find.byTooltip('添加自定义标签'));
-    tags.failNextReadAfterSave = tagReadFailure;
-    stateStorage.failNextWrite = !tagReadFailure;
-    await tester.tap(find.byKey(const ValueKey('classification-save')));
-    await tester.pumpAndSettle();
+    testWidgets('${tagReadFailure ? '标签回读' : '分类写入'}失败时恢复旧标签和筛选且保留编辑',
+        (tester) async {
+      final entry = _pageVideo('rollback-video', '/影视/回滚.mkv', '回滚.mkv');
+      final tags = _FailAfterWriteTagRepository();
+      final fixture = await _PageFixture.create(
+        source: _quarkSource,
+        entries: [entry],
+        snapshotOnly: true,
+        indexedItems: [_pageIndexedVideo(entry, const [])],
+        mediaTagRepository: tags,
+      );
+      final stateStorage = _FailClassificationStorage();
+      final states = MediaLibraryUserStateRepository(storage: stateStorage);
+      await tester.pumpWidget(MaterialApp(
+          home: CloudResourcesPage(
+        controller: fixture.controller,
+        userStateRepository: states,
+        settings: _DefaultClassificationSettings(),
+      )));
+      await tester.pumpAndSettle();
+      final group = fixture.controller.collection.groups.single;
+      await fixture.controller.saveCustomTags(group, ['收藏']);
+      fixture.controller.toggleGenre('收藏');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('资源操作'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('编辑分类与标签'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+          find.byKey(const ValueKey('classification-custom-tag-input')));
+      await tester.tap(find.descendant(
+        of: find.widgetWithText(InputChip, '收藏'),
+        matching: find.byIcon(Icons.clear),
+      ));
+      await tester.enterText(
+          find.byKey(const ValueKey('classification-custom-tag-input')), '新增');
+      await tester.tap(find.byTooltip('添加自定义标签'));
+      tags.failNextReadAfterSave = tagReadFailure;
+      stateStorage.failNextWrite = !tagReadFailure;
+      await tester.tap(find.byKey(const ValueKey('classification-save')));
+      await tester.pumpAndSettle();
 
-    expect(find.textContaining('保存失败'), findsOneWidget);
-    expect(find.widgetWithText(InputChip, '新增'), findsOneWidget);
-    expect((await tags.getBySource(_quarkSource.id)).values.single, ['收藏']);
-    expect(fixture.controller.customTagsForGroup(group), ['收藏']);
-    expect(fixture.controller.selectedGenres, {'收藏'});
-    expect(await states.get(group.stableKey), isNull);
-    await tester.pumpWidget(const SizedBox.shrink());
-    fixture.controller.dispose();
-  });
+      expect(find.textContaining('保存失败'), findsOneWidget);
+      expect(find.widgetWithText(InputChip, '新增'), findsOneWidget);
+      expect((await tags.getBySource(_quarkSource.id)).values.single, ['收藏']);
+      expect(fixture.controller.customTagsForGroup(group), ['收藏']);
+      expect(fixture.controller.selectedGenres, {'收藏'});
+      expect(await states.get(group.stableKey), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      fixture.controller.dispose();
+    });
   }
 
   testWidgets('点击视频使用来源 ID、远程 ID 和同名字幕播放', (tester) async {
@@ -3408,8 +3432,11 @@ Future<MediaLibraryUserStateRepository> _confirmSampleGenres(
     await repository.saveClassification(
       series.key,
       categories: null,
-      genres: items.where((item) => ids.contains(item.remoteId))
-          .expand((item) => item.tmdbGenres).toSet().toList(),
+      genres: items
+          .where((item) => ids.contains(item.remoteId))
+          .expand((item) => item.tmdbGenres)
+          .toSet()
+          .toList(),
       mediaIds: series.episodes.map((episode) => episode.stableId),
     );
   }
@@ -3447,7 +3474,8 @@ class _FailClassificationStorage extends MemoryMediaLibraryUserStateStorage {
 }
 
 class _FailAfterWriteTagRepository implements ICloudMediaTagRepository {
-  final _delegate = CloudMediaTagRepository(storage: MemoryCloudMediaTagStorage());
+  final _delegate =
+      CloudMediaTagRepository(storage: MemoryCloudMediaTagStorage());
   bool failNextReadAfterSave = false;
   bool _failRead = false;
 
@@ -3461,7 +3489,8 @@ class _FailAfterWriteTagRepository implements ICloudMediaTagRepository {
   }
 
   @override
-  Future<void> saveForResource(String sourceId, String resourceKey, Iterable<String> tags) async {
+  Future<void> saveForResource(
+      String sourceId, String resourceKey, Iterable<String> tags) async {
     await _delegate.saveForResource(sourceId, resourceKey, tags);
     if (failNextReadAfterSave) {
       failNextReadAfterSave = false;
@@ -3470,7 +3499,8 @@ class _FailAfterWriteTagRepository implements ICloudMediaTagRepository {
   }
 
   @override
-  Future<void> removeSource(String sourceId) => _delegate.removeSource(sourceId);
+  Future<void> removeSource(String sourceId) =>
+      _delegate.removeSource(sourceId);
 }
 
 class _RecordingLoadCloudResourcesController extends CloudResourcesController {

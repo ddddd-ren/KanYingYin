@@ -244,11 +244,13 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
       <String, List<String>>{};
   final Set<String> _selectedGenres = <String>{};
   Map<String, MediaLibraryUserState> _classificationStates = const {};
-  MediaClassificationMode classificationMode = MediaClassificationMode.conservative;
+  MediaClassificationMode classificationMode =
+      MediaClassificationMode.conservative;
   List<MediaLibrarySeries>? _classificationSeriesCache;
   Map<String, List<String>>? _classificationGenresCache;
 
-  Map<String, MediaLibraryUserState> get classificationStates => _classificationStates;
+  Map<String, MediaLibraryUserState> get classificationStates =>
+      _classificationStates;
 
   void updateClassifications(
     Map<String, MediaLibraryUserState> states,
@@ -260,6 +262,7 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
     _reconcileSelectedGenres();
     _notify();
   }
+
   List<CloudHiddenVideo> _hiddenVideos = <CloudHiddenVideo>[];
   int _hiddenVideosRevision = 0;
   List<CloudWorkIdentity> _works = <CloudWorkIdentity>[];

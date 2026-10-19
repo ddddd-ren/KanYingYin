@@ -47,8 +47,10 @@ Future<CloudFileEntry?> showCloudResourceEpisodeSheet({
           sourceName: sourceName,
           capabilities: capabilities,
           librarySeries: classificationSeriesForGroup?.call(currentGroup),
-          userState: (userStatesProvider?.call() ?? userStates)[currentGroup.stableKey],
-          classificationMode: classificationModeProvider?.call() ?? classificationMode,
+          userState: (userStatesProvider?.call() ??
+              userStates)[currentGroup.stableKey],
+          classificationMode:
+              classificationModeProvider?.call() ?? classificationMode,
         );
       }
 

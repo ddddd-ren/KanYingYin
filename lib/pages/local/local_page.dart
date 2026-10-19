@@ -75,7 +75,8 @@ class _LocalPageState extends State<LocalPage>
   final _classificationChanges = ValueNotifier<int>(0);
   Map<String, MediaLibraryUserState> _userStates = const {};
   Map<String, MediaLibrarySeries> _librarySeriesByPath = const {};
-  MediaClassificationMode _classificationMode = MediaClassificationMode.conservative;
+  MediaClassificationMode _classificationMode =
+      MediaClassificationMode.conservative;
   late final ReactionDisposer _disposeClassificationReaction;
 
   @override
@@ -96,7 +97,8 @@ class _LocalPageState extends State<LocalPage>
   @override
   void dispose() {
     _disposeClassificationReaction();
-    MediaLibraryUserStateRepository.changes.removeListener(_reloadClassifications);
+    MediaLibraryUserStateRepository.changes
+        .removeListener(_reloadClassifications);
     _scrollController.dispose();
     _searchController.dispose();
     _classificationChanges.dispose();
@@ -107,9 +109,11 @@ class _LocalPageState extends State<LocalPage>
     try {
       final states = await _userStateRepository.reconcile({
         for (final series in localController.localMediaLibrary.series)
-          series.key: series.episodes.map((episode) => episode.stableId).toSet(),
+          series.key:
+              series.episodes.map((episode) => episode.stableId).toSet(),
       });
-      final value = Modular.get<TypedSettings>().readRaw(SettingBoxKey.mediaClassificationMode);
+      final value = Modular.get<TypedSettings>()
+          .readRaw(SettingBoxKey.mediaClassificationMode);
       if (!mounted) return;
       setState(() {
         _userStates = states;
@@ -126,7 +130,8 @@ class _LocalPageState extends State<LocalPage>
 
   MediaLibrarySeries? _librarySeriesForGroup(LocalVideoGroup group) {
     final matches = group.episodes
-        .map((episode) => _librarySeriesByPath[LocalMediaIndexItem.normalizePath(episode.path)])
+        .map((episode) => _librarySeriesByPath[
+            LocalMediaIndexItem.normalizePath(episode.path)])
         .toSet();
     return matches.length == 1 ? matches.single : null;
   }
@@ -136,13 +141,15 @@ class _LocalPageState extends State<LocalPage>
         episode.tmdbIdentity != null && episode.tmdbIdentity!.isNotEmpty);
   }
 
-  Future<void> _editGroupTags(BuildContext context, LocalVideoGroup group) async {
+  Future<void> _editGroupTags(
+      BuildContext context, LocalVideoGroup group) async {
     final series = _librarySeriesForGroup(group);
     if (series == null) return;
     await _editSeriesTags(context, series);
   }
 
-  Future<void> _editSeriesTags(BuildContext context, MediaLibrarySeries series) async {
+  Future<void> _editSeriesTags(
+      BuildContext context, MediaLibrarySeries series) async {
     final tags = LocalMediaTagRepository();
     final initialTags = tags.getAll()[series.seriesKey] ?? const <String>[];
     await showMediaClassificationDialog(
@@ -152,7 +159,8 @@ class _LocalPageState extends State<LocalPage>
       mode: _classificationMode,
       customTags: initialTags,
       onSave: (state, selectedTags) async {
-        if (!localController.localMediaLibrary.series.any((item) => item.key == series.key)) {
+        if (!localController.localMediaLibrary.series
+            .any((item) => item.key == series.key)) {
           throw StateError('作品已不在媒体库中，请刷新后重试');
         }
         try {
@@ -183,21 +191,25 @@ class _LocalPageState extends State<LocalPage>
       libraryListenable: _classificationChanges,
       onEdit: (series) => _editSeriesTags(context, series),
       onOpen: (series) async {
-        final episodes = series.episodes.map((item) => item.localItem)
-            .whereType<LocalMediaIndexItem>().toList(growable: false);
+        final episodes = series.episodes
+            .map((item) => item.localItem)
+            .whereType<LocalMediaIndexItem>()
+            .toList(growable: false);
         Future<void>? playback;
         await showMediaLibraryDetailsDialog(
           context: context,
           series: series,
-          onPlay: !series.isAvailable || episodes.isEmpty ? null : () => playback ??= _playLibraryEpisode(
-            LocalMediaSeries(
-              key: series.seriesKey,
-              title: series.title,
-              legacySeriesTitles: series.legacySeriesTitles,
-              episodes: episodes,
-            ),
-            episodes.first,
-          ),
+          onPlay: !series.isAvailable || episodes.isEmpty
+              ? null
+              : () => playback ??= _playLibraryEpisode(
+                    LocalMediaSeries(
+                      key: series.seriesKey,
+                      title: series.title,
+                      legacySeriesTitles: series.legacySeriesTitles,
+                      episodes: episodes,
+                    ),
+                    episodes.first,
+                  ),
         );
         await playback;
       },

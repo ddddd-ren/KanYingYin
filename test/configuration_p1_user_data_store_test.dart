@@ -70,7 +70,8 @@ void main() {
   });
 
   test('旧包缺少分类模式时保留本机模式，显式替换允许覆盖人工分类', () async {
-    final root = await Directory.systemTemp.createTemp('kanyingyin-mode-backup-');
+    final root =
+        await Directory.systemTemp.createTemp('kanyingyin-mode-backup-');
     Hive.init(root.path);
     final box = await Hive.openBox<Object?>('settings');
     addTearDown(() async {
@@ -80,7 +81,9 @@ void main() {
     final store = SettingsConfigurationUserDataStore(TypedSettings(box));
     await box.put(SettingBoxKey.mediaClassificationMode, 'manual');
     await box.put(SettingBoxKey.mediaLibraryUserStates, {
-      'work': {'categoryOverride': ['电影']}
+      'work': {
+        'categoryOverride': ['电影']
+      }
     });
     await store.replace(PortableUserData.fromJson({
       'states': {
@@ -88,7 +91,8 @@ void main() {
       }
     }));
     expect((await store.capture()).classificationMode, 'manual');
-    expect((await store.capture()).states['work']!.categoryOverride, <String>[]);
+    expect(
+        (await store.capture()).states['work']!.categoryOverride, <String>[]);
   });
 
   test('配置合并遇到人工分类冲突时中文报错且设置凭据均不变', () async {
@@ -102,7 +106,9 @@ void main() {
     final store = SettingsConfigurationUserDataStore(TypedSettings(box));
     await store.replace(PortableUserData.fromJson({
       'states': {
-        'work': {'categoryOverride': ['电影']}
+        'work': {
+          'categoryOverride': ['电影']
+        }
       },
       'classificationMode': 'manual',
     }));
@@ -131,7 +137,8 @@ void main() {
 
   for (final classificationMode in [null, 'manual']) {
     test('部分写入失败回滚人工覆盖、清空状态与${classificationMode ?? '默认'}模式', () async {
-      final root = await Directory.systemTemp.createTemp('kanyingyin-rollback-');
+      final root =
+          await Directory.systemTemp.createTemp('kanyingyin-rollback-');
       Hive.init(root.path);
       final box = await Hive.openBox<Object?>('settings');
       addTearDown(() async {
@@ -147,10 +154,12 @@ void main() {
             'genreOverride': ['科幻']
           }
         },
-        if (classificationMode != null) 'classificationMode': classificationMode,
+        if (classificationMode != null)
+          'classificationMode': classificationMode,
       }));
       final before = (await store.capture()).toJson();
-      expect(before['classificationMode'], classificationMode ?? 'conservative');
+      expect(
+          before['classificationMode'], classificationMode ?? 'conservative');
       final tmdb = await _tmdbManager();
       final importer = ConfigurationImporter(
         sourceRepository: CloudSourceRepository(
@@ -163,7 +172,9 @@ void main() {
       await expectLater(
           importer.apply(_configuration(PortableUserData.fromJson({
             'states': {
-              'other': {'categoryOverride': ['动漫']}
+              'other': {
+                'categoryOverride': ['动漫']
+              }
             },
             'classificationMode': 'standard',
           }))),

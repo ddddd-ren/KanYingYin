@@ -111,24 +111,41 @@ void main() {
         sourceId: 'source-a', remoteId: 'remote-a', mediaPath: '/anime/a.mp4');
     expect(matched?.stableKey, old.stableKey);
     expect(matched?.resumePosition, const Duration(seconds: 37));
-    expect(controller.findCloudEntry(
-        sourceId: 'source-b', remoteId: 'remote-a', mediaPath: '/anime/a.mp4'), isNull);
-    expect(controller.findCloudEntry(
-        sourceId: 'source-a', remoteId: 'remote-b', mediaPath: '/anime/a.mp4'), isNull);
-    expect(controller.findCloudEntry(
-        sourceId: 'source-a', remoteId: 'remote-a', mediaPath: '/other/a.mp4'), isNull);
+    expect(
+        controller.findCloudEntry(
+            sourceId: 'source-b',
+            remoteId: 'remote-a',
+            mediaPath: '/anime/a.mp4'),
+        isNull);
+    expect(
+        controller.findCloudEntry(
+            sourceId: 'source-a',
+            remoteId: 'remote-b',
+            mediaPath: '/anime/a.mp4'),
+        isNull);
+    expect(
+        controller.findCloudEntry(
+            sourceId: 'source-a',
+            remoteId: 'remote-a',
+            mediaPath: '/other/a.mp4'),
+        isNull);
     expect(controller.entries.single.stableKey, old.stableKey);
-    final duplicated = _entry(
-        key: 'cloud|new-key', position: 49, seriesTitle: '新的来源剧名');
+    final duplicated =
+        _entry(key: 'cloud|new-key', position: 49, seriesTitle: '新的来源剧名');
     await controller.record(duplicated, forcePersist: true);
-    expect(controller.findCloudEntry(
-        sourceId: 'source-a', remoteId: 'remote-a', mediaPath: '/anime/a.mp4')?.stableKey,
+    expect(
+        controller
+            .findCloudEntry(
+                sourceId: 'source-a',
+                remoteId: 'remote-a',
+                mediaPath: '/anime/a.mp4')
+            ?.stableKey,
         old.stableKey);
     expect(controller.entries, hasLength(1));
     expect(controller.entries.single.seriesTitle, '新的来源剧名');
     expect(controller.entries.single.posterUrl, old.posterUrl);
-    expect(controller.resumePosition(old.stableKey),
-        const Duration(seconds: 49));
+    expect(
+        controller.resumePosition(old.stableKey), const Duration(seconds: 49));
     expect(controller.find(duplicated.stableKey), isNull);
     final reloaded = PlaybackHistoryController(
         repository: PlaybackHistoryRepository(storage: storage));
@@ -142,12 +159,18 @@ void main() {
     final other = _entry(key: 'cloud|other', position: 49);
     final controller = PlaybackHistoryController(
         repository: PlaybackHistoryRepository(
-            storage: MemoryPlaybackHistoryStorage([old.toJson(), other.toJson()])));
+            storage:
+                MemoryPlaybackHistoryStorage([old.toJson(), other.toJson()])));
     addTearDown(controller.dispose);
     await controller.ensureLoaded();
-    expect(controller.findCloudEntry(
-        sourceId: 'source-a', remoteId: 'remote-a', mediaPath: '/anime/a.mp4'), isNull);
-    expect(controller.resumePosition(other.stableKey), const Duration(seconds: 49));
+    expect(
+        controller.findCloudEntry(
+            sourceId: 'source-a',
+            remoteId: 'remote-a',
+            mediaPath: '/anime/a.mp4'),
+        isNull);
+    expect(controller.resumePosition(other.stableKey),
+        const Duration(seconds: 49));
     expect(controller.entries, hasLength(2));
   });
 

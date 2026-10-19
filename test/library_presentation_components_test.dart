@@ -1398,7 +1398,8 @@ void main() {
       'lib/features/library/application/library_media_view_data_builder.dart',
     ).readAsStringSync();
     expect(source, contains('LibraryPathBar('));
-    expect(source, contains('classificationControl: MediaClassificationReviewMenu('));
+    expect(source,
+        contains('classificationControl: MediaClassificationReviewMenu('));
     expect(source, contains('LibrarySourceMenu('));
     expect(source, contains('LibrarySourceMenuViewData('));
     expect(

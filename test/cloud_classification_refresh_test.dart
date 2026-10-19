@@ -18,13 +18,17 @@ void main() {
     final controller = _SnapshotController();
     final oldSeries = _series('source|work|show');
     controller.replaceSnapshot(oldSeries);
-    await repository.save(oldSeries.key, MediaLibraryUserState(
-      favorite: true,
-      categoryOverride: const [],
-      genreOverride: const ['自选题材'],
-      mediaIds: oldSeries.episodes.map((episode) => episode.stableId).toList(),
-    ));
-    await tester.pumpWidget(MaterialApp(home: CloudResourcesPage(
+    await repository.save(
+        oldSeries.key,
+        MediaLibraryUserState(
+          favorite: true,
+          categoryOverride: const [],
+          genreOverride: const ['自选题材'],
+          mediaIds:
+              oldSeries.episodes.map((episode) => episode.stableId).toList(),
+        ));
+    await tester.pumpWidget(MaterialApp(
+        home: CloudResourcesPage(
       controller: controller,
       userStateRepository: repository,
       settings: TypedSettings(_SettingsBox()),
@@ -39,7 +43,8 @@ void main() {
     expect(state?.genreOverride, ['自选题材']);
     expect(state?.favorite, isTrue);
     expect(await repository.get(oldSeries.key), isNull);
-    expect((await repository.get(currentSeries.key))?.categoryOverride, isEmpty);
+    expect(
+        (await repository.get(currentSeries.key))?.categoryOverride, isEmpty);
     await tester.pumpWidget(const SizedBox.shrink());
     controller.dispose();
   });
@@ -51,16 +56,18 @@ class _SettingsBox extends Fake implements Box<Object?> {
 }
 
 class _SnapshotController extends CloudResourcesController {
-  _SnapshotController() : super(
-    repository: CloudSourceRepository(
-      storage: MemoryCloudSourceStorage(),
-      credentialStore: MemoryCloudCredentialStore(),
-    ),
-    credentialStore: MemoryCloudCredentialStore(),
-  );
+  _SnapshotController()
+      : super(
+          repository: CloudSourceRepository(
+            storage: MemoryCloudSourceStorage(),
+            credentialStore: MemoryCloudCredentialStore(),
+          ),
+          credentialStore: MemoryCloudCredentialStore(),
+        );
 
   final _snapshotChanges = ChangeNotifier();
-  CloudMediaLibrary _snapshot = const CloudMediaLibrary(series: [], filters: []);
+  CloudMediaLibrary _snapshot =
+      const CloudMediaLibrary(series: [], filters: []);
 
   @override
   CloudMediaLibrary get mediaLibrarySnapshot => _snapshot;
@@ -84,20 +91,22 @@ class _SnapshotController extends CloudResourcesController {
 }
 
 MediaLibrarySeries _series(String key) => MediaLibrarySeries(
-  key: key,
-  seriesKey: key,
-  title: '同一作品',
-  sourceKind: MediaSourceKind.cloud,
-  sourceId: 'source',
-  sourceName: '网盘',
-  isAvailable: true,
-  episodes: [MediaLibraryEpisode.cloud(
-    stableId: 'episode',
-    name: 'S01E01.mkv',
-    sourceId: 'source',
-    sourceName: '网盘',
-    isAvailable: true,
-    remoteId: 'episode',
-    remotePath: '/作品/S01E01.mkv',
-  )],
-);
+      key: key,
+      seriesKey: key,
+      title: '同一作品',
+      sourceKind: MediaSourceKind.cloud,
+      sourceId: 'source',
+      sourceName: '网盘',
+      isAvailable: true,
+      episodes: [
+        MediaLibraryEpisode.cloud(
+          stableId: 'episode',
+          name: 'S01E01.mkv',
+          sourceId: 'source',
+          sourceName: '网盘',
+          isAvailable: true,
+          remoteId: 'episode',
+          remotePath: '/作品/S01E01.mkv',
+        )
+      ],
+    );

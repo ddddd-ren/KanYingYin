@@ -59,7 +59,9 @@ void main() {
     });
     final incoming = PortableUserData.fromJson({
       'states': {
-        'work': {'genreOverride': ['科幻']}
+        'work': {
+          'genreOverride': ['科幻']
+        }
       }
     });
     final merged = existing.merge(incoming).toJson();
@@ -78,7 +80,9 @@ void main() {
     for (final field in ['categoryOverride', 'genreOverride']) {
       final existing = PortableUserData.fromJson({
         'states': {
-          'work': {field: ['电影']}
+          'work': {
+            field: ['电影']
+          }
         }
       });
       final incoming = PortableUserData.fromJson({
@@ -87,8 +91,10 @@ void main() {
         }
       });
       final before = existing.toJson();
-      expect(() => existing.merge(incoming),
-          throwsA(predicate<Object>((error) => error.toString().contains('冲突'))));
+      expect(
+          () => existing.merge(incoming),
+          throwsA(
+              predicate<Object>((error) => error.toString().contains('冲突'))));
       expect(existing.toJson(), before);
     }
   });
@@ -121,7 +127,9 @@ void main() {
       {'classificationMode': 1},
       {
         'states': {
-          'work': {'categoryOverride': ['动漫', '电视剧']}
+          'work': {
+            'categoryOverride': ['动漫', '电视剧']
+          }
         }
       },
     ]) {

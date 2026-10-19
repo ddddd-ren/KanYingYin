@@ -79,7 +79,8 @@ void main() {
     final groupA = controller.collection.groups.single;
     controller.updateClassifications({
       groupA.stableKey: const MediaLibraryUserState(
-        categoryOverride: ['动漫'], genreOverride: ['科幻'],
+        categoryOverride: ['动漫'],
+        genreOverride: ['科幻'],
       ),
     }, MediaClassificationMode.conservative);
     expect(controller.availableGenres, ['科幻']);
@@ -87,7 +88,8 @@ void main() {
     expect(controller.collection.groups.single.stableKey, groupA.stableKey);
     controller.updateClassifications({
       groupA.stableKey: const MediaLibraryUserState(
-        categoryOverride: ['动漫'], genreOverride: [],
+        categoryOverride: ['动漫'],
+        genreOverride: [],
       ),
     }, MediaClassificationMode.conservative);
     expect(controller.availableGenres, isEmpty);

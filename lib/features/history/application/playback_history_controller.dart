@@ -97,8 +97,8 @@ class PlaybackHistoryController extends ChangeNotifier {
                     ? entry.posterCachePath
                     : previousCloud.posterCachePath,
               );
-        final previousIndex =
-            _entries.indexWhere((item) => item.stableKey == normalized.stableKey);
+        final previousIndex = _entries
+            .indexWhere((item) => item.stableKey == normalized.stableKey);
         if (previousIndex < 0 &&
             normalized.positionSeconds < minimumInitialPositionSeconds &&
             !normalized.isCompleted) {

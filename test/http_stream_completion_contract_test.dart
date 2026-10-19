@@ -11,7 +11,6 @@ void main() {
               .readAsStringSync(),
     ];
     for (final source in sources) {
-
       expect(source, contains('TmdbImageClient.shared.downloadBytes'));
       expect(source, isNot(contains('HttpClient()')));
     }

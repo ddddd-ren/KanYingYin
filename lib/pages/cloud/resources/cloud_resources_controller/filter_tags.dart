@@ -3,7 +3,8 @@ part of '../cloud_resources_controller.dart';
 /// 过滤与集合派生：搜索关键字、流派、自定义标签与可见条目/集合视图。
 mixin _CloudFilterTagsMixin on _CloudResourcesControllerBase {
   List<String> get availableGenres =>
-      _classificationGenres.values.expand((genres) => genres).toSet().toList()..sort();
+      _classificationGenres.values.expand((genres) => genres).toSet().toList()
+        ..sort();
 
   List<MediaLibrarySeries> get _classificationSeries {
     final cached = _classificationSeriesCache;
@@ -31,30 +32,44 @@ mixin _CloudFilterTagsMixin on _CloudResourcesControllerBase {
     );
   }
 
-  CloudResourceMediaGroup? classificationGroupForSeries(MediaLibrarySeries series) {
+  CloudResourceMediaGroup? classificationGroupForSeries(
+      MediaLibrarySeries series) {
     if (series.sourceId != selectedSource?.id) return null;
     final ids = series.episodes.map((episode) => episode.stableId).toSet();
     // 检查列表使用完整索引的作品身份，不使用当前目录的旧式分组键。
-    return _collectionGrouper.group(
-      items: _indexedItems.values.where((item) =>
-          ids.contains('${item.sourceId}|${item.remoteId}')).toList(growable: false),
-      works: _works,
-      recordsByWorkKey: workTmdbRecords,
-      query: '',
-    ).groups.where((group) => group.stableKey == series.key).firstOrNull;
+    return _collectionGrouper
+        .group(
+          items: _indexedItems.values
+              .where(
+                  (item) => ids.contains('${item.sourceId}|${item.remoteId}'))
+              .toList(growable: false),
+          works: _works,
+          recordsByWorkKey: workTmdbRecords,
+          query: '',
+        )
+        .groups
+        .where((group) => group.stableKey == series.key)
+        .firstOrNull;
   }
 
-  MediaLibrarySeries? classificationSeriesForGroup(CloudResourceMediaGroup group) =>
-      _classificationSeries.where((series) => series.key == group.stableKey).firstOrNull;
+  MediaLibrarySeries? classificationSeriesForGroup(
+          CloudResourceMediaGroup group) =>
+      _classificationSeries
+          .where((series) => series.key == group.stableKey)
+          .firstOrNull;
 
   Map<String, List<String>> get _classificationGenres {
     final cached = _classificationGenresCache;
     if (cached != null) return cached;
     final result = <String, List<String>>{};
     for (final series in _classificationSeries) {
-      final genres = const MediaClassificationResolver().resolve(
-        series, state: _classificationStates[series.key], mode: classificationMode,
-      ).genres;
+      final genres = const MediaClassificationResolver()
+          .resolve(
+            series,
+            state: _classificationStates[series.key],
+            mode: classificationMode,
+          )
+          .genres;
       for (final episode in series.episodes) {
         result[episode.stableId] = genres;
       }

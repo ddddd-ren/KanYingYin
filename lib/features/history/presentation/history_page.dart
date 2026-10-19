@@ -56,8 +56,8 @@ MediaLibrarySeries? findCloudPlaybackHistorySourceSeries(
   final matches = series.where((candidate) =>
       candidate.sourceKind == MediaSourceKind.cloud &&
       candidate.sourceId == entry.sourceId &&
-      candidate.episodes.any((episode) =>
-          _matchesCloudHistoryEpisode(entry, episode)));
+      candidate.episodes
+          .any((episode) => _matchesCloudHistoryEpisode(entry, episode)));
   final unique = matches.take(2).toList(growable: false);
   return unique.length == 1 ? unique.single : null;
 }
@@ -458,14 +458,16 @@ class _HistoryPageState extends State<HistoryPage> {
       final targets = buildCloudPlaybackHistoryTargets(
         sourceSeries,
         selected,
-        useSourcePlaybackIds: entry.stableKey
-            .startsWith('${entry.sourceId}|${entry.sourceId}:'),
+        useSourcePlaybackIds:
+            entry.stableKey.startsWith('${entry.sourceId}|${entry.sourceId}:'),
       );
       if (targets.isEmpty) throw StateError('网盘文件不在当前媒体库中');
-      final selectedTarget = targets.where((target) =>
-          target.sourceId == selected.sourceId &&
-          target.remoteId == selected.remoteId &&
-          target.remotePath == selected.remotePath).single;
+      final selectedTarget = targets
+          .where((target) =>
+              target.sourceId == selected.sourceId &&
+              target.remoteId == selected.remoteId &&
+              target.remotePath == selected.remotePath)
+          .single;
       await _video.openCloudPlayback(
         seriesTitle: sourceSeries.title.trim().isEmpty
             ? entry.seriesTitle

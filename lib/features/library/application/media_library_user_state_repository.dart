@@ -143,7 +143,8 @@ final class MediaLibraryUserStateRepository {
     if (normalizedKey.isEmpty) return Future<void>.value();
     return _lock.synchronized(() async {
       final all = await _readAll();
-      final state = (all[normalizedKey] ?? MediaLibraryUserState.empty).copyWith(
+      final state =
+          (all[normalizedKey] ?? MediaLibraryUserState.empty).copyWith(
         categoryOverride: categories,
         genreOverride: genres,
         clearCategoryOverride: categories == null,

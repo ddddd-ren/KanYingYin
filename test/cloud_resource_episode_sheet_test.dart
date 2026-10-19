@@ -57,7 +57,8 @@ void main() {
   testWidgets('来源选集打开期间刷新剧名单集名并保留版本选择', (tester) async {
     final notifier = ChangeNotifier();
     addTearDown(notifier.dispose);
-    CloudResourceMediaGroup group(String title, {bool reverseVersions = false}) {
+    CloudResourceMediaGroup group(String title,
+        {bool reverseVersions = false}) {
       final videos = [
         for (final key in ['a', 'b'])
           CloudFileEntry(
@@ -103,18 +104,19 @@ void main() {
     CloudFileEntry? selected;
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
-        body: Builder(builder: (context) => FilledButton(
-          onPressed: () async {
-            selected = await showCloudResourceEpisodeSheet(
-              context: context,
-              sourceId: 'source',
-              group: current,
-              groupProvider: () => current,
-              groupListenable: notifier,
-            );
-          },
-          child: const Text('打开选集'),
-        )),
+        body: Builder(
+            builder: (context) => FilledButton(
+                  onPressed: () async {
+                    selected = await showCloudResourceEpisodeSheet(
+                      context: context,
+                      sourceId: 'source',
+                      group: current,
+                      groupProvider: () => current,
+                      groupListenable: notifier,
+                    );
+                  },
+                  child: const Text('打开选集'),
+                )),
       ),
     ));
     await tester.tap(find.text('打开选集'));
@@ -128,7 +130,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('光阴之外'), findsOneWidget);
     expect(find.text('光阴之外 b.mkv'), findsOneWidget);
-    expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '版本 B')).selected, isTrue);
+    expect(
+        tester
+            .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '版本 B'))
+            .selected,
+        isTrue);
     await tester.tap(find.text('光阴之外 b.mkv'));
     await tester.pumpAndSettle();
     expect(selected, same(current.videos.last));

@@ -226,8 +226,7 @@ class LibraryPathBar extends StatelessWidget {
                   data.canNavigateUp ? onNavigateUp : null),
               _button(context, Icons.refresh, '刷新当前目录',
                   data.isLoading ? null : onRefresh),
-              if (classificationControl != null)
-                classificationControl!,
+              if (classificationControl != null) classificationControl!,
               PopupMenuButton<LibraryMenuAction>(
                 tooltip: '更多媒体库操作',
                 icon: const Icon(Icons.more_horiz_rounded),

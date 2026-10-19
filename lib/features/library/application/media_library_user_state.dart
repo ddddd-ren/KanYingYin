@@ -74,7 +74,8 @@ class MediaLibraryUserState {
         if (mediaIds.isNotEmpty) 'mediaIds': mediaIds,
         if (categoryOverride != null)
           'categoryOverride': _readOverride(categoryOverride, categories: true),
-        if (genreOverride != null) 'genreOverride': _readOverride(genreOverride),
+        if (genreOverride != null)
+          'genreOverride': _readOverride(genreOverride),
         if (updatedAt != null)
           'updatedAtMillis': updatedAt!.millisecondsSinceEpoch,
       };

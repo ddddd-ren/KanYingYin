@@ -153,7 +153,8 @@ class LocalVideoController implements IVideoPageController {
             series.episodes.any((episode) => matches(current, episode)))
         .take(2)
         .toList(growable: false);
-    if (matched.length != 1 || matched.single.title.trim().isEmpty) return false;
+    if (matched.length != 1 || matched.single.title.trim().isEmpty)
+      return false;
     final series = matched.single;
     var changed = _cloudSeriesTitle != series.title;
     for (final target in targets) {
@@ -177,7 +178,8 @@ class LocalVideoController implements IVideoPageController {
       _preparedCloudParams = prepared.withDisplayTitles(
         mediaTitle: series.title,
         episodeTitle: _cloudEpisodeTitles[target.stableId] ?? target.title,
-        legacyTrackPreferenceKeys: _cloudLegacyTrackPreferenceKeys(current.sourceId),
+        legacyTrackPreferenceKeys:
+            _cloudLegacyTrackPreferenceKeys(current.sourceId),
       );
     }
     if (!changed) return false;
@@ -195,7 +197,8 @@ class LocalVideoController implements IVideoPageController {
         name: road.name,
         data: road.data,
         identifier: targets
-            .map((target) => _cloudEpisodeTitles[target.stableId] ?? target.title)
+            .map((target) =>
+                _cloudEpisodeTitles[target.stableId] ?? target.title)
             .toList(growable: false),
       );
     }
@@ -318,8 +321,8 @@ class LocalVideoController implements IVideoPageController {
         ])
         .single
         .title;
-    _localLegacySeriesTitles = List<String>.unmodifiable(
-        legacySeriesTitles ?? [session.seriesTitle]);
+    _localLegacySeriesTitles =
+        List<String>.unmodifiable(legacySeriesTitles ?? [session.seriesTitle]);
     title = session.seriesTitle;
     currentRoad = 0;
     currentEpisode = session.currentIndex + 1;
@@ -449,7 +452,8 @@ class LocalVideoController implements IVideoPageController {
       ),
       legacySeriesTitles: legacySeriesTitles,
       originalFileName: playbackEntries
-          ?.where((entry) => entry.location.stableId == session.episodes.first.id)
+          ?.where(
+              (entry) => entry.location.stableId == session.episodes.first.id)
           .firstOrNull
           ?.name,
     );

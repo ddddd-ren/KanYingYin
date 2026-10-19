@@ -157,7 +157,9 @@ void main() {
       group.stableKey: const MediaLibraryUserState(categoryOverride: ['电影']),
     };
     var mode = MediaClassificationMode.conservative;
-    await tester.pumpWidget(MaterialApp(home: Scaffold(body: Builder(
+    await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+            body: Builder(
       builder: (context) => FilledButton(
         onPressed: () => showCloudResourceEpisodeSheet(
           context: context,

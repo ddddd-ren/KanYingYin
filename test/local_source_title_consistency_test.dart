@@ -22,7 +22,8 @@ void main() {
 
     expect(controller.localSourceTitlesByMediaId[short.id], '光阴之外 S01');
     expect(controller.localSourceTitlesByMediaId[long.id], '光阴之外续章 S01');
-    expect(controller.localMediaLibrary.series.map((item) => item.title).toSet(),
+    expect(
+        controller.localMediaLibrary.series.map((item) => item.title).toSet(),
         {'光阴之外 S01', '光阴之外续章 S01'});
   });
 
@@ -34,6 +35,7 @@ void main() {
         parentPath: r'D:\Media\共享目录',
       );
     }
+
     final first = inSharedDirectory('作品甲');
     final second = inSharedDirectory('作品乙');
     final controller = LocalController(
@@ -45,8 +47,8 @@ void main() {
     expect(aliases[second.id], isNot(contains('TMDB 另一个剧名')));
     expect(aliases[first.id], isNot(contains('索引中的剧名 S01')));
     expect(aliases[second.id], isNot(contains('索引中的剧名 S01')));
-    expect(controller.localMediaLibrary.series.single.legacySeriesTitles,
-        isEmpty);
+    expect(
+        controller.localMediaLibrary.series.single.legacySeriesTitles, isEmpty);
     expect(aliases[first.id], isEmpty);
     expect(aliases[second.id], contains('作品乙 S01'));
   });
@@ -128,8 +130,12 @@ void main() {
 
     expect(series.map((item) => item.title).toSet(), {'作品甲 S01', '作品乙 S01'});
     expect(series.map((item) => item.key).toSet(), hasLength(2));
-    expect(series.expand((item) => item.episodes).map((item) => item.stableId)
-        .toSet(), {first.id, second.id});
+    expect(
+        series
+            .expand((item) => item.episodes)
+            .map((item) => item.stableId)
+            .toSet(),
+        {first.id, second.id});
     final states = await userState.reconcile({
       for (final item in series)
         item.key: item.episodes.map((episode) => episode.stableId).toSet(),
@@ -200,7 +206,8 @@ void main() {
   });
 }
 
-LocalMediaIndexItem _item(String sourceTitle, {int season = 1, int episode = 1}) {
+LocalMediaIndexItem _item(String sourceTitle,
+    {int season = 1, int episode = 1}) {
   final name = '$sourceTitle S${season.toString().padLeft(2, '0')}'
       'E${episode.toString().padLeft(2, '0')}.mkv';
   return LocalMediaIndexItem(

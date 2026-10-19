@@ -178,7 +178,8 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       await showMediaClassificationReviewDialog(
         context,
         seriesProvider: () => _controller.mediaLibrarySnapshot.series
-            .where((item) => item.sourceId == source.id).toList(growable: false),
+            .where((item) => item.sourceId == source.id)
+            .toList(growable: false),
         sourceLabel: source.name,
         userStatesProvider: () => _controller.classificationStates,
         modeProvider: () => _controller.classificationMode,
@@ -761,9 +762,11 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     }
   }
 
-  Future<void> _editTags(CloudResourceMediaGroup group, {MediaLibrarySeries? librarySeries}) async {
+  Future<void> _editTags(CloudResourceMediaGroup group,
+      {MediaLibrarySeries? librarySeries}) async {
     final sourceId = _controller.selectedSource?.id;
-    final series = librarySeries ?? _controller.classificationSeriesForGroup(group);
+    final series =
+        librarySeries ?? _controller.classificationSeriesForGroup(group);
     if (series == null) return;
     final initialTags = _controller.customTagsForGroup(group);
     final initialFilters = _controller.selectedGenres;
@@ -781,7 +784,8 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
         final currentSeries = librarySeries == null
             ? _controller.classificationSeriesForGroup(group)
             : _controller.mediaLibrarySnapshot.series
-                .where((item) => item.key == series.key && item.sourceId == sourceId)
+                .where((item) =>
+                    item.key == series.key && item.sourceId == sourceId)
                 .firstOrNull;
         if (currentSeries == null) {
           throw StateError('作品已不在媒体库中，请刷新后重试');
@@ -1123,7 +1127,8 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
         mode: _controller.classificationMode,
         compact: true,
         series: _controller.mediaLibrarySnapshot.series
-            .where((item) => item.sourceId == selected?.id).toList(growable: false),
+            .where((item) => item.sourceId == selected?.id)
+            .toList(growable: false),
         userStates: _controller.classificationStates,
         onReview: selected == null ? null : _reviewClassifications,
       ),

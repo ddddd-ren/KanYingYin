@@ -19,13 +19,16 @@ void main() {
     await repo.save('cloud|source-a|旧剧名 S01', audio);
     await repo.saveSubtitleOff('cloud|source-a|旧剧名 S01');
 
-    await repo.migrate('cloud-work|source-a|work-1',
-        ['cloud|source-a|旧剧名 S01']);
+    await repo
+        .migrate('cloud-work|source-a|work-1', ['cloud|source-a|旧剧名 S01']);
 
-    expect(repo.load('cloud-work|source-a|work-1', EmbeddedTrackType.audio)!.code,
+    expect(
+        repo.load('cloud-work|source-a|work-1', EmbeddedTrackType.audio)!.code,
         'ja');
     expect(
-        repo.load('cloud-work|source-a|work-1', EmbeddedTrackType.subtitle)!.code,
+        repo
+            .load('cloud-work|source-a|work-1', EmbeddedTrackType.subtitle)!
+            .code,
         'off');
     expect(repo.load('cloud|source-a|旧剧名 S01', EmbeddedTrackType.audio)!.code,
         'ja');
@@ -38,8 +41,8 @@ void main() {
     await repo.save('legacy',
         EmbeddedTrackInfo.fromAudio(const AudioTrack('1', null, 'ja')));
     await repo.saveSubtitleOff('legacy');
-    await repo.save('work',
-        EmbeddedTrackInfo.fromAudio(const AudioTrack('2', null, 'zh')));
+    await repo.save(
+        'work', EmbeddedTrackInfo.fromAudio(const AudioTrack('2', null, 'zh')));
 
     await repo.migrate('work', ['missing', 'legacy']);
 

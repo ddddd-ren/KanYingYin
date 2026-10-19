@@ -73,8 +73,7 @@ void main() {
     expect(controller.mediaItem.effectiveTitle, '来源剧名');
     expect(controller.roadList.single.data,
         ['/Original/E1.mkv', '/Original/E2.mkv']);
-    expect(controller.roadList.single.identifier,
-        ['来源剧名 第 1 集', '来源剧名 第 2 集']);
+    expect(controller.roadList.single.identifier, ['来源剧名 第 1 集', '来源剧名 第 2 集']);
     await controller.changeEpisode(1, offset: 29);
     final playing = initialized.single;
     expect(playing.offset, 29);
@@ -95,8 +94,8 @@ void main() {
           position: const Duration(seconds: 29),
         ).legacyTrackPreferenceKeys,
         isEmpty);
-    expect(controller.refreshCloudSourceTitles([sourceSeries('最终来源剧名')]),
-        isTrue);
+    expect(
+        controller.refreshCloudSourceTitles([sourceSeries('最终来源剧名')]), isTrue);
     expect(initialized, hasLength(1));
     expect(resolvedCount, 1);
     final history = controller.buildPlaybackHistoryEntry(
@@ -111,10 +110,12 @@ void main() {
     expect(refreshed.mediaTitle, '最终来源剧名');
     expect(refreshed.trackPreferenceKey, playing.trackPreferenceKey);
     expect(refreshed.subtitleStorageKey, playing.subtitleStorageKey);
-    expect(controller.refreshCloudSourceTitles([
-      sourceSeries('错误标题一'),
-      sourceSeries('错误标题二'),
-    ]), isFalse);
+    expect(
+        controller.refreshCloudSourceTitles([
+          sourceSeries('错误标题一'),
+          sourceSeries('错误标题二'),
+        ]),
+        isFalse);
     expect(controller.title, '最终来源剧名');
     await controller.changeEpisode(2, offset: 0);
     expect(initialized.last.mediaTitle, '最终来源剧名');
@@ -140,7 +141,9 @@ void main() {
     final cloud = LocalVideoController(
       initializePlayer: (params) async => initialized.add(params),
       resolveCloudPlayback: (target) async => CloudResolvedPlayback(
-          target: target, videoUrl: 'https://example.invalid', httpHeaders: const {}),
+          target: target,
+          videoUrl: 'https://example.invalid',
+          httpHeaders: const {}),
     );
     await cloud.openCloudPlayback(
       seriesTitle: '同名作品',
@@ -148,7 +151,10 @@ void main() {
       legacySeriesTitles: const [],
       targets: const [
         CloudPlaybackTarget(
-            sourceId: 'source-a', remotePath: '/a.mkv', stableId: 'a', title: 'a')
+            sourceId: 'source-a',
+            remotePath: '/a.mkv',
+            stableId: 'a',
+            title: 'a')
       ],
       selectedStableId: 'a',
     );
@@ -217,10 +223,14 @@ void main() {
     expect(renamed.trackPreferenceKey, original.trackPreferenceKey);
     expect(renamed.trackPreferenceKey,
         isNot(params('来源剧名', 'Other').trackPreferenceKey));
-    expect(renamed.trackPreferenceKey,
-        isNot(params('来源剧名', 'Original', directoryId: 'other').trackPreferenceKey));
-    expect(renamed.legacyTrackPreferenceKeys,
-        contains('local-work|file:d:\\video|${Uri.encodeComponent('旧剧名 s01')}'));
+    expect(
+        renamed.trackPreferenceKey,
+        isNot(params('来源剧名', 'Original', directoryId: 'other')
+            .trackPreferenceKey));
+    expect(
+        renamed.legacyTrackPreferenceKeys,
+        contains(
+            'local-work|file:d:\\video|${Uri.encodeComponent('旧剧名 s01')}'));
   });
 
   test('云作品选轨身份跨集和改名保持稳定，精确继承旧剧名键', () async {
@@ -229,7 +239,9 @@ void main() {
       final controller = LocalVideoController(
         initializePlayer: (params) async => initialized.add(params),
         resolveCloudPlayback: (target) async => CloudResolvedPlayback(
-            target: target, videoUrl: 'https://example.invalid', httpHeaders: const {}),
+            target: target,
+            videoUrl: 'https://example.invalid',
+            httpHeaders: const {}),
       );
       final targets = [
         for (final episode in [1, 2])
@@ -420,10 +432,10 @@ void main() {
     ).readAsStringSync();
     final librarySource =
         File('lib/pages/local/library_sheet.dart').readAsStringSync();
-    final controllerSource = File('lib/pages/local/local_controller.dart')
-            .readAsStringSync() +
-        File('lib/pages/local/local_library_application_coordinator.dart')
-            .readAsStringSync();
+    final controllerSource =
+        File('lib/pages/local/local_controller.dart').readAsStringSync() +
+            File('lib/pages/local/local_library_application_coordinator.dart')
+                .readAsStringSync();
 
     expect(controllerSource, contains('tmdbPosterUrlForPaths'));
     expect(pageSource, contains('tmdbPosterUrlForPaths'));
@@ -521,7 +533,8 @@ void main() {
         contains('if (!isCurrent()) return false;'));
     expect(selection, contains('identical(player, mediaPlayer)'));
     expect(selection, contains('revision == _subtitleTrackRequestRevision'));
-    expect(selection, contains('canApplyAutomaticSelection(automaticRevision)'));
+    expect(
+        selection, contains('canApplyAutomaticSelection(automaticRevision)'));
   });
 
   test('播放器集成轨道语言确认并保护退出后的旧结果', () {

@@ -238,13 +238,18 @@ void main() {
     expect(await video.readAsBytes(), [1]);
   });
   test('生成的大图收缩为预览尺寸而非全尺寸缓存', () async {
-    final cache = LocalTimelineThumbnailCache(pathProvider: cachePath,
-      generator: (_, output, __) async {
-        await File(output).parent.create(recursive: true);
-        await File(output).writeAsBytes(img.encodeJpg(img.Image(width: 1280, height: 720)));
-        return output;
-      });
-    final path = await cache.thumbnailAt(videoPath: video.path, position: Duration.zero, duration: const Duration(minutes: 1));
+    final cache = LocalTimelineThumbnailCache(
+        pathProvider: cachePath,
+        generator: (_, output, __) async {
+          await File(output).parent.create(recursive: true);
+          await File(output)
+              .writeAsBytes(img.encodeJpg(img.Image(width: 1280, height: 720)));
+          return output;
+        });
+    final path = await cache.thumbnailAt(
+        videoPath: video.path,
+        position: Duration.zero,
+        duration: const Duration(minutes: 1));
     final decoded = img.decodeJpg(await File(path!).readAsBytes())!;
     expect(decoded.width, lessThanOrEqualTo(320));
     expect(decoded.height, lessThanOrEqualTo(320));

@@ -34,11 +34,14 @@ class UnifiedMediaCardInfoBuilder {
     MediaLibrarySeries series, {
     String? categoryLabel,
     MediaLibraryUserState? userState,
-    MediaClassificationMode classificationMode = MediaClassificationMode.conservative,
+    MediaClassificationMode classificationMode =
+        MediaClassificationMode.conservative,
   }) {
     final episodes = series.episodes;
     final classification = const MediaClassificationResolver().resolve(
-      series, state: userState, mode: classificationMode,
+      series,
+      state: userState,
+      mode: classificationMode,
     );
     final mediaTypeLabel = classification.categories.isEmpty
         ? (classification.needsConfirmation ? '待确认' : '未分类')
@@ -134,7 +137,8 @@ class UnifiedMediaCardInfoBuilder {
     String? mediaTypeLabel,
     MediaLibrarySeries? librarySeries,
     MediaLibraryUserState? userState,
-    MediaClassificationMode classificationMode = MediaClassificationMode.conservative,
+    MediaClassificationMode classificationMode =
+        MediaClassificationMode.conservative,
   }) {
     final seasonValues = seasonNumbers.toList(growable: false);
     final episodeValues = episodeNumbers.toList(growable: false);
@@ -156,18 +160,19 @@ class UnifiedMediaCardInfoBuilder {
         ),
     ];
     final info = forSeries(
-      librarySeries ?? MediaLibrarySeries(
-        key: 'local-card',
-        seriesKey: title,
-        title: title,
-        sourceKind: MediaSourceKind.local,
-        sourceId: 'local',
-        sourceName: '本地',
-        isAvailable: true,
-        episodes: episodes,
-        mediaType:
-            mediaTypeLabel == '电影' ? TmdbMediaType.movie : TmdbMediaType.tv,
-      ),
+      librarySeries ??
+          MediaLibrarySeries(
+            key: 'local-card',
+            seriesKey: title,
+            title: title,
+            sourceKind: MediaSourceKind.local,
+            sourceId: 'local',
+            sourceName: '本地',
+            isAvailable: true,
+            episodes: episodes,
+            mediaType:
+                mediaTypeLabel == '电影' ? TmdbMediaType.movie : TmdbMediaType.tv,
+          ),
       userState: userState,
       classificationMode: classificationMode,
     );

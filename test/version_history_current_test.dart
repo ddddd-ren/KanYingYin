@@ -34,8 +34,8 @@ Future<void> _openVersionChangelogDialog(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('2.1.230 测试版更新弹窗展示分类确认入口迁移', (tester) async {
-    expect(AppVersion.current, '2.1.230');
+  testWidgets('2.1.232 测试版更新弹窗展示图片预热与分类确认菜单精简', (tester) async {
+    expect(AppVersion.current, '2.1.232');
     final entries = versionHistoryForCurrent(AppVersion.current);
     expect(entries, hasLength(1));
     expect(entries.single.isPrerelease, isTrue);
@@ -43,23 +43,23 @@ void main() {
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(body: VersionChangelogContent(versions: entries)),
     ));
-    expect(find.text('v2.1.230  测试版  2026-10-13'), findsOneWidget);
-    for (final text in ['待确认', '已确认', '分类页', '原始视频']) {
+    expect(find.text('v2.1.232  测试版  2026-10-13'), findsOneWidget);
+    for (final text in ['预热最终图片', '待确认', '已确认', '移除保守', '原始视频']) {
       expect(find.textContaining(text), findsWidgets);
     }
     expect(tester.takeException(), isNull);
   });
 
-  test('Android 2.1.230 更新说明展示分类确认入口迁移', () {
+  test('Android 2.1.232 更新说明展示图片预热与分类确认菜单精简', () {
     final entries = versionHistoryForCurrent(
-      '2.1.230',
+      '2.1.232',
       platform: AppPlatformKind.android,
     );
     expect(entries, hasLength(1));
-    expect(entries.single.version, '2.1.230');
+    expect(entries.single.version, '2.1.232');
     expect(entries.single.isPrerelease, isTrue);
     final changes = entries.single.changes.join('\n');
-    for (final text in ['待确认', '已确认', '分类页', '原始视频']) {
+    for (final text in ['预热最终图片', '待确认', '已确认', '移除保守', '原始视频']) {
       expect(changes, contains(text));
     }
     expect(changes, isNot(contains('Windows')));

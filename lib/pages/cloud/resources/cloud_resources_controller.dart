@@ -441,7 +441,6 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
         seasonNumber: season,
         episodeNumber: episode,
       );
-      await reloadMediaLibrarySnapshot(force: true);
       _logTmdbImageDisplay(
         item,
         kind: kind,
@@ -466,7 +465,6 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
       seasonNumber: season,
       episodeNumber: episode,
     );
-    await reloadMediaLibrarySnapshot(force: true);
     _logTmdbImageDisplay(
       item,
       kind: kind,
@@ -493,7 +491,6 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
         seasonNumber: item.seasonNumber,
         episodeNumber: item.episodeNumber,
       );
-      await reloadMediaLibrarySnapshot(force: true);
       _logTmdbImageDisplay(item, kind: kind, startedAt: startedAt);
       return;
     }
@@ -512,7 +509,6 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
       seasonNumber: item.seasonNumber,
       episodeNumber: item.episodeNumber,
     );
-    await reloadMediaLibrarySnapshot(force: true);
     _logTmdbImageDisplay(item, kind: kind, startedAt: startedAt);
   }
 

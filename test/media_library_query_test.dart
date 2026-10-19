@@ -229,7 +229,7 @@ void main() {
         isEmpty);
   });
 
-  test('全部查询入口采用同一门槛与稳定作品 key 的人工选择', () {
+  test('全手动查询保留 TMDB 题材并采用稳定作品 key 的人工选择', () {
     const query = MediaLibraryQuery();
     final series = _series('local', '电影', ['剧情']);
     final states = <String, MediaLibraryUserState>{
@@ -249,11 +249,11 @@ void main() {
     expect(
         query.availableGenres([series],
             classificationMode: MediaClassificationMode.manual),
-        isEmpty);
+        ['剧情']);
     expect(
         query.availableTags([series],
             classificationMode: MediaClassificationMode.manual),
-        isEmpty);
+        ['剧情']);
     expect(
         query.availableCategories([series],
             userStates: states,

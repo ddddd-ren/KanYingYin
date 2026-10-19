@@ -1533,13 +1533,13 @@ void main() {
     }
   });
 
-  testWidgets('来源页提供分类门槛入口并保存设置', (tester) async {
+  testWidgets('来源页分类菜单只提供确认入口且保留已有设置', (tester) async {
     final fixture = await _PageFixture.create(
       source: _quarkSource,
       entries: [_pageVideo('classification-mode', '/影视/测试.mkv', '测试.mkv')],
     );
     addTearDown(fixture.controller.dispose);
-    final settings = _RecordingClassificationSettings();
+    final settings = _RecordingClassificationSettings()..value = 'standard';
 
     await tester.pumpWidget(MaterialApp(
       home: CloudResourcesPage(
@@ -1552,13 +1552,19 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    final menu = find.byKey(const ValueKey('media-classification-mode'));
+    final menu = find.byKey(const ValueKey('media-classification-menu'));
     expect(menu, findsOneWidget);
     await tester.tap(menu);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('标准'));
+    expect(find.text('保守'), findsNothing);
+    expect(find.text('标准'), findsNothing);
+    expect(find.text('全手动'), findsNothing);
+    expect(find.text('待确认（1）'), findsOneWidget);
+    expect(find.text('已确认（0）'), findsOneWidget);
+    await tester.tap(find.text('待确认（1）'));
     await tester.pumpAndSettle();
 
+    expect(find.byKey(const ValueKey('media-classification-review')), findsOneWidget);
     expect(settings.value, 'standard');
     expect(fixture.controller.classificationMode.name, 'standard');
     expect(menu, findsOneWidget);
@@ -1589,7 +1595,7 @@ void main() {
     fixture.controller.selectDirectoryScope('/影视/甲');
     fixture.controller.setQuery('没有匹配的片名');
     await tester.pumpAndSettle();
-    final menu = find.byKey(const ValueKey('media-classification-mode'));
+    final menu = find.byKey(const ValueKey('media-classification-menu'));
     await tester.tap(menu);
     await tester.pumpAndSettle();
     expect(find.text('待确认（2）'), findsOneWidget);
@@ -1647,7 +1653,7 @@ void main() {
       userStateRepository: repository,
     )));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('media-classification-mode')));
+    await tester.tap(find.byKey(const ValueKey('media-classification-menu')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('待确认（1）'));
     await tester.pumpAndSettle();

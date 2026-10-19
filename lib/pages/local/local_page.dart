@@ -124,14 +124,6 @@ class _LocalPageState extends State<LocalPage>
     }
   }
 
-  Future<void> _setClassificationMode(MediaClassificationMode mode) async {
-    await Modular.get<TypedSettings>().write(
-      SettingBoxKey.mediaClassificationMode,
-      mode.name,
-    );
-    MediaLibraryUserStateRepository.changes.value++;
-  }
-
   MediaLibrarySeries? _librarySeriesForGroup(LocalVideoGroup group) {
     final matches = group.episodes
         .map((episode) => _librarySeriesByPath[LocalMediaIndexItem.normalizePath(episode.path)])
@@ -1012,10 +1004,9 @@ class _LocalPageState extends State<LocalPage>
                       onMatchMetadata: () => _scrapeTmdb(context),
                       onCancelScan: localController.cancelLocalLibraryIndex,
                       onShowFailures: () => _showLibraryFailures(context),
-                      classificationModeControl: MediaClassificationModeMenu(
+                      classificationControl: MediaClassificationReviewMenu(
                         mode: _classificationMode,
                         compact: true,
-                        onChanged: _setClassificationMode,
                         series: localController.localMediaLibrary.series,
                         userStates: _userStates,
                         onReview: _reviewClassifications,

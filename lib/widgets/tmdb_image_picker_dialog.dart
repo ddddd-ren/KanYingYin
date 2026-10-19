@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:kanyingyin/modules/local/tmdb_image_metadata.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_image_client.dart';
 import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
 class TmdbImagePickerDialog extends StatefulWidget {
@@ -113,9 +116,24 @@ class _TmdbImagePickerDialogState extends State<TmdbImagePickerDialog> {
     final selected = normalizeTmdbImagePath(image.filePath) ==
         normalizeTmdbImagePath(widget.currentPath);
     final url = image.url(
-        size: widget.kind == TmdbImageKind.backdrop ? 'w780' : 'w342');
+      size: widget.kind == TmdbImageKind.backdrop ? 'w780' : 'w342',
+    );
     return InkWell(
-      onTap: () => Navigator.of(context).pop(image),
+      onTap: () {
+        final finalSize = switch (widget.kind) {
+          TmdbImageKind.poster => 'w500',
+          TmdbImageKind.backdrop => 'w1280',
+          TmdbImageKind.still => null,
+        };
+        if (finalSize != null) {
+          unawaited(
+            TmdbImageClient.shared
+                .downloadBytes(image.url(size: finalSize))
+                .catchError((_) => <int>[]),
+          );
+        }
+        Navigator.of(context).pop(image);
+      },
       borderRadius: BorderRadius.circular(8),
       child: Stack(
         fit: StackFit.expand,

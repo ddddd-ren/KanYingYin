@@ -15,7 +15,8 @@ void main() {
   };
 
   test('Android 使用仓库内官方 Full v1.1.11 原生包', () {
-    final pubspec = File('pubspec.yaml').readAsStringSync();
+    final pubspec =
+        File('pubspec.yaml').readAsStringSync().replaceAll('\r\n', '\n');
     final gradle = File(
       'third_party/media_kit_libs_android_video_full/android/build.gradle',
     ).readAsStringSync();

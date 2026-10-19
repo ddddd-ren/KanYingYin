@@ -98,19 +98,33 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('分类菜单提供待确认和已确认入口', (tester) async {
+  testWidgets('分类菜单只提供待确认和已确认入口', (tester) async {
+    final selections = <bool>[];
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
-        body: MediaClassificationModeMenu(
+        body: MediaClassificationReviewMenu(
           mode: MediaClassificationMode.conservative,
-          onChanged: (_) async {},
+          onReview: (value) async => selections.add(value),
         ),
       ),
     ));
-    await tester.tap(find.byKey(const ValueKey('media-classification-mode')));
+    final menu = find.byKey(const ValueKey('media-classification-menu'));
+    await tester.tap(menu);
     await tester.pumpAndSettle();
     expect(find.text('待确认（0）'), findsOneWidget);
     expect(find.text('已确认（0）'), findsOneWidget);
+    expect(find.text('保守'), findsNothing);
+    expect(find.text('标准'), findsNothing);
+    expect(find.text('全手动'), findsNothing);
+    expect(find.byType(PopupMenuDivider), findsNothing);
+    expect(find.byType(PopupMenuItem<bool>), findsNWidgets(2));
+    await tester.tap(find.text('待确认（0）'));
+    await tester.pumpAndSettle();
+    await tester.tap(menu);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('已确认（0）'));
+    await tester.pumpAndSettle();
+    expect(selections, [true, false]);
   });
 
   test('分类门槛说明只约束主分类且题材默认跟随 TMDB', () {
@@ -128,22 +142,21 @@ void main() {
     );
   });
 
-  testWidgets('分类门槛保存失败时提示重试并保留当前值', (tester) async {
+  testWidgets('分类菜单无可用来源时不触发确认操作', (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
-        body: MediaClassificationModeMenu(
+        body: MediaClassificationReviewMenu(
           mode: MediaClassificationMode.conservative,
-          onChanged: (_) async => throw StateError('保存失败'),
         ),
       ),
     ));
-    await tester.tap(find.byKey(const ValueKey('media-classification-mode')));
+    await tester.tap(find.byKey(const ValueKey('media-classification-menu')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('标准'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('分类门槛保存失败，请重试'), findsOneWidget);
-    expect(find.text('分类门槛：保守'), findsOneWidget);
+    final entries = tester.widgetList<PopupMenuItem<bool>>(
+      find.byType(PopupMenuItem<bool>),
+    );
+    expect(entries, hasLength(2));
+    expect(entries.every((item) => !item.enabled), isTrue);
     expect(tester.takeException(), isNull);
   });
 

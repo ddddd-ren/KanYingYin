@@ -27,6 +27,30 @@ class VersionHistory {
 /// 区段拆分到 part 文件，展开顺序与原列表完全一致，不得重排。
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.232',
+    date: '2026-10-13',
+    isPrerelease: true,
+    changes: [
+      '手动更换 TMDB 海报或背景图后立即预热最终图片，返回媒体库时优先复用已加载图片，减少短暂空白和旧图延迟',
+      '媒体库和网盘媒体库的分类确认菜单只保留待确认、已确认入口，移除保守、标准、全手动选项及说明',
+      '分类确认入口统一显示为“分类确认”，继续显示两类作品数量并支持编辑',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和图片文件',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.231',
+    date: '2026-10-13',
+    isPrerelease: true,
+    changes: [
+      '媒体库和网盘媒体库的分类确认菜单只保留待确认、已确认入口，移除保守、标准、全手动选项及说明',
+      '分类确认入口统一显示为“分类确认”，继续显示两类作品数量并支持编辑',
+      '保留已有分类设置、人工选择和 TMDB 题材，不改变作品当前分类结果',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和图片文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.230',
     date: '2026-10-13',
     isPrerelease: true,
@@ -435,6 +459,23 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '2.1.232' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[
+      VersionHistory(
+        version: '2.1.232',
+        date: '2026-10-13',
+        isPrerelease: true,
+        changes: [
+          '手动更换 TMDB 海报或背景图后立即预热最终图片，减少返回媒体库时的短暂空白和旧图延迟',
+          '媒体库和网盘媒体库的分类确认菜单只保留待确认、已确认入口，移除保守、标准、全手动选项及说明',
+          '分类确认入口统一显示为“分类确认”，继续显示两类作品数量并支持编辑',
+          '保留已有分类设置、人工选择和 TMDB 题材，不改变作品当前分类结果',
+          '保留现有播放行为；本轮仅同步 Android 手机版本配置，不交付 Android 安装包',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和图片文件',
+        ],
+      ),
+    ];
+  }
   if (currentVersion == '2.1.230' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[
       VersionHistory(

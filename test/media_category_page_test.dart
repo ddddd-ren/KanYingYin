@@ -60,7 +60,7 @@ void main() {
 
       expect(find.byType(ChoiceChip), findsNothing);
       expect(find.byTooltip('检查分类'), findsNothing);
-      expect(find.byKey(const ValueKey('media-classification-mode')), findsNothing);
+      expect(find.byKey(const ValueKey('media-classification-menu')), findsNothing);
       expect(find.byKey(const ValueKey('media-category-search')), findsOneWidget);
       expect(find.byKey(const ValueKey('media-category-source-filter')), findsOneWidget);
       expect(find.byTooltip('刷新分类'), findsOneWidget);

@@ -5,6 +5,39 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_image_client.dart';
 
 void main() {
+  test('相同图片请求复用内存结果并去重并发下载', () async {
+    var requests = 0;
+    final dio = Dio()
+      ..interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            requests++;
+            handler.resolve(
+              Response<List<int>>(
+                requestOptions: options,
+                data: <int>[7, 8, 9],
+              ),
+            );
+          },
+        ),
+      );
+    final client = TmdbImageClient(dio: dio);
+    const url = 'https://image.tmdb.org/t/p/w500/shared.jpg';
+
+    final results = await Future.wait([
+      client.downloadBytes(url),
+      client.downloadBytes(url),
+    ]);
+
+    expect(results, <List<int>>[
+      <int>[7, 8, 9],
+      <int>[7, 8, 9],
+    ]);
+    expect(requests, 1);
+    expect(await client.downloadBytes(url), <int>[7, 8, 9]);
+    expect(requests, 1);
+  });
+
   test('未知类型的 TLS 握手失败后恢复代理并重试一次', () async {
     var failedRequests = 0;
     final failedDio = Dio()

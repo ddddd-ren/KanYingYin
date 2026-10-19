@@ -168,12 +168,6 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
     }
   }
 
-  Future<void> _setClassificationMode(MediaClassificationMode mode) async {
-    final settings = widget.settings ?? Modular.get<TypedSettings>();
-    await settings.write(SettingBoxKey.mediaClassificationMode, mode.name);
-    MediaLibraryUserStateRepository.changes.value++;
-  }
-
   Future<void> _reviewClassifications(bool needsConfirmation) async {
     final source = _controller.selectedSource;
     if (source == null) return;
@@ -1125,10 +1119,9 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
         icon: _cloudFilterIcon(
             icon: Icons.filter_list, availableTags: _controller.availableTags),
       ),
-      MediaClassificationModeMenu(
+      MediaClassificationReviewMenu(
         mode: _controller.classificationMode,
         compact: true,
-        onChanged: _setClassificationMode,
         series: _controller.mediaLibrarySnapshot.series
             .where((item) => item.sourceId == selected?.id).toList(growable: false),
         userStates: _controller.classificationStates,

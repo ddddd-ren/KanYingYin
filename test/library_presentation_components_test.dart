@@ -135,7 +135,7 @@ void main() {
       Future<String?> Function(String path)? onPathSubmitted,
       DirectoryChildrenLoader? onLoadChildDirectories,
       DirectoryChildSelected? onChildDirectorySelected,
-      Widget? classificationModeControl,
+      Widget? classificationControl,
     }) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = Size(width, 900);
@@ -184,7 +184,7 @@ void main() {
                   },
               onLoadChildDirectories: onLoadChildDirectories,
               onChildDirectorySelected: onChildDirectorySelected,
-              classificationModeControl: classificationModeControl,
+              classificationControl: classificationControl,
             ),
           ),
         ),
@@ -214,20 +214,19 @@ void main() {
       }
     });
 
-    testWidgets('来源工具栏在窄屏保留分类门槛入口且无溢出', (tester) async {
+    testWidgets('来源工具栏在窄屏保留分类确认入口且无溢出', (tester) async {
       for (final width in <double>[1280, 390, 320]) {
         await pumpPathBar(
           tester,
           width: width,
-          classificationModeControl: MediaClassificationModeMenu(
+          classificationControl: MediaClassificationReviewMenu(
             mode: MediaClassificationMode.conservative,
             compact: true,
-            onChanged: (_) async {},
           ),
         );
 
         expect(
-          find.byTooltip('分类门槛：保守'),
+          find.byTooltip('分类确认'),
           findsOneWidget,
           reason: '窗口宽度 $width',
         );
@@ -1399,7 +1398,7 @@ void main() {
       'lib/features/library/application/library_media_view_data_builder.dart',
     ).readAsStringSync();
     expect(source, contains('LibraryPathBar('));
-    expect(source, contains('classificationModeControl: MediaClassificationModeMenu('));
+    expect(source, contains('classificationControl: MediaClassificationReviewMenu('));
     expect(source, contains('LibrarySourceMenu('));
     expect(source, contains('LibrarySourceMenuViewData('));
     expect(

@@ -29,10 +29,36 @@ class TmdbImageClient {
   DateTime? _lastRecoveryAttemptAt;
   var _networkGeneration = 0;
   var _preferOfficialHttp = false;
+  final Map<String, List<int>> _memoryCache = <String, List<int>>{};
+  final Map<String, Future<List<int>>> _inflight =
+      <String, Future<List<int>>>{};
 
   static const Duration _recoveryCooldown = Duration(minutes: 1);
+  static const int _maxMemoryCacheEntries = 64;
 
-  Future<List<int>> downloadBytes(String url) async {
+  Future<List<int>> downloadBytes(String url) {
+    final cached = _memoryCache.remove(url);
+    if (cached != null) {
+      _memoryCache[url] = cached;
+      return Future<List<int>>.value(cached);
+    }
+    final existing = _inflight[url];
+    if (existing != null) return existing;
+
+    final task = _downloadBytesUncached(url).then((bytes) {
+      _memoryCache[url] = List<int>.unmodifiable(bytes);
+      while (_memoryCache.length > _maxMemoryCacheEntries) {
+        _memoryCache.remove(_memoryCache.keys.first);
+      }
+      return _memoryCache[url]!;
+    });
+    _inflight[url] = task;
+    return task.whenComplete(() {
+      if (identical(_inflight[url], task)) _inflight.remove(url);
+    });
+  }
+
+  Future<List<int>> _downloadBytesUncached(String url) async {
     final officialHttpUrl = _officialHttpFallbackUrl(url);
     if (_preferOfficialHttp && officialHttpUrl != null) {
       try {

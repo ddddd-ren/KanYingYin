@@ -352,11 +352,10 @@ String mediaClassificationModeDescription(MediaClassificationMode mode) =>
       MediaClassificationMode.manual => '只给出主分类建议，题材标签始终跟随 TMDB。',
     };
 
-class MediaClassificationModeMenu extends StatefulWidget {
-  const MediaClassificationModeMenu({
+class MediaClassificationReviewMenu extends StatelessWidget {
+  const MediaClassificationReviewMenu({
     super.key,
     required this.mode,
-    required this.onChanged,
     this.compact = false,
     this.series = const [],
     this.userStates = const {},
@@ -364,97 +363,36 @@ class MediaClassificationModeMenu extends StatefulWidget {
   });
 
   final MediaClassificationMode mode;
-  final Future<void> Function(MediaClassificationMode) onChanged;
   final bool compact;
   final List<MediaLibrarySeries> series;
   final Map<String, MediaLibraryUserState> userStates;
   final Future<void> Function(bool needsConfirmation)? onReview;
 
   @override
-  State<MediaClassificationModeMenu> createState() =>
-      _MediaClassificationModeMenuState();
-}
-
-class _MediaClassificationModeMenuState
-    extends State<MediaClassificationModeMenu> {
-  bool _saving = false;
-
-  Future<void> _change(MediaClassificationMode mode) async {
-    if (_saving || mode == widget.mode) return;
-    setState(() => _saving = true);
-    try {
-      await widget.onChanged(mode);
-    } on Object {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('分类门槛保存失败，请重试')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final pending = widget.series.where((item) =>
+    final pending = series.where((item) =>
         const MediaClassificationResolver().resolve(
-          item, state: widget.userStates[item.key], mode: widget.mode,
+          item, state: userStates[item.key], mode: mode,
         ).needsConfirmation).length;
-    return PopupMenuButton<String>(
-      key: const ValueKey('media-classification-mode'),
-      tooltip: '分类门槛：${widget.mode.label}',
-      enabled: !_saving,
-      onSelected: (value) async {
-        if (value == 'pending' || value == 'confirmed') {
-          await widget.onReview?.call(value == 'pending');
-        } else {
-          await _change(MediaClassificationMode.values.byName(value));
-        }
-      },
+    return PopupMenuButton<bool>(
+      key: const ValueKey('media-classification-menu'),
+      tooltip: '分类确认',
+      onSelected: (needsConfirmation) async =>
+          onReview?.call(needsConfirmation),
       itemBuilder: (_) => [
         PopupMenuItem(
-          value: 'pending',
-          enabled: widget.onReview != null,
+          value: true,
+          enabled: onReview != null,
           child: Text('待确认（$pending）'),
         ),
         PopupMenuItem(
-          value: 'confirmed',
-          enabled: widget.onReview != null,
-          child: Text('已确认（${widget.series.length - pending}）'),
+          value: false,
+          enabled: onReview != null,
+          child: Text('已确认（${series.length - pending}）'),
         ),
-        const PopupMenuDivider(),
-        for (final mode in MediaClassificationMode.values)
-          PopupMenuItem(
-            value: mode.name,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(mode.label),
-                Text(
-                  mediaClassificationModeDescription(mode),
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
       ],
-      icon: widget.compact
-          ? (_saving
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.tune_outlined))
-          : null,
-      child: widget.compact
-          ? null
-          : Chip(
-              label: Text(
-                _saving ? '正在保存门槛…' : '分类门槛：${widget.mode.label}',
-              ),
-            ),
+      icon: compact ? const Icon(Icons.fact_check_outlined) : null,
+      child: compact ? null : const Chip(label: Text('分类确认')),
     );
   }
 }

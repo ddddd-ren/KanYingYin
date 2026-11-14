@@ -41,16 +41,19 @@ class AdaptiveNavigationShell extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final platform = capabilities ?? detectAppPlatform();
-        if (navigationHidden) return _contentOnly(context);
-        if (!platform.isAndroidTv &&
-            constraints.maxWidth < compactNavigationBreakpoint) {
-          return _bottomLayout(context);
-        }
-        return _desktopLayout(
-          context,
-          expanded: platform.isAndroidTv ||
-              constraints.maxWidth >= expandedSidebarBreakpoint,
-          isAndroidTv: platform.isAndroidTv,
+        final sidebarVisible = !navigationHidden && (platform.isAndroidTv ||
+            constraints.maxWidth >= compactNavigationBreakpoint);
+        final myLibraryIndex = destinations.indexWhere((item) => item.path == '/my-library');
+        return LibraryNavigationScope(
+          sidebarVisible: sidebarVisible,
+          openMyLibrary: myLibraryIndex < 0 ? null : () => onDestinationSelected(myLibraryIndex),
+          child: navigationHidden
+              ? _contentOnly(context)
+              : sidebarVisible
+                  ? _desktopLayout(context,
+                      expanded: platform.isAndroidTv || constraints.maxWidth >= expandedSidebarBreakpoint,
+                      isAndroidTv: platform.isAndroidTv)
+                  : _bottomLayout(context),
         );
       },
     );
@@ -88,7 +91,8 @@ class AdaptiveNavigationShell extends StatelessWidget {
       NavigationDestinationConfig destination,
     })>[
       for (var index = 0; index < destinations.length; index++)
-        if (!destinations[index].showInBottomNavigation)
+        if (!destinations[index].showInBottomNavigation &&
+            destinations[index].path != '/my-library')
           (globalIndex: index, destination: destinations[index]),
     ];
     final selectedCoreIndex = visibleDestinations.indexWhere(
@@ -298,6 +302,22 @@ class AdaptiveNavigationShell extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 由导航外层提供实际侧栏状态，工具栏不再根据自己的宽度猜测。
+class LibraryNavigationScope extends InheritedWidget {
+  const LibraryNavigationScope({super.key, required this.sidebarVisible,
+    required this.openMyLibrary, required super.child});
+
+  final bool sidebarVisible;
+  final VoidCallback? openMyLibrary;
+
+  static LibraryNavigationScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<LibraryNavigationScope>();
+
+  @override
+  bool updateShouldNotify(LibraryNavigationScope oldWidget) =>
+      sidebarVisible != oldWidget.sidebarVisible || openMyLibrary != oldWidget.openMyLibrary;
 }
 
 class _TvFocusBridge extends StatefulWidget {

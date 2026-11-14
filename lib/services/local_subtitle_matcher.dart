@@ -4,6 +4,11 @@ import 'package:kanyingyin/services/local_media_entry_provider.dart';
 import 'package:kanyingyin/services/local_episode_parser.dart';
 import 'package:path/path.dart' as p;
 
+/// 仅在一次扫描内复用目录候选，避免影响后续扫描和播放时的实时读取。
+class LocalSubtitleScanSession {
+  final Map<String, Future<List<_SubtitleCandidate>>> _candidates = {};
+}
+
 class LocalSubtitleMatcher {
   LocalSubtitleMatcher({
     LocalEpisodeParser? episodeParser,
@@ -73,10 +78,14 @@ class LocalSubtitleMatcher {
     return candidates.first.entry;
   }
 
-  Future<String?> findForVideo(String videoPath) async {
-    final scored = (await _scoredSubtitleCandidates(videoPath))
-        .where((candidate) => candidate.autoSelectable)
-        .toList();
+  Future<String?> findForVideo(
+    String videoPath, {
+    LocalSubtitleScanSession? scanSession,
+  }) async {
+    final scored =
+        (await _scoredSubtitleCandidates(videoPath, scanSession: scanSession))
+            .where((candidate) => candidate.autoSelectable)
+            .toList();
     if (scored.isEmpty) return null;
 
     scored.sort(_compareSubtitleScore);
@@ -90,10 +99,15 @@ class LocalSubtitleMatcher {
   }
 
   Future<List<_SubtitleScore>> _scoredSubtitleCandidates(
-      String videoPath) async {
+    String videoPath, {
+    LocalSubtitleScanSession? scanSession,
+  }) async {
     final videoDir = p.dirname(videoPath);
     final videoBaseName = p.basenameWithoutExtension(videoPath);
-    final candidates = await _subtitleCandidates(videoDir);
+    final candidates = await (scanSession == null
+        ? _subtitleCandidates(videoDir)
+        : scanSession._candidates
+            .putIfAbsent(videoDir, () => _subtitleCandidates(videoDir)));
     if (candidates.isEmpty) return <_SubtitleScore>[];
 
     final videoEpisode = _episodeParser.parse(videoPath);

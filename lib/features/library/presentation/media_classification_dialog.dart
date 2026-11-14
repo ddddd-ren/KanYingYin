@@ -55,8 +55,9 @@ class _MediaClassificationDialogState
   late final MediaClassificationResult _automatic =
       const MediaClassificationResolver()
           .resolve(widget.series, mode: widget.mode);
-  late List<String>? _categoryOverride =
-      widget.state.categoryOverride?.toList();
+  late List<String>? _categoryOverride = widget.state.aiClassified
+      ? _initialAiCategories()
+      : widget.state.categoryOverride?.toList();
   late List<String>? _genreOverride = widget.state.genreOverride?.toList();
   late final List<String> _tags =
       MediaCustomTags.normalize(widget.customTags).toList();
@@ -67,6 +68,14 @@ class _MediaClassificationDialogState
 
   List<String> get _categories => _categoryOverride ?? _automatic.categories;
   List<String> get _genres => _genreOverride ?? _automatic.genres;
+
+  List<String>? _initialAiCategories() {
+    final resolved = const MediaClassificationResolver()
+        .resolve(widget.series, state: widget.state, mode: widget.mode);
+    return _automatic.categories.isEmpty && !resolved.needsConfirmation
+        ? resolved.categories.toList()
+        : null;
+  }
 
   @override
   void dispose() {
@@ -124,6 +133,7 @@ class _MediaClassificationDialogState
           genreOverride: _genreOverride,
           clearCategoryOverride: _categoryOverride == null,
           clearGenreOverride: _genreOverride == null,
+          aiClassified: false,
           updatedAt: DateTime.now(),
         ),
         List<String>.unmodifiable(_tags),
@@ -517,7 +527,11 @@ Future<void> showMediaClassificationReviewDialog(
                                               : categories != null
                                                   ? categories.isEmpty
                                                       ? '手动未分类'
-                                                      : '已手动确认'
+                                                      : states[item.key]
+                                                                  ?.aiClassified ==
+                                                              true
+                                                          ? 'AI 已自动归类'
+                                                          : '已手动确认'
                                                   : '已自动归类'),
                                           if (result.needsConfirmation)
                                             for (final suggestion

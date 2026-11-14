@@ -7,6 +7,7 @@ import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/pages/settings/tmdb_settings.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_vision_model_credentials.dart';
 import 'package:kanyingyin/utils/storage.dart';
 
 void main() {
@@ -16,8 +17,7 @@ void main() {
     expect(source,
         contains("key: const ValueKey<String>('tmdb-test-connection')"));
     expect(source, contains("key: const ValueKey<String>('tmdb-clear-cache')"));
-    expect(source,
-        contains("key: const ValueKey<String>('tmdb-configuration-transfer')"));
+
     expect(source, contains('TvSettingsFocusSurface('));
   });
 
@@ -55,7 +55,7 @@ void main() {
     expect(find.text('日语'), findsOneWidget);
   });
 
-  testWidgets('提供刮削资料迁移入口', (tester) async {
+  testWidgets('迁移入口集中到备份与迁移页', (tester) async {
     final manager = await _memoryManager();
     await tester.pumpWidget(
       MaterialApp(
@@ -72,12 +72,76 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('迁移刮削资料'), findsOneWidget);
-    expect(find.text('把已识别的资料和封面带到另一台设备'), findsOneWidget);
+    expect(find.text('迁移刮削资料'), findsNothing);
+    expect(find.text('配置迁移'), findsNothing);
+  });
+
+  testWidgets('AI 配置直达页显示模型设置且不显示 TMDB 密钥区', (tester) async {
+    final manager = await _memoryManager();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TmdbSettingsPage(
+          credentialManager: manager,
+          settings: TypedSettings(GStorage.setting),
+          visionCredentials: MemoryTmdbVisionModelCredentials(),
+          visionOnly: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('AI 识别与分类'), findsNWidgets(2));
+    expect(find.text('兼容接口地址'), findsOneWidget);
+    expect(find.text('多模态模型名称'), findsOneWidget);
+    expect(find.text('TMDB API Key'), findsNothing);
+    expect(find.byKey(const ValueKey<String>('tmdb-vision-test-connection')),
+        findsOneWidget);
+  });
+
+  testWidgets('AI 配置页保存不会改动 TMDB Key 和刮削设置', (tester) async {
+    var saved = false;
+    final manager = await _memoryManager();
+    final settings = _MemorySettings();
+    await manager.save('existing-tmdb-key');
+    await settings.put('tmdbAutoScrape', false);
+    await settings.put('tmdbScrapeOptions', <String, Object?>{
+      'language': 'ja-JP',
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TmdbSettingsPage(
+          credentialManager: manager,
+          settings: settings,
+          visionCredentials: MemoryTmdbVisionModelCredentials(),
+          visionOnly: true,
+          onVisionSettingsSaved: () async => saved = true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final saveButton = find.text('保存');
+    await tester.scrollUntilVisible(saveButton, 300,
+        scrollable: find
+            .descendant(
+                of: find.byType(ListView), matching: find.byType(Scrollable))
+            .first);
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    expect(saved, isTrue);
+    expect(find.text('AI 设置已保存'), findsOneWidget);
+    expect(manager.read(), 'existing-tmdb-key');
+    expect(
+      settings.getTyped<bool>('tmdbAutoScrape', defaultValue: true),
+      isFalse,
+    );
+    expect(settings.get('tmdbScrapeOptions'), <String, Object?>{
+      'language': 'ja-JP',
+    });
   });
 
   testWidgets('空用户 Key 显示内置来源且用户 Key 可用后切换来源', (tester) async {
-    await GStorage.setting.delete('tmdbApiKey');
+    await tester.runAsync(() => GStorage.setting.delete('tmdbApiKey'));
     var userKey = '';
     final provider = TmdbApiKeyProvider(
       userKeyReader: () => userKey,
@@ -157,4 +221,16 @@ Future<TmdbCredentialManager> _memoryManager() async {
   );
   await manager.initialize();
   return manager;
+}
+
+class _MemorySettings extends Fake implements TypedSettings {
+  final values = <String, Object?>{};
+  @override
+  Object? get(String key, {Object? defaultValue}) =>
+      values[key] ?? defaultValue;
+  @override
+  T getTyped<T>(String key, {required T defaultValue}) =>
+      values[key] is T ? values[key] as T : defaultValue;
+  @override
+  Future<void> put<T>(String key, T value) async => values[key] = value;
 }

@@ -84,6 +84,8 @@ class CloudMediaIndexItem {
           (workKey == null || workKey!.trim().isEmpty));
 
   CloudMediaIndexItem copyWith({
+    int? size,
+    DateTime? modifiedAt,
     String? displayName,
     String? seriesName,
     int? tmdbId,
@@ -106,8 +108,8 @@ class CloudMediaIndexItem {
         workKey: workKey,
         workRootId: workRootId,
         workRootPath: workRootPath,
-        size: size,
-        modifiedAt: modifiedAt,
+        size: size ?? this.size,
+        modifiedAt: modifiedAt ?? this.modifiedAt,
         seriesName: seriesName ?? this.seriesName,
         seasonNumber: seasonNumber,
         episodeNumber: episodeNumber,

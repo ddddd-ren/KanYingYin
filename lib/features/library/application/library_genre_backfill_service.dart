@@ -49,6 +49,7 @@ class LibraryGenreBackfillService {
       );
     }
 
+    final localOriginals = {for (final item in _localRepository.getAll()) item.id: item};
     final targets = <(TmdbMediaType, int), _GenreTargets>{};
     for (final item in localItems) {
       final metadata = item.tmdb;
@@ -136,7 +137,7 @@ class LibraryGenreBackfillService {
         onProgress?.call(current, targets.length);
       }
     }
-    await _localRepository.updateItems(localUpdates);
+    await _localRepository.patchItems(localUpdates, originals: localOriginals);
     await _workRepository.upsertAll(workUpdates.values);
     return LibraryGenreBackfillResult(
       updatedWorks: updatedWorks,

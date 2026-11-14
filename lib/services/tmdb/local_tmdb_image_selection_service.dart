@@ -148,9 +148,14 @@ class LocalTmdbImageSelectionService {
       final updates = <String, LocalMediaIndexItem>{
         for (final item in matching) item.id: item.copyWith(tmdb: updated),
       };
-      await _indexRepository.updateItems(updates);
+      await _indexRepository.patchItems(updates, originals: {for (final item in matching) item.id: item});
       final key = seriesName.trim().toLowerCase();
-      await _metadataRepository.save(key, updated);
+      final savedMetadata = _matchingItems(seriesName)
+          .map((item) => item.tmdb)
+          .nonNulls
+          .firstOrNull;
+      if (savedMetadata == null) return;
+      await _metadataRepository.save(key, savedMetadata);
       final readBack = _metadataRepository.get(key);
       final indexItems = _matchingItems(seriesName);
       final indexSynced = indexItems.isNotEmpty &&
@@ -244,13 +249,19 @@ class LocalTmdbImageSelectionService {
         TmdbImageKind.still => throw ArgumentError('清除单集剧照时必须提供季度号和集数'),
       };
       final updated = metadata.copyWith(imageOverride: override);
-      await _indexRepository.updateItems(
+      await _indexRepository.patchItems(
         <String, LocalMediaIndexItem>{
           for (final item in matching) item.id: item.copyWith(tmdb: updated),
         },
+        originals: {for (final item in matching) item.id: item},
       );
       final key = seriesName.trim().toLowerCase();
-      await _metadataRepository.save(key, updated);
+      final savedMetadata = _matchingItems(seriesName)
+          .map((item) => item.tmdb)
+          .nonNulls
+          .firstOrNull;
+      if (savedMetadata == null) return;
+      await _metadataRepository.save(key, savedMetadata);
       final readBack = _metadataRepository.get(key);
       final indexItems = _matchingItems(seriesName);
       final indexSynced = indexItems.isNotEmpty &&

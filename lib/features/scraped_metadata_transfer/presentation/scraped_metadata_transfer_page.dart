@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'package:kanyingyin/utils/safe_export_file.dart';
+import 'package:kanyingyin/features/scraped_metadata_transfer/application/scraped_metadata_importer.dart';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -307,6 +309,12 @@ class _ScrapedMetadataTransferPageState
   }
 
   static String _errorMessage(Object error) {
+    if (error is ExportFileRestoreException) return error.message;
+    if (error is ScrapedMetadataImportException) {
+      return error.originalRestored
+          ? '原有资料已恢复，请检查迁移包和磁盘空间后重试'
+          : error.toString();
+    }
     if (error is PlatformException) {
       return switch (error.code) {
         'PickerUnavailable' => '电视没有可用的系统文件选择器，请安装文件管理器后重试',

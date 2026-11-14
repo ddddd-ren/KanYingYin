@@ -20,6 +20,47 @@ import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
 void main() {
+  test('重新识别时服务异常保留旧匹配资料', () async {
+    final fixture =
+        _Fixture(apiKey: 'key', client: _FakeTmdbClient(throwOnSearch: true));
+    final entry = _directory('previous', '/影视/作品', '作品');
+    final previous = _matchedResource(entry, TmdbMatchOrigin.automatic, 0);
+    await fixture.repository.upsert(previous);
+    await fixture.coordinator.loadAndSchedule(_context([entry]));
+    expect((await fixture.repository.get(previous.stableKey))?.toJson(),
+        previous.toJson());
+  });
+
+  test('旧规则未匹配升级后立即重试', () async {
+    final fixture = _Fixture(apiKey: 'key');
+    final entry = _directory('old', '/影视/旧记录', '旧记录');
+    await fixture.repository.upsert(CloudResourceTmdbRecord.unmatched(
+      sourceId: 'source-a',
+      remoteId: entry.id,
+      remotePath: entry.remotePath,
+      displayName: entry.name,
+      resourceKind: CloudResourceKind.directory,
+      checkedAt: DateTime.utc(2026, 7, 19),
+    ));
+    await fixture.coordinator.loadAndSchedule(_context([entry]));
+    expect(fixture.client.searchCalls, greaterThan(0));
+  });
+
+  test('自动请求失败不覆盖等待期间保存的人工匹配', () async {
+    final fixture = _Fixture(apiKey: 'key');
+    final entry = _directory('concurrent', '/影视/作品', '作品');
+    final manual =
+        _matchedResource(entry, TmdbMatchOrigin.manual, currentTmdbRuleVersion);
+    fixture.client.beforeSearch = () async {
+      await fixture.repository.upsert(manual);
+      throw StateError('模拟等待后服务失败');
+    };
+    await fixture.coordinator.loadAndSchedule(_context([entry]));
+    final saved = await fixture.repository.get(manual.stableKey);
+    expect(saved?.status, CloudResourceTmdbStatus.matched);
+    expect(saved?.tmdbMatchOrigin, TmdbMatchOrigin.manual);
+  });
+
   test('TMDB Key 缺失时只读缓存不发请求', () async {
     final fixture = _Fixture(apiKey: '');
     final matched = CloudResourceTmdbRecord.unmatched(
@@ -49,6 +90,7 @@ void main() {
       displayName: 'Recent',
       resourceKind: CloudResourceKind.directory,
       checkedAt: DateTime.utc(2026, 7, 18),
+      tmdbRuleVersion: currentTmdbRuleVersion,
     );
     final failed = CloudResourceTmdbRecord.failed(
       sourceId: 'source-a',
@@ -579,6 +621,7 @@ class _FakeTmdbClient implements ITmdbClient {
 
   final Duration delay;
   final bool throwOnSearch;
+  Future<void> Function()? beforeSearch;
   final List<String> queries = <String>[];
   var searchCalls = 0;
   var concurrentCalls = 0;
@@ -600,6 +643,7 @@ class _FakeTmdbClient implements ITmdbClient {
     String language = 'zh-CN',
   }) async {
     searchCalls++;
+    await beforeSearch?.call();
     queries.add(query);
     concurrentCalls++;
     maximumConcurrentCalls = maximumConcurrentCalls < concurrentCalls

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:kanyingyin/utils/logger.dart';
 
 import 'package:kanyingyin/features/scraped_metadata_transfer/application/scraped_metadata_archive_codec.dart';
 import 'package:kanyingyin/features/scraped_metadata_transfer/application/scraped_metadata_exporter.dart';
@@ -113,7 +114,11 @@ final class ScrapedMetadataTransferService {
     try {
       return await _importPlan(session.plan, session.archive);
     } finally {
-      await session.dispose();
+      try {
+        await session.dispose();
+      } catch (error, stackTrace) {
+        AppLogger().w('刮削资料迁移临时目录清理失败', error: error, stackTrace: stackTrace);
+      }
     }
   }
 }

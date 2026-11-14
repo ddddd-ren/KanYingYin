@@ -49,6 +49,9 @@ class CloudMediaScanResult {
     required this.failedPaths,
     required this.cancelled,
     this.videoCount = 0,
+    this.filteredBySizeCount = 0,
+    this.failureTypes = const {},
+    this.minSizeBytes = 1024 * 1024,
     this.matchedSubtitleCount = 0,
   });
   final int scanned;
@@ -57,6 +60,9 @@ class CloudMediaScanResult {
   final List<String> failedPaths;
   final bool cancelled;
   final int videoCount;
+  final int filteredBySizeCount;
+  final Set<CloudDriveErrorType> failureTypes;
+  final int minSizeBytes;
   final int matchedSubtitleCount;
 }
 
@@ -143,6 +149,8 @@ class CloudMediaIndexer {
     final directoryEntries = <String, List<CloudFileEntry>>{};
     final fingerprints = <String, String>{};
     final failedPaths = <String>[];
+    final failureTypes = <CloudDriveErrorType>{};
+    final filteredPaths = <String>{};
     var scanned = 0;
     var skipped = 0;
     final hasCachedPathsOutsideRoots = previous.directoryEntries.keys
@@ -167,6 +175,8 @@ class CloudMediaIndexer {
             reference,
             await client.listDirectory(reference),
           );
+        } on CloudDriveException catch (error) {
+          return _DirectoryResult(reference, null, error.type);
         } on Object {
           return _DirectoryResult(reference, null);
         }
@@ -179,6 +189,7 @@ class CloudMediaIndexer {
         ));
         if (result.entries == null) {
           failedPaths.add(result.reference.path);
+          if (result.errorType != null) failureTypes.add(result.errorType!);
           _copyCachedSubtree(
             result.reference.path,
             previous,
@@ -196,6 +207,10 @@ class CloudMediaIndexer {
             failedPaths.add(entry.remotePath);
             changed = true;
             continue;
+          }
+          if (!entry.isDirectory && LocalVideoFileTypes.isVideoPath(entry.name) &&
+              !LocalVideoFileTypes.isRecognizedVideoSize(entry.size, minSizeBytes: minSizeBytes)) {
+            filteredPaths.add(normalizedPath);
           }
           entries.add(CloudFileEntry(
             id: entry.id,
@@ -230,12 +245,15 @@ class CloudMediaIndexer {
     if (token.isCancelled) {
       return CloudMediaScanResult(
         scanned: scanned,
+        filteredBySizeCount: filteredPaths.length,
+        failureTypes: Set.unmodifiable(failureTypes),
+        minSizeBytes: minSizeBytes,
         skipped: skipped,
         failures: failedPaths.length,
         failedPaths: failedPaths,
         cancelled: true,
-        videoCount: previous.items.length,
-        matchedSubtitleCount: previous.items.fold<int>(
+        videoCount: previous.items.where((item) => LocalVideoFileTypes.isRecognizedVideoSize(item.size, minSizeBytes: minSizeBytes)).length,
+        matchedSubtitleCount: previous.items.where((item) => LocalVideoFileTypes.isRecognizedVideoSize(item.size, minSizeBytes: minSizeBytes)).fold<int>(
           0,
           (total, item) => total + item.subtitlePaths.length,
         ),
@@ -244,12 +262,15 @@ class CloudMediaIndexer {
     if (!changed && failedPaths.isEmpty) {
       return CloudMediaScanResult(
         scanned: scanned,
+        filteredBySizeCount: filteredPaths.length,
+        failureTypes: Set.unmodifiable(failureTypes),
+        minSizeBytes: minSizeBytes,
         skipped: skipped,
         failures: 0,
         failedPaths: const <String>[],
         cancelled: false,
-        videoCount: previous.items.length,
-        matchedSubtitleCount: previous.items.fold<int>(
+        videoCount: previous.items.where((item) => LocalVideoFileTypes.isRecognizedVideoSize(item.size, minSizeBytes: minSizeBytes)).length,
+        matchedSubtitleCount: previous.items.where((item) => LocalVideoFileTypes.isRecognizedVideoSize(item.size, minSizeBytes: minSizeBytes)).fold<int>(
           0,
           (total, item) => total + item.subtitlePaths.length,
         ),
@@ -274,6 +295,24 @@ class CloudMediaIndexer {
         videos.add(entry);
       } else if (LocalSubtitleMatcher.isSupportedSubtitlePath(entry.name)) {
         subtitles.add(entry);
+      }
+    }
+    final subtitlesByVideoDirectory = <String, List<CloudFileEntry>>{};
+    for (final subtitle in subtitles) {
+      final parent = _normalizePath(p.posix.dirname(subtitle.remotePath));
+      (subtitlesByVideoDirectory[parent] ??= <CloudFileEntry>[]).add(subtitle);
+      if (const <String>{
+        'subs',
+        'sub',
+        'subtitle',
+        'subtitles',
+        '字幕',
+        '字幕文件',
+        '外挂字幕',
+      }.contains(p.posix.basename(parent).toLowerCase())) {
+        final videoDirectory = _normalizePath(p.posix.dirname(parent));
+        (subtitlesByVideoDirectory[videoDirectory] ??= <CloudFileEntry>[])
+            .add(subtitle);
       }
     }
     final tree = _mediaTreeResolver.resolve(
@@ -303,6 +342,7 @@ class CloudMediaIndexer {
         (conflict) => _normalizePath(conflict.entry.remotePath),
       ),
     };
+    final previousByPath = {for (final item in previous.items) _normalizePath(item.remotePath): item};
     final items = <String, CloudMediaIndexItem>{};
     for (final entry in videos) {
       final normalizedPath = _normalizePath(entry.remotePath);
@@ -315,7 +355,12 @@ class CloudMediaIndexer {
           '文件夹=${pathMatch.folderSeasonNumber}',
         );
       }
-      final subtitleRefs = _matchSubtitles(entry, subtitles);
+      final subtitleRefs = _matchSubtitles(
+        entry,
+        subtitlesByVideoDirectory[
+                _normalizePath(p.posix.dirname(entry.remotePath))] ??
+            const <CloudFileEntry>[],
+      );
       final resolvedEpisode = episodesByPath[normalizedPath];
       final standaloneWork = standaloneWorksByPath[normalizedPath];
       final sharedAnalysis = _mediaTreeResolver.nameAnalyzer.analyze(
@@ -361,6 +406,18 @@ class CloudMediaIndexer {
         subtitleRefs: subtitleRefs,
         recognitionVersion: CloudMediaIndexItem.currentRecognitionVersion,
         releaseTags: episodeIdentity?.releaseTags ?? standaloneReleaseTags,
+      );
+    }
+    for (final path in items.keys.toList()) {
+      final old = previousByPath[path];
+      final current = items[path]!;
+      if (old == null || old.remoteId != current.remoteId) continue;
+      items[path] = current.copyWith(
+        tmdbId: old.tmdbId, tmdbTitle: old.tmdbTitle,
+        tmdbOriginalTitle: old.tmdbOriginalTitle, tmdbOverview: old.tmdbOverview,
+        tmdbRating: old.tmdbRating, tmdbPosterUrl: old.tmdbPosterUrl,
+        tmdbBackdropUrl: old.tmdbBackdropUrl, posterCachePath: old.posterCachePath,
+        tmdbGenres: old.tmdbGenres,
       );
     }
     final ruleRepository = _seriesMatchRuleRepository;
@@ -418,6 +475,17 @@ class CloudMediaIndexer {
         );
       }
     }
+    final visibleCount = items.length;
+    final matchedSubtitleCount = items.values.fold<int>(0, (total, item) => total + item.subtitlePaths.length);
+    for (final old in previous.items) {
+      final path = _normalizePath(old.remotePath);
+      final current = allEntries[path];
+      if (current != null && current.id == old.remoteId &&
+          LocalVideoFileTypes.isVideoPath(current.name) &&
+          !LocalVideoFileTypes.isRecognizedVideoSize(current.size, minSizeBytes: minSizeBytes)) {
+        items[path] = old.copyWith(size: current.size, modifiedAt: current.modifiedAt);
+      }
+    }
     if (changed || failedPaths.isNotEmpty || episodeRulesApplied) {
       await _repository.replaceSource(
         source.id,
@@ -429,15 +497,15 @@ class CloudMediaIndexer {
     }
     return CloudMediaScanResult(
       scanned: scanned,
+      filteredBySizeCount: filteredPaths.length,
+      failureTypes: Set.unmodifiable(failureTypes),
+      minSizeBytes: minSizeBytes,
       skipped: skipped,
       failures: failedPaths.length,
       failedPaths: failedPaths,
       cancelled: false,
-      videoCount: items.length,
-      matchedSubtitleCount: items.values.fold<int>(
-        0,
-        (total, item) => total + item.subtitlePaths.length,
-      ),
+      videoCount: visibleCount,
+      matchedSubtitleCount: matchedSubtitleCount,
     );
   }
 
@@ -468,23 +536,6 @@ class CloudMediaIndexer {
     final videoBase = p.basenameWithoutExtension(video.name).toLowerCase();
     final matches = <({CloudRemoteRef reference, int priority})>[];
     for (final subtitle in subtitles) {
-      final videoDirectory = _normalizePath(p.posix.dirname(video.remotePath));
-      final subtitleParent =
-          _normalizePath(p.posix.dirname(subtitle.remotePath));
-      final sameDirectory = subtitleParent == videoDirectory;
-      final parentName = p.posix.basename(subtitleParent).toLowerCase();
-      final inDirectSubtitleDirectory =
-          _normalizePath(p.posix.dirname(subtitleParent)) == videoDirectory &&
-              const <String>{
-                'subs',
-                'sub',
-                'subtitle',
-                'subtitles',
-                '字幕',
-                '字幕文件',
-                '外挂字幕',
-              }.contains(parentName);
-      if (!sameDirectory && !inDirectSubtitleDirectory) continue;
       final sameName =
           p.basenameWithoutExtension(subtitle.name).toLowerCase() == videoBase;
       final subtitleEpisode = _episodeParser.parse(subtitle.remotePath);
@@ -528,13 +579,14 @@ class CloudMediaIndexer {
               'size': entry.size,
               'modifiedAt': entry.modifiedAt?.toUtc().toIso8601String() ?? '',
             })
+        .map((value) => (value: value, encoded: jsonEncode(value)))
         .toList()
-      ..sort((a, b) => jsonEncode(a).compareTo(jsonEncode(b)));
+      ..sort((a, b) => a.encoded.compareTo(b.encoded));
     return sha256
         .convert(utf8.encode(jsonEncode(<String, Object?>{
           'path': _normalizePath(path),
           'minSizeBytes': minSizeBytes,
-          'children': children,
+          'children': children.map((child) => child.value).toList(),
         })))
         .toString();
   }
@@ -595,7 +647,8 @@ class CloudMediaIndexer {
 }
 
 class _DirectoryResult {
-  const _DirectoryResult(this.reference, this.entries);
+  const _DirectoryResult(this.reference, this.entries, [this.errorType]);
   final CloudRemoteRef reference;
   final List<CloudFileEntry>? entries;
+  final CloudDriveErrorType? errorType;
 }

@@ -112,6 +112,8 @@ final class MediaLibraryUserStateRepository {
               genreOverride: current?.genreOverride,
               clearCategoryOverride: current?.categoryOverride == null,
               clearGenreOverride: current?.genreOverride == null,
+              aiClassified: current?.aiClassified ?? false,
+              aiClassificationIdentity: current?.aiClassificationIdentity,
             )
           : state;
       if (next.isEmpty) {
@@ -149,6 +151,7 @@ final class MediaLibraryUserStateRepository {
         genreOverride: genres,
         clearCategoryOverride: categories == null,
         clearGenreOverride: genres == null,
+        aiClassified: false,
         mediaIds: mediaIds,
         updatedAt: DateTime.now(),
       );
@@ -158,6 +161,39 @@ final class MediaLibraryUserStateRepository {
         all[normalizedKey] = state;
       }
       await _writeAll(all);
+    });
+  }
+
+  Future<bool> saveAutomaticCategory(
+    String key, {
+    required String category,
+    required Iterable<String> mediaIds,
+    String? identity,
+  }) {
+    if (!const <String>{'电影', '电视剧', '动漫'}.contains(category)) {
+      throw ArgumentError.value(category, 'category', '不支持的媒体分类');
+    }
+    final normalizedKey = key.trim();
+    if (normalizedKey.isEmpty) return Future<bool>.value(false);
+    return _lock.synchronized(() async {
+      final all = await _readAll();
+      final current = all[normalizedKey] ?? MediaLibraryUserState.empty;
+      if (current.categoryOverride != null &&
+          (!current.aiClassified ||
+              identity == null ||
+              current.aiClassificationIdentity == identity)) {
+        return false;
+      }
+      final next = current.copyWith(
+        categoryOverride: <String>[category],
+        aiClassified: true,
+        aiClassificationIdentity: identity,
+        mediaIds: mediaIds,
+        updatedAt: DateTime.now(),
+      );
+      all[normalizedKey] = next;
+      await _writeAll(all);
+      return true;
     });
   }
 
@@ -260,21 +296,30 @@ final class MediaLibraryUserStateRepository {
       });
 
   static MediaLibraryUserState _merge(MediaLibraryUserState? target,
-          MediaLibraryUserState old, Set<String> ids) =>
-      MediaLibraryUserState(
-        favorite: old.favorite || (target?.favorite ?? false),
-        watchLater: old.watchLater || (target?.watchLater ?? false),
-        collections: MediaLibraryUserState.normalizeCollections([
-          ...old.collections,
-          ...?target?.collections,
-        ]),
-        mediaIds: List<String>.unmodifiable(ids),
-        updatedAt: DateTime.now(),
-        categoryOverride: MediaLibraryUserState.mergeClassificationOverride(
-            target?.categoryOverride, old.categoryOverride),
-        genreOverride: MediaLibraryUserState.mergeClassificationOverride(
-            target?.genreOverride, old.genreOverride),
-      );
+      MediaLibraryUserState old, Set<String> ids) {
+    final manualCategories = MediaLibraryUserState.mergeClassificationOverride(
+      target?.aiClassified == true ? null : target?.categoryOverride,
+      old.aiClassified ? null : old.categoryOverride,
+    );
+    final automatic = target?.categoryOverride != null ? target : old;
+    return MediaLibraryUserState(
+      favorite: old.favorite || (target?.favorite ?? false),
+      watchLater: old.watchLater || (target?.watchLater ?? false),
+      collections: MediaLibraryUserState.normalizeCollections([
+        ...old.collections,
+        ...?target?.collections,
+      ]),
+      mediaIds: List<String>.unmodifiable(ids),
+      updatedAt: DateTime.now(),
+      categoryOverride: manualCategories ?? automatic?.categoryOverride,
+      genreOverride: MediaLibraryUserState.mergeClassificationOverride(
+          target?.genreOverride, old.genreOverride),
+      aiClassified:
+          manualCategories == null && (automatic?.aiClassified ?? false),
+      aiClassificationIdentity:
+          manualCategories == null ? automatic?.aiClassificationIdentity : null,
+    );
+  }
 
   Future<Map<String, MediaLibraryUserState>> _readAll() async {
     final raw = await _storage.read();

@@ -40,6 +40,7 @@ Future<void> openLocalManualEpisodeMatch({
         initialOptions: controller.tmdbScrapeOptions.copyWith(
           mediaTypeMode: TmdbMediaTypeMode.tv,
         ),
+        onIdentify: () => controller.identifyLocalTmdb(seriesName),
         onSearch: (request) => controller.searchLocalTmdb(
           seriesName,
           TmdbPreparedSearchRequest(

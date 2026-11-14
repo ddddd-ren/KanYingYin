@@ -23,6 +23,7 @@ void main() {
     final image = File('${temporary.path}${Platform.pathSeparator}海报.jpg');
     await image.writeAsBytes(<int>[1, 2, 3, 4]);
     final output = File('${temporary.path}${Platform.pathSeparator}资料.kyymeta');
+    await output.writeAsString('旧备份', flush: true);
     final codec = ScrapedMetadataArchiveCodec(
       temporaryDirectoryProvider: () async => temporary,
     );
@@ -56,6 +57,23 @@ void main() {
       3,
       4,
     ]);
+  });
+
+  test('导出资料校验失败时原备份内容不变', () async {
+    final output = File('${temporary.path}/资料.kyymeta');
+    await output.writeAsString('旧备份', flush: true);
+    final codec = ScrapedMetadataArchiveCodec(
+      temporaryDirectoryProvider: () async => temporary,
+    );
+    await expectLater(
+      codec.write(
+        output: output,
+        payload: _payload(),
+        images: {'../bad.jpg': File('${temporary.path}/bad.jpg')},
+      ),
+      throwsA(isA<FormatException>()),
+    );
+    expect(await output.readAsString(), '旧备份');
   });
 
   test('迁移包拒绝路径穿越和绝对路径', () async {

@@ -74,6 +74,9 @@ class LibraryMediaGridViewData {
     this.isLoading = false,
     this.errorMessage,
     this.hasSearchFilter = false,
+    this.recognitionDescription = '视频大小限制可在识别设置中调整',
+    this.filteredBySizeCount = 0,
+    this.sourceAccessible = true,
   }) : items = List<LibraryMediaItemViewData>.unmodifiable(items);
 
   final List<LibraryMediaItemViewData> items;
@@ -81,6 +84,9 @@ class LibraryMediaGridViewData {
   final bool isLoading;
   final String? errorMessage;
   final bool hasSearchFilter;
+  final String recognitionDescription;
+  final int filteredBySizeCount;
+  final bool sourceAccessible;
 }
 
 class LibraryMediaCoverFallback {
@@ -233,6 +239,7 @@ class LibraryMediaGrid extends StatelessWidget {
     this.onPickDirectory,
     this.onRetry,
     this.onClearSearch,
+    this.onRecognitionSettings,
     this.trailingBuilder,
     this.capabilities,
     this.networkImageLoader,
@@ -245,28 +252,58 @@ class LibraryMediaGrid extends StatelessWidget {
   final FutureOr<void> Function()? onPickDirectory;
   final FutureOr<void> Function()? onRetry;
   final VoidCallback? onClearSearch;
+  final VoidCallback? onRecognitionSettings;
   final LibraryMediaTrailingBuilder? trailingBuilder;
   final AppPlatformCapabilities? capabilities;
   final TmdbImageBytesLoader? networkImageLoader;
 
   @override
   Widget build(BuildContext context) {
+    final content = _buildContent(context);
+    if (data.errorMessage == null || data.items.isEmpty) return content;
+    return Column(
+      children: [
+        MaterialBanner(
+          forceActionsBelow: true,
+          content: Text(data.errorMessage!),
+          actions: [
+            TextButton(
+              onPressed: onRetry == null ? null : () async => await onRetry!(),
+              child: const Text('重试'),
+            ),
+            if (!data.sourceAccessible)
+              TextButton(
+                onPressed: onPickDirectory == null
+                    ? null
+                    : () async => await onPickDirectory!(),
+                child: const Text('重新选择目录'),
+              ),
+          ],
+        ),
+        Expanded(child: content),
+      ],
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     final policy = TvLayoutPolicy.forCapabilities(
       capabilities ?? detectAppPlatform(),
     );
     if (data.isLoading && data.items.isEmpty) {
-      return MediaCardSkeletonGrid(
-        capabilities: capabilities,
-      );
+      return MediaCardSkeletonGrid(capabilities: capabilities);
     }
     if (data.errorMessage != null && data.items.isEmpty) {
       return EmptyState(
         icon: Icons.error_outline,
         title: '加载失败',
         description: data.errorMessage!,
-        actionLabel: '重试',
-        actionIcon: Icons.refresh,
-        action: onRetry == null ? null : () async => await onRetry!(),
+        actionLabel: data.sourceAccessible ? '重试' : '重新选择目录',
+        actionIcon: data.sourceAccessible ? Icons.refresh : Icons.folder_open,
+        action: data.sourceAccessible
+            ? (onRetry == null ? null : () async => await onRetry!())
+            : (onPickDirectory == null
+                  ? null
+                  : () async => await onPickDirectory!()),
       );
     }
     if (data.items.isEmpty) {
@@ -294,13 +331,16 @@ class LibraryMediaGrid extends StatelessWidget {
       }
       return EmptyState(
         icon: Icons.video_file_outlined,
-        title: '没有可识别的视频',
-        description: '仅显示大于 800MB 的视频文件',
-        actionLabel: '切换文件夹',
+        title: data.filteredBySizeCount > 0 ? '视频已按大小过滤' : '没有发现视频文件',
+        description:
+            '${data.filteredBySizeCount > 0 ? '${data.filteredBySizeCount} 个视频未达到大小要求。' : ''}${data.recognitionDescription}',
+        actionLabel: onRecognitionSettings != null ? '调整识别设置' : '切换文件夹',
         actionIcon: Icons.folder_outlined,
-        action: onPickDirectory == null
-            ? null
-            : () async => await onPickDirectory!(),
+        action:
+            onRecognitionSettings ??
+            (onPickDirectory == null
+                ? null
+                : () async => await onPickDirectory!()),
       );
     }
     final decodeSize = TvImageDecodePolicy.poster(
@@ -338,6 +378,8 @@ class LibraryMediaGrid extends StatelessWidget {
       ),
     );
   }
+
+
 }
 
 class _LibraryMediaTile extends StatefulWidget {

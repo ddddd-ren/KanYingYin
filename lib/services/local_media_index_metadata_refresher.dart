@@ -90,6 +90,7 @@ class LocalMediaIndexMetadataRefresher {
     LocalMediaIndexMetadataRefreshCancelChecker? isCancelled,
   }) async {
     final items = repository.getAll();
+    final snapshots = {for (final item in items) item.sourcePath: repository.captureSource(item.sourceLocation)};
     var refreshedCount = 0;
     var skippedCount = 0;
     final bySourcePath = <String, List<LocalMediaIndexItem>>{};
@@ -123,7 +124,7 @@ class LocalMediaIndexMetadataRefresher {
     if (refreshedCount > 0) {
       for (final entry in bySourcePath.entries) {
         if (isCancelled?.call() ?? false) break;
-        await repository.saveForSource(entry.key, entry.value);
+        await repository.commitSource(snapshots[entry.key]!, entry.value);
       }
     }
 

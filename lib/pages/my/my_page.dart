@@ -78,6 +78,12 @@ class SettingsHubContent extends StatelessWidget {
           title: text('媒体库'),
           tiles: [
             KSettingsTile<void>.navigation(
+              onPressed: (_) => onOpenPath('/settings/backup-migration'),
+              leading: const Icon(Icons.import_export_rounded),
+              title: text('备份与迁移'),
+              description: text('备份配置与观看记录，迁移刮削资料和封面'),
+            ),
+            KSettingsTile<void>.navigation(
               onPressed: (_) => onOpenPath('/settings/storage'),
               leading: const Icon(Icons.storage_outlined),
               title: text('存储'),
@@ -88,6 +94,12 @@ class SettingsHubContent extends StatelessWidget {
               leading: const Icon(Icons.movie_filter_outlined),
               title: text('TMDB 刮削'),
               description: text('配置中文标题、海报、简介与影片信息刮削'),
+            ),
+            KSettingsTile<void>.navigation(
+              onPressed: (_) => onOpenPath('/settings/tmdb/vision'),
+              leading: const Icon(Icons.auto_awesome_outlined),
+              title: text('AI 识别与分类'),
+              description: text('配置模型接口、密钥和自动分类'),
             ),
             KSettingsTile<void>.navigation(
               onPressed: (_) => onOpenPath('/settings/cloud-sources'),

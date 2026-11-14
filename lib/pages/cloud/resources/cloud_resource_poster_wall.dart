@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/bean/widget/empty_state.dart';
 import 'package:kanyingyin/features/library/application/media_library_classification.dart';
 import 'package:kanyingyin/features/library/application/media_library_user_state.dart';
 import 'package:kanyingyin/features/library/presentation/immersive_media_card.dart';
@@ -32,6 +33,11 @@ class CloudResourcePosterWall extends StatefulWidget {
     this.searchQuery = '',
     this.subtitleVideoKeys = const <String>{},
     this.hiddenVideoCount = 0,
+    this.recognitionDescription = '视频大小限制可在识别设置中调整',
+    this.filteredBySizeCount = 0,
+    this.scanFailed = false,
+    this.hasActiveFilters = false,
+    this.onRecognitionSettings,
     required this.onOpenGroup,
     required this.onEditTitle,
     this.onEditTags,
@@ -55,6 +61,11 @@ class CloudResourcePosterWall extends StatefulWidget {
   final String searchQuery;
   final Set<String> subtitleVideoKeys;
   final int hiddenVideoCount;
+  final String recognitionDescription;
+  final int filteredBySizeCount;
+  final bool scanFailed;
+  final bool hasActiveFilters;
+  final VoidCallback? onRecognitionSettings;
   final CloudResourceGroupAction onOpenGroup;
   final CloudResourceGroupAction onEditTitle;
   final CloudResourceGroupAction? onEditTags;
@@ -148,14 +159,24 @@ class _CloudResourcePosterWallState extends State<CloudResourcePosterWall> {
   Widget build(BuildContext context) {
     if (collection.groups.isEmpty) {
       final searching = searchQuery.trim().isNotEmpty;
-      return Center(
-        child: Text(
-          searching
-              ? '没有找到匹配的视频'
-              : hiddenVideoCount > 0
-                  ? '视频已隐藏，可从更多网盘操作中恢复'
-                  : '该来源暂时没有符合识别条件的视频',
-        ),
+      if (searching || widget.hasActiveFilters ||
+          hiddenVideoCount > 0 || widget.scanFailed) {
+        final message = searching
+            ? '没有找到匹配的视频'
+            : widget.scanFailed
+                ? '部分目录未能读取，请先处理上方提示'
+                : widget.hasActiveFilters
+                    ? '当前筛选下没有匹配视频'
+                    : '视频已隐藏，可从更多网盘操作中恢复';
+        return Center(child: Text(message));
+      }
+      return EmptyState(
+        icon: Icons.video_file_outlined,
+        title: widget.filteredBySizeCount > 0 ? '视频已按大小过滤' : '没有发现视频文件',
+        description: '${widget.filteredBySizeCount > 0 ? '${widget.filteredBySizeCount} 个视频未达到大小要求。' : ''}${widget.recognitionDescription}',
+        actionLabel: '调整识别设置',
+        actionIcon: Icons.settings_outlined,
+        action: widget.onRecognitionSettings,
       );
     }
     return _mediaGrid(context);

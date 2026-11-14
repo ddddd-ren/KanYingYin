@@ -45,6 +45,7 @@ class MediaLibraryEpisode {
     required String stableId,
     required String name,
     required LocalMediaIndexItem localItem,
+    bool isAvailable = true,
   }) {
     if (stableId.isEmpty) throw ArgumentError.value(stableId, 'stableId');
     return MediaLibraryEpisode._(
@@ -53,7 +54,7 @@ class MediaLibraryEpisode {
       sourceKind: MediaSourceKind.local,
       sourceId: 'local',
       sourceName: '本地',
-      isAvailable: true,
+      isAvailable: isAvailable,
       localItem: localItem,
       size: localItem.size,
       modifiedAt: localItem.modified,
@@ -256,6 +257,8 @@ class CloudMediaLibraryAggregator {
     required Iterable<LocalMediaIndexItem> localItems,
     required Iterable<CloudMediaIndexItem> cloudItems,
     required Iterable<CloudSource> cloudSources,
+    Map<String, bool> localSourceAvailability = const {},
+    Map<String, String> localSourceNames = const {},
     Map<String, String> localSourceTitlesByMediaId = const <String, String>{},
     Map<String, List<String>> localLegacyTitlesByMediaId =
         const <String, List<String>>{},
@@ -270,6 +273,8 @@ class CloudMediaLibraryAggregator {
       legacyTitlesByMediaId: localLegacyTitlesByMediaId,
     )) {
       final metadata = _localMetadata(local.episodes);
+      final sourceKey = local.episodes.first.sourceLocation.stableId;
+      final available = localSourceAvailability[sourceKey] ?? true;
       result.add(MediaLibrarySeries(
         key: 'local|${local.key}',
         seriesKey: local.key,
@@ -277,8 +282,8 @@ class CloudMediaLibraryAggregator {
         legacySeriesTitles: local.legacySeriesTitles,
         sourceKind: MediaSourceKind.local,
         sourceId: 'local',
-        sourceName: '本地',
-        isAvailable: true,
+        sourceName: localSourceNames[sourceKey] ?? '本地',
+        isAvailable: available,
         mediaType: metadata?.mediaType ?? _localMediaType(local.episodes),
         genres: _uniqueGenres(
           local.episodes.expand(
@@ -303,6 +308,7 @@ class CloudMediaLibraryAggregator {
                     seriesTitle: local.title,
                   ),
                   localItem: item,
+                  isAvailable: available,
                 ))
             .toList(growable: false),
       ));
@@ -370,6 +376,13 @@ class CloudMediaLibraryAggregator {
         key: entry.key,
         seriesKey: items.first.seriesName.trim(),
         title: title,
+        legacySeriesTitles: {
+          for (final item in items) ...[
+            item.seriesName,
+            item.remoteName,
+            item.displayName,
+          ],
+        }.toList(growable: false),
         sourceKind: MediaSourceKind.cloud,
         sourceId: items.first.sourceId,
         sourceName: source?.name ?? items.first.sourceId,

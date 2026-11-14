@@ -8,6 +8,27 @@ import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 void main() {
   const resolver = MediaClassificationResolver();
 
+  test('旧 AI 分类不覆盖新 TMDB 身份和全手动模式', () {
+    final series = _series(metadata: _metadata(genres: ['剧情']));
+    const old = MediaLibraryUserState(
+        categoryOverride: ['电影'],
+        aiClassified: true,
+        aiClassificationIdentity: 'movie:999');
+    expect(resolver.resolve(series, state: old).categories, ['电视剧']);
+    expect(resolver.resolve(series, state: old).isManual, isFalse);
+    expect(
+        resolver
+            .resolve(series, state: old, mode: MediaClassificationMode.manual)
+            .categories,
+        isEmpty);
+    expect(
+        resolver
+            .resolve(series,
+                state: const MediaLibraryUserState(categoryOverride: ['电影']))
+            .categories,
+        ['电影']);
+  });
+
   test('可信动画剧集只自动归入动漫且不改动原始 TMDB 类型', () {
     final metadata = _metadata(genres: ['动画']);
     final series = _series(metadata: metadata);

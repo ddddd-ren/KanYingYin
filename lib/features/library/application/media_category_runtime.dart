@@ -42,6 +42,7 @@ class MediaCategoryRuntime extends ChangeNotifier {
     required TypedSettings settings,
     required Future<void> Function() navigateToPlayer,
     MediaLibraryUserStateRepository? userStateRepository,
+    this.includeUnavailable = false,
   })  : _localLibrary = localLibrary,
         _cloudLibrary = cloudLibrary,
         _playback = playback,
@@ -52,6 +53,7 @@ class MediaCategoryRuntime extends ChangeNotifier {
     MediaLibraryUserStateRepository.changes.addListener(_reloadUserStates);
   }
 
+  final bool includeUnavailable;
   final LocalLibraryPort _localLibrary;
   final CloudLibraryPort _cloudLibrary;
   final PlaybackPort _playback;
@@ -101,14 +103,18 @@ class MediaCategoryRuntime extends ChangeNotifier {
 
   Future<void> initialize() async {
     _userStates = await _userStateRepository.getAll();
-    _localLibrary.reloadAvailableLibrary();
-    await _cloudLibrary.ensureLibrary();
+    _localLibrary.reloadAvailableLibrary(includeUnavailable: includeUnavailable);
+    if (includeUnavailable) {
+      await _cloudLibrary.refreshLibrary();
+    } else {
+      await _cloudLibrary.ensureLibrary();
+    }
     await reconcileUserStates();
   }
 
   Future<void> refresh() async {
     _userStates = await _userStateRepository.getAll();
-    _localLibrary.reloadAvailableLibrary();
+    _localLibrary.reloadAvailableLibrary(includeUnavailable: includeUnavailable);
     await _cloudLibrary.refreshLibrary();
     await reconcileUserStates();
   }
@@ -162,12 +168,12 @@ class MediaCategoryRuntime extends ChangeNotifier {
       });
 
   CloudMediaLibrary get library {
-    final local = _localLibrary.library;
-    final cloud = _cloudLibrary.library;
+    final local = includeUnavailable ? _localLibrary.cachedLibrary : _localLibrary.library;
+    final cloud = includeUnavailable ? _cloudLibrary.cachedLibrary : _cloudLibrary.library;
     return CloudMediaLibrary(
       series: <MediaLibrarySeries>[...local.series, ...cloud.series],
       filters: <MediaLibrarySourceFilter>[
-        const MediaLibrarySourceFilter('all', '全部', null),
+        const MediaLibrarySourceFilter('all', '全部来源', null),
         const MediaLibrarySourceFilter('local', '本地', MediaSourceKind.local),
         ...cloud.filters.where((item) => item.id != 'all'),
       ],
@@ -196,6 +202,7 @@ class MediaCategoryRuntime extends ChangeNotifier {
         .take(2)
         .toList(growable: false);
     final currentSeries = matches.length == 1 ? matches.single : series;
+    if (!currentSeries.isAvailable) throw StateError('来源暂不可用，请恢复来源后刷新');
     final currentEpisode = currentSeries
         .playbackEpisodesFor(episode)
         .singleWhere((item) => item.stableId == episode.stableId);

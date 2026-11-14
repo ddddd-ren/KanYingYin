@@ -98,6 +98,7 @@ class CloudMediaIndexRepository {
     final rawItems = data['items'];
     if (rawItems is List) {
       for (final raw in rawItems.whereType<Map<Object?, Object?>>()) {
+        if (raw['sourceId'] != sourceId) continue;
         try {
           final item = _itemFromJson(Map<String, Object?>.from(raw));
           if (item.sourceId == sourceId) items.add(item);
@@ -282,6 +283,10 @@ class CloudMediaIndexRepository {
         final items = <Object?>[];
         for (final raw in rawItems) {
           if (raw is! Map) {
+            items.add(raw);
+            continue;
+          }
+          if (raw['sourceId'] != sourceId) {
             items.add(raw);
             continue;
           }

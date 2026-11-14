@@ -27,53 +27,55 @@ class EmptyState extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 400),
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: iconSize,
-                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                title,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: colorScheme.onSurface,
-                  fontWeight: FontWeight.w600,
+      child: SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  size: iconSize,
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                 ),
-                textAlign: TextAlign.center,
-              ),
-              if (description != null) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 24),
                 Text(
-                  description!,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                    height: 1.6,
+                  title,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: colorScheme.onSurface,
+                    fontWeight: FontWeight.w600,
                   ),
                   textAlign: TextAlign.center,
                 ),
-              ],
-              if (action != null && actionLabel != null) ...[
-                const SizedBox(height: 32),
-                FilledButton.icon(
-                  onPressed: action,
-                  icon: Icon(actionIcon ?? Icons.add_circle_outline),
-                  label: Text(actionLabel!),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 16,
+                if (description != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    description!,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                      height: 1.6,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+                if (action != null && actionLabel != null) ...[
+                  const SizedBox(height: 32),
+                  FilledButton.icon(
+                    onPressed: action,
+                    icon: Icon(actionIcon ?? Icons.add_circle_outline),
+                    label: Text(actionLabel!),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 16,
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

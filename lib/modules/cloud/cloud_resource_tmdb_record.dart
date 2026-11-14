@@ -105,6 +105,7 @@ class CloudResourceTmdbRecord {
     required CloudResourceKind resourceKind,
     required DateTime checkedAt,
     String? customTitle,
+    int tmdbRuleVersion = 0,
   }) {
     return CloudResourceTmdbRecord(
       sourceId: sourceId,
@@ -113,6 +114,7 @@ class CloudResourceTmdbRecord {
       displayName: displayName,
       resourceKind: resourceKind,
       status: CloudResourceTmdbStatus.unmatched,
+      tmdbRuleVersion: tmdbRuleVersion,
       checkedAt: checkedAt,
       customTitle: customTitle,
     );

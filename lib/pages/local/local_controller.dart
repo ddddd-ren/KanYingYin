@@ -1,3 +1,4 @@
+import 'package:kanyingyin/services/local_video_file_types.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -48,6 +49,7 @@ import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_poster_policy.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scraper.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_vision_model_client.dart';
 import 'package:kanyingyin/services/local_cover_finder.dart';
 import 'package:kanyingyin/services/local_series_grouper.dart';
 import 'package:kanyingyin/services/poster_service.dart';
@@ -79,6 +81,8 @@ class LocalController = _LocalController
 abstract class _LocalController with Store {
   _LocalController({
     ILocalMediaScanner? scanner,
+    int Function()? localMinSizeBytesProvider,
+    int Function()? cloudMinSizeBytesProvider,
     ILocalMediaIndexer? mediaIndexer,
     LocalMediaLibraryBuilder? mediaLibraryBuilder,
     ILocalLibraryPreferences? preferences,
@@ -97,9 +101,13 @@ abstract class _LocalController with Store {
     TmdbClientContextRegistry? tmdbClientContextRegistry,
     TmdbScrapeOptions Function()? tmdbScrapeOptionsProvider,
     bool Function()? tmdbAutoScrapeProvider,
+    TmdbVisionSearchAssist? tmdbVisionSearchAssist,
+    TmdbVisionClassificationApply? tmdbVisionClassificationApply,
     LibraryGenreBackfillService? genreBackfillService,
   }) : this._(
           scanner: scanner,
+          localMinSizeBytesProvider: localMinSizeBytesProvider,
+          cloudMinSizeBytesProvider: cloudMinSizeBytesProvider,
           mediaIndexer: mediaIndexer,
           mediaLibraryBuilder: mediaLibraryBuilder,
           preferences: preferences,
@@ -121,11 +129,15 @@ abstract class _LocalController with Store {
               tmdbClientContextRegistry ?? TmdbClientContextRegistry(),
           tmdbScrapeOptionsProvider: tmdbScrapeOptionsProvider,
           tmdbAutoScrapeProvider: tmdbAutoScrapeProvider,
+          tmdbVisionSearchAssist: tmdbVisionSearchAssist,
+          tmdbVisionClassificationApply: tmdbVisionClassificationApply,
           genreBackfillService: genreBackfillService,
         );
 
   _LocalController._({
     ILocalMediaScanner? scanner,
+    int Function()? localMinSizeBytesProvider,
+    int Function()? cloudMinSizeBytesProvider,
     ILocalMediaIndexer? mediaIndexer,
     LocalMediaLibraryBuilder? mediaLibraryBuilder,
     ILocalLibraryPreferences? preferences,
@@ -144,8 +156,12 @@ abstract class _LocalController with Store {
     required TmdbClientContextRegistry tmdbClientContextRegistry,
     TmdbScrapeOptions Function()? tmdbScrapeOptionsProvider,
     bool Function()? tmdbAutoScrapeProvider,
+    TmdbVisionSearchAssist? tmdbVisionSearchAssist,
+    TmdbVisionClassificationApply? tmdbVisionClassificationApply,
     LibraryGenreBackfillService? genreBackfillService,
   })  : _scanner = scanner ?? LocalMediaScanner(),
+        _localMinSizeBytesProvider = localMinSizeBytesProvider,
+        _cloudMinSizeBytesProvider = cloudMinSizeBytesProvider,
         _mediaIndexRepository = mediaIndexRepository,
         _mediaIndexer =
             mediaIndexer ?? LocalMediaIndexer(repository: mediaIndexRepository),
@@ -164,6 +180,8 @@ abstract class _LocalController with Store {
               metadataRepository: TmdbMetadataRepository(),
               clientFactory: tmdbClientContextRegistry.clientFor,
               cacheFactory: tmdbClientContextRegistry.cacheFor,
+              visionSearchAssist: tmdbVisionSearchAssist,
+              visionClassificationApply: tmdbVisionClassificationApply,
             ),
         _tmdbApiKeyProvider = tmdbApiKeyProvider,
         _tmdbScrapeOptionsProvider = tmdbScrapeOptionsProvider ??
@@ -187,6 +205,9 @@ abstract class _LocalController with Store {
         _providedGenreBackfillService = genreBackfillService;
 
   final ILocalMediaScanner _scanner;
+  final int Function()? _localMinSizeBytesProvider;
+  final int Function()? _cloudMinSizeBytesProvider;
+  LocalScanResult? lastDirectoryScan;
   final ILocalMediaIndexRepository _mediaIndexRepository;
   final ILocalMediaIndexer _mediaIndexer;
   final LocalMediaLibraryBuilder _libraryBuilder;
@@ -302,6 +323,11 @@ abstract class _LocalController with Store {
   @observable
   ObservableList<LocalMediaIndexItem> localLibraryItems =
       ObservableList<LocalMediaIndexItem>();
+
+  final ObservableList<LocalMediaIndexItem> cachedLocalLibraryItems =
+      ObservableList<LocalMediaIndexItem>();
+  final ObservableMap<String, bool> _cachedLocalSourceAvailability = ObservableMap();
+  final ObservableMap<String, String> _cachedLocalSourceNames = ObservableMap();
 
   final ObservableList<CloudMediaIndexItem> cloudLibraryItems =
       ObservableList<CloudMediaIndexItem>();

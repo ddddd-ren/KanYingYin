@@ -300,9 +300,11 @@ void main() {
       await repository.readStarted.future;
       await fixture.sourceRepository.delete(fixture.source.id);
       await controller.load();
+      expect(controller.cachedMediaLibrarySnapshot.series, isEmpty);
       repository.releaseRead.complete();
       await reload;
 
+      expect(controller.cachedMediaLibrarySnapshot.series, isEmpty);
       expect(controller.mediaLibrarySnapshot.series, isEmpty);
       expect(controller.mediaLibrarySnapshot.filters.map((filter) => filter.id),
           ['all']);

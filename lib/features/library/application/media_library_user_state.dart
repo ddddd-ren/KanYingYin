@@ -8,6 +8,8 @@ class MediaLibraryUserState {
     this.updatedAt,
     this.categoryOverride,
     this.genreOverride,
+    this.aiClassified = false,
+    this.aiClassificationIdentity,
   });
 
   static const int maxCollectionLength = 32;
@@ -22,6 +24,8 @@ class MediaLibraryUserState {
   final DateTime? updatedAt;
   final List<String>? categoryOverride;
   final List<String>? genreOverride;
+  final bool aiClassified;
+  final String? aiClassificationIdentity;
 
   bool get hasClassificationOverride =>
       categoryOverride != null || genreOverride != null;
@@ -30,7 +34,8 @@ class MediaLibraryUserState {
       !favorite &&
       !watchLater &&
       collections.isEmpty &&
-      !hasClassificationOverride;
+      !hasClassificationOverride &&
+      !aiClassified;
 
   MediaLibraryUserState copyWith({
     bool? favorite,
@@ -40,6 +45,8 @@ class MediaLibraryUserState {
     DateTime? updatedAt,
     Iterable<String>? categoryOverride,
     Iterable<String>? genreOverride,
+    bool? aiClassified,
+    String? aiClassificationIdentity,
     bool clearCategoryOverride = false,
     bool clearGenreOverride = false,
   }) {
@@ -64,6 +71,9 @@ class MediaLibraryUserState {
           : genreOverride == null
               ? this.genreOverride
               : _readOverride(genreOverride.toList()),
+      aiClassified: aiClassified ?? this.aiClassified,
+      aiClassificationIdentity:
+          aiClassificationIdentity ?? this.aiClassificationIdentity,
     );
   }
 
@@ -76,6 +86,9 @@ class MediaLibraryUserState {
           'categoryOverride': _readOverride(categoryOverride, categories: true),
         if (genreOverride != null)
           'genreOverride': _readOverride(genreOverride),
+        if (aiClassified) 'aiClassified': true,
+        if (aiClassified && aiClassificationIdentity != null)
+          'aiClassificationIdentity': aiClassificationIdentity,
         if (updatedAt != null)
           'updatedAtMillis': updatedAt!.millisecondsSinceEpoch,
       };
@@ -103,6 +116,8 @@ class MediaLibraryUserState {
       categoryOverride:
           _readOverride(json['categoryOverride'], categories: true),
       genreOverride: _readOverride(json['genreOverride']),
+      aiClassified: json['aiClassified'] == true,
+      aiClassificationIdentity: json['aiClassificationIdentity'] as String?,
     );
   }
 

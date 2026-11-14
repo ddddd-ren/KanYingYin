@@ -27,6 +27,111 @@ class VersionHistory {
 /// 区段拆分到 part 文件，展开顺序与原列表完全一致，不得重排。
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '2.1.240',
+    date: '2026-11-14',
+    isPrerelease: true,
+    changes: [
+      '新增我的片库，集中查看本地与网盘作品的收藏、待看和合集，支持搜索、来源筛选和排序',
+      '桌面侧栏增加我的片库入口；窄窗口可从媒体库工具栏打开，收藏后更容易找到作品',
+      '收藏、待看和合集独立保存，看完后继续保留待看标记，沿用现有详情、选集和播放方式',
+      '来源暂不可用时保留记录与可读资料，无法对应的记录可手动关联；不同来源的同名作品分别保留',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和图片文件',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.239',
+    date: '2026-11-14',
+    isPrerelease: true,
+    changes: [
+      '本地、网盘与分类页统一搜索，可用原始名称、TMDB 中文名和原名查找同一作品，无需重新扫描',
+      '扫描空态显示当前大小阈值，区分大小过滤、读取失败和没有媒体，并提供对应的恢复入口',
+      '设置首页新增备份与迁移入口，集中查看配置备份、用户记录和刮削资料迁移的范围与操作',
+      '备份导出先完成新文件再替换旧文件，写入失败时保留原有备份',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和图片文件',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.238',
+    date: '2026-11-14',
+    isPrerelease: true,
+    changes: [
+      '设置库无法打开时保留原文件，明确提示权限、占用或损坏；损坏恢复前先保存并核验可恢复副本',
+      '修复本地扫描与修改资料同时进行时可能覆盖结果的问题，保留人工匹配和封面选择',
+      '移除媒体来源后，旧的扫描和资料任务不再把记录写回媒体库',
+      '加强识别质量检查，减少错误匹配被当作正确结果的风险',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和图片文件',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.237',
+    date: '2026-11-14',
+    isPrerelease: true,
+    changes: [
+      '优化启动后的资源扫描，减少本地字幕目录的重复读取，后续扫描仍能发现新字幕',
+      '减少网盘扫描时的重复计算，连续更新资料时合并媒体库刷新，降低大量资源带来的卡顿',
+      '本地海报目录改为异步读取，扫描期间减少对界面操作的阻塞',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和图片文件',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.236',
+    date: '2026-11-14',
+    isPrerelease: true,
+    changes: [
+      'AI 识别与分类支持网盘自动流程：普通匹配失败后自动识别原始资料、搜索 TMDB 候选，校验通过后更新资料与分类',
+      '自动识别使用原始文件名、作品目录和代表文件，避免旧的错误匹配干扰识别；依据不足的候选保留待确认',
+      '修复仅填写服务根地址时无法连接 AI 的问题，连接测试会检查真实识别结果，网盘页面显示识别进度与失败原因',
+      '分类在资料更新后后台处理，人工分类优先；重新匹配后旧 AI 分类可自动纠正，全手动模式不自动分类',
+      '手动 AI 识别后自动搜索候选；保存新模型配置后，已失败和未匹配的网盘作品会重新进入识别流程',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和图片文件',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.235',
+    date: '2026-10-20',
+    isPrerelease: true,
+    changes: [
+      '我页新增 AI 识别与分类配置入口，本地和网盘 TMDB 匹配界面提供 AI 识别剧名操作',
+      'AI 识别结果只用于搜索 TMDB 候选，用户确认后才应用刮削结果',
+      '本地最多发送三张缩小画面；网盘使用文件资料和已有 TMDB 资料并提示未使用画面',
+      '高置信 AI 分类自动归类，低置信结果留待确认，人工分类优先保留',
+      '模型密钥保存于安全存储，不上传完整视频或网盘原文件',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和图片文件',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.234',
+    date: '2026-10-20',
+    isPrerelease: true,
+    changes: [
+      'TMDB 自动匹配不确定时，可配置兼容 OpenAI Chat Completions 的多模态模型，根据本地视频画面辅助识别剧名',
+      '支持自定义模型服务地址、模型名称和 API Key，模型密钥保存于安全存储并提供图像连通测试',
+      '最多抽取三张缩小画面用于识别；完整视频不会上传，模型失败时继续使用现有 TMDB 识别流程',
+      '可启用 AI 自动分类；模型结合 TMDB 资料判断电影、电视剧或动漫，本地媒体可附加缩小画面，高置信结果自动归类，低置信结果保留待确认',
+      'AI 分类不会覆盖已有人工分类，题材标签继续以 TMDB 刮削结果为准',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和图片文件',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.233',
+    date: '2026-10-20',
+    isPrerelease: true,
+    changes: [
+      'TMDB 自动匹配不确定时，可配置兼容 OpenAI Chat Completions 的多模态模型，根据本地视频画面辅助识别剧名',
+      '支持自定义模型服务地址、模型名称和 API Key，模型密钥保存于安全存储并提供图像连通测试',
+      '最多抽取三张缩小画面用于识别；完整视频不会上传，模型失败时继续使用现有 TMDB 识别流程',
+      '本轮仅交付 Windows 测试版 EXE；Android 手机同步版本配置，不构建 Android TV 安装包',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和图片文件',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.232',
     date: '2026-10-13',
     isPrerelease: true,
@@ -459,6 +564,111 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
+  if (currentVersion == '2.1.240' && platform == AppPlatformKind.android) {
+    return const [VersionHistory(version: '2.1.240', date: '2026-11-14', isPrerelease: true, changes: [
+      '本轮仅同步 Android 手机版本配置，不交付 Android 安装包',
+      '保留现有本地扫描、网盘浏览和播放器行为',
+      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和图片文件',
+    ])];
+  }
+  if (currentVersion == '2.1.239' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[
+      VersionHistory(
+        version: '2.1.239',
+        date: '2026-11-14',
+        isPrerelease: true,
+        changes: [
+          '本轮仅同步 Android 手机版本配置，不交付 Android 安装包',
+          '保留现有本地扫描、网盘浏览和播放器行为',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和图片文件',
+        ],
+      ),
+    ];
+  }
+  if (currentVersion == '2.1.238' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[
+      VersionHistory(
+        version: '2.1.238',
+        date: '2026-11-14',
+        isPrerelease: true,
+        changes: [
+          '本轮仅同步 Android 手机版本配置，不交付 Android 安装包',
+          '保留现有本地扫描、网盘浏览和播放器行为',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和图片文件',
+        ],
+      ),
+    ];
+  }
+  if (currentVersion == '2.1.237' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[
+      VersionHistory(
+        version: '2.1.237',
+        date: '2026-11-14',
+        isPrerelease: true,
+        changes: [
+          '本轮仅同步 Android 手机版本配置，不交付 Android 安装包',
+          '保留现有本地扫描、网盘浏览和播放器行为',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和图片文件',
+        ],
+      ),
+    ];
+  }
+  if (currentVersion == '2.1.236' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[
+      VersionHistory(
+        version: '2.1.236',
+        date: '2026-11-14',
+        isPrerelease: true,
+        changes: [
+          '本轮仅同步 Android 手机版本配置，不交付 Android 安装包；AI 自动识别流程随 Windows 测试版提供',
+          '保留现有本地扫描、网盘浏览和播放器行为',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和图片文件',
+        ],
+      ),
+    ];
+  }
+  if (currentVersion == '2.1.235' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[
+      VersionHistory(
+        version: '2.1.235',
+        date: '2026-10-20',
+        isPrerelease: true,
+        changes: [
+          '本轮仅同步 Android 手机版本配置，不交付 Android 安装包；AI 识别与分类随 Windows 测试版提供',
+          '保留现有本地扫描、网盘浏览和播放器行为',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和图片文件',
+        ],
+      ),
+    ];
+  }
+  if (currentVersion == '2.1.233' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[
+      VersionHistory(
+        version: '2.1.233',
+        date: '2026-10-20',
+        isPrerelease: true,
+        changes: [
+          '本轮仅同步 Android 手机版本配置，不交付 Android 安装包；画面辅助识别未纳入本次 Android 版本',
+          '保留现有本地扫描、网盘浏览和播放器行为',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和图片文件',
+        ],
+      ),
+    ];
+  }
+  if (currentVersion == '2.1.234' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[
+      VersionHistory(
+        version: '2.1.234',
+        date: '2026-10-20',
+        isPrerelease: true,
+        changes: [
+          '本轮仅同步 Android 手机版本配置，不交付 Android 安装包；多模态识别和 AI 分类未纳入本次 Android 版本',
+          '保留现有本地扫描、网盘浏览和播放器行为',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和图片文件',
+        ],
+      ),
+    ];
+  }
   if (currentVersion == '2.1.232' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[
       VersionHistory(

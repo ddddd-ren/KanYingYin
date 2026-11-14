@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/pages/tmdb_match_dialog.dart';
@@ -5,8 +6,106 @@ import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_vision_model_client.dart';
 
 void main() {
+  testWidgets('AI 等待期间的人工输入不会被旧结果覆盖', (tester) async {
+    final gate = Completer<TmdbVisionSuggestion?>();
+    var searches = 0;
+    await tester.pumpWidget(MaterialApp(
+        home: TmdbMatchDialog<void>(
+      title: 'TMDB 刮削',
+      safetyText: '不会修改媒体文件',
+      draft: const TmdbMatchDraft(
+          originalName: '原片名',
+          searchTitle: '原片名',
+          mediaTypeMode: TmdbMediaTypeMode.auto),
+      initialOptions: const TmdbScrapeOptions.defaults(),
+      onIdentify: () => gate.future,
+      onSearch: (_) async {
+        searches++;
+        return const TmdbPreparedSearchOutcome(
+            ranked: TmdbRankedResult(candidates: [], shouldAutoMatch: false));
+      },
+      onApply: (_, __) async {},
+    )));
+    await tester.tap(find.text('AI 识别剧名'));
+    await tester.pump();
+    final title = find.byKey(const ValueKey('tmdb-search-title'));
+    await tester.enterText(title, '人工新片名');
+    gate.complete(const TmdbVisionSuggestion(title: '旧建议', confidence: .9));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(title).controller?.text, '人工新片名');
+    expect(searches, 0);
+  });
+
+  testWidgets('共享对话框提供 AI 识别剧名入口并回填搜索资料', (tester) async {
+    var identifyCount = 0;
+    TmdbPreparedSearchRequest? request;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => FilledButton(
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (_) => TmdbMatchDialog<void>(
+                title: 'TMDB 刮削',
+                safetyText: '不会修改媒体文件',
+                draft: const TmdbMatchDraft(
+                  originalName: '未知作品',
+                  searchTitle: '未知作品',
+                  mediaTypeMode: TmdbMediaTypeMode.auto,
+                ),
+                initialOptions: const TmdbScrapeOptions.defaults(),
+                onIdentify: () async {
+                  identifyCount++;
+                  return const TmdbVisionSuggestion(
+                    title: 'AI 识别剧名',
+                    year: 2020,
+                    mediaType: 'tv',
+                    confidence: 0.9,
+                  );
+                },
+                onSearch: (value) async {
+                  request = value;
+                  return const TmdbPreparedSearchOutcome(
+                    ranked: TmdbRankedResult(
+                      candidates: <TmdbRankedCandidate>[],
+                      shouldAutoMatch: false,
+                    ),
+                  );
+                },
+                onApply: (_, __) async {},
+              ),
+            ),
+            child: const Text('打开'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('打开'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('AI 识别剧名'));
+    await tester.pumpAndSettle();
+    expect(identifyCount, 1);
+    expect(request?.queryTitle, 'AI 识别剧名');
+    expect(find.byKey(const ValueKey<String>('tmdb-search-title')),
+        findsOneWidget);
+    expect(
+      tester
+          .widget<TextField>(
+            find.byKey(const ValueKey<String>('tmdb-search-title')),
+          )
+          .controller
+          ?.text,
+      'AI 识别剧名',
+    );
+    expect(request?.queryTitle, 'AI 识别剧名');
+    expect(request?.queryYear, 2020);
+    expect(request?.mediaTypeMode, TmdbMediaTypeMode.tv);
+    expect(request?.skipVisionAssist, isTrue);
+  });
+
   testWidgets('共享对话框转发准备搜索参数并返回应用结果', (tester) async {
     TmdbPreparedSearchRequest? request;
     String? dialogResult;

@@ -42,13 +42,22 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
   @override
   @action
   Future<void> navigateTo(String path) async {
+    final requestId = ++_navigationRequestId;
     if (!Directory(path).existsSync()) {
-      errorMessage = '目录不存在: $path';
+      isLoading = false;
+      lastDirectoryScan = LocalScanResult(
+        currentPath: path,
+        items: const [],
+        skippedCount: 1,
+        sourceAccessible: false,
+        failedPaths: [path],
+        minSizeBytes: lastDirectoryScan?.minSizeBytes ?? 800 * 1024 * 1024,
+      );
+      errorMessage = '目录暂不可用，请连接磁盘后重试，或重新选择目录：$path';
       AppLogger().w('LocalController: directory not found: $path');
       return;
     }
 
-    final requestId = ++_navigationRequestId;
     errorMessage = null;
     isLoading = true;
     currentPath = path;
@@ -62,15 +71,35 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
         ascending: sortAscending,
       );
       if (requestId != _navigationRequestId) {
-        AppLogger().i(
-          'LocalController: ignored stale scan result from $path',
-        );
+        AppLogger().i('LocalController: ignored stale scan result from $path');
         return;
       }
-      items = ObservableList.of(
-        _mergeIndexedMetadata(_applySeriesTitleOverrides(result.items)),
+      final previousItems = lastDirectoryScan?.currentPath == path
+          ? items.toList()
+          : const <LocalFileItem>[];
+      lastDirectoryScan = result;
+      final scannedPaths = result.items.map((item) => item.path).toSet();
+      final retained = previousItems.where(
+        (item) =>
+            !scannedPaths.contains(item.path) &&
+            result.failedPaths.any(
+              (failed) =>
+                  p.equals(failed, item.path) || p.isWithin(failed, item.path),
+            ),
       );
-      await _tryUpdateMediaSourceScanSummary(path, result);
+      items = ObservableList.of(
+        _mergeIndexedMetadata(
+          _applySeriesTitleOverrides([...result.items, ...retained]),
+        ),
+      );
+      if (result.failedPaths.isNotEmpty) {
+        errorMessage = result.sourceAccessible
+            ? '${result.failedPaths.length} 项读取失败，已保留可用内容；请检查目录权限后重试'
+            : '目录暂不可用，已保留原有资料；请连接磁盘或重新选择目录';
+      }
+      if (result.failedPaths.isEmpty) {
+        await _tryUpdateMediaSourceScanSummary(path, result);
+      }
       AppLogger().i(
         'LocalController: loaded ${items.length} items from $path, skipped ${result.skippedCount}',
       );
@@ -244,7 +273,7 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
 
       final cover = coversByLocationId[item.location.stableId] ??
           (item.location.isFile
-              ? LocalCoverFinder().findVideoCover(item.path)
+              ? await LocalCoverFinder().findVideoCover(item.path)
               : null);
       if (cover == null || cover.isEmpty || cover == indexed.cover) {
         continue;
@@ -257,7 +286,8 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
       )) {
         return;
       }
-      await _mediaIndexRepository.updateItem(indexed.copyWith(cover: cover));
+      await _mediaIndexRepository.patchItem(
+          indexed, indexed.copyWith(cover: cover));
       if (!_isCurrentPosterRequest(
         posterRequestId,
         posterPath,
@@ -292,6 +322,7 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
     mediaInfoTotal = videoItems.length;
     mediaInfoCurrentFile = '';
     final indexUpdates = <String, LocalMediaIndexItem>{};
+    final indexOriginals = <String, LocalMediaIndexItem>{};
     try {
       final result = await _metadataCoordinator.probeMediaInfo(
         videoItems,
@@ -313,6 +344,7 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
           );
           final indexed = _mediaIndexRepository.getByPath(update.item.path);
           if (indexed != null) {
+            indexOriginals[indexed.id] = indexed;
             indexUpdates[indexed.id] = indexed.copyWith(
               durationMillis: update.info.duration?.inMilliseconds ??
                   indexed.durationMillis,
@@ -324,7 +356,8 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
         },
       );
       if (indexUpdates.isNotEmpty) {
-        await _mediaIndexRepository.updateItems(indexUpdates);
+        await _mediaIndexRepository.patchItems(indexUpdates,
+            originals: indexOriginals);
         _reloadLocalLibraryIndexSafe();
       }
       return result.updated;
@@ -381,7 +414,7 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
 
   Future<bool> setRootDirectory(String path) async {
     if (!Directory(path).existsSync()) {
-      errorMessage = '目录不存在: $path';
+      errorMessage = '目录暂不可用，请连接磁盘后重试，或重新选择目录：$path';
       AppLogger().w('LocalController: root directory not found: $path');
       return false;
     }
@@ -463,9 +496,14 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
         legacyTitlesByMediaId: localLegacySeriesTitlesByMediaId,
       );
 
-  Map<String, String> get localSourceTitlesByMediaId {
+  Map<String, String> get localSourceTitlesByMediaId =>
+      _sourceTitlesFor(localLibraryItems);
+
+  Map<String, String> _sourceTitlesFor(
+      Iterable<LocalMediaIndexItem> indexedItems) {
     return {
-      for (final group in _localSourceGroups(applyTitleOverrides: true))
+      for (final group
+          in _localSourceGroups(indexedItems, applyTitleOverrides: true))
         for (final item in group.episodes)
           (item.location.isFile
               ? LocalMediaIndexItem.normalizePath(item.path)
@@ -473,18 +511,23 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
     };
   }
 
-  Map<String, List<String>> get localLegacySeriesTitlesByMediaId {
-    final indexedById = {for (final item in localLibraryItems) item.id: item};
-    final sourceTitles = localSourceTitlesByMediaId;
+  Map<String, List<String>> get localLegacySeriesTitlesByMediaId =>
+      _legacyTitlesFor(localLibraryItems);
+
+  Map<String, List<String>> _legacyTitlesFor(
+      Iterable<LocalMediaIndexItem> indexedItems) {
+    final indexedById = {for (final item in indexedItems) item.id: item};
+    final sourceTitles = _sourceTitlesFor(indexedItems);
     final oldTitles = {
-      for (final group in _libraryBuilder.buildSeries(localLibraryItems))
+      for (final group in _libraryBuilder.buildSeries(indexedItems))
         for (final item in group.episodes) item.id: group.title,
     };
     final candidatesById = <String, Set<String>>{};
     final owners = <String, Set<String>>{};
     String aliasKey(LocalMediaIndexItem item, String title) =>
         '${item.parentLocation.stableId}|${Uri.encodeComponent(title.toLowerCase())}';
-    for (final group in _localSourceGroups(applyTitleOverrides: false)) {
+    for (final group
+        in _localSourceGroups(indexedItems, applyTitleOverrides: false)) {
       for (final file in group.episodes) {
         final id = file.location.isFile
             ? LocalMediaIndexItem.normalizePath(file.path)
@@ -516,12 +559,13 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
     };
   }
 
-  Iterable<LocalVideoGroup> _localSourceGroups({
+  Iterable<LocalVideoGroup> _localSourceGroups(
+    Iterable<LocalMediaIndexItem> indexedItems, {
     required bool applyTitleOverrides,
   }) {
     final parser = LocalEpisodeParser();
     final byDirectory = <String, List<LocalFileItem>>{};
-    for (final item in localLibraryItems) {
+    for (final item in indexedItems) {
       byDirectory.putIfAbsent(item.parentLocation.stableId, () => []).add(
             LocalFileItem(
               location: item.location,
@@ -552,6 +596,18 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
         cloudSources: const <CloudSource>[],
       );
 
+  CloudMediaLibrary get cachedLocalMediaLibrary {
+    return const CloudMediaLibraryAggregator().build(
+      localItems: cachedLocalLibraryItems,
+      localSourceTitlesByMediaId: _sourceTitlesFor(cachedLocalLibraryItems),
+      localLegacyTitlesByMediaId: _legacyTitlesFor(cachedLocalLibraryItems),
+      localSourceAvailability: _cachedLocalSourceAvailability,
+      localSourceNames: _cachedLocalSourceNames,
+      cloudItems: const [],
+      cloudSources: const [],
+    );
+  }
+
   CloudMediaLibrary get combinedMediaLibrary =>
       const CloudMediaLibraryAggregator().build(
         localItems: localLibraryItems,
@@ -577,10 +633,13 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
             await _cloudMediaIndexRepository.getBySource(source.id);
         items.addAll(
           sourceItems.where(
-            (item) => CloudSourcePathScope.containsSourcePath(
-              source,
-              item.remotePath,
-            ),
+            (item) =>
+                CloudSourcePathScope.containsSourcePath(
+                  source,
+                  item.remotePath,
+                ) &&
+                LocalVideoFileTypes.isRecognizedVideoSize(item.size,
+                    minSizeBytes: _cloudMinSizeBytesProvider?.call() ?? 0),
           ),
         );
       }
@@ -709,12 +768,7 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
       return const <String, int>{};
     }
 
-    final availableSources = mediaSources
-        .where(
-          (source) =>
-              source.location.isDocument || isMediaSourceAvailable(source),
-        )
-        .toList(growable: false);
+    final availableSources = mediaSources.toList(growable: false);
     if (availableSources.isEmpty) {
       libraryIndexSummary = '没有可扫描的媒体源';
       return const <String, int>{
@@ -746,6 +800,7 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
     var reusedCount = 0;
     var removedCount = 0;
     var skippedCount = 0;
+    var filteredBySizeCount = 0;
     var scanCancelled = false;
 
     try {
@@ -802,6 +857,7 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
         reusedCount += result.reusedCount;
         removedCount += result.removedCount;
         skippedCount += result.skippedCount;
+        filteredBySizeCount += result.filteredBySizeCount;
         libraryIndexFailures.addAll(result.failures);
         libraryIndexChanges.addAll(result.changes);
         if (result.cancelled || cancelLibraryIndexRequested) {
@@ -843,11 +899,13 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
             ? ''
             : '，${libraryIndexFailures.length} 项需要处理';
         libraryIndexSummary =
-            '媒体库已更新：$totalCount 个视频，$localLibrarySeriesCount 个系列$failureText';
+            '媒体库已更新：$totalCount 个视频，$filteredBySizeCount 个因大小过滤，$localLibrarySeriesCount 个系列$failureText${totalCount == 0 && filteredBySizeCount == 0 && libraryIndexFailures.isEmpty ? '，未发现视频文件' : ''}';
         _autoScrapeTmdbAfterScan();
       }
     } catch (e, stackTrace) {
-      libraryIndexSummary = '媒体库索引失败';
+      libraryIndexSummary = '媒体库索引失败，已保留原有资料，请重试';
+      libraryIndexFailures.add(LocalMediaIndexFailure(
+          path: currentPath, message: '索引读取或保存失败，请检查目录和磁盘后重试'));
       AppLogger().w(
         'LocalController: failed to refresh local library index',
         error: e,
@@ -875,6 +933,7 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
       'reused': reusedCount,
       'removed': removedCount,
       'skipped': skippedCount,
+      'filteredBySize': filteredBySizeCount,
       'failed': libraryIndexFailures.length,
       'changes': libraryIndexChanges.length,
       'cancelled': scanCancelled ? 1 : 0,
@@ -914,6 +973,9 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
       }
     }
     if (unmatched.isEmpty) {
+      if (_tmdbApiKey.isNotEmpty) {
+        await _autoClassifyMatchedSeries();
+      }
       tmdbScrapeProgress = '所有系列已完成 TMDB 刮削';
       return 0;
     }
@@ -941,6 +1003,7 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
         );
         if (result.status == TmdbScrapeStatus.matched) matched++;
       }
+      await _autoClassifyMatchedSeries();
       _reloadLocalLibraryIndexSafe();
       tmdbScrapeProgress =
           matched > 0 ? '已完成 $matched 个系列的 TMDB 刮削' : '没有可自动匹配的 TMDB 信息';
@@ -952,6 +1015,17 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
     }
 
     return matched;
+  }
+
+  Future<void> _autoClassifyMatchedSeries() async {
+    final names = localLibraryItems
+        .where((item) => item.tmdb != null)
+        .map((item) => item.seriesName.trim())
+        .where((name) => name.isNotEmpty)
+        .toSet();
+    for (final name in names) {
+      await _tmdbScrapeService.classifyExistingSeries(seriesName: name);
+    }
   }
 
   Future<TmdbScrapeResult> scrapeSeriesWithTmdb(
@@ -966,6 +1040,7 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
       options: options ?? tmdbScrapeOptions,
     );
     _reloadLocalLibraryIndexSafe();
+    await _tmdbScrapeService.classifyExistingSeries(seriesName: seriesName);
     return result;
   }
 
@@ -1183,6 +1258,9 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
     );
   }
 
+  Future<TmdbVisionSuggestion?> identifyLocalTmdb(String seriesName) =>
+      _tmdbScrapeService.identifySeries(seriesName);
+
   Future<TmdbPreparedSearchOutcome> searchLocalTmdbItem(
     String itemId,
     TmdbPreparedSearchRequest request,
@@ -1206,6 +1284,15 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
       options: options ?? tmdbScrapeOptions,
     );
     _reloadLocalLibraryIndexSafe();
+    final item = _mediaIndexRepository
+        .getAll()
+        .where((value) => value.id == itemId)
+        .firstOrNull;
+    if (item != null) {
+      await _tmdbScrapeService.classifyExistingSeries(
+        seriesName: item.seriesName,
+      );
+    }
     return result;
   }
 
@@ -1407,7 +1494,7 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
       manualOverride: true,
       indexedAt: DateTime.now(),
     );
-    await _mediaIndexRepository.updateItem(updated);
+    await _mediaIndexRepository.patchItem(item, updated);
     _reloadLocalLibraryIndexSafe();
   }
 
@@ -1433,11 +1520,13 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
     }));
     for (final item in _mediaIndexRepository.getAll()) {
       if (!ids.contains(item.id)) continue;
-      await _mediaIndexRepository.updateItem(item.copyWith(
-        seriesName: normalizedTitle,
-        manualOverride: true,
-        indexedAt: DateTime.now(),
-      ));
+      await _mediaIndexRepository.patchItem(
+          item,
+          item.copyWith(
+            seriesName: normalizedTitle,
+            manualOverride: true,
+            indexedAt: DateTime.now(),
+          ));
     }
     _reloadLocalLibraryIndexSafe();
     return true;
@@ -1731,7 +1820,40 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
 
   void _reloadLocalLibraryIndexSafe({bool requireExistingFiles = false}) {
     try {
-      final indexedItems = _mediaIndexRepository.getAll();
+      final threshold = _localMinSizeBytesProvider?.call() ?? 0;
+      final cached = _mediaIndexRepository.getAll();
+      final sources = {
+        for (final source in _mediaSourceRepository.getAll()) source.id: source
+      };
+      final availability = <String, bool>{};
+      for (final item in cached) {
+        availability.putIfAbsent(item.sourceLocation.stableId, () {
+          final source = sources[item.sourceLocation.stableId];
+          if (source != null) {
+            return source.enabled && isMediaSourceAvailable(source);
+          }
+          return item.sourceLocation.isDocument ||
+              Directory(item.sourcePath).existsSync();
+        });
+      }
+      _cachedLocalSourceAvailability
+        ..clear()
+        ..addAll(availability);
+      _cachedLocalSourceNames
+        ..clear()
+        ..addAll(
+            {for (final entry in sources.entries) entry.key: entry.value.name});
+      if (cached.length != cachedLocalLibraryItems.length ||
+          cached.asMap().entries.any((entry) =>
+              !identical(entry.value, cachedLocalLibraryItems[entry.key]))) {
+        cachedLocalLibraryItems
+          ..clear()
+          ..addAll(cached);
+      }
+      final indexedItems = cached
+          .where((item) => LocalVideoFileTypes.isRecognizedVideoSize(item.size,
+              minSizeBytes: threshold))
+          .toList(growable: false);
       final nextItems = requireExistingFiles
           ? indexedItems
               .where(

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
 import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
@@ -50,11 +51,13 @@ class CloudWorkTmdbService {
     CloudPosterCache? posterCache,
     DateTime Function()? now,
     TmdbScrapeEngine? engine,
+    TmdbAiIdentify? identify,
     TmdbScrapeCache? cache,
   })  : _repository = repository,
         _indexRepository = indexRepository,
         _client = client,
-        _engine = engine ?? TmdbScrapeEngine(client: client, cache: cache),
+        _engine = engine ??
+            TmdbScrapeEngine(client: client, cache: cache, identify: identify),
         _posterCache = posterCache,
         _now = now ?? DateTime.now;
 
@@ -134,22 +137,32 @@ class CloudWorkTmdbService {
   Future<CloudWorkTmdbOutcome> match(
     CloudWorkIdentity work, {
     CloudWorkTmdbRecord? record,
+    bool Function()? isCurrent,
     TmdbScrapeOptions options = const TmdbScrapeOptions.defaults(),
   }) async {
     final existing = record ?? await _repository.get(work.workKey);
+    void checkCurrent(CloudWorkTmdbRecord? current) {
+      if (isCurrent?.call() == false ||
+          jsonEncode(current?.toJson()) != jsonEncode(existing?.toJson())) {
+        throw const TmdbAutomaticMatchCancelled();
+      }
+    }
+
     final subject = const CloudTmdbSubjectBuilder().forWork(
       work,
       record: existing,
     );
     final search = await _engine.search(subject, options);
+    checkCurrent(await _repository.get(work.workKey));
     final ranked = search.ranked;
     if (ranked.candidates.isEmpty) {
       if (existing?.status == CloudWorkTmdbStatus.matched ||
           existing?.status == CloudWorkTmdbStatus.conflict) {
         return const CloudWorkTmdbOutcome(candidates: <TmdbMetadata>[]);
       }
-      await _repository.upsert(
-        CloudWorkTmdbRecord.unmatched(
+      await _repository.update(work.workKey, (current) {
+        checkCurrent(current);
+        return CloudWorkTmdbRecord.unmatched(
           sourceId: work.sourceId,
           workKey: work.workKey,
           workRootId: work.root.id,
@@ -158,8 +171,8 @@ class CloudWorkTmdbService {
           checkedAt: _now(),
           scrapeTitleOverride: record?.scrapeTitleOverride,
           tmdbRuleVersion: currentTmdbRuleVersion,
-        ),
-      );
+        );
+      });
       return const CloudWorkTmdbOutcome(candidates: <TmdbMetadata>[]);
     }
     final candidates = ranked.candidates
@@ -170,8 +183,12 @@ class CloudWorkTmdbService {
     }
     final best = ranked.best!;
     if (existing?.metadata != null &&
-        existing!.metadata!.id != best.metadata.id) {
-      await _repository.upsert(existing.asConflict(_now()));
+        (existing!.metadata!.id != best.metadata.id ||
+            existing.metadata!.mediaType != best.metadata.mediaType)) {
+      await _repository.update(work.workKey, (current) {
+        checkCurrent(current);
+        return existing.asConflict(_now());
+      });
       return CloudWorkTmdbOutcome(candidates: candidates);
     }
     final selected = await _select(
@@ -182,6 +199,7 @@ class CloudWorkTmdbService {
       options: options,
       origin: TmdbMatchOrigin.automatic,
       existing: existing,
+      checkCurrent: checkCurrent,
     );
     return CloudWorkTmdbOutcome(
       candidates: candidates,
@@ -338,6 +356,7 @@ class CloudWorkTmdbService {
     required TmdbScrapeOptions options,
     required TmdbMatchOrigin origin,
     CloudWorkTmdbRecord? existing,
+    void Function(CloudWorkTmdbRecord?)? checkCurrent,
   }) async {
     final previous = existing ?? await _repository.get(work.workKey);
     final subject = const CloudTmdbSubjectBuilder().forWork(
@@ -444,7 +463,10 @@ class CloudWorkTmdbService {
       tmdbMatchOrigin: origin,
       tmdbRuleVersion: currentTmdbRuleVersion,
     );
-    await _repository.upsert(record);
+    await _repository.update(work.workKey, (current) {
+      checkCurrent?.call(current);
+      return record;
+    });
 
     var updatedIndexItems = 0;
     var indexSynced = true;

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:kanyingyin/features/scraped_metadata_transfer/application/scraped_metadata_archive_codec.dart';
@@ -25,12 +26,15 @@ typedef TransferNetworkImageInstaller = Future<void> Function({
 });
 
 final class ScrapedMetadataImportException implements Exception {
-  const ScrapedMetadataImportException(this.cause);
+  const ScrapedMetadataImportException(this.cause, {this.originalRestored = true});
 
   final Object cause;
+  final bool originalRestored;
 
   @override
-  String toString() => '刮削资料导入失败，原有资料已恢复：$cause';
+  String toString() => originalRestored
+      ? '刮削资料导入失败，原有资料已恢复：$cause'
+      : '刮削资料导入失败，自动恢复未完整完成，已保留导入图片，请检查当前资料后重试';
 }
 
 final class ScrapedMetadataImporter {
@@ -41,10 +45,12 @@ final class ScrapedMetadataImporter {
     required CloudSeriesMatchRuleRepository ruleRepository,
     TransferCacheRootProvider? cacheRootProvider,
     TransferNetworkImageInstaller? networkImageInstaller,
+    Future<void> Function(ScrapedMetadataImportPlan)? validateCloudTargets,
   })  : _localIndexRepository = localIndexRepository,
         _resourceRepository = resourceRepository,
         _workRepository = workRepository,
         _ruleRepository = ruleRepository,
+        _validateCloudTargets = validateCloudTargets,
         _cacheRootProvider = cacheRootProvider ?? _defaultCacheRoot,
         _networkImageInstaller =
             networkImageInstaller ?? _defaultNetworkImageInstaller;
@@ -55,6 +61,7 @@ final class ScrapedMetadataImporter {
   final CloudSeriesMatchRuleRepository _ruleRepository;
   final TransferCacheRootProvider _cacheRootProvider;
   final TransferNetworkImageInstaller _networkImageInstaller;
+  final Future<void> Function(ScrapedMetadataImportPlan)? _validateCloudTargets;
 
   Future<ScrapedMetadataTransferResult> apply(
     ScrapedMetadataImportPlan plan,
@@ -66,27 +73,37 @@ final class ScrapedMetadataImporter {
     final installedImages = <String, String>{};
     final createdImages = <File>[];
     final originalLocal = <String, LocalMediaIndexItem>{};
-    final originalResources = await _resourceRepository.getAll();
-    final originalWorks = await _workRepository.getAll();
-    final originalRules = await _ruleRepository.getAll();
-    var localCommitted = false;
-    var resourcesCommitted = false;
-    var worksCommitted = false;
-    var rulesCommitted = false;
+    final localUpdates = <String, LocalMediaIndexItem>{};
+    final originalResources = {
+      for (final record in await _resourceRepository.getAll()) record.stableKey: record,
+    };
+    final originalWorks = {
+      for (final record in await _workRepository.getAll()) record.workKey: record,
+    };
+    final originalRules = {
+      for (final rule in await _ruleRepository.getAll()) rule.stableKey: rule,
+    };
+    final resourceUpdates = <String, CloudResourceTmdbRecord>{};
+    final workUpdates = <String, CloudWorkTmdbRecord>{};
+    final ruleUpdates = <String, CloudSeriesMatchRule>{};
+    var localTouched = false;
+    var resourcesTouched = false;
+    var worksTouched = false;
+    var rulesTouched = false;
 
     try {
       await cacheDirectory.create(recursive: true);
       for (final entry in archive.imageFiles.entries) {
         final target = File(p.join(cacheDirectory.path, p.basename(entry.key)));
         if (!await target.exists()) {
-          await entry.value.copy(target.path);
           createdImages.add(target);
+          await entry.value.copy(target.path);
         }
         installedImages[entry.key] = target.path;
       }
       await _installNetworkImages(plan, installedImages);
+      await _validateCloudTargets?.call(plan);
 
-      final localUpdates = <String, LocalMediaIndexItem>{};
       for (final match in plan.localMatches) {
         final current =
             _localIndexRepository.getByLocation(match.target.location);
@@ -119,12 +136,9 @@ final class ScrapedMetadataImporter {
               current.cover,
         );
       }
-      await _localIndexRepository.updateItems(localUpdates);
-      localCommitted = true;
+      localTouched = true;
+      await _localIndexRepository.patchItems(localUpdates, originals: originalLocal);
 
-      final nextResources = <String, CloudResourceTmdbRecord>{
-        for (final record in originalResources) record.stableKey: record,
-      };
       for (final match in plan.cloudResourceMatches) {
         final portable = CloudResourceTmdbRecord.fromJson(
           match.portable.record,
@@ -143,14 +157,12 @@ final class ScrapedMetadataImporter {
             installedImages,
           ),
         );
-        nextResources[rebound.stableKey] = rebound;
+        resourceUpdates[rebound.stableKey] = rebound;
       }
-      await _resourceRepository.replaceAll(nextResources.values);
-      resourcesCommitted = true;
+      resourcesTouched = true;
+      await _resourceRepository.patchRecords(resourceUpdates,
+          originals: {for (final key in resourceUpdates.keys) key: originalResources[key]});
 
-      final nextWorks = <String, CloudWorkTmdbRecord>{
-        for (final record in originalWorks) record.workKey: record,
-      };
       for (final match in plan.cloudWorkMatches) {
         final portable = CloudWorkTmdbRecord.fromJson(match.portable.record);
         final metadata = portable.metadata;
@@ -170,14 +182,12 @@ final class ScrapedMetadataImporter {
             installedImages,
           ),
         );
-        nextWorks[rebound.workKey] = rebound;
+        workUpdates[rebound.workKey] = rebound;
       }
-      await _workRepository.replaceAll(nextWorks.values);
-      worksCommitted = true;
+      worksTouched = true;
+      await _workRepository.patchRecords(workUpdates,
+          originals: {for (final key in workUpdates.keys) key: originalWorks[key]});
 
-      final nextRules = <String, CloudSeriesMatchRule>{
-        for (final rule in originalRules) rule.stableKey: rule,
-      };
       for (final match in plan.cloudSeriesRuleMatches) {
         final portable = CloudSeriesMatchRule.fromJson(match.portable.record);
         final rebound = portable.rebindForTransfer(
@@ -193,31 +203,36 @@ final class ScrapedMetadataImporter {
             installedImages,
           ),
         );
-        nextRules[rebound.stableKey] = rebound;
+        ruleUpdates[rebound.stableKey] = rebound;
       }
-      await _ruleRepository.replaceAll(nextRules.values);
-      rulesCommitted = true;
+      rulesTouched = true;
+      await _ruleRepository.patchRecords(ruleUpdates,
+          originals: {for (final key in ruleUpdates.keys) key: originalRules[key]});
 
       return ScrapedMetadataTransferResult(
         localCount: localUpdates.length,
-        cloudCount: plan.cloudResourceMatches.length +
-            plan.cloudWorkMatches.length +
-            plan.cloudSeriesRuleMatches.length,
+        cloudCount: resourceUpdates.length + workUpdates.length + ruleUpdates.length,
         imageCount: installedImages.length,
         skippedCount: plan.missingMediaCount,
       );
     } on Object catch (error, stackTrace) {
-      await _rollback(
+      final originalRestored = await _rollback(
         originalLocal: originalLocal,
+        localUpdates: localUpdates,
         originalResources: originalResources,
         originalWorks: originalWorks,
         originalRules: originalRules,
-        localCommitted: localCommitted,
-        resourcesCommitted: resourcesCommitted,
-        worksCommitted: worksCommitted,
-        rulesCommitted: rulesCommitted,
+        resourceUpdates: resourceUpdates,
+        workUpdates: workUpdates,
+        ruleUpdates: ruleUpdates,
+        localTouched: localTouched,
+        resourcesTouched: resourcesTouched,
+        worksTouched: worksTouched,
+        rulesTouched: rulesTouched,
       );
-      for (final image in createdImages.reversed) {
+      // 尝试写入后，新图片可能已被并发编辑引用，失败时保留缓存以免误删。
+      final retainImages = localTouched || resourcesTouched || worksTouched || rulesTouched;
+      for (final image in retainImages ? <File>[] : createdImages.reversed) {
         try {
           if (await image.exists()) await image.delete();
         } on Object catch (cleanupError, cleanupStackTrace) {
@@ -229,23 +244,29 @@ final class ScrapedMetadataImporter {
         }
       }
       AppLogger().w(
-        'ScrapedMetadataImporter: import rolled back',
+        'ScrapedMetadataImporter: import failed, restored=$originalRestored, '
+        '保留可能已被引用的图片缓存=$retainImages',
         error: error,
         stackTrace: stackTrace,
       );
-      throw ScrapedMetadataImportException(error);
+      throw ScrapedMetadataImportException(error,
+          originalRestored: originalRestored);
     }
   }
 
-  Future<void> _rollback({
+  Future<bool> _rollback({
     required Map<String, LocalMediaIndexItem> originalLocal,
-    required List<CloudResourceTmdbRecord> originalResources,
-    required List<CloudWorkTmdbRecord> originalWorks,
-    required List<CloudSeriesMatchRule> originalRules,
-    required bool localCommitted,
-    required bool resourcesCommitted,
-    required bool worksCommitted,
-    required bool rulesCommitted,
+    required Map<String, LocalMediaIndexItem> localUpdates,
+    required Map<String, CloudResourceTmdbRecord> originalResources,
+    required Map<String, CloudWorkTmdbRecord> originalWorks,
+    required Map<String, CloudSeriesMatchRule> originalRules,
+    required Map<String, CloudResourceTmdbRecord> resourceUpdates,
+    required Map<String, CloudWorkTmdbRecord> workUpdates,
+    required Map<String, CloudSeriesMatchRule> ruleUpdates,
+    required bool localTouched,
+    required bool resourcesTouched,
+    required bool worksTouched,
+    required bool rulesTouched,
   }) async {
     final failures = <Object>[];
 
@@ -257,17 +278,40 @@ final class ScrapedMetadataImporter {
       }
     }
 
-    if (rulesCommitted) {
-      await restore(() => _ruleRepository.replaceAll(originalRules));
+    Future<void> restoreCloud(Future<Set<String>> Function() operation) =>
+        restore(() async {
+          if ((await operation()).isNotEmpty) {
+            throw StateError('导入期间资料已被修改，已保留并发修改');
+          }
+        });
+
+    if (rulesTouched) {
+      await restoreCloud(() => _ruleRepository.patchRecords(
+          {for (final key in ruleUpdates.keys) key: originalRules[key]},
+          originals: ruleUpdates, skipConflicts: true));
     }
-    if (worksCommitted) {
-      await restore(() => _workRepository.replaceAll(originalWorks));
+    if (worksTouched) {
+      await restoreCloud(() => _workRepository.patchRecords(
+          {for (final key in workUpdates.keys) key: originalWorks[key]},
+          originals: workUpdates, skipConflicts: true));
     }
-    if (resourcesCommitted) {
-      await restore(() => _resourceRepository.replaceAll(originalResources));
+    if (resourcesTouched) {
+      await restoreCloud(() => _resourceRepository.patchRecords(
+          {for (final key in resourceUpdates.keys) key: originalResources[key]},
+          originals: resourceUpdates, skipConflicts: true));
     }
-    if (localCommitted) {
-      await restore(() => _localIndexRepository.updateItems(originalLocal));
+    if (localTouched) {
+      await restore(() async {
+        await _localIndexRepository.patchItems(originalLocal, originals: localUpdates);
+        for (final original in originalLocal.values) {
+          final current = _localIndexRepository.getByLocation(original.location);
+          final before = original.toJson()..remove('indexedAtMillis');
+          final actual = current?.toJson()?..remove('indexedAtMillis');
+          if (jsonEncode(before) != jsonEncode(actual)) {
+            throw StateError('本地资料已有并发修改或目标已删除，未强制覆盖恢复');
+          }
+        }
+      });
     }
     if (failures.isNotEmpty) {
       AppLogger().e(
@@ -275,6 +319,7 @@ final class ScrapedMetadataImporter {
         error: failures,
       );
     }
+    return failures.isEmpty;
   }
 
   Future<void> _installNetworkImages(

@@ -9,8 +9,135 @@ import 'package:kanyingyin/services/tmdb/tmdb_client_capabilities.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_vision_model_client.dart';
 
 void main() {
+  test('低置信度本地结果由画面识别标题后重新查询 TMDB', () async {
+    final item = _item(
+      'unknown S01E01.mkv',
+      seasonNumber: 1,
+      seriesName: '错名',
+    ).copyWith(
+      episodeNumber: 1,
+    );
+    final index = _MemoryIndexRepository(<LocalMediaIndexItem>[item]);
+    var assistCalls = 0;
+    final service = LocalTmdbScrapeService(
+      indexRepository: index,
+      metadataRepository: _MemoryMetadataRepository(),
+      clientFactory: (_) => _FakeClient(),
+      posterDownloader: _successfulDownload,
+      visionSearchAssist: (seriesName, items) async {
+        assistCalls++;
+        expect(seriesName, '错名');
+        expect(items, contains(item));
+        return const TmdbVisionSuggestion(
+          title: '流浪地球',
+          confidence: 0.95,
+          year: 2019,
+          mediaType: 'tv',
+        );
+      },
+    );
+
+    final result = await service.scrapeItem(
+      apiKey: 'configured-key',
+      itemId: item.id,
+      options: const TmdbScrapeOptions.defaults().copyWith(
+        mediaTypeMode: TmdbMediaTypeMode.tv,
+      ),
+    );
+
+    expect(assistCalls, 1);
+    expect(result.status, TmdbScrapeStatus.matched);
+    expect(result.metadata?.title, '流浪地球');
+  });
+
+  test('画面识别不可用时保留原 TMDB 待确认结果', () async {
+    final item = _item('unknown S01E01.mkv', seasonNumber: 1).copyWith(
+      episodeNumber: 1,
+    );
+    final index = _MemoryIndexRepository(<LocalMediaIndexItem>[item]);
+    final service = LocalTmdbScrapeService(
+      indexRepository: index,
+      metadataRepository: _MemoryMetadataRepository(),
+      clientFactory: (_) => _EmptyClient(),
+      posterDownloader: _successfulDownload,
+      visionSearchAssist: (_, __) async => null,
+    );
+
+    final outcome = await service.searchItemPrepared(
+      apiKey: 'configured-key',
+      itemId: item.id,
+      request: const TmdbPreparedSearchRequest(
+        queryTitle: 'unknown',
+        mediaTypeMode: TmdbMediaTypeMode.tv,
+        options: TmdbScrapeOptions.defaults(),
+      ),
+    );
+
+    expect(outcome.ranked.candidates, isEmpty);
+    expect(outcome.ranked.shouldAutoMatch, isFalse);
+  });
+
+  test('显式 AI 识别后的准备搜索不会重复调用模型', () async {
+    final item = _item('unknown S01E01.mkv', seasonNumber: 1).copyWith(
+      episodeNumber: 1,
+    );
+    var assistCalls = 0;
+    final service = LocalTmdbScrapeService(
+      indexRepository: _MemoryIndexRepository(<LocalMediaIndexItem>[item]),
+      metadataRepository: _MemoryMetadataRepository(),
+      clientFactory: (_) => _EmptyClient(),
+      posterDownloader: _successfulDownload,
+      visionSearchAssist: (_, __) async {
+        assistCalls++;
+        return const TmdbVisionSuggestion(
+          title: '不应再次调用',
+          confidence: 0.95,
+        );
+      },
+    );
+
+    await service.searchItemPrepared(
+      apiKey: 'configured-key',
+      itemId: item.id,
+      request: const TmdbPreparedSearchRequest(
+        queryTitle: '显式识别结果',
+        mediaTypeMode: TmdbMediaTypeMode.tv,
+        options: TmdbScrapeOptions.defaults(),
+        skipVisionAssist: true,
+      ),
+    );
+    expect(assistCalls, 0);
+  });
+
+  test('TMDB 刮削成功后触发 AI 分类回调', () async {
+    final item = _item('流浪地球.mkv');
+    final index = _MemoryIndexRepository(<LocalMediaIndexItem>[item]);
+    var calls = 0;
+    final service = LocalTmdbScrapeService(
+      indexRepository: index,
+      metadataRepository: _MemoryMetadataRepository(),
+      clientFactory: (_) => _FakeClient(),
+      posterDownloader: _successfulDownload,
+      visionClassificationApply: (seriesName, items, metadata) async {
+        calls++;
+        expect(seriesName, '流浪地球');
+        expect(items, contains(item));
+        expect(metadata.title, '流浪地球');
+      },
+    );
+
+    final result = await service.scrapeSeries(
+      apiKey: 'configured-key',
+      seriesName: '流浪地球',
+    );
+
+    expect(result.status, TmdbScrapeStatus.matched);
+    expect(calls, 1);
+  });
+
   test('本地准备搜索返回候选但不修改索引', () async {
     final original = _item('Season 2/a.mkv', seasonNumber: 2);
     final index = _MemoryIndexRepository(<LocalMediaIndexItem>[original]);

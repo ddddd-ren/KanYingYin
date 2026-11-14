@@ -74,6 +74,10 @@ class MediaRecognitionSettings {
     return value;
   }
 
+  static String describeThreshold(int bytes) => bytes <= 0
+      ? '不限制视频大小，空文件仍会忽略'
+      : '仅识别大于 ${bytes % bytesPerMegabyte == 0 ? formatMegabytes(bytesToMegabytes(bytes)) : '$bytes 字节'} 的视频（不含等于阈值的文件）';
+
   static String formatMegabytes(int value) {
     final megabytes = validateMegabytes(value);
     if (megabytes == 0) {

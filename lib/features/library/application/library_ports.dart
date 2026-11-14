@@ -10,12 +10,16 @@ typedef MediaCategoryCloudPlaybackResolver = Future<CloudResolvedPlayback>
 abstract interface class LocalLibraryPort {
   CloudMediaLibrary get library;
 
-  void reloadAvailableLibrary();
+  CloudMediaLibrary get cachedLibrary;
+
+  void reloadAvailableLibrary({bool includeUnavailable = false});
 }
 
 /// 媒体库功能访问网盘媒体的最小端口。
 abstract interface class CloudLibraryPort {
   CloudMediaLibrary get library;
+
+  CloudMediaLibrary get cachedLibrary;
 
   Listenable get changes;
 

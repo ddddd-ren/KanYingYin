@@ -45,31 +45,31 @@ class LocalCoverFinder {
   }
 
   /// Find a cover image for a video file.
-  String? findVideoCover(String videoPath) {
+  Future<String?> findVideoCover(String videoPath) async {
     final dir = p.dirname(videoPath);
     final nameWithoutExt = p.basenameWithoutExtension(videoPath);
 
-    final tmdbPoster = _findPosterInDirectory(dir, const ['tmdb-poster']);
+    final tmdbPoster = await _findPosterInDirectory(dir, const ['tmdb-poster']);
     if (tmdbPoster != null) return tmdbPoster;
 
-    final seriesPoster =
-        _findPosterInDirectory(dir, [seriesCoverBaseNameForVideo(videoPath)]);
+    final seriesPoster = await _findPosterInDirectory(
+        dir, [seriesCoverBaseNameForVideo(videoPath)]);
     if (seriesPoster != null) return seriesPoster;
 
-    final sameNamePoster = _findPosterInDirectory(dir, [nameWithoutExt]);
+    final sameNamePoster = await _findPosterInDirectory(dir, [nameWithoutExt]);
     if (sameNamePoster != null) return sameNamePoster;
 
-    final commonPoster = _findPosterInDirectory(dir, commonPosterNames);
+    final commonPoster = await _findPosterInDirectory(dir, commonPosterNames);
     if (commonPoster != null) return commonPoster;
 
-    final cachedThumbnail = LocalThumbnailCache.existingPathForVideo(videoPath);
-    if (cachedThumbnail != null) return cachedThumbnail;
+    final cachedThumbnail = LocalThumbnailCache.pathForVideo(videoPath);
+    if (await File(cachedThumbnail).exists()) return cachedThumbnail;
 
     final parentDir = p.dirname(dir);
     final folderName = p.basename(dir);
-    final legacyPoster = _findPosterInDirectory(parentDir, [folderName]);
+    final legacyPoster = await _findPosterInDirectory(parentDir, [folderName]);
     if (legacyPoster == null) return null;
-    return _moveLegacyDirectoryPoster(
+    return await _moveLegacyDirectoryPoster(
           legacyPoster: legacyPoster,
           dirPath: dir,
         ) ??
@@ -81,18 +81,20 @@ class LocalCoverFinder {
   }
 
   /// Find a cover image for a directory.
-  String? findDirCover(String dirPath) {
-    final tmdbPoster = _findPosterInDirectory(dirPath, const ['tmdb-poster']);
+  Future<String?> findDirCover(String dirPath) async {
+    final tmdbPoster =
+        await _findPosterInDirectory(dirPath, const ['tmdb-poster']);
     if (tmdbPoster != null) return tmdbPoster;
 
-    final commonPoster = _findPosterInDirectory(dirPath, commonPosterNames);
+    final commonPoster =
+        await _findPosterInDirectory(dirPath, commonPosterNames);
     if (commonPoster != null) return commonPoster;
 
     final parentDir = p.dirname(dirPath);
     final dirName = p.basename(dirPath);
-    final legacyPoster = _findPosterInDirectory(parentDir, [dirName]);
+    final legacyPoster = await _findPosterInDirectory(parentDir, [dirName]);
     if (legacyPoster == null) return null;
-    return _moveLegacyDirectoryPoster(
+    return await _moveLegacyDirectoryPoster(
           legacyPoster: legacyPoster,
           dirPath: dirPath,
         ) ??
@@ -104,8 +106,9 @@ class LocalCoverFinder {
     return p.join(dirPath, '$preferredDirectoryCoverName$extension');
   }
 
-  String? _findPosterInDirectory(String dirPath, List<String> baseNames) {
-    final filesByLowerName = _filesByLowerName(dirPath);
+  Future<String?> _findPosterInDirectory(
+      String dirPath, List<String> baseNames) async {
+    final filesByLowerName = await _filesByLowerName(dirPath);
     for (final baseName in baseNames) {
       for (final ext in posterExtensions) {
         final posterPath = filesByLowerName['$baseName$ext'.toLowerCase()];
@@ -115,39 +118,42 @@ class LocalCoverFinder {
     return null;
   }
 
-  String? _moveLegacyDirectoryPoster({
+  Future<String?> _moveLegacyDirectoryPoster({
     required String legacyPoster,
     required String dirPath,
-  }) {
+  }) async {
+    final extension = p.extension(legacyPoster).toLowerCase();
+    final targetPath = directoryCoverPath(
+      dirPath,
+      extension: posterExtensions.contains(extension) ? extension : '.jpg',
+    );
+    final target = File(targetPath);
     try {
-      final extension = p.extension(legacyPoster).toLowerCase();
-      final targetPath = directoryCoverPath(
-        dirPath,
-        extension: posterExtensions.contains(extension) ? extension : '.jpg',
-      );
-      final target = File(targetPath);
-      if (target.existsSync()) return targetPath;
+      if (await target.exists()) return targetPath;
 
-      target.parent.createSync(recursive: true);
-      File(legacyPoster).renameSync(targetPath);
-      _posterFileCache.remove(p.dirname(legacyPoster));
-      _posterFileCache.remove(dirPath);
+      await target.parent.create(recursive: true);
+      await File(legacyPoster).rename(targetPath);
       AppLogger().i('LocalCoverFinder: moved directory poster to $targetPath');
       return targetPath;
     } catch (e) {
+      // 其他查找器可能已经完成迁移，不能回退到已不存在的旧路径。
+      if (await target.exists()) return targetPath;
       AppLogger().w(
           'LocalCoverFinder: failed to move legacy poster $legacyPoster: $e');
       return null;
+    } finally {
+      _posterFileCache.remove(p.dirname(legacyPoster));
+      _posterFileCache.remove(dirPath);
     }
   }
 
-  Map<String, String> _filesByLowerName(String dirPath) {
+  Future<Map<String, String>> _filesByLowerName(String dirPath) async {
     final cached = _posterFileCache[dirPath];
     if (cached != null) return cached;
 
     final files = <String, String>{};
     try {
-      for (final entry in Directory(dirPath).listSync(followLinks: false)) {
+      await for (final entry in Directory(dirPath).list(followLinks: false)) {
         if (entry is File) {
           files[p.basename(entry.path).toLowerCase()] = entry.path;
         }

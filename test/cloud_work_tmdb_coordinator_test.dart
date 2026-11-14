@@ -17,6 +17,31 @@ import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
 void main() {
+  test('重新识别时服务异常保留旧匹配资料', () async {
+    final fixture = _Fixture(searchThrows: true);
+    final work = _work('previous');
+    final previous =
+        _workRecord(work, origin: TmdbMatchOrigin.automatic, ruleVersion: 0);
+    await fixture.repository.upsert(previous);
+    await fixture.coordinator.loadAndSchedule(_tree([work]));
+    expect((await fixture.repository.get(work.workKey))?.toJson(),
+        previous.toJson());
+  });
+
+  test('自动请求失败不覆盖等待期间保存的人工匹配', () async {
+    final fixture = _Fixture();
+    final work = _work('concurrent');
+    fixture.client.beforeSearch = () async {
+      await fixture.repository.upsert(_workRecord(work,
+          origin: TmdbMatchOrigin.manual, ruleVersion: currentTmdbRuleVersion));
+      throw StateError('模拟等待后服务失败');
+    };
+    await fixture.coordinator.loadAndSchedule(_tree([work]));
+    final saved = await fixture.repository.get(work.workKey);
+    expect(saved?.status, CloudWorkTmdbStatus.matched);
+    expect(saved?.tmdbMatchOrigin, TmdbMatchOrigin.manual);
+  });
+
   test('同作品旧文件记录一致时迁移一次且不重复请求 TMDB', () async {
     final legacyRepository = CloudResourceTmdbRepository(
       storage: MemoryCloudResourceTmdbStorage(),
@@ -789,6 +814,7 @@ class _FakeTmdbClient implements ITmdbClient {
   _FakeTmdbClient({this.searchThrows = false});
 
   final bool searchThrows;
+  Future<void> Function()? beforeSearch;
   int searchCalls = 0;
   int detailCalls = 0;
 
@@ -799,6 +825,7 @@ class _FakeTmdbClient implements ITmdbClient {
     String language = 'zh-CN',
   }) async {
     searchCalls++;
+    await beforeSearch?.call();
     if (searchThrows) throw StateError('TMDB 不可用');
     return <TmdbMetadata>[
       TmdbMetadata(

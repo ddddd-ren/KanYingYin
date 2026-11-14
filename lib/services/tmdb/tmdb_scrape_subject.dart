@@ -1,10 +1,14 @@
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 
-const int currentTmdbRuleVersion = 4;
+const int currentTmdbRuleVersion = 5;
 
 enum TmdbMediaEvidence { movie, tv, unknown }
 
 enum TmdbMatchOrigin { automatic, manual, legacyUnknown }
+
+class TmdbAutomaticMatchCancelled implements Exception {
+  const TmdbAutomaticMatchCancelled();
+}
 
 class TmdbFieldLocks {
   const TmdbFieldLocks({
@@ -22,6 +26,7 @@ class TmdbScrapeSubject {
   const TmdbScrapeSubject({
     required this.stableKey,
     required this.titleCandidates,
+    this.sourceNames = const <String>[],
     this.manualSearchTitle,
     this.year,
     this.seasonNumbers = const <int>{},
@@ -35,6 +40,7 @@ class TmdbScrapeSubject {
 
   final String stableKey;
   final List<String> titleCandidates;
+  final List<String> sourceNames;
   final String? manualSearchTitle;
   final int? year;
   final Set<int> seasonNumbers;

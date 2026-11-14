@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'package:kanyingyin/utils/safe_export_file.dart';
+import 'package:kanyingyin/features/scraped_metadata_transfer/application/scraped_metadata_importer.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +11,34 @@ import 'package:kanyingyin/features/scraped_metadata_transfer/presentation/scrap
 import 'package:kanyingyin/platform/app_platform.dart';
 
 void main() {
+  testWidgets('安全恢复错误保留备份位置和未完整恢复提示', (tester) async {
+    final errors = <Object, String>{
+      ExportFileRestoreException(r'D:\backup.previous'): r'D:\backup.previous',
+      const ScrapedMetadataImportException('failure', originalRestored: false):
+          '自动恢复未完整完成',
+    };
+    for (final entry in errors.entries) {
+      final service = ScrapedMetadataTransferService(
+        buildExport: () async => throw entry.key,
+        writeArchive: ({required output, required payload, required images}) =>
+            throw UnimplementedError(),
+        readArchive: (_) => throw UnimplementedError(),
+        buildPlan: (_, __) => throw UnimplementedError(),
+        importPlan: (_, __) => throw UnimplementedError(),
+      );
+      await tester.pumpWidget(MaterialApp(
+        key: ValueKey(entry.value),
+        home: ScrapedMetadataTransferPage(
+          service: service,
+          saveFilePicker: () async => 'unused.kyymeta',
+        ),
+      ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey<String>('export-scraped-metadata')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining(entry.value), findsOneWidget);
+    }
+  });
   testWidgets(
     '迁移页提供导出和导入入口并在确认后才写入',
     (tester) async {

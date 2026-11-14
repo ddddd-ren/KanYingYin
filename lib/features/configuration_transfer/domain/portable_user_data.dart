@@ -288,6 +288,13 @@ class PortableUserData {
     final mergedStates = Map<String, MediaLibraryUserState>.from(states);
     for (final entry in incoming.states.entries) {
       final existing = mergedStates[entry.key];
+      final manualCategories =
+          MediaLibraryUserState.mergeClassificationOverride(
+        existing?.aiClassified == true ? null : existing?.categoryOverride,
+        entry.value.aiClassified ? null : entry.value.categoryOverride,
+      );
+      final automatic =
+          existing?.categoryOverride != null ? existing : entry.value;
       final collections = [
         ...?existing?.collections,
         ...entry.value.collections
@@ -301,10 +308,14 @@ class PortableUserData {
         watchLater: entry.value.watchLater || (existing?.watchLater ?? false),
         collections: collections,
         mediaIds: [...?existing?.mediaIds, ...entry.value.mediaIds],
-        categoryOverride: MediaLibraryUserState.mergeClassificationOverride(
-            existing?.categoryOverride, entry.value.categoryOverride),
+        categoryOverride: manualCategories ?? automatic?.categoryOverride,
         genreOverride: MediaLibraryUserState.mergeClassificationOverride(
             existing?.genreOverride, entry.value.genreOverride),
+        aiClassified:
+            manualCategories == null && (automatic?.aiClassified ?? false),
+        aiClassificationIdentity: manualCategories == null
+            ? automatic?.aiClassificationIdentity
+            : null,
       );
     }
     final mergedBookmarks = Map<String, List<PlayerBookmark>>.from(bookmarks);

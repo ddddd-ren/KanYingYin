@@ -1,3 +1,4 @@
+import 'package:kanyingyin/features/library/application/media_library_query.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
@@ -667,14 +668,13 @@ class CloudResourceCollectionGrouper {
       group.seriesName,
       metadata?.title,
       metadata?.originalTitle,
+      ...?metadata?.aliases,
       ...works.expand(
         (work) => <String?>[work.remoteName, ...work.titleCandidates],
       ),
       ...items.expand((item) => <String>[item.remoteName, item.displayName]),
     ];
-    return values.any(
-      (value) => value?.toLowerCase().contains(keyword) == true,
-    );
+    return const MediaLibraryQuery().matchesTitles(values, keyword);
   }
 
   static String? _matchedGroupKey(
@@ -696,16 +696,15 @@ class CloudResourceCollectionGrouper {
     final record = group.record;
     final values = <String?>[
       record?.effectiveTitle,
+      record?.title,
+      record?.displayName,
       record?.originalTitle,
+      ...?record?.aliases,
       group.seriesName,
       group.stableKey,
     ];
-    return values.any(
-          (value) => value?.toLowerCase().contains(keyword) == true,
-        ) ||
-        group.videos.any(
-          (video) => video.name.toLowerCase().contains(keyword),
-        );
+    return const MediaLibraryQuery().matchesTitles(
+      [...values, ...group.videos.map((video) => video.name)], keyword);
   }
 
   CloudWorkIdentity _representativeWork(

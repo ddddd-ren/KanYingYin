@@ -71,6 +71,16 @@ void main() {
       '/影视/作品/第3季/01.mkv',
     );
     expect(collection.groups.last.videos.single.id, 's3e1');
+    for (final keyword in ['作品原名', 'TMDB 中文标题', ' original TITLE ', '搜索别名']) {
+      final matches = CloudResourceCollectionGrouper().group(
+        items: items,
+        works: [work],
+        recordsByWorkKey: {work.workKey: record},
+        query: keyword,
+      );
+      expect(matches.groups.map((group) => group.stableKey),
+          collection.groups.map((group) => group.stableKey), reason: keyword);
+    }
   });
 
   test('旧资源记录入口展示 TMDB 集名但保留远程引用', () {
@@ -1055,6 +1065,7 @@ final _workMetadata = TmdbMetadata(
   mediaType: TmdbMediaType.tv,
   title: 'TMDB 中文标题',
   originalTitle: 'Original Title',
+  aliases: const ['搜索别名', '搜索别名'],
   language: 'zh-CN',
   matchedAt: DateTime.utc(2026, 7, 20),
   matchConfidence: 1,

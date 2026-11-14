@@ -72,6 +72,15 @@ final appNavigationDestinations = <NavigationDestinationConfig>[
     moduleBuilder: CloudResourcesModule.new,
   ),
   NavigationDestinationConfig(
+    path: '/my-library',
+    label: '我的片库',
+    icon: Icons.collections_bookmark_outlined,
+    selectedIcon: Icons.collections_bookmark_rounded,
+    moduleBuilder: MediaCategoryModule.myLibrary,
+    showInBottomNavigation: false,
+    canBeStartupPage: false,
+  ),
+  NavigationDestinationConfig(
     path: '/history',
     label: '观看历史',
     icon: Icons.history_outlined,

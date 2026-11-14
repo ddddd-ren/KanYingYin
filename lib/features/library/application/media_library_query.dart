@@ -1,10 +1,58 @@
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
+import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/features/library/application/media_library_classification.dart';
 import 'package:kanyingyin/features/library/application/media_library_user_state.dart';
 import 'package:kanyingyin/features/library/application/media_watch_state.dart';
 
 class MediaLibraryQuery {
   const MediaLibraryQuery();
+
+  bool matchesTitles(Iterable<String?> titles, String keyword) {
+    final query = keyword.trim().toLowerCase();
+    return query.isEmpty ||
+        titles.any((title) => title?.toLowerCase().contains(query) == true);
+  }
+
+  bool matchesSeries(MediaLibrarySeries series, String keyword) =>
+      _matchesNormalizedSeries(series, keyword.trim().toLowerCase());
+
+  bool _contains(String? title, String query) =>
+      title?.toLowerCase().contains(query) == true;
+
+  bool _matchesMetadata(TmdbMetadata? metadata, String query) =>
+      metadata != null &&
+      (_contains(metadata.title, query) ||
+          _contains(metadata.originalTitle, query) ||
+          metadata.aliases.any((title) => _contains(title, query)));
+
+  bool _matchesNormalizedSeries(MediaLibrarySeries series, String query) {
+    if (query.isEmpty ||
+        _contains(series.title, query) ||
+        _contains(series.sourceName, query) ||
+        series.legacySeriesTitles.any((title) => _contains(title, query)) ||
+        _contains(series.tmdbTitle, query) ||
+        _matchesMetadata(series.tmdbMetadata, query)) {
+      return true;
+    }
+    for (final episode in series.episodes) {
+      if (_contains(episode.name, query) ||
+          _contains(episode.tmdbTitle, query) ||
+          _contains(episode.tmdbOriginalTitle, query)) {
+        return true;
+      }
+      final local = episode.localItem;
+      if (local == null) continue;
+      if ((local.name != episode.name && _contains(local.name, query)) ||
+          (local.seriesName != series.title &&
+              _contains(local.seriesName, query)) ||
+          local.originalNames.any((title) => _contains(title, query)) ||
+          (!identical(local.tmdb, series.tmdbMetadata) &&
+              _matchesMetadata(local.tmdb, query))) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   List<MediaLibrarySeries> apply({
     required Iterable<MediaLibrarySeries> series,
@@ -43,7 +91,7 @@ class MediaLibraryQuery {
         return false;
       }
       if (sourceId != 'all' && item.sourceId != sourceId) return false;
-      if (query.isNotEmpty && !item.title.toLowerCase().contains(query)) {
+      if (query.isNotEmpty && !_matchesNormalizedSeries(item, query)) {
         return false;
       }
       if (selectedGenres.isNotEmpty &&

@@ -4,6 +4,7 @@ import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/cloud/cloud_resource_tmdb_service.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
+import 'package:path/path.dart' as p;
 
 class CloudTmdbSubjectBuilder {
   const CloudTmdbSubjectBuilder();
@@ -33,6 +34,15 @@ class CloudTmdbSubjectBuilder {
     return TmdbScrapeSubject(
       stableKey: work.workKey,
       titleCandidates: candidates,
+      sourceNames: <String>{
+        work.remoteName,
+        for (final season in work.seasons)
+          for (final directory in season.remoteDirectories) directory.name,
+        for (final entry in work.standaloneVideos.take(3))
+          p.posix.basename(entry.remotePath.replaceAll('\\', '/')),
+        for (final episode in work.seasons.expand((s) => s.episodes).take(3))
+          episode.remoteName,
+      }.where((name) => name.trim().isNotEmpty).take(8).toList(),
       manualSearchTitle: record?.scrapeTitleOverride,
       year: work.seasons.map((season) => season.year).nonNulls.firstOrNull,
       seasonNumbers: seasons,
@@ -65,6 +75,11 @@ class CloudTmdbSubjectBuilder {
     return TmdbScrapeSubject(
       stableKey: target.stableKey,
       titleCandidates: candidates,
+      sourceNames: [
+        p.posix.basename(target.remote.path.replaceAll('\\', '/')),
+        p.posix.basename(
+            p.posix.dirname(target.remote.path.replaceAll('\\', '/'))),
+      ],
       manualSearchTitle: target.customTitle,
       seasonNumbers:
           season != null && season > 0 ? <int>{season} : const <int>{},

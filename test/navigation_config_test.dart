@@ -12,6 +12,7 @@ void main() {
       '电视剧',
       '媒体库',
       '网盘媒体库',
+      '我的片库',
       '观看历史',
       '设置',
     ]);
@@ -27,6 +28,7 @@ void main() {
     );
     expect(isValidStartupPage('/tab/popular/'), isFalse);
     expect(isValidStartupPage('/tab/cloud/'), isTrue);
+    expect(isValidStartupPage('/tab/my-library/'), isFalse);
     expect(isValidStartupPage('/tab/local/'), isTrue);
     final removedLegacyPath = '/tab/${'tv'}${'box'}/movie/';
     expect(isValidStartupPage(removedLegacyPath), isFalse);
@@ -38,19 +40,19 @@ void main() {
   });
 
   test('媒体识别设置具有入口、路由和分离的生产依赖注入', () {
-    final myPage = File('lib/pages/my/my_page.dart').readAsStringSync();
+    final myPage = File('lib/pages/my/my_page.dart').readAsStringSync().replaceAll('\r\n', '\n');
     final settingsModule =
-        File('lib/pages/settings/settings_module.dart').readAsStringSync();
-    final indexModule = File('lib/pages/index_module.dart').readAsStringSync();
+        File('lib/pages/settings/settings_module.dart').readAsStringSync().replaceAll('\r\n', '\n');
+    final indexModule = File('lib/pages/index_module.dart').readAsStringSync().replaceAll('\r\n', '\n');
     final infrastructureBindings =
         File('lib/app/bindings/infrastructure_bindings.dart')
-            .readAsStringSync();
+            .readAsStringSync().replaceAll('\r\n', '\n');
     final libraryBindings =
-        File('lib/app/bindings/library_bindings.dart').readAsStringSync();
+        File('lib/app/bindings/library_bindings.dart').readAsStringSync().replaceAll('\r\n', '\n');
     final cloudBindings =
-        File('lib/app/bindings/cloud_bindings.dart').readAsStringSync();
+        File('lib/app/bindings/cloud_bindings.dart').readAsStringSync().replaceAll('\r\n', '\n');
     final appBindings =
-        File('lib/app/bindings/app_bindings.dart').readAsStringSync();
+        File('lib/app/bindings/app_bindings.dart').readAsStringSync().replaceAll('\r\n', '\n');
 
     expect(myPage, contains("'媒体识别'"));
     expect(

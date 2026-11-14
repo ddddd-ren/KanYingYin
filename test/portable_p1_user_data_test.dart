@@ -28,6 +28,37 @@ Map<String, Object?> _data({int updated = 1, bool watched = true}) => {
       'preferredAudioLanguage': 'ja',
     };
 void main() {
+  test('配置合并保留 AI 身份且人工分类始终优先', () {
+    final ai = PortableUserData.fromJson({
+      'states': {
+        'work': {
+          'categoryOverride': ['动漫'],
+          'aiClassified': true,
+          'aiClassificationIdentity': 'movie:1',
+        }
+      }
+    });
+    final mark = PortableUserData.fromJson({
+      'states': {
+        'work': {'favorite': true}
+      }
+    });
+    final restored = ai.merge(mark).states['work']!;
+    expect(restored.aiClassificationIdentity, 'movie:1');
+    expect(restored.aiClassified, isTrue);
+    final manual = PortableUserData.fromJson({
+      'states': {
+        'work': {
+          'categoryOverride': ['电影'],
+        }
+      }
+    });
+    for (final merged in [ai.merge(manual), manual.merge(ai)]) {
+      expect(merged.states['work']?.categoryOverride, ['电影']);
+      expect(merged.states['work']?.aiClassified, isFalse);
+    }
+  });
+
   test('人工分类、手工清空与分类模式备份往返和重映射不丢失', () {
     final raw = <String, Object?>{
       'states': {

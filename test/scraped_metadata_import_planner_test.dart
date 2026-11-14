@@ -11,8 +11,28 @@ import 'package:kanyingyin/repositories/cloud_source_repository.dart';
 import 'package:kanyingyin/repositories/local_media_index_repository.dart';
 import 'package:kanyingyin/repositories/local_media_source_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
+import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 
 void main() {
+  for (final removeSource in [true, false]) {
+    test('确认后${removeSource ? '来源' : '索引目标'}删除时拒绝旧计划', () async {
+      final fixture = await _fixture(
+        localPath: r'E:\媒体\影视\三体\S01E01.mkv',
+        localSize: 1024,
+        cloudSources: [_cloudSource(id: 'new-source-id', rootId: 'new-root-id')],
+        cloudItems: [_cloudItem(sourceId: 'new-source-id', remoteId: 'changed-remote-id', remotePath: '/影视/三体.mkv')],
+      );
+      final plan = await fixture.planner.plan(_payload(withCloud: true));
+      expect(plan.cloudResourceMatches, hasLength(1));
+      await fixture.planner.validateCloudTargets(plan);
+      if (removeSource) {
+        await fixture.sources.delete('new-source-id');
+      } else {
+        await fixture.index.removeSource('new-source-id');
+      }
+      await expectLater(fixture.planner.validateCloudTargets(plan), throwsStateError);
+    });
+  }
   test('本地盘符变化后按相对路径和大小匹配', () async {
     final fixture = await _fixture(
       localPath: r'E:\媒体\影视\三体\S01E01.mkv',
@@ -231,6 +251,7 @@ Future<_Fixture> _fixture({
   );
   final sourceRepository = CloudSourceRepository(
     storage: MemoryCloudSourceStorage(),
+    credentialStore: MemoryCloudCredentialStore(),
   );
   for (final source in cloudSources) {
     await sourceRepository.save(source);
@@ -256,6 +277,8 @@ Future<_Fixture> _fixture({
       cloudSourceRepository: sourceRepository,
       cloudIndexRepository: cloudIndex,
     ),
+    sourceRepository,
+    cloudIndex,
   );
 }
 
@@ -293,8 +316,10 @@ CloudMediaIndexItem _cloudItem({
     );
 
 final class _Fixture {
-  const _Fixture(this.planner);
+  const _Fixture(this.planner, this.sources, this.index);
   final ScrapedMetadataImportPlanner planner;
+  final CloudSourceRepository sources;
+  final CloudMediaIndexRepository index;
 }
 
 final class _MemoryLocalIndexStorage implements LocalMediaIndexStorage {

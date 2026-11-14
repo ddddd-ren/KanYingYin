@@ -1,12 +1,71 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/services/local_media_scanner.dart';
+import 'package:kanyingyin/services/local_media_entry_provider.dart';
+import 'package:kanyingyin/modules/local/media_location.dart';
 import 'package:kanyingyin/services/local_thumbnail_cache.dart';
 import 'package:kanyingyin/services/local_video_file_types.dart';
 
 void main() {
+  test('大小过滤与根目录读取失败分别报告，零阈值仍忽略空文件', () async {
+    final directory = await Directory.systemTemp.createTemp('scan_sizes_');
+    addTearDown(() => directory.delete(recursive: true));
+    for (final size in [0, 10, 11]) {
+      await File('${directory.path}/$size.mkv').writeAsBytes(List.filled(size, 1));
+    }
+    await File('${directory.path}/note.txt').writeAsString('not video');
+    final limited = await LocalMediaScanner(minRecognizedVideoSizeBytes: 10).scan(
+      directory.path, sortMode: LocalSortMode.name, ascending: true);
+    expect(limited.items.single.name, '11.mkv');
+    expect(limited.filteredBySizeCount, 2);
+    expect(limited.failedPaths, isEmpty);
+    final unlimited = await LocalMediaScanner(minRecognizedVideoSizeBytes: 0).scan(
+      directory.path, sortMode: LocalSortMode.name, ascending: true);
+    expect(unlimited.items, hasLength(2));
+    expect(unlimited.filteredBySizeCount, 1);
+    final unavailable = await _testScanner().scan('${directory.path}/missing',
+      sortMode: LocalSortMode.name, ascending: true);
+    expect(unavailable.sourceAccessible, isFalse);
+    expect(unavailable.failedPaths, hasLength(1));
+    expect(unavailable.filteredBySizeCount, 0);
+  });
+
+  test('大批量缓存目录扫描期间事件循环仍能响应', () async {
+    var responded = false;
+    final provider = _CachedDirectoryProvider(() => responded = true);
+    final scanner = LocalMediaScanner(
+        entryProviders: [provider], minRecognizedVideoSizeBytes: 0);
+    final result = await scanner.scanLocation(
+        MediaLocation.document(
+            uri: 'content://test/root', treeUri: 'content://test/root'),
+        sortMode: LocalSortMode.name,
+        ascending: true);
+    expect(result.items, hasLength(128));
+    expect(responded, isTrue);
+  });
+
+  test('同一扫描器再次扫描发现新增 Subs 字幕', () async {
+    final dir = await Directory.systemTemp.createTemp('scan_subtitle_session_');
+    addTearDown(() => dir.delete(recursive: true));
+    await File('${dir.path}${Platform.pathSeparator}Show S01E01.mkv')
+        .writeAsString('video');
+    final scanner = _testScanner();
+    final before = await scanner.scan(dir.path,
+        sortMode: LocalSortMode.name, ascending: true);
+    expect(before.items.single.subtitlePath, isNull);
+    final subs =
+        await Directory('${dir.path}${Platform.pathSeparator}Subs').create();
+    final subtitle =
+        File('${subs.path}${Platform.pathSeparator}Show S01E01.srt');
+    await subtitle.writeAsString('subtitle');
+    final after = await scanner.scan(dir.path,
+        sortMode: LocalSortMode.name, ascending: true);
+    expect(after.items.single.subtitlePath, subtitle.path);
+  });
+
   test('LocalMediaScanner filters non-videos and matches video poster',
       () async {
     final tempDir =
@@ -418,4 +477,26 @@ void main() {
 
 LocalMediaScanner _testScanner() {
   return LocalMediaScanner(minRecognizedVideoSizeBytes: 0);
+}
+
+class _CachedDirectoryProvider implements LocalMediaEntryProvider {
+  _CachedDirectoryProvider(this.onEvent);
+  final void Function() onEvent;
+  @override
+  bool supports(MediaLocation location) => true;
+  @override
+  Future<bool> canAccess(MediaLocation location) async => true;
+  @override
+  Future<List<LocalMediaEntry>> listChildren(MediaLocation directory) async {
+    Timer.run(onEvent);
+    return List.generate(
+        128,
+        (index) => LocalMediaEntry(
+            location: MediaLocation.document(
+                uri: 'content://test/$index', treeUri: 'content://test/root'),
+            name: 'Show S01E$index.mkv',
+            isDirectory: false,
+            size: 1,
+            modified: DateTime(2026)));
+  }
 }

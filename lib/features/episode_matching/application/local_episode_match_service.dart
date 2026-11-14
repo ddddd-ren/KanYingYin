@@ -77,10 +77,10 @@ final class LocalEpisodeMatchService {
       );
     }
     try {
-      await _repository.updateItems(updates);
+      await _repository.patchItems(updates, originals: snapshot);
     } on Object catch (error, stackTrace) {
       try {
-        await _repository.updateItems(snapshot);
+        await _repository.patchItems(snapshot, originals: updates);
       } on Object {
         // 保留首次批量保存错误，调用方可明确提示本次操作失败。
       }

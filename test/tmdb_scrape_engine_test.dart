@@ -5,8 +5,109 @@ import 'package:kanyingyin/services/tmdb/tmdb_client_capabilities.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_engine.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_vision_model_client.dart';
 
 void main() {
+  test('AI 服务异常保留已有候选，无候选时上报失败以允许重试', () async {
+    for (final hasCandidates in [false, true]) {
+      final engine = TmdbScrapeEngine(
+        client: _RecordingClient({
+          if (hasCandidates)
+            '不明文件|tv': [
+              _metadata(id: 42, title: '无关作品', type: TmdbMediaType.tv)
+            ],
+        }),
+        identify: (_) async => throw const TmdbVisionException('AI 请求超时'),
+      );
+      final pending = engine.search(
+          const TmdbScrapeSubject(
+              stableKey: 'work',
+              titleCandidates: ['不明文件'],
+              mediaEvidence: TmdbMediaEvidence.tv),
+          const TmdbScrapeOptions.defaults());
+      if (hasCandidates) {
+        final outcome = await pending;
+        expect(outcome.ranked.candidates, hasLength(1));
+        expect(outcome.ranked.shouldAutoMatch, isFalse);
+      } else {
+        await expectLater(pending, throwsA(isA<TmdbVisionException>()));
+      }
+    }
+  });
+
+  test('普通搜索无结果后自动调用 AI 并用原始别名验证后采用', () async {
+    var calls = 0;
+    final candidate = _metadata(id: 42, title: '三体', type: TmdbMediaType.tv)
+        .copyWith(aliases: ['Three Body']);
+    final engine = TmdbScrapeEngine(
+      client: _RecordingClient({
+        '三体|tv': [candidate]
+      }),
+      identify: (subject) async {
+        calls++;
+        expect(subject.sourceNames, ['Three Body S01E01.mkv']);
+        return const TmdbVisionSuggestion(
+            title: '三体', confidence: .95, mediaType: 'tv');
+      },
+    );
+    final outcome = await engine.search(
+        const TmdbScrapeSubject(
+          stableKey: 'cloud:test',
+          titleCandidates: ['Three Body'],
+          sourceNames: ['Three Body S01E01.mkv'],
+          mediaEvidence: TmdbMediaEvidence.tv,
+        ),
+        const TmdbScrapeOptions.defaults());
+    expect(calls, 1);
+    expect(outcome.ranked.best?.metadata.id, 42);
+    expect(outcome.ranked.shouldAutoMatch, isTrue);
+  });
+
+  test('AI 猜出的现存片名不能独自证明未知文件身份', () async {
+    final engine = TmdbScrapeEngine(
+      client: _RecordingClient({
+        '三体|tv': [_metadata(id: 42, title: '三体', type: TmdbMediaType.tv)]
+      }),
+      identify: (_) async => const TmdbVisionSuggestion(
+          title: '三体', confidence: 1, mediaType: 'tv'),
+    );
+    final outcome = await engine.search(
+        const TmdbScrapeSubject(
+          stableKey: 'unknown',
+          titleCandidates: ['不明文件'],
+          mediaEvidence: TmdbMediaEvidence.tv,
+        ),
+        const TmdbScrapeOptions.defaults());
+    expect(outcome.ranked.best?.metadata.id, 42);
+    expect(outcome.ranked.shouldAutoMatch, isFalse);
+  });
+
+  test('已有可靠匹配或人工搜索时不调用 AI', () async {
+    var calls = 0;
+    final engine = TmdbScrapeEngine(
+      client: _RecordingClient({
+        '三体|tv': [_metadata(id: 42, title: '三体', type: TmdbMediaType.tv)]
+      }),
+      identify: (_) async {
+        calls++;
+        return null;
+      },
+    );
+    await engine.search(
+        const TmdbScrapeSubject(
+            stableKey: 'known',
+            titleCandidates: ['三体'],
+            mediaEvidence: TmdbMediaEvidence.tv),
+        const TmdbScrapeOptions.defaults());
+    await engine.search(
+        const TmdbScrapeSubject(
+            stableKey: 'manual',
+            titleCandidates: ['用户输入'],
+            manualSearchTitle: '用户输入'),
+        const TmdbScrapeOptions.defaults());
+    expect(calls, 0);
+  });
+
   test('首个标题只有低分结果时继续使用后续标题自动匹配', () async {
     final client = _RecordingClient(<String, List<TmdbMetadata>>{
       '错误标题|tv': <TmdbMetadata>[

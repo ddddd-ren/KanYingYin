@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:kanyingyin/features/library/application/media_ai_classifier.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/core/app_version.dart';
@@ -33,6 +35,10 @@ import 'package:kanyingyin/services/media_recognition_settings.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_vision_frame_extractor.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_vision_model_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_vision_model_credentials.dart';
+import 'package:path/path.dart' as p;
 import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 import 'package:kanyingyin/services/local_playback_request_builder.dart';
@@ -74,6 +80,7 @@ void registerLibraryBindings(Injector i) {
       cloudIndexRepository: Modular.get<CloudMediaIndexRepository>(),
     );
     final importer = ScrapedMetadataImporter(
+      validateCloudTargets: planner.validateCloudTargets,
       localIndexRepository: Modular.get<ILocalMediaIndexRepository>(),
       resourceRepository: Modular.get<CloudResourceTmdbRepository>(),
       workRepository: Modular.get<CloudWorkTmdbRepository>(),
@@ -107,6 +114,8 @@ void registerLibraryBindings(Injector i) {
   );
   i.addSingleton<LocalController>(
     () => LocalController(
+      localMinSizeBytesProvider: () => Modular.get<MediaRecognitionSettings>().localMinSizeBytes,
+      cloudMinSizeBytesProvider: () => Modular.get<MediaRecognitionSettings>().cloudMinSizeBytes,
       scanner: LocalMediaScanner(
         entryProviders: <LocalMediaEntryProvider>[
           Modular.get<FileSystemMediaEntryProvider>(),
@@ -140,6 +149,43 @@ void registerLibraryBindings(Injector i) {
         'tmdbAutoScrape',
         defaultValue: true,
       ),
+      tmdbVisionSearchAssist: (seriesName, items) async {
+        final config = TmdbVisionModelConfig.fromMap(
+          Modular.get<TypedSettings>().get('tmdbVisionModel'),
+        );
+        if (!config.enabled || !config.isConfigured) {
+          throw StateError('请先在我页配置 AI 识别与分类模型');
+        }
+        final key = await Modular.get<TmdbVisionModelCredentials>().read();
+        if (key.isEmpty) throw StateError('请先在我页配置 AI 识别与分类模型 API Key');
+        final item = items.where((value) => value.location.isFile).firstOrNull;
+        if (item == null) return null;
+        final frames = await TmdbVisionFrameExtractor().extract(item);
+        return Modular.get<TmdbVisionModelClient>().identify(
+          config: config,
+          apiKey: key,
+          fileName: item.name,
+          directoryName: p.basename(item.parentPath),
+          seasonEpisodeInfo: <String>[
+            if (item.seasonNumber != null) 'S${item.seasonNumber}',
+            if (item.episodeNumber != null) 'E${item.episodeNumber}',
+          ].join(' '),
+          existingTmdbInfo: <String, Object?>{
+            if (item.tmdb != null) ...<String, Object?>{
+              'title': item.tmdb!.title,
+              'overview': item.tmdb!.overview,
+              'genres': item.tmdb!.genres,
+            },
+            'seriesName': seriesName,
+          },
+          frames: frames,
+        );
+      },
+      tmdbVisionClassificationApply: (seriesName, items, metadata) async {
+        unawaited(Modular.get<MediaAiClassifier>().process(
+          () => Modular.get<LocalController>().localMediaLibrary,
+        ));
+      },
     ),
   );
   i.addSingleton<LocalLibraryPort>(
@@ -164,8 +210,15 @@ class _LocalControllerLibraryPort implements LocalLibraryPort {
   CloudMediaLibrary get library => _controller.localMediaLibrary;
 
   @override
-  void reloadAvailableLibrary() {
-    _controller.reloadAvailableLocalLibraryIndex();
+  CloudMediaLibrary get cachedLibrary => _controller.cachedLocalMediaLibrary;
+
+  @override
+  void reloadAvailableLibrary({bool includeUnavailable = false}) {
+    if (includeUnavailable) {
+      _controller.reloadLocalLibraryIndex();
+    } else {
+      _controller.reloadAvailableLocalLibraryIndex();
+    }
   }
 }
 
@@ -176,6 +229,9 @@ class _CloudResourcesLibraryPort implements CloudLibraryPort {
 
   @override
   CloudMediaLibrary get library => _controller.mediaLibrarySnapshot;
+
+  @override
+  CloudMediaLibrary get cachedLibrary => _controller.cachedMediaLibrarySnapshot;
 
   @override
   Listenable get changes => _controller.mediaLibrarySnapshotListenable;

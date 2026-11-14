@@ -15,8 +15,70 @@ import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client_capabilities.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_vision_model_client.dart';
 
 void main() {
+  test('网盘匹配自动识别片名后保存 TMDB 详情', () async {
+    final repository =
+        CloudWorkTmdbRepository(storage: MemoryCloudWorkTmdbStorage());
+    var calls = 0;
+    final service = CloudWorkTmdbService(
+      repository: repository,
+      indexRepository:
+          CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage()),
+      client: _FakeTmdbClient(detail: _details(), searches: {
+        'AI片名': [
+          _candidate('AI片名').copyWith(aliases: ['规范剧名'])
+        ]
+      }),
+      identify: (subject) async {
+        calls++;
+        expect(subject.sourceNames, contains('规范剧名'));
+        return const TmdbVisionSuggestion(
+            title: 'AI片名', confidence: .95, mediaType: 'tv');
+      },
+    );
+    final result = await service.match(_work());
+    expect(calls, 1);
+    expect(result.selected?.status, CloudWorkTmdbStatus.matched);
+    expect((await repository.get(_work().workKey))?.tmdbMatchOrigin,
+        TmdbMatchOrigin.automatic);
+  });
+
+  test('自动识别期间保存的人工匹配不会被旧任务覆盖', () async {
+    final work = _work();
+    final repository =
+        CloudWorkTmdbRepository(storage: MemoryCloudWorkTmdbStorage());
+    final service = CloudWorkTmdbService(
+      repository: repository,
+      indexRepository:
+          CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage()),
+      client: _FakeTmdbClient(detail: _details(), searches: {
+        'AI片名': [
+          _candidate('AI片名').copyWith(aliases: ['规范剧名'])
+        ]
+      }),
+      identify: (_) async {
+        await repository.upsert(CloudWorkTmdbRecord.matched(
+            sourceId: work.sourceId,
+            workKey: work.workKey,
+            workRootId: work.root.id,
+            workRootPath: work.root.remotePath,
+            remoteName: work.remoteName,
+            metadata: _candidate('人工选择'),
+            checkedAt: DateTime(2026),
+            tmdbMatchOrigin: TmdbMatchOrigin.manual));
+        return const TmdbVisionSuggestion(
+            title: 'AI片名', confidence: .95, mediaType: 'tv');
+      },
+    );
+    try {
+      await service.match(work);
+    } on Exception {/* 过期任务允许取消。 */}
+    expect((await repository.get(work.workKey))?.metadata?.title, '人工选择');
+    expect((await repository.get(work.workKey))?.status,
+        CloudWorkTmdbStatus.matched);
+  });
   test('多版本无季度作品只按电影类型搜索', () {
     final work = _movieWork();
     final service = CloudWorkTmdbService(

@@ -3,7 +3,23 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/repositories/local_media_tag_repository.dart';
+import 'package:kanyingyin/modules/local/local_media_index_item.dart';
+import 'package:kanyingyin/services/local_media_library_builder.dart';
 import 'package:kanyingyin/utils/storage.dart';
+
+LocalMediaIndexItem _item(String source, {int episode = 1}) =>
+    LocalMediaIndexItem(
+      path: 'D:\\$source\\相同作品.S01E0$episode.mkv',
+      name: '相同作品.S01E0$episode.mkv',
+      parentPath: 'D:\\$source',
+      sourcePath: 'D:\\$source',
+      size: 100,
+      modified: DateTime(2026),
+      seriesName: '相同作品',
+      seasonNumber: 1,
+      episodeNumber: episode,
+      indexedAt: DateTime(2026),
+    );
 
 void main() {
   late Directory hiveDirectory;
@@ -42,6 +58,81 @@ void main() {
         '动画作品': <String>['收藏', '待看']
       },
     );
+  });
+
+  test('旧单来源标签迁移后清除不会复活', () async {
+    final repository = LocalMediaTagRepository(box: box);
+    final item = _item('A');
+    final target = const LocalMediaLibraryBuilder().buildSeries([item]).single;
+    final legacyKey = target.key.substring(target.key.indexOf('|') + 1);
+
+    await repository.saveForSeries(legacyKey, ['旧标签']);
+    await repository.reconcileSourceKeys({
+      target.key: {item.id}
+    });
+    expect(repository.getAll(), {
+      target.key: ['旧标签']
+    });
+
+    await repository.saveForSeries(target.key, const []);
+    await repository.reconcileSourceKeys({
+      target.key: {item.id}
+    });
+    expect(repository.getAll(), isEmpty);
+  });
+
+  test('旧拆分键按成员迁移，成员归属有歧义时保留原记录', () async {
+    final repository = LocalMediaTagRepository(box: box);
+    final first = _item('A');
+    final second = _item('B');
+    final series = const LocalMediaLibraryBuilder().buildSeries(
+      [first, second],
+      sourceTitlesByMediaId: {first.id: '目录甲', second.id: '目录乙'},
+    );
+    final firstSeries = series.singleWhere(
+        (item) => item.episodes.any((episode) => episode.id == first.id));
+    final legacyKey = '相同作品|source|${first.id}';
+
+    await repository.saveForSeries(legacyKey, ['成员标签']);
+    await repository.reconcileSourceKeys({
+      for (final item in series)
+        item.key: item.episodes.map((episode) => episode.id).toSet(),
+    });
+    expect(repository.getAll(), {
+      firstSeries.key: ['成员标签']
+    });
+
+    await repository.saveForSeries(legacyKey, ['歧义标签']);
+    await repository.reconcileSourceKeys({
+      firstSeries.key: {first.id},
+      'other|same': {first.id, second.id},
+    });
+    expect(repository.getAll(), {
+      legacyKey: ['歧义标签'],
+      firstSeries.key: ['成员标签']
+    });
+  });
+
+  test('同名多来源旧标签与超过合并上限的标签保留原记录', () async {
+    final repository = LocalMediaTagRepository(box: box);
+    await repository.saveForSeries('同名', ['旧标签']);
+    await repository.reconcileSourceKeys({
+      'sourceA|同名': {'a'},
+      'sourceB|同名': {'b'},
+    });
+    expect(repository.getAll(), {
+      '同名': ['旧标签']
+    });
+    final tags = List.generate(
+        LocalMediaTagRepository.maxTagsPerSeries, (index) => '标签$index');
+    await repository.saveForSeries('sourceA|同名', tags);
+    await repository.reconcileSourceKeys({
+      'sourceA|同名': {'a'}
+    });
+    expect(repository.getAll(), {
+      '同名': ['旧标签'],
+      'sourceA|同名': tags
+    });
   });
 
   test('保存空标签会移除作品记录', () async {

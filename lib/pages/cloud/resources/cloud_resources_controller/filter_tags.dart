@@ -121,7 +121,12 @@ mixin _CloudFilterTagsMixin on _CloudResourcesControllerBase {
   }
 
   List<CloudFileEntry> get visibleEntries {
-    final keyword = query.trim().toLowerCase();
+    final matchingIds = query.trim().isEmpty
+        ? null
+        : collection.groups
+            .expand((group) => group.videos)
+            .map((entry) => entry.id)
+            .toSet();
     final minSizeBytes = _minRecognizedVideoSizeBytesProvider();
     final scopeTree = _directoryScopeTree;
     final filtered = entries
@@ -137,7 +142,7 @@ mixin _CloudFilterTagsMixin on _CloudResourcesControllerBase {
                 entry.remotePath,
                 currentDirectoryScope,
               ) &&
-              (keyword.isEmpty || entry.name.toLowerCase().contains(keyword)),
+              (matchingIds == null || matchingIds.contains(entry.id)),
         )
         .toList(growable: false);
     filtered.sort(

@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
@@ -6,6 +8,32 @@ import 'package:kanyingyin/repositories/cloud_media_index_repository.dart';
 import 'package:kanyingyin/services/cloud/cloud_remote_ref.dart';
 
 void main() {
+  test('单来源读取和更新不解码其他来源并保留原始记录', () async {
+    final unrelated = _TrackedIndexRecord(<String, Object?>{
+      'sourceId': 'other',
+      'size': '损坏字段也应原样保留',
+    });
+    final storage = _SeededCloudMediaIndexStorage(<String, Object?>{
+      'items': <Object?>[
+        unrelated,
+        <String, Object?>{
+          'sourceId': 'target',
+          'remoteId': 'video',
+          'remotePath': '/video.mkv',
+          'name': 'video.mkv',
+          'seriesName': 'video',
+          'size': 1,
+        },
+      ],
+    });
+    final repository = CloudMediaIndexRepository(storage: storage);
+    expect(await repository.getBySource('target'), hasLength(1));
+    expect(unrelated.iterations, 0);
+    expect(await repository.updateMatching('target', (_) => true, (item) => item), 1);
+    expect(unrelated.iterations, 0);
+    expect((storage.value['items'] as List).first, same(unrelated));
+  });
+
   test('索引往返保留作品边界原名虚拟名和规则版本', () async {
     final repository = CloudMediaIndexRepository(
       storage: MemoryCloudMediaIndexStorage(),
@@ -146,4 +174,25 @@ class _SeededCloudMediaIndexStorage implements CloudMediaIndexStorage {
   Future<void> write(Map<String, Object?> value) async {
     this.value = value;
   }
+}
+
+class _TrackedIndexRecord extends MapBase<String, Object?> {
+  _TrackedIndexRecord(this.valuesByKey);
+  final Map<String, Object?> valuesByKey;
+  int iterations = 0;
+
+  @override
+  Iterable<String> get keys {
+    iterations++;
+    return valuesByKey.keys;
+  }
+
+  @override
+  Object? operator [](Object? key) => valuesByKey[key];
+  @override
+  void operator []=(String key, Object? value) => valuesByKey[key] = value;
+  @override
+  void clear() => valuesByKey.clear();
+  @override
+  Object? remove(Object? key) => valuesByKey.remove(key);
 }

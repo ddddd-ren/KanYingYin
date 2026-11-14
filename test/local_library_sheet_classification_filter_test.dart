@@ -12,6 +12,19 @@ import 'package:kanyingyin/repositories/local_media_tag_repository.dart';
 import 'package:mobx/mobx.dart';
 
 void main() {
+  testWidgets('本地抽屉按原名与别名搜索保留一个作品且不触发刷新', (tester) async {
+    var refreshes = 0;
+    await _showLibrary(tester, onRefresh: () => refreshes++);
+    for (final keyword in [' ORIGINAL-1 ', '别名-1']) {
+      await tester.enterText(find.byType(TextField).first, keyword);
+      await tester.pumpAndSettle();
+      expect(find.text('动画作品'), findsOneWidget);
+      expect(find.text('真人剧作品'), findsNothing);
+    }
+    expect(tester.takeException(), isNull);
+    expect(refreshes, 0);
+  });
+
   testWidgets('本地抽屉分类筛选不接受同名自定义标签', (tester) async {
     await _showLibrary(tester);
     await _openFilters(tester);
@@ -233,7 +246,8 @@ void main() {
   }
 }
 
-Future<LocalController> _showLibrary(WidgetTester tester) async {
+Future<LocalController> _showLibrary(WidgetTester tester,
+    {VoidCallback? onRefresh}) async {
   final controller = LocalController();
   controller.localLibraryItems.addAll([
     _item(1, '动画作品', ['动画']),
@@ -249,7 +263,7 @@ Future<LocalController> _showLibrary(WidgetTester tester) async {
       animation.seriesKey: ['电视剧', '剧情']
     }),
     onPlay: (_, __) {},
-    onRefresh: () {},
+    onRefresh: onRefresh ?? () {},
   ))));
   await tester.pumpAndSettle();
   return controller;
@@ -285,6 +299,8 @@ LocalMediaIndexItem _item(
               id: id,
               mediaType: TmdbMediaType.tv,
               title: title,
+              originalTitle: 'Original-$id',
+              aliases: ['别名-$id', '别名-$id'],
               genres: genres,
               language: 'zh-CN',
               matchedAt: DateTime.utc(2026, 10, 11),
@@ -294,6 +310,9 @@ LocalMediaIndexItem _item(
     );
 
 class _Tags implements ILocalMediaTagRepository {
+  @override
+  Future<void> reconcileSourceKeys(
+      Map<String, Set<String>> completeSeries) async {}
   _Tags(this.values);
 
   final Map<String, List<String>> values;

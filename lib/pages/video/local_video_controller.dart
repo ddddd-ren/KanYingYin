@@ -153,8 +153,9 @@ class LocalVideoController implements IVideoPageController {
             series.episodes.any((episode) => matches(current, episode)))
         .take(2)
         .toList(growable: false);
-    if (matched.length != 1 || matched.single.title.trim().isEmpty)
+    if (matched.length != 1 || matched.single.title.trim().isEmpty) {
       return false;
+    }
     final series = matched.single;
     var changed = _cloudSeriesTitle != series.title;
     for (final target in targets) {

@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'package:kanyingyin/features/library/application/media_ai_classifier.dart';
+import 'package:kanyingyin/features/library/application/media_library_classification.dart';
+import 'package:kanyingyin/features/library/application/media_library_user_state_repository.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/features/configuration_transfer/application/configuration_archive_codec.dart';
 import 'package:kanyingyin/features/configuration_transfer/application/configuration_importer.dart';
@@ -31,9 +35,31 @@ import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_image_client.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_ai_search_assist.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_vision_model_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_vision_model_credentials.dart';
 
 /// 注册网盘媒体库、索引和 TMDB 协调依赖。
 void registerCloudBindings(Injector i) {
+  i.addSingleton<MediaAiClassifier>(() => MediaAiClassifier(
+        config: () => TmdbVisionModelConfig.fromMap(
+            Modular.get<TypedSettings>().get('tmdbVisionModel')),
+        mode: () => MediaClassificationMode.values.firstWhere(
+            (mode) =>
+                mode.name ==
+                Modular.get<TypedSettings>()
+                    .get(SettingBoxKey.mediaClassificationMode),
+            orElse: () => MediaClassificationMode.conservative),
+        readKey: Modular.get<TmdbVisionModelCredentials>().read,
+        client: Modular.get<TmdbVisionModelClient>(),
+        repository: MediaLibraryUserStateRepository(),
+      ));
+  i.addSingleton<TmdbAiSearchAssist>(() => TmdbAiSearchAssist(
+        config: () => TmdbVisionModelConfig.fromMap(
+            Modular.get<TypedSettings>().get('tmdbVisionModel')),
+        readKey: Modular.get<TmdbVisionModelCredentials>().read,
+        client: Modular.get<TmdbVisionModelClient>(),
+      ));
   i.addSingleton<CloudHiddenVideoRepository>(
     CloudHiddenVideoRepository.new,
   );
@@ -120,6 +146,7 @@ void registerCloudBindings(Injector i) {
         final context =
             Modular.get<TmdbClientContextRegistry>().contextFor(apiKey);
         return CloudResourceTmdbService(
+          identify: Modular.get<TmdbAiSearchAssist>().identify,
           repository: Modular.get<CloudResourceTmdbRepository>(),
           indexRepository: Modular.get<CloudMediaIndexRepository>(),
           client: context.client,
@@ -144,6 +171,7 @@ void registerCloudBindings(Injector i) {
         final context =
             Modular.get<TmdbClientContextRegistry>().contextFor(apiKey);
         return CloudWorkTmdbService(
+          identify: Modular.get<TmdbAiSearchAssist>().identify,
           repository: Modular.get<CloudWorkTmdbRepository>(),
           indexRepository: Modular.get<CloudMediaIndexRepository>(),
           client: context.client,
@@ -159,22 +187,29 @@ void registerCloudBindings(Injector i) {
     ),
   );
   i.addSingleton<CloudResourcesController>(
-    () => CloudResourcesController(
-      repository: Modular.get<CloudSourceRepository>(),
-      credentialStore: Modular.get<CloudCredentialStore>(),
-      tmdbCoordinator: Modular.get<CloudResourceTmdbCoordinator>(),
-      workTmdbCoordinator: Modular.get<CloudWorkTmdbCoordinator>(),
-      mediaIndexRepository: Modular.get<CloudMediaIndexRepository>(),
-      workTmdbRepository: Modular.get<CloudWorkTmdbRepository>(),
-      mediaTagRepository: Modular.get<CloudMediaTagRepository>(),
-      hiddenVideoRepository: Modular.get<CloudHiddenVideoRepository>(),
-      mediaIndexer: Modular.get<CloudMediaIndexer>(),
-      episodeMatchService: Modular.get<CloudEpisodeMatchService>(),
-      tmdbApiKeyProvider: Modular.get<TmdbApiKeyProvider>(),
-      tmdbClientContextRegistry: Modular.get<TmdbClientContextRegistry>(),
-      minRecognizedVideoSizeBytesProvider: () =>
-          Modular.get<MediaRecognitionSettings>().cloudMinSizeBytes,
-    ),
+    () {
+      final controller = CloudResourcesController(
+        repository: Modular.get<CloudSourceRepository>(),
+        credentialStore: Modular.get<CloudCredentialStore>(),
+        tmdbCoordinator: Modular.get<CloudResourceTmdbCoordinator>(),
+        workTmdbCoordinator: Modular.get<CloudWorkTmdbCoordinator>(),
+        mediaIndexRepository: Modular.get<CloudMediaIndexRepository>(),
+        workTmdbRepository: Modular.get<CloudWorkTmdbRepository>(),
+        mediaTagRepository: Modular.get<CloudMediaTagRepository>(),
+        hiddenVideoRepository: Modular.get<CloudHiddenVideoRepository>(),
+        mediaIndexer: Modular.get<CloudMediaIndexer>(),
+        episodeMatchService: Modular.get<CloudEpisodeMatchService>(),
+        tmdbApiKeyProvider: Modular.get<TmdbApiKeyProvider>(),
+        tmdbClientContextRegistry: Modular.get<TmdbClientContextRegistry>(),
+        minRecognizedVideoSizeBytesProvider: () =>
+            Modular.get<MediaRecognitionSettings>().cloudMinSizeBytes,
+      );
+      controller.mediaLibrarySnapshotListenable.addListener(() {
+        unawaited(Modular.get<MediaAiClassifier>()
+            .process(() => controller.mediaLibrarySnapshot));
+      });
+      return controller;
+    },
   );
 }
 

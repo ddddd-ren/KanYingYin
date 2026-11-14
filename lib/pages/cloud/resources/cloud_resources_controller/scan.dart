@@ -69,10 +69,7 @@ mixin _CloudScanMixin on _CloudResourcesControllerBase {
     );
   }
 
-  Future<void> _scanSelectedSource(
-    CloudSource source,
-    int generation,
-  ) async {
+  Future<void> _scanSelectedSource(CloudSource source, int generation) async {
     final token = CloudScanCancellationToken();
     _scanToken = token;
     if (_isCurrent(generation)) {
@@ -80,6 +77,7 @@ mixin _CloudScanMixin on _CloudResourcesControllerBase {
       scannedDirectories = 0;
       currentScanPath = null;
       errorMessage = null;
+      scanFailureTypes = const {};
       _notify();
     }
     CloudDriveClient? client;
@@ -97,10 +95,19 @@ mixin _CloudScanMixin on _CloudResourcesControllerBase {
         },
       );
       if (!_isCurrent(generation) || result.cancelled) return;
+      lastScanResult = result;
+      scanFailureTypes = result.failureTypes;
       await _loadSnapshot(source, generation);
       if (!_isCurrent(generation)) return;
       if (result.failures > 0) {
-        errorMessage = '部分网盘目录扫描失败，已保留可用索引';
+        final type = scanRecoveryType;
+        final reason = type == null
+            ? '目录读取失败'
+            : _providerRegistry.errorMessage(
+                source.type,
+                CloudDriveException(type),
+              );
+        errorMessage = '$reason，${result.failures} 个目录未读取，已保留原有资料';
       }
       _scheduleTmdb(source, entries);
     } on CloudScanInProgressException {
@@ -108,12 +115,21 @@ mixin _CloudScanMixin on _CloudResourcesControllerBase {
       errorMessage = '该来源正在扫描，正在显示上次索引';
     } on CloudDriveException catch (error) {
       if (!_isCurrent(generation)) return;
+      scanFailureTypes = {error.type};
       errorMessage = _providerRegistry.errorMessage(source.type, error);
     } on Object {
       if (!_isCurrent(generation)) return;
       errorMessage = '网盘媒体扫描失败，已保留上次索引';
     } finally {
-      await client?.close();
+      try {
+        await client?.close();
+      } on Object catch (error, stackTrace) {
+        AppLogger().w(
+          'CloudResourcesController: failed to close scan client',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
       if (_isCurrent(generation)) {
         scanning = false;
         currentScanPath = null;

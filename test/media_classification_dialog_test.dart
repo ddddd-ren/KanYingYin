@@ -12,6 +12,21 @@ import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 
 void main() {
+  testWidgets('编辑器不把旧作品的 AI 分类当成人工确认', (tester) async {
+    MediaLibraryUserState? saved;
+    await _openEditor(tester,
+        state: const MediaLibraryUserState(
+            categoryOverride: ['电视剧'],
+            aiClassified: true,
+            aiClassificationIdentity: 'tv:99'),
+        onSave: (state, _) async => saved = state);
+    expect(_selected(tester, '电视剧'), isFalse);
+    await tester.tap(find.byKey(const ValueKey('classification-save')));
+    await tester.pumpAndSettle();
+    expect(saved?.categoryOverride, isNull);
+    expect(saved?.aiClassified, isFalse);
+  });
+
   testWidgets('窄屏确认列表区分自动人工和手动未分类且保存后更新计数', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(320, 568);

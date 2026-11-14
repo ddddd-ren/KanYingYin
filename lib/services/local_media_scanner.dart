@@ -62,16 +62,33 @@ class LocalMediaScanner implements ILocalMediaScanner {
     required bool ascending,
   }) async {
     final minSizeBytes = _minRecognizedVideoSizeBytesProvider();
+    final subtitleSession = LocalSubtitleScanSession();
     final items = <LocalFileItem>[];
     var skippedCount = 0;
+    var filteredBySizeCount = 0;
+    var sourceAccessible = true;
+    final failedPaths = <String>[];
+    var processedEntries = 0;
     final provider = _providerFor(location);
 
     Future<void> collectDirectory(
       MediaLocation directory,
       String logicalDirectory,
     ) async {
-      final entries = await provider.listChildren(directory);
+      final List<LocalMediaEntry> entries;
+      try {
+        entries = await provider.listChildren(directory);
+      } on Object {
+        failedPaths.add(directory.value);
+        skippedCount++;
+        if (directory == location) sourceAccessible = false;
+        return;
+      }
       for (final entry in entries) {
+        // 缓存命中时也定期让出事件循环，避免连续微任务阻塞界面。
+        if (++processedEntries % 64 == 0) {
+          await Future<void>.delayed(Duration.zero);
+        }
         try {
           final name = entry.name;
           if (name.startsWith('.')) {
@@ -91,11 +108,15 @@ class LocalMediaScanner implements ILocalMediaScanner {
             continue;
           }
 
-          if (!LocalVideoFileTypes.isRecognizedVideo(
-            name,
-            size: entry.size,
+          if (!LocalVideoFileTypes.isVideoPath(name)) {
+            skippedCount++;
+            continue;
+          }
+          if (!LocalVideoFileTypes.isRecognizedVideoSize(
+            entry.size,
             minSizeBytes: minSizeBytes,
           )) {
+            filteredBySizeCount++;
             skippedCount++;
             continue;
           }
@@ -110,14 +131,18 @@ class LocalMediaScanner implements ILocalMediaScanner {
             isDirectory: false,
             isVideo: true,
             cover: entry.location.isFile
-                ? _coverFinder.findVideoCover(entry.location.value)
+                ? await _coverFinder.findVideoCover(entry.location.value)
                 : null,
             subtitlePath: entry.location.isFile
-                ? await _subtitleMatcher.findForVideo(entry.location.value)
+                ? await _subtitleMatcher.findForVideo(
+                    entry.location.value,
+                    scanSession: subtitleSession,
+                  )
                 : null,
             episodeInfo: _episodeParser.parse(displayPath),
           ));
         } catch (e) {
+          failedPaths.add(entry.location.value);
           skippedCount++;
           AppLogger().w(
             'LocalMediaScanner: skip entry ${entry.location.value}: $e',
@@ -132,6 +157,8 @@ class LocalMediaScanner implements ILocalMediaScanner {
       }
       await collectDirectory(location, '');
     } catch (e) {
+      sourceAccessible = false;
+      failedPaths.add(location.value);
       skippedCount++;
       AppLogger().w(
         'LocalMediaScanner: skip directory ${location.value}: $e',
@@ -143,6 +170,10 @@ class LocalMediaScanner implements ILocalMediaScanner {
       currentPath: location.value,
       items: items,
       skippedCount: skippedCount,
+      filteredBySizeCount: filteredBySizeCount,
+      failedPaths: List.unmodifiable(failedPaths),
+      sourceAccessible: sourceAccessible,
+      minSizeBytes: minSizeBytes,
     );
   }
 

@@ -8,6 +8,7 @@ import 'package:kanyingyin/pages/local/tmdb_match_sheet.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_matcher.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_vision_model_client.dart';
 import 'package:kanyingyin/widgets/poster_cover.dart';
 import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
@@ -18,6 +19,7 @@ typedef TmdbMatchApplyCallback<TResult> = Future<TResult> Function(
   TmdbRankedCandidate candidate,
   TmdbScrapeOptions options,
 );
+typedef TmdbMatchIdentifyCallback = Future<TmdbVisionSuggestion?> Function();
 
 class TmdbMatchDialog<TResult> extends StatefulWidget {
   const TmdbMatchDialog({
@@ -28,6 +30,7 @@ class TmdbMatchDialog<TResult> extends StatefulWidget {
     required this.initialOptions,
     required this.onSearch,
     required this.onApply,
+    this.onIdentify,
     this.errorMessageBuilder,
   });
 
@@ -37,6 +40,7 @@ class TmdbMatchDialog<TResult> extends StatefulWidget {
   final TmdbScrapeOptions initialOptions;
   final TmdbMatchSearchCallback onSearch;
   final TmdbMatchApplyCallback<TResult> onApply;
+  final TmdbMatchIdentifyCallback? onIdentify;
   final String Function(Object error)? errorMessageBuilder;
 
   @override
@@ -57,6 +61,8 @@ class _TmdbMatchDialogState<TResult> extends State<TmdbMatchDialog<TResult>> {
   var _searching = false;
   var _saving = false;
   var _requestGeneration = 0;
+  var _identifying = false;
+  var _identifiedByVision = false;
 
   @override
   void initState() {
@@ -109,6 +115,7 @@ class _TmdbMatchDialogState<TResult> extends State<TmdbMatchDialog<TResult>> {
           queryYear: year,
           mediaTypeMode: _mediaTypeMode,
           options: effectiveOptions,
+          skipVisionAssist: _identifiedByVision,
         ),
       );
       if (!mounted || generation != _requestGeneration) return;
@@ -121,6 +128,56 @@ class _TmdbMatchDialogState<TResult> extends State<TmdbMatchDialog<TResult>> {
       if (mounted && generation == _requestGeneration) {
         setState(() => _searching = false);
       }
+    }
+  }
+
+  Future<void> _identify() async {
+    final identify = widget.onIdentify;
+    if (identify == null || _identifying || _searching || _saving) return;
+    final previousTitle = _titleController.text;
+    final previousYear = _yearController.text;
+    final previousType = _mediaTypeMode;
+    final generation = _requestGeneration;
+    setState(() {
+      _identifying = true;
+      _operationError = null;
+    });
+    try {
+      final suggestion = await identify();
+      if (!mounted) return;
+      if (generation != _requestGeneration ||
+          _titleController.text != previousTitle ||
+          _yearController.text != previousYear ||
+          _mediaTypeMode != previousType) {
+        return;
+      }
+      if (suggestion == null) {
+        setState(() => _operationError = 'AI 未能可靠识别，已保留当前搜索资料');
+        return;
+      }
+      _titleController.text = suggestion.title;
+      _yearController.text = suggestion.year?.toString() ?? '';
+      _identifiedByVision = true;
+      if (_mediaTypeMode == widget.draft.mediaTypeMode) {
+        if (suggestion.mediaType == 'tv') {
+          _mediaTypeMode = TmdbMediaTypeMode.tv;
+        }
+        if (suggestion.mediaType == 'movie') {
+          _mediaTypeMode = TmdbMediaTypeMode.movie;
+        }
+      }
+      await _search();
+    } on Object catch (error) {
+      if (!mounted) return;
+      final message = error is TmdbVisionException
+          ? error.message
+          : error is StateError &&
+                  error.message.toString().startsWith('请先在我页配置 AI 识别与分类模型')
+              ? error.message.toString()
+              : 'AI 识别失败，已保留当前搜索资料';
+      setState(() => _operationError = message);
+    } finally {
+      if (mounted) setState(() => _identifying = false);
     }
   }
 
@@ -289,6 +346,24 @@ class _TmdbMatchDialogState<TResult> extends State<TmdbMatchDialog<TResult>> {
           },
           onSubmitted: (_) => _search(),
         ),
+        if (widget.onIdentify != null) ...[
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed:
+                  _identifying || _searching || _saving ? null : _identify,
+              icon: _identifying
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.auto_awesome),
+              label: const Text('AI 识别剧名'),
+            ),
+          ),
+        ],
         const SizedBox(height: 14),
         DropdownButtonFormField<TmdbMediaTypeMode>(
           key: const ValueKey<String>('tmdb-media-type'),

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:kanyingyin/modules/cloud/cloud_media_index_item.dart';
 import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
 import 'package:kanyingyin/modules/local/tmdb_metadata.dart';
@@ -71,12 +72,14 @@ class CloudResourceTmdbService {
     Duration searchCacheTtl = const Duration(minutes: 10),
     int maximumCachedSearches = 50,
     TmdbScrapeEngine? engine,
+    TmdbAiIdentify? identify,
     TmdbScrapeCache? cache,
   })  : _repository = repository,
         _indexRepository = indexRepository,
         _engine = engine ??
             TmdbScrapeEngine(
               client: client,
+              identify: identify,
               cache: cache ??
                   TmdbScrapeCache(
                     searchTtl: searchCacheTtl,
@@ -102,14 +105,23 @@ class CloudResourceTmdbService {
 
   Future<CloudResourceTmdbOutcome> match(
     CloudResourceTmdbTarget target, {
+    bool Function()? isCurrent,
     TmdbScrapeOptions options = const TmdbScrapeOptions.defaults(),
   }) async {
     final existing = await _repository.get(target.stableKey);
+    void checkCurrent(CloudResourceTmdbRecord? current) {
+      if (isCurrent?.call() == false ||
+          jsonEncode(current?.toJson()) != jsonEncode(existing?.toJson())) {
+        throw const TmdbAutomaticMatchCancelled();
+      }
+    }
+
     final subject = const CloudTmdbSubjectBuilder().forResource(
       target,
       record: existing,
     );
     final search = await _engine.search(subject, options);
+    checkCurrent(await _repository.get(target.stableKey));
     if (search.ranked.candidates.isEmpty) {
       if (existing?.status == CloudResourceTmdbStatus.matched ||
           existing?.status == CloudResourceTmdbStatus.conflict) {
@@ -123,8 +135,9 @@ class CloudResourceTmdbService {
         resourceKind: target.resourceKind,
         checkedAt: _now(),
         customTitle: target.customTitle,
+        tmdbRuleVersion: currentTmdbRuleVersion,
       );
-      await _repository.upsert(record);
+      await _repository.upsert(record, checkCurrent: checkCurrent);
       return const CloudResourceTmdbOutcome(candidates: <TmdbMetadata>[]);
     }
 
@@ -136,8 +149,11 @@ class CloudResourceTmdbService {
       );
     }
     final best = search.ranked.best!;
-    if (existing?.tmdbId != null && existing!.tmdbId != best.metadata.id) {
-      await _repository.upsert(existing.asConflict(_now()));
+    if (existing?.tmdbId != null &&
+        (existing!.tmdbId != best.metadata.id ||
+            existing.mediaType != best.metadata.mediaType)) {
+      await _repository.upsert(existing.asConflict(_now()),
+          checkCurrent: checkCurrent);
       return CloudResourceTmdbOutcome(
         candidates: search.ranked.candidates
             .map((candidate) => candidate.metadata)
@@ -150,6 +166,7 @@ class CloudResourceTmdbService {
       options: options,
       origin: TmdbMatchOrigin.automatic,
       existing: existing,
+      checkCurrent: checkCurrent,
     );
     return CloudResourceTmdbOutcome(
       candidates: search.ranked.candidates
@@ -235,6 +252,7 @@ class CloudResourceTmdbService {
     required TmdbScrapeOptions options,
     required TmdbMatchOrigin origin,
     CloudResourceTmdbRecord? existing,
+    void Function(CloudResourceTmdbRecord?)? checkCurrent,
   }) async {
     final previous = existing ?? await _repository.get(target.stableKey);
     final subject = const CloudTmdbSubjectBuilder().forResource(
@@ -323,7 +341,7 @@ class CloudResourceTmdbService {
       tmdbMatchOrigin: origin,
       tmdbRuleVersion: currentTmdbRuleVersion,
     );
-    await _repository.upsert(record);
+    await _repository.upsert(record, checkCurrent: checkCurrent);
     var indexSynced = true;
     try {
       await _syncIndex(target, metadata, posterCachePath);

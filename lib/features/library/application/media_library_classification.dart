@@ -132,7 +132,17 @@ class MediaClassificationResolver {
           reason: genreReason,
         ),
     ];
-    final categoryOverride = state?.categoryOverride;
+    final aiIdentity = series.tmdbMetadata ?? metadata.firstOrNull;
+    final aiCurrent = state?.aiClassified == true &&
+        aiIdentity != null &&
+        state?.aiClassificationIdentity ==
+            '${aiIdentity.mediaType.name}:${aiIdentity.id}' &&
+        mode != MediaClassificationMode.manual &&
+        _automaticSelection(categorySuggestions, mode).isEmpty &&
+        !hasConflict;
+    final categoryOverride = state?.aiClassified == true && !aiCurrent
+        ? null
+        : state?.categoryOverride;
     final genreOverride = state?.genreOverride;
     final selectedCategories = categoryOverride == null
         ? _automaticSelection(categorySuggestions, mode)
@@ -154,7 +164,8 @@ class MediaClassificationResolver {
       categorySuggestions: List.unmodifiable(categorySuggestions),
       genreSuggestions: List.unmodifiable(genreSuggestions),
       needsConfirmation: categoryOverride == null && selectedCategories.isEmpty,
-      isManual: categoryOverride != null || genreOverride != null,
+      isManual: (categoryOverride != null && state?.aiClassified != true) ||
+          genreOverride != null,
     );
   }
 

@@ -25,6 +25,26 @@ final class ScrapedMetadataImportPlanner {
   final CloudSourceRepository _cloudSourceRepository;
   final CloudMediaIndexRepository _cloudIndexRepository;
 
+  Future<void> validateCloudTargets(ScrapedMetadataImportPlan expected) async {
+    final targets = _cloudTargets(expected);
+    if (targets.isEmpty) return;
+    final current = await plan(expected.payload);
+    if (!_cloudTargets(current).containsAll(targets)) {
+      throw StateError('媒体来源或目标已变化，请重新预览刮削资料导入');
+    }
+  }
+
+  static Set<(String, String, String, String)> _cloudTargets(
+          ScrapedMetadataImportPlan plan) =>
+      {
+        for (final match in plan.cloudResourceMatches)
+          ('resource', match.targetSourceId, match.targetRemoteId, match.targetRemotePath),
+        for (final match in plan.cloudWorkMatches)
+          ('work', match.targetSourceId, match.targetWorkKey, match.targetWorkRootPath),
+        for (final match in plan.cloudSeriesRuleMatches)
+          ('rule', match.targetSourceId, match.targetParentPath, ''),
+      };
+
   Future<ScrapedMetadataImportPlan> plan(
     ScrapedMetadataPayload payload, {
     Map<String, String> localOverrides = const <String, String>{},

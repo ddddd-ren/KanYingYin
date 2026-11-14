@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:kanyingyin/modules/cloud/cloud_media_tree.dart';
@@ -821,6 +822,7 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
     String apiKey,
     int generation,
   ) async {
+    final previous = _records[work.workKey];
     _scrapingWorkKeys.add(work.workKey);
     if (generation == _generation) notifyListeners();
     try {
@@ -829,9 +831,18 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
         work,
         record: _records[work.workKey],
         options: _optionsProvider(),
+        isCurrent: () => generation == _generation,
       );
       if (generation == _generation) await _refreshRecord(work.workKey);
+    } on TmdbAutomaticMatchCancelled {
+      // 过期任务或人工修正已接管，不写失败记录。
     } on Object {
+      if (generation != _generation) return;
+      if (previous?.status == CloudWorkTmdbStatus.matched ||
+          previous?.status == CloudWorkTmdbStatus.conflict) {
+        await _refreshRecord(work.workKey);
+        return;
+      }
       final failed = CloudWorkTmdbRecord.failed(
         sourceId: work.sourceId,
         workKey: work.workKey,
@@ -841,7 +852,18 @@ class CloudWorkTmdbCoordinator extends ChangeNotifier {
         checkedAt: _now(),
         scrapeTitleOverride: _records[work.workKey]?.scrapeTitleOverride,
       );
-      await _repository.upsert(failed);
+      try {
+        await _repository.update(work.workKey, (current) {
+          if (generation != _generation ||
+              jsonEncode(current?.toJson()) != jsonEncode(previous?.toJson())) {
+            throw const TmdbAutomaticMatchCancelled();
+          }
+          return failed;
+        });
+      } on TmdbAutomaticMatchCancelled {
+        if (generation == _generation) await _refreshRecord(work.workKey);
+        return;
+      }
       if (generation == _generation) {
         _records[work.workKey] = failed;
         _markRecordsChanged();

@@ -7,6 +7,10 @@ import 'package:kanyingyin/services/tmdb/tmdb_scrape_policy.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_cache.dart';
 import 'package:kanyingyin/utils/logger.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_vision_model_client.dart';
+
+typedef TmdbAiIdentify = Future<TmdbVisionSuggestion?> Function(
+    TmdbScrapeSubject subject);
 
 class TmdbScrapeSearchOutcome {
   const TmdbScrapeSearchOutcome({
@@ -24,6 +28,7 @@ class TmdbScrapeEngine {
     TmdbScrapePolicy policy = const TmdbScrapePolicy(),
     TmdbMatcher matcher = const TmdbMatcher(),
     TmdbScrapeCache? cache,
+    this.identify,
   })  : _client = client,
         _policy = policy,
         _matcher = matcher,
@@ -33,6 +38,7 @@ class TmdbScrapeEngine {
   final TmdbScrapePolicy _policy;
   final TmdbMatcher _matcher;
   final TmdbScrapeCache _cache;
+  final TmdbAiIdentify? identify;
 
   TmdbScrapeCache get cache => _cache;
 
@@ -196,7 +202,89 @@ class TmdbScrapeEngine {
               'best=${best.metadata.mediaType.name}:${best.metadata.id} '
               'score=${best.score.toStringAsFixed(3)}',
     );
-    return outcome;
+    if (identify == null ||
+        subject.manualSearchTitle != null ||
+        subject.matchOrigin == TmdbMatchOrigin.manual) {
+      return outcome;
+    }
+    try {
+      return await _searchWithAi(subject, options, outcome,
+          minimumScore: minimumScore, minimumLead: minimumLead);
+    } on TmdbVisionException catch (error) {
+      TmdbVisionModelClient.report(error.message);
+      if (outcome.ranked.candidates.isEmpty) rethrow;
+      return outcome;
+    } on Object {
+      TmdbVisionModelClient.report('AI 候选校验暂不可用，已保留原有搜索结果');
+      if (outcome.ranked.candidates.isEmpty) rethrow;
+      return outcome;
+    }
+  }
+
+  Future<TmdbScrapeSearchOutcome> _searchWithAi(TmdbScrapeSubject subject,
+      TmdbScrapeOptions options, TmdbScrapeSearchOutcome original,
+      {double? minimumScore, double? minimumLead}) async {
+    final suggestion = await identify!(subject);
+    if (suggestion == null) return original;
+    final types = switch (suggestion.mediaType) {
+      'movie' => <TmdbMediaType>[TmdbMediaType.movie],
+      'tv' => <TmdbMediaType>[TmdbMediaType.tv],
+      _ => <TmdbMediaType>[TmdbMediaType.movie, TmdbMediaType.tv],
+    };
+    final found = await _searchCandidates(suggestion.title, types, options);
+    final candidates = <String, TmdbMetadata>{
+      for (final item in original.ranked.candidates)
+        '${item.metadata.mediaType.name}:${item.metadata.id}': item.metadata,
+      for (final item in await _enrichAliases(found, options))
+        '${item.mediaType.name}:${item.id}': item,
+    }.values.toList();
+    if (candidates.isEmpty) return original;
+    final evidence = _policy.build(
+        TmdbScrapeSubject(
+          stableKey: subject.stableKey,
+          titleCandidates: subject.sourceNames.isEmpty
+              ? subject.titleCandidates
+              : subject.sourceNames,
+          year: subject.year,
+          seasonNumbers: subject.seasonNumbers,
+          episodeNumbers: subject.episodeNumbers,
+          mediaEvidence: subject.mediaEvidence,
+        ),
+        options);
+    final verified = <String, TmdbRankedResult>{};
+    for (final query in evidence.queries) {
+      final ranked = _matcher.rank(
+          queryTitle: query,
+          queryYear: evidence.year,
+          expectedTypes: evidence.mediaTypes.toSet(),
+          seasonEvidence: subject.seasonNumbers.isNotEmpty ||
+              subject.episodeNumbers.isNotEmpty,
+          candidates: candidates,
+          minimumScore: minimumScore ?? options.minimumScore,
+          minimumLead: minimumLead ?? options.minimumLead);
+      if (ranked.shouldAutoMatch &&
+          (evidence.year == null || ranked.best!.yearMatched)) {
+        verified[
+                '${ranked.best!.metadata.mediaType.name}:${ranked.best!.metadata.id}'] =
+            ranked;
+      }
+    }
+    // AI 片名只扩大检索范围，自动落库必须由原始资料独立验证。
+    final automatic = suggestion.confidence >= .8 && verified.length == 1;
+    final ranked = automatic
+        ? verified.values.single
+        : _matcher.rank(
+            queryTitle: suggestion.title,
+            queryYear: suggestion.year,
+            expectedTypes: types.toSet(),
+            candidates: candidates,
+          );
+    TmdbVisionModelClient.report(
+        automatic ? 'AI 候选已通过原始资料校验' : 'AI 已找到候选，身份依据不足，请手动确认');
+    return TmdbScrapeSearchOutcome(
+        queryTitle: suggestion.title,
+        ranked: TmdbRankedResult(
+            candidates: ranked.candidates, shouldAutoMatch: automatic));
   }
 
   String _safeQueryForLog(String value) {

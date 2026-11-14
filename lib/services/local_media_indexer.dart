@@ -49,10 +49,12 @@ abstract interface class ILocalMediaLocationIndexer {
 class LocalMediaIndexFailure {
   final String path;
   final String message;
+  final bool requiresAuthorization;
 
   const LocalMediaIndexFailure({
     required this.path,
     required this.message,
+    this.requiresAuthorization = false,
   });
 }
 
@@ -186,6 +188,7 @@ class LocalMediaIndexResult {
   final int reusedCount;
   final int removedCount;
   final int skippedCount;
+  final int filteredBySizeCount;
   final bool cancelled;
   final bool sourceAccessible;
   final List<LocalMediaIndexFailure> failures;
@@ -200,6 +203,7 @@ class LocalMediaIndexResult {
     required this.reusedCount,
     required this.removedCount,
     required this.skippedCount,
+    this.filteredBySizeCount = 0,
     this.cancelled = false,
     this.sourceAccessible = true,
     this.failures = const <LocalMediaIndexFailure>[],
@@ -284,9 +288,11 @@ class LocalMediaIndexer
     bool generateThumbnails = false,
   }) async {
     final sourcePath = sourceLocation.value;
+    final subtitleSession = LocalSubtitleScanSession();
     final minSizeBytes = _minRecognizedVideoSizeBytesProvider();
     final provider = _providerFor(sourceLocation);
-    final previousSourceItems = _repository.getBySourceLocation(sourceLocation);
+    final sourceSnapshot = _repository.captureSource(sourceLocation);
+    final previousSourceItems = sourceSnapshot.items;
     try {
       if (!await provider.canAccess(sourceLocation)) {
         if (sourceLocation.isDocument) {
@@ -294,6 +300,7 @@ class LocalMediaIndexer
             sourceLocation,
             previousSourceItems,
             '目录授权已失效，请重新授权',
+            requiresAuthorization: true,
           );
         }
         return _inaccessibleDocumentResult(
@@ -342,6 +349,8 @@ class LocalMediaIndexer
     }
     final reusedDirectoryIds = <String>{};
     var skippedCount = 0;
+    var filteredBySizeCount = 0;
+    final filteredEntries = <String, LocalMediaEntry>{};
     final failures = <LocalMediaIndexFailure>[];
     final failedDirectories = <String>[];
 
@@ -411,15 +420,17 @@ class LocalMediaIndexer
             );
             continue;
           }
-          if (unchanged) continue;
           if (!LocalVideoFileTypes.isVideoPath(name)) continue;
           if (!LocalVideoFileTypes.isRecognizedVideoSize(
             entry.size,
             minSizeBytes: minSizeBytes,
           )) {
+            filteredBySizeCount++;
+            filteredEntries[_entryId(entry)] = entry;
             skippedCount++;
             continue;
           }
+          if (unchanged) continue;
           String? subtitlePath;
           String? coverPath;
           final documentCache = _documentCache;
@@ -498,6 +509,7 @@ class LocalMediaIndexer
         reusedCount: 0,
         removedCount: 0,
         skippedCount: skippedCount,
+        filteredBySizeCount: filteredBySizeCount,
         cancelled: true,
         failures: failures,
       );
@@ -506,6 +518,16 @@ class LocalMediaIndexer
     final previous = {
       for (final item in previousSourceItems) item.id: item,
     };
+    final retainedFiltered = <LocalMediaIndexItem>[];
+    for (final id in filteredEntries.keys) {
+      final old = previous.remove(id);
+      if (old != null) {
+        retainedFiltered.add(old.copyWith(
+          size: filteredEntries[id]!.size,
+          modified: filteredEntries[id]!.modified,
+        ));
+      }
+    }
     final currentMoveSignatureCounts = <String, int>{};
     for (final located in files) {
       final signature = _moveSignature(
@@ -561,6 +583,7 @@ class LocalMediaIndexer
           reusedCount: reusedCount,
           removedCount: 0,
           skippedCount: skippedCount,
+        filteredBySizeCount: filteredBySizeCount,
           cancelled: true,
           failures: failures,
         );
@@ -647,6 +670,7 @@ class LocalMediaIndexer
         final item = entry.location.isFile
             ? await _buildFileItem(
                 entry,
+                subtitleSession: subtitleSession,
                 sourceLocation: sourceLocation,
                 oldItem: oldItem,
                 episodeInfo: effectiveEpisodeInfo,
@@ -762,28 +786,34 @@ class LocalMediaIndexer
         reusedCount: reusedCount,
         removedCount: 0,
         skippedCount: skippedCount,
+        filteredBySizeCount: filteredBySizeCount,
         cancelled: true,
         failures: failures,
       );
     }
-    await _repository.saveForSourceLocation(sourceLocation, indexed);
-    if (isCancelled?.call() == true) {
+    final committed = await _repository.commitSource(
+      sourceSnapshot, [...indexed, ...retainedFiltered],
+      fingerprints: directoryFingerprints,
+      mediaIdAliases: mediaIdAliases,
+    );
+    if (!committed || isCancelled?.call() == true) {
       return LocalMediaIndexResult(
         sourcePath: sourcePath,
-        items: indexed,
+        items: _repository.getBySourceLocation(sourceLocation),
         addedCount: addedCount,
         updatedCount: updatedCount,
         reusedCount: reusedCount,
-        removedCount: previous.length,
+        removedCount: 0,
         skippedCount: skippedCount,
+        filteredBySizeCount: filteredBySizeCount,
         cancelled: true,
         failures: failures,
       );
     }
-    await _repository.saveDirectoryFingerprintsForLocation(
-      sourceLocation,
-      directoryFingerprints,
-    );
+    indexed
+      ..clear()
+      ..addAll(_repository.getBySourceLocation(sourceLocation).where((item) =>
+          LocalVideoFileTypes.isRecognizedVideoSize(item.size, minSizeBytes: minSizeBytes)));
     AppLogger().i(
       'LocalMediaIndexer: source=${sourceLocation.stableId} '
       'inherited=$inheritedCount migrated=$migratedCount '
@@ -799,7 +829,7 @@ class LocalMediaIndexer
     ));
 
     final changes = buildLocalMediaIndexChanges(
-      previous: previousSourceItems,
+      previous: previousSourceItems.where((item) => !filteredEntries.containsKey(item.id)),
       current: indexed,
       failures: failures,
     );
@@ -811,6 +841,7 @@ class LocalMediaIndexer
       reusedCount: reusedCount,
       removedCount: previous.length,
       skippedCount: skippedCount,
+        filteredBySizeCount: filteredBySizeCount,
       sourceAccessible: !failedDirectories.contains(''),
       failures: failures,
       changes: changes,
@@ -835,6 +866,7 @@ class LocalMediaIndexer
 
   Future<LocalMediaIndexItem> _buildFileItem(
     LocalMediaEntry entry, {
+    required LocalSubtitleScanSession subtitleSession,
     required MediaLocation sourceLocation,
     required LocalMediaIndexItem? oldItem,
     required LocalEpisodeInfo? episodeInfo,
@@ -846,7 +878,7 @@ class LocalMediaIndexer
     final stat = await file.stat();
     final mediaInfo =
         enrichMediaInfo ? await _mediaProbe.probe(file.path) : null;
-    final cover = _coverFinder.findVideoCover(file.path) ??
+    final cover = await _coverFinder.findVideoCover(file.path) ??
         (generateThumbnails
             ? await _mediaProbe.captureThumbnail(
                 file.path,
@@ -858,7 +890,10 @@ class LocalMediaIndexer
       stat: stat,
       sourcePath: sourceLocation.value,
       cover: cover,
-      subtitlePath: await _subtitleMatcher.findForVideo(file.path),
+      subtitlePath: await _subtitleMatcher.findForVideo(
+        file.path,
+        scanSession: subtitleSession,
+      ),
       episodeInfo:
           oldItem?.manualOverride == true ? oldItem?.episodeInfo : episodeInfo,
       duration: mediaInfo?.duration ?? oldItem?.toFileItem().duration,
@@ -889,12 +924,14 @@ class LocalMediaIndexer
   LocalMediaIndexResult _inaccessibleDocumentResult(
     MediaLocation sourceLocation,
     List<LocalMediaIndexItem> previousItems,
-    String message,
-  ) {
+    String message, {
+    bool requiresAuthorization = false,
+  }) {
     final failures = <LocalMediaIndexFailure>[
       LocalMediaIndexFailure(
         path: sourceLocation.value,
         message: message,
+        requiresAuthorization: requiresAuthorization,
       ),
     ];
     return LocalMediaIndexResult(

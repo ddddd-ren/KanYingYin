@@ -7,6 +7,53 @@ import 'package:kanyingyin/features/scraped_metadata_transfer/application/scrape
 import 'package:kanyingyin/features/scraped_metadata_transfer/domain/scraped_metadata_transfer_models.dart';
 
 void main() {
+  test('提交成功后临时目录清理失败不误报导入失败', () async {
+    final archive = DecodedScrapedMetadataArchive(
+      payload: _payload(),
+      imageFiles: {},
+      temporaryDirectory: _CleanupFailureDirectory(),
+    );
+    final service = ScrapedMetadataTransferService(
+      buildExport: () => throw UnimplementedError(),
+      writeArchive: ({required output, required payload, required images}) =>
+          throw UnimplementedError(),
+      readArchive: (_) async => archive,
+      buildPlan: (_, __) async => _plan(archive.payload),
+      importPlan: (_, __) async => const ScrapedMetadataTransferResult(
+        localCount: 1, cloudCount: 0, imageCount: 0, skippedCount: 0,
+      ),
+    );
+    final session = await service.inspect(File('unused'));
+    expect((await service.apply(session)).localCount, 1);
+  });
+  test('损坏刮削包在 inspect 阶段拒绝且不触发导入', () async {
+    final root = await Directory.systemTemp.createTemp('bad-kyymeta-');
+    addTearDown(() => root.delete(recursive: true));
+    final input = File('${root.path}/bad.kyymeta');
+    await input.writeAsBytes([1, 2, 3], flush: true);
+    var plans = 0;
+    var imports = 0;
+    final codec = ScrapedMetadataArchiveCodec(
+      temporaryDirectoryProvider: () async => root,
+    );
+    final service = ScrapedMetadataTransferService(
+      buildExport: () => throw UnimplementedError(),
+      writeArchive: codec.write,
+      readArchive: codec.read,
+      buildPlan: (payload, _) async {
+        plans++;
+        return _plan(payload);
+      },
+      importPlan: (_, __) async {
+        imports++;
+        throw UnimplementedError();
+      },
+    );
+    await expectLater(service.inspect(input), throwsA(isA<FormatException>()));
+    expect(plans, 0);
+    expect(imports, 0);
+    expect(await input.readAsBytes(), [1, 2, 3]);
+  });
   test('导出组合资料和归档并返回准确统计', () async {
     final temporary =
         await Directory.systemTemp.createTemp('kyymeta-service-export-');
@@ -150,3 +197,12 @@ ScrapedMetadataImportPlan _plan(ScrapedMetadataPayload payload) =>
       missingMediaCount: 0,
       recoverableImageCount: 0,
     );
+
+class _CleanupFailureDirectory extends Fake implements Directory {
+  @override
+  Future<bool> exists() async => true;
+
+  @override
+  Future<Directory> delete({bool recursive = false}) async =>
+      throw const FileSystemException('模拟临时文件被占用');
+}

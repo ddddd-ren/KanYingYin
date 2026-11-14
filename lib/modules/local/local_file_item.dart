@@ -22,11 +22,19 @@ class LocalScanResult {
   final String currentPath;
   final List<LocalFileItem> items;
   final int skippedCount;
+  final int filteredBySizeCount;
+  final List<String> failedPaths;
+  final bool sourceAccessible;
+  final int minSizeBytes;
 
   const LocalScanResult({
     required this.currentPath,
     required this.items,
     required this.skippedCount,
+    this.filteredBySizeCount = 0,
+    this.failedPaths = const [],
+    this.sourceAccessible = true,
+    this.minSizeBytes = 800 * 1024 * 1024,
   });
 }
 

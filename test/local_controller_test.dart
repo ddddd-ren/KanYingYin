@@ -124,6 +124,7 @@ void main() {
     final controller = LocalController(
       scanner: _ImmediateScanner(<LocalFileItem>[_item(path: videoPath)]),
       mediaSourceRepository: _MemoryMediaSourceRepository(),
+      mediaIndexRepository: _MemoryMediaIndexRepository(),
       preferences: preferences,
       metadataCoordinator: coordinator,
     );
@@ -898,11 +899,26 @@ void main() {
       treeUri: 'content://media/tree/offline',
     );
     await sourceRepository.upsertLocation(location, displayName: '离线视频');
+    final indexedItem = LocalMediaIndexItem(
+      location: MediaLocation.document(
+        uri: 'content://media/document/offline/video',
+        treeUri: 'content://media/tree/offline',
+      ),
+      parentLocation: location,
+      sourceLocation: location,
+      name: '离线作品.mkv',
+      size: 100,
+      modified: DateTime(2026),
+      seriesName: '离线作品',
+      indexedAt: DateTime(2026),
+    );
+    final indexRepository = _MemoryMediaIndexRepository();
+    await indexRepository.saveForSource(location.value, [indexedItem]);
     final indexer = _RecordingLocationMediaIndexer(sourceAccessible: false);
     final controller = LocalController(
       scanner: _ImmediateScanner(const []),
       mediaIndexer: indexer,
-      mediaIndexRepository: _MemoryMediaIndexRepository(),
+      mediaIndexRepository: indexRepository,
       mediaSourceRepository: sourceRepository,
       preferences: _preferences(),
     );
@@ -914,6 +930,12 @@ void main() {
     expect(controller.isMediaSourceAvailable(controller.mediaSources.single),
         isFalse);
     expect(sourceRepository.scanSummaries, isEmpty);
+    expect(
+        controller.cachedLocalMediaLibrary.series.single.isAvailable, isFalse);
+    expect(
+        controller
+            .cachedLocalMediaLibrary.series.single.episodes.single.isAvailable,
+        isFalse);
   });
 
   test('严格刷新本地媒体库时拒绝复用正在进行的扫描', () async {
@@ -947,7 +969,8 @@ void main() {
       controller.refreshLocalLibraryIndex(throwOnFailure: true),
       throwsA(isA<StateError>()),
     );
-    expect(controller.libraryIndexSummary, '媒体库索引失败');
+    expect(controller.libraryIndexSummary, '媒体库索引失败，已保留原有资料，请重试');
+    expect(controller.libraryIndexFailures, hasLength(1));
     expect(controller.isIndexingLibrary, isFalse);
   });
 

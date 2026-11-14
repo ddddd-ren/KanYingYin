@@ -21,7 +21,9 @@ void main() {
     }
     for (final label in <String>[
       'TMDB 刮削',
+      'AI 识别与分类',
       '存储',
+      '备份与迁移',
       '网盘数据源',
       '媒体识别',
       '观看历史',
@@ -35,7 +37,9 @@ void main() {
     }
     for (final path in <String>[
       '/settings/tmdb',
+      '/settings/tmdb/vision',
       '/settings/storage',
+      '/settings/backup-migration',
       '/settings/cloud-sources',
       '/settings/media-recognition',
       '/settings/history',

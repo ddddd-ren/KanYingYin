@@ -391,6 +391,30 @@ void main() {
     await repository.save('good', MediaLibraryUserState.empty);
     expect(await repository.get('good'), isNull);
   });
+
+  test('AI 自动分类只写入一次且不覆盖人工分类', () async {
+    final repository = MediaLibraryUserStateRepository(
+      storage: MemoryMediaLibraryUserStateStorage(),
+    );
+    expect(
+      await repository.saveAutomaticCategory(
+        'work',
+        category: '电视剧',
+        mediaIds: ['one'],
+      ),
+      isTrue,
+    );
+    expect((await repository.get('work'))!.categoryOverride, ['电视剧']);
+    expect(
+      await repository.saveAutomaticCategory(
+        'work',
+        category: '电影',
+        mediaIds: ['two'],
+      ),
+      isFalse,
+    );
+    expect((await repository.get('work'))!.categoryOverride, ['电视剧']);
+  });
 }
 
 class _FailingStorage extends MemoryMediaLibraryUserStateStorage {

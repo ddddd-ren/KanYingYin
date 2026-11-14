@@ -127,6 +127,7 @@ class LibraryPathBar extends StatelessWidget {
     required this.onBreadcrumbSelected,
     this.onScanLibrary,
     this.onOpenLibrary,
+    this.onOpenMyLibrary,
     this.onOpenRecentPath,
     this.onNavigateUp,
     required this.onPathSubmitted,
@@ -151,6 +152,7 @@ class LibraryPathBar extends StatelessWidget {
   final FutureOr<void> Function(String path) onBreadcrumbSelected;
   final FutureOr<void> Function()? onScanLibrary;
   final FutureOr<void> Function()? onOpenLibrary;
+  final VoidCallback? onOpenMyLibrary;
   final FutureOr<void> Function(String path)? onOpenRecentPath;
   final FutureOr<void> Function()? onNavigateUp;
   final LibraryPathSubmit onPathSubmitted;
@@ -226,6 +228,8 @@ class LibraryPathBar extends StatelessWidget {
                   data.canNavigateUp ? onNavigateUp : null),
               _button(context, Icons.refresh, '刷新当前目录',
                   data.isLoading ? null : onRefresh),
+              if (onOpenMyLibrary != null)
+                _button(context, Icons.collections_bookmark_outlined, '我的片库', onOpenMyLibrary),
               if (classificationControl != null) classificationControl!,
               PopupMenuButton<LibraryMenuAction>(
                 tooltip: '更多媒体库操作',

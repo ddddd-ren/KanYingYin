@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/utils/legacy_history_data_cleaner.dart';
 import 'package:kanyingyin/utils/logger.dart';
+import 'package:kanyingyin/utils/settings_box_recovery.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:kanyingyin/legacy/hive/legacy_bangumi_tag_adapter.dart';
 import 'package:kanyingyin/legacy/hive/legacy_playback_media_item_adapter.dart';
@@ -35,55 +36,15 @@ class GStorage {
     Hive.registerAdapter(LegacyPlaybackMediaItemAdapter());
     Hive.registerAdapter(LegacyBangumiTagAdapter());
 
-    // Open each box with automatic recovery on corruption
-    setting = await _openBoxSafe<Object?>('setting');
-  }
-
-  /// Open a Hive box with automatic recovery on corruption.
-  /// If the box is corrupted, delete it and create a new empty one.
-  static Future<Box<T>> _openBoxSafe<T>(String boxName) async {
-    try {
-      return await Hive.openBox<T>(boxName);
-    } catch (e) {
-      AppLogger().e('GStorage: Box "$boxName" corrupted, attempting recovery',
-          error: e);
-
-      // Delete the corrupted box files
-      await _deleteBoxFiles(boxName);
-
-      // Try to open again (will create a new empty box)
-      try {
-        final box = await Hive.openBox<T>(boxName);
-        AppLogger()
-            .i('GStorage: Box "$boxName" recovered successfully (data lost)');
-        return box;
-      } catch (e2) {
-        AppLogger().e('GStorage: Failed to recover box "$boxName"', error: e2);
-        rethrow;
-      }
-    }
-  }
-
-  /// Delete Hive box files for a given box name
-  static Future<void> _deleteBoxFiles(String boxName) async {
-    if (_hivePath == null) return;
-
-    final boxFile = File('$_hivePath/$boxName.hive');
-    final lockFile = File('$_hivePath/$boxName.lock');
-
-    try {
-      if (await boxFile.exists()) {
-        await boxFile.delete();
-        AppLogger().i('GStorage: Deleted corrupted box file: $boxName.hive');
-      }
-      if (await lockFile.exists()) {
-        await lockFile.delete();
-        AppLogger().i('GStorage: Deleted lock file: $boxName.lock');
-      }
-    } catch (e) {
-      AppLogger()
-          .e('GStorage: Failed to delete box files for "$boxName"', error: e);
-    }
+    setting = await openSettingsBoxSafely(
+      file: File('$_hivePath/setting.hive'),
+      // Hive 默认会截断损坏文件；备份完成前必须禁用隐式恢复。
+      open: () => Hive.openBox<Object?>(
+        'setting',
+        path: _hivePath,
+        crashRecovery: false,
+      ),
+    );
   }
 
   // Prevent instantiation

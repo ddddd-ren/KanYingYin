@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:kanyingyin/features/library/application/media_ai_classifier.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:flutter/foundation.dart';
 import 'package:kanyingyin/features/library/application/media_category_runtime.dart';
@@ -9,7 +11,9 @@ import 'package:kanyingyin/features/library/application/library_ports.dart';
 class MediaCategoryModule extends Module {
   MediaCategoryModule(this.category);
 
-  final MediaLibraryCategory category;
+  MediaCategoryModule.myLibrary() : category = null;
+
+  final MediaLibraryCategory? category;
 
   @override
   void routes(r) {
@@ -17,6 +21,7 @@ class MediaCategoryModule extends Module {
       final localLibrary = Modular.get<LocalLibraryPort>();
       final cloudLibrary = Modular.get<CloudLibraryPort>();
       final runtime = MediaCategoryRuntime(
+        includeUnavailable: category == null,
         localLibrary: localLibrary,
         cloudLibrary: cloudLibrary,
         playback: Modular.get<PlaybackPort>(),
@@ -27,7 +32,12 @@ class MediaCategoryModule extends Module {
       );
       return MediaCategoryPage(
         category: category,
-        initialize: runtime.initialize,
+        initialize: () async {
+          await runtime.initialize();
+          if (category != null) {
+            unawaited(Modular.get<MediaAiClassifier>().process(() => runtime.library));
+          }
+        },
         refresh: runtime.refresh,
         libraryProvider: () => runtime.library,
         onPlayEpisode: runtime.playEpisode,

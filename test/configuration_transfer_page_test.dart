@@ -102,13 +102,17 @@ void main() {
       ),
     ))!;
     var refreshCount = 0;
+    var failRefresh = false;
     await tester.pumpWidget(MaterialApp(
       home: ConfigurationTransferPage(
         service: fixture.service,
         saveFile: (_, __) async => null,
         openFile: () async => encryptedFixture,
         shareEncryptedFile: (_, __) async => ConfigurationShareOutcome.shared,
-        onImported: () async => refreshCount++,
+        onImported: () async {
+          refreshCount++;
+          if (failRefresh) throw StateError('模拟刷新失败');
+        },
         capabilities: AppPlatformCapabilities.android,
       ),
     ));
@@ -133,6 +137,17 @@ void main() {
     expect(fixture.tmdbManager.read(), 'imported-key');
     expect(find.textContaining('cookie-secret'), findsNothing);
     expect(find.textContaining('imported-key'), findsNothing);
+
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    failRefresh = true;
+    await _openAndInspect(tester);
+    await tester.tap(find.text('确认导入'));
+    await tester.pumpAndSettle();
+    expect(refreshCount, 2);
+    expect(find.textContaining('导入完成'), findsOneWidget);
+    expect(find.textContaining('无需重复导入'), findsOneWidget);
+    expect(fixture.tmdbManager.read(), 'imported-key');
   });
 
   testWidgets('Android TV 导入配置先进入专用文件选择通道', (tester) async {

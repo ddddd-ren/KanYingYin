@@ -34,35 +34,34 @@ Future<void> _openVersionChangelogDialog(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('2.1.232 测试版更新弹窗展示图片预热与分类确认菜单精简', (tester) async {
-    expect(AppVersion.current, '2.1.232');
+  testWidgets('2.1.240 测试版更新弹窗展示我的片库', (tester) async {
+    expect(AppVersion.current, '2.1.240');
     final entries = versionHistoryForCurrent(AppVersion.current);
     expect(entries, hasLength(1));
     expect(entries.single.isPrerelease, isTrue);
-    expect(entries.single.date, '2026-10-13');
+    expect(entries.single.date, '2026-11-14');
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(body: VersionChangelogContent(versions: entries)),
     ));
-    expect(find.text('v2.1.232  测试版  2026-10-13'), findsOneWidget);
-    for (final text in ['预热最终图片', '待确认', '已确认', '移除保守', '原始视频']) {
+    expect(find.text('v2.1.240  测试版  2026-11-14'), findsOneWidget);
+    for (final text in ['我的片库', '收藏', '待看', '合集', '原始视频']) {
       expect(find.textContaining(text), findsWidgets);
     }
     expect(tester.takeException(), isNull);
   });
 
-  test('Android 2.1.232 更新说明展示图片预热与分类确认菜单精简', () {
+  test('Android 2.1.240 更新说明注明仅同步版本配置', () {
     final entries = versionHistoryForCurrent(
-      '2.1.232',
+      '2.1.240',
       platform: AppPlatformKind.android,
     );
     expect(entries, hasLength(1));
-    expect(entries.single.version, '2.1.232');
+    expect(entries.single.version, '2.1.240');
     expect(entries.single.isPrerelease, isTrue);
     final changes = entries.single.changes.join('\n');
-    for (final text in ['预热最终图片', '待确认', '已确认', '移除保守', '原始视频']) {
+    for (final text in ['仅同步', '不交付 Android 安装包', '原始视频']) {
       expect(changes, contains(text));
     }
-    expect(changes, isNot(contains('Windows')));
     expect(changes, isNot(contains('Android TV')));
   });
 

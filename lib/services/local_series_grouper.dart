@@ -1,3 +1,4 @@
+import 'package:kanyingyin/features/library/application/media_library_query.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_episode_title_resolver.dart';
 import 'package:path/path.dart' as p;
@@ -261,13 +262,16 @@ class LocalVideoGroup {
     return _isGeneratedThumbnail(currentCover);
   }
 
-  bool matches(String keyword) {
-    final normalized = keyword.trim().toLowerCase();
-    if (normalized.isEmpty) return true;
-    if (title.toLowerCase().contains(normalized)) return true;
-    return episodes
-        .any((episode) => episode.name.toLowerCase().contains(normalized));
-  }
+  bool matches(String keyword, {Iterable<String?> extraTitles = const []}) =>
+      const MediaLibraryQuery().matchesTitles([
+        title,
+        for (final episode in episodes) ...[
+          episode.name,
+          episode.seriesTitleOverride,
+          ...episode.originalNames,
+        ],
+        ...extraTitles,
+      ], keyword);
 
   List<Map<String, String>> get playlistFiles {
     return episodes

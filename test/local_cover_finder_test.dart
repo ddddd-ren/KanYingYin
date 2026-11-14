@@ -1,9 +1,30 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/local/media_location.dart';
 import 'package:kanyingyin/services/local_cover_finder.dart';
 import 'package:kanyingyin/services/local_media_entry_provider.dart';
 
 void main() {
+  test('多个封面查找器并发迁移旧海报后均返回有效新路径', () async {
+    final root = await Directory.systemTemp.createTemp('cover_migration_race_');
+    addTearDown(() => root.delete(recursive: true));
+    final series =
+        await Directory('${root.path}${Platform.pathSeparator}Show').create();
+    final legacy = File('${root.path}${Platform.pathSeparator}Show.jpg');
+    await legacy.writeAsString('poster');
+    final finders = List.generate(12, (_) => LocalCoverFinder());
+    final results = await Future.wait(
+        finders.map((finder) => finder.findDirCover(series.path)));
+    final expected = LocalCoverFinder.directoryCoverPath(series.path);
+    expect(results, everyElement(expected));
+    expect(await File(expected).readAsString(), 'poster');
+    expect(await legacy.exists(), isFalse);
+    final repeated = await Future.wait(
+        finders.map((finder) => finder.findDirCover(series.path)));
+    expect(repeated, everyElement(expected));
+  });
+
   test('LocalCoverFinder 优先匹配 Android 文档目录中的 TMDB 海报', () {
     const treeUri = 'content://provider/tree/root';
     final video = _entry(

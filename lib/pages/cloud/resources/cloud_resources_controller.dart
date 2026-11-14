@@ -51,6 +51,7 @@ import 'package:kanyingyin/services/tmdb/tmdb_image_selection_logger.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_prepared_search.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/utils/logger.dart';
+import 'package:kanyingyin/services/media_recognition_settings.dart';
 
 part 'cloud_resources_controller/directory_scope.dart';
 part 'cloud_resources_controller/filter_tags.dart';
@@ -63,7 +64,7 @@ part 'cloud_resources_controller/episode_match.dart';
 part 'cloud_resources_controller/auto_organize.dart';
 
 int _defaultCloudMinSizeBytes() =>
-    LocalVideoFileTypes.minRecognizedVideoSizeBytes;
+    MediaRecognitionSettings.cloudDefaultBytes;
 
 typedef CloudDirectoryScopeTreeBuilder = CloudDirectoryScopeTree Function({
   required Iterable<String> rootPaths,
@@ -269,6 +270,7 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
   CloudMediaTree? _mediaTree;
   final Map<String, List<MediaLibrarySeries>> _mediaLibrarySeriesBySource =
       <String, List<MediaLibrarySeries>>{};
+  final Map<String, List<MediaLibrarySeries>> _cachedMediaLibrarySeriesBySource = {};
   List<CloudSource> _mediaLibrarySources = const <CloudSource>[];
   final ChangeNotifier _mediaLibraryNotifier = ChangeNotifier();
 
@@ -282,6 +284,44 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
   bool autoOrganizing = false;
   String query = '';
   String? errorMessage;
+  Set<CloudDriveErrorType> scanFailureTypes = const {};
+  CloudMediaScanResult? lastScanResult;
+  int get minRecognizedVideoSizeBytes => _minRecognizedVideoSizeBytesProvider();
+  CloudDriveErrorType? get scanRecoveryType {
+    for (final type in const [
+      CloudDriveErrorType.authentication,
+      CloudDriveErrorType.invalidPassword,
+      CloudDriveErrorType.verificationRequired,
+      CloudDriveErrorType.permission,
+      CloudDriveErrorType.protocolUpdated,
+      CloudDriveErrorType.notFound,
+      CloudDriveErrorType.invalidAddress,
+    ]) {
+      if (scanFailureTypes.contains(type)) return type;
+    }
+    return scanFailureTypes.firstOrNull;
+  }
+
+  String? get scanRecoveryLabel {
+    if (selectedSource?.remoteRoots.isEmpty == true) return '编辑来源';
+    return switch (scanRecoveryType) {
+      CloudDriveErrorType.authentication ||
+      CloudDriveErrorType.invalidPassword ||
+      CloudDriveErrorType.verificationRequired ||
+      CloudDriveErrorType.permission ||
+      CloudDriveErrorType.protocolUpdated => '重新授权',
+      CloudDriveErrorType.notFound ||
+      CloudDriveErrorType.invalidAddress => '编辑来源',
+      _ => null,
+    };
+  }
+
+  String? get scanSummary {
+    final result = lastScanResult;
+    if (result == null || result.cancelled) return null;
+    return '${result.videoCount} 个视频，${result.filteredBySizeCount} 个因大小过滤，${result.failures} 个目录读取失败${result.videoCount == 0 && result.filteredBySizeCount == 0 && result.failures == 0 ? '，未发现视频文件' : ''}';
+  }
+
   String? currentDirectoryScope;
 
   int _generation = 0;
@@ -311,17 +351,27 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
 
   CloudMediaLibrary get mediaLibrarySnapshot => CloudMediaLibrary(
         series: <MediaLibrarySeries>[
-          for (final source in _mediaLibrarySources)
+          for (final source in _mediaLibrarySources.where((source) => source.enabled))
             ...?_mediaLibrarySeriesBySource[source.id],
         ],
         filters: <MediaLibrarySourceFilter>[
           const MediaLibrarySourceFilter('all', '全部', null),
-          for (final source in _mediaLibrarySources)
+          for (final source in _mediaLibrarySources.where((source) => source.enabled))
             MediaLibrarySourceFilter(
               source.id,
               source.name,
               MediaSourceKind.cloud,
             ),
+        ],
+      );
+
+  CloudMediaLibrary get cachedMediaLibrarySnapshot => CloudMediaLibrary(
+        series: [for (final source in _mediaLibrarySources)
+          ...?_cachedMediaLibrarySeriesBySource[source.id]],
+        filters: [
+          const MediaLibrarySourceFilter('all', '全部来源', null),
+          for (final source in _mediaLibrarySources)
+            MediaLibrarySourceFilter(source.id, source.name, MediaSourceKind.cloud),
         ],
       );
 

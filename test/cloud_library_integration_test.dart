@@ -1537,6 +1537,9 @@ class _SettingsBox extends Fake implements Box<Object?> {
 }
 
 class _MemoryLocalMediaTagRepository implements ILocalMediaTagRepository {
+  @override
+  Future<void> reconcileSourceKeys(
+      Map<String, Set<String>> completeSeries) async {}
   final Map<String, List<String>> values = <String, List<String>>{};
 
   @override

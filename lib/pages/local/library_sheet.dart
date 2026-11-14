@@ -91,6 +91,12 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
 
   Future<void> _reloadClassifications() async {
     try {
+      await _tagRepository.reconcileSourceKeys({
+        for (final item in widget.controller.cachedLocalMediaLibrary.series)
+          item.seriesKey:
+              item.episodes.map((episode) => episode.stableId).toSet(),
+      });
+      _reloadCustomTags();
       final states = await _userStateRepository.reconcile({
         for (final series in widget.controller.localMediaLibrary.series)
           series.key:
@@ -129,14 +135,7 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
   }
 
   List<LocalMediaSeries> _filtered(List<LocalMediaSeries> all) {
-    var list = all;
-    if (_query.isNotEmpty) {
-      final q = _query.toLowerCase();
-      list = list.where((s) {
-        return s.displayTitle.toLowerCase().contains(q) ||
-            _bn(s).toLowerCase().contains(q);
-      }).toList();
-    }
+    final list = all;
     switch (_sortBy) {
       case 'name':
         list.sort((a, b) => a.displayTitle
@@ -150,18 +149,6 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
         list.sort((a, b) => b.latestModified.compareTo(a.latestModified));
     }
     return list;
-  }
-
-  String _bn(LocalMediaSeries s) {
-    for (final ep in s.episodes) {
-      final title = ep.tmdb?.title;
-      if (title != null && title.isNotEmpty) return title;
-      final originalTitle = ep.tmdb?.originalTitle;
-      if (originalTitle != null && originalTitle.isNotEmpty) {
-        return originalTitle;
-      }
-    }
-    return '';
   }
 
   double _rt(LocalMediaSeries s) {
@@ -215,6 +202,7 @@ class _LibrarySheetContentState extends State<LibrarySheetContent> {
             final tagFiltered = _libraryQuery.apply(
               series: library.series,
               sourceId: 'local',
+              keyword: _query,
               selectedCategories: _selectedCategories,
               selectedGenres: _selectedGenres,
               selectedCustomTags: _selectedCustomTags,

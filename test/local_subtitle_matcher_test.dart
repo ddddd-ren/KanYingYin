@@ -6,6 +6,27 @@ import 'package:kanyingyin/services/local_media_entry_provider.dart';
 import 'package:kanyingyin/services/local_subtitle_matcher.dart';
 
 void main() {
+  test('扫描会话复用目录候选且不影响实时读取和后续会话', () async {
+    final dir = await Directory.systemTemp.createTemp('subtitle_session_');
+    addTearDown(() => dir.delete(recursive: true));
+    final firstVideo = '${dir.path}${Platform.pathSeparator}First.mkv';
+    final secondVideo = '${dir.path}${Platform.pathSeparator}Second.mkv';
+    final matcher = LocalSubtitleMatcher();
+    final session = LocalSubtitleScanSession();
+    expect(
+        await matcher.findForVideo(firstVideo, scanSession: session), isNull);
+    final subtitle = File('${dir.path}${Platform.pathSeparator}Second.srt');
+    await subtitle.writeAsString('subtitle');
+    expect(
+        await matcher.findForVideo(secondVideo, scanSession: session), isNull);
+    expect(await matcher.findForVideo(secondVideo), subtitle.path);
+    expect(
+      await matcher.findForVideo(secondVideo,
+          scanSession: LocalSubtitleScanSession()),
+      subtitle.path,
+    );
+  });
+
   test('字幕目录枚举接口异步执行', () async {
     final dir =
         await Directory.systemTemp.createTemp('kanyingyin_subtitle_async_');

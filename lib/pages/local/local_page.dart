@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
+import 'package:kanyingyin/pages/menu/adaptive_navigation_shell.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
@@ -19,6 +20,7 @@ import 'package:kanyingyin/features/library/presentation/library_media_grid.dart
 import 'package:kanyingyin/features/library/presentation/library_path_bar.dart';
 import 'package:kanyingyin/features/library/presentation/library_source_menu.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
+import 'package:kanyingyin/services/media_recognition_settings.dart';
 import 'package:kanyingyin/pages/tmdb_match_dialog.dart';
 import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
@@ -151,6 +153,12 @@ class _LocalPageState extends State<LocalPage>
   Future<void> _editSeriesTags(
       BuildContext context, MediaLibrarySeries series) async {
     final tags = LocalMediaTagRepository();
+    await tags.reconcileSourceKeys({
+      for (final item in localController.cachedLocalMediaLibrary.series)
+        item.seriesKey:
+            item.episodes.map((episode) => episode.stableId).toSet(),
+    });
+    if (!context.mounted) return;
     final initialTags = tags.getAll()[series.seriesKey] ?? const <String>[];
     await showMediaClassificationDialog(
       context,
@@ -572,7 +580,7 @@ class _LocalPageState extends State<LocalPage>
     final added = result['added'] ?? 0;
     final updated = result['updated'] ?? 0;
     final removed = result['removed'] ?? 0;
-    final skipped = result['skipped'] ?? 0;
+    final filtered = result['filteredBySize'] ?? 0;
     final failed = result['failed'] ?? 0;
     final changes = result['changes'] ?? 0;
     final cancelled = result['cancelled'] == 1;
@@ -580,7 +588,7 @@ class _LocalPageState extends State<LocalPage>
         ? '没有可扫描的媒体源'
         : cancelled
             ? '媒体库扫描已取消'
-            : '媒体库已更新：$total 个视频，新增 $added，更新 $updated，移除 $removed，跳过 $skipped，失败 $failed，变更 $changes';
+            : '媒体库已更新：$total 个视频，新增 $added，更新 $updated，移除 $removed，大小过滤 $filtered，读取或处理失败 $failed，变更 $changes';
     messenger.showSnackBar(
       SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
     );
@@ -601,9 +609,12 @@ class _LocalPageState extends State<LocalPage>
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.error_outline),
-                title:
-                    Text('扫描结果：${changes.length} 项变更，${failures.length} 项失败'),
-                subtitle: const Text('变更会保留在队列中，失败项可检查权限、磁盘连接或路径'),
+                title: Text(
+                  '扫描结果：${changes.length} 项变更，${failures.length} 项失败',
+                ),
+                subtitle: const Text(
+                  '原有资料会保留。连接磁盘或网络后重试；目录授权失效时重新授权，目录已变更时重新选择。',
+                ),
               ),
               if (changes.isNotEmpty)
                 const ListTile(
@@ -615,16 +626,13 @@ class _LocalPageState extends State<LocalPage>
                 ListTile(
                   dense: true,
                   contentPadding: const EdgeInsets.only(left: 16),
-                  leading: Icon(
-                    switch (change.kind) {
-                      LocalMediaIndexChangeKind.added =>
-                        Icons.add_circle_outline,
-                      LocalMediaIndexChangeKind.updated => Icons.edit_outlined,
-                      LocalMediaIndexChangeKind.removed =>
-                        Icons.remove_circle_outline,
-                      LocalMediaIndexChangeKind.failed => Icons.error_outline,
-                    },
-                  ),
+                  leading: Icon(switch (change.kind) {
+                    LocalMediaIndexChangeKind.added => Icons.add_circle_outline,
+                    LocalMediaIndexChangeKind.updated => Icons.edit_outlined,
+                    LocalMediaIndexChangeKind.removed =>
+                      Icons.remove_circle_outline,
+                    LocalMediaIndexChangeKind.failed => Icons.error_outline,
+                  }),
                   title: Text(
                     change.path,
                     maxLines: 1,
@@ -646,12 +654,29 @@ class _LocalPageState extends State<LocalPage>
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  trailing: failure.requiresAuthorization
+                      ? TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            _pickDirectory();
+                          },
+                          child: const Text('重新授权'),
+                        )
+                      : null,
                 ),
               if (failures.length > 20)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text('还有 ${failures.length - 20} 项未显示'),
                 ),
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _pickDirectory();
+                },
+                icon: const Icon(Icons.folder_open),
+                label: const Text('重新选择目录'),
+              ),
               const SizedBox(height: 12),
               FilledButton.icon(
                 onPressed: localController.isIndexingLibrary
@@ -956,6 +981,7 @@ class _LocalPageState extends State<LocalPage>
         safetyText: '仅更新看影音中的资料，不会修改本地文件',
         draft: draft,
         initialOptions: localController.tmdbScrapeOptions,
+        onIdentify: () => localController.identifyLocalTmdb(seriesName),
         onSearch: (request) => localController.searchLocalTmdb(
           seriesName,
           request,
@@ -1005,6 +1031,12 @@ class _LocalPageState extends State<LocalPage>
                       onBreadcrumbSelected: _enterDirectory,
                       onScanLibrary: () => _refreshLocalLibraryIndex(context),
                       onOpenLibrary: () => _showLocalLibrary(context),
+                      onOpenMyLibrary: LibraryNavigationScope.maybeOf(context)
+                                  ?.sidebarVisible ==
+                              false
+                          ? LibraryNavigationScope.maybeOf(context)
+                              ?.openMyLibrary
+                          : null,
                       onOpenRecentPath: _enterDirectory,
                       onNavigateUp: localController.navigateUp,
                       onPathSubmitted: _submitDirectoryAddress,
@@ -1200,13 +1232,21 @@ class _LocalPageState extends State<LocalPage>
     };
     final groups = _visibleGroups(localController.items);
     final groupById = {
-      for (final group in groups) group.firstEpisode.path: group
+      for (final group in groups) group.firstEpisode.path: group,
     };
     return LibraryMediaGrid(
       data: LibraryMediaGridViewData(
         currentPath: localController.currentPath,
         isLoading: localController.isLoading,
         errorMessage: localController.errorMessage,
+        recognitionDescription: MediaRecognitionSettings.describeThreshold(
+          localController.lastDirectoryScan?.minSizeBytes ??
+              MediaRecognitionSettings.localDefaultBytes,
+        ),
+        filteredBySizeCount:
+            localController.lastDirectoryScan?.filteredBySizeCount ?? 0,
+        sourceAccessible:
+            localController.lastDirectoryScan?.sourceAccessible ?? true,
         hasSearchFilter: _searchKeyword.isNotEmpty &&
             localController.items.isNotEmpty &&
             groups.isEmpty,
@@ -1215,6 +1255,8 @@ class _LocalPageState extends State<LocalPage>
       scrollController: _scrollController,
       onPickDirectory: _pickDirectory,
       onRetry: localController.refresh,
+      onRecognitionSettings: () =>
+          Modular.to.pushNamed('/settings/media-recognition'),
       onClearSearch: _clearSearch,
       trailingBuilder: (context, item) {
         final group = groupById[item.id];
@@ -1237,8 +1279,9 @@ class _LocalPageState extends State<LocalPage>
     final series = _librarySeriesForGroup(group);
     final isScraping = localController.isFetchingPosters &&
         (localController.posterCurrentFile == group.title ||
-            group.episodes
-                .any((item) => localController.posterCurrentFile == item.name));
+            group.episodes.any(
+              (item) => localController.posterCurrentFile == item.name,
+            ));
     return _mediaViewDataBuilder.build(
       group,
       isScraping: isScraping,
@@ -1272,7 +1315,23 @@ class _LocalPageState extends State<LocalPage>
     if (_searchKeyword.isEmpty) {
       return groups;
     }
-    return groups.where((group) => group.matches(_searchKeyword)).toList();
+    final indexed = {
+      for (final item in localController.localLibraryItems)
+        item.location.stableId: item,
+    };
+    return groups
+        .where((group) => group.matches(_searchKeyword,
+                extraTitles: group.episodes.expand((episode) {
+              final item = indexed[episode.location.stableId];
+              return <String?>[
+                item?.seriesName,
+                ...?item?.originalNames,
+                item?.tmdb?.title,
+                item?.tmdb?.originalTitle,
+                ...?item?.tmdb?.aliases,
+              ];
+            })))
+        .toList();
   }
 }
 

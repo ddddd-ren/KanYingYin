@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/modules/cloud/cloud_file_entry.dart';
 import 'package:kanyingyin/modules/cloud/cloud_episode_match_rule.dart';
@@ -30,7 +31,120 @@ void main() {
     rootPaths: <String>['/动漫'],
   );
 
+  test('大小过滤独立于读取失败，授权和网络异常保留类型并可恢复', () async {
+    final repository = CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());
+    final indexer = CloudMediaIndexer(repository: repository,
+      minRecognizedVideoSizeBytesProvider: () => 10);
+    final client = _FakeCloudClient({'/动漫': [
+      _file('small', '/动漫/small.mkv', size: 10),
+      _file('valid', '/动漫/valid.mkv', size: 11),
+    ]});
+    final first = await indexer.scan(source: source, client: client);
+    expect(first.videoCount, 1);
+    expect(first.filteredBySizeCount, 1);
+    expect(first.failures, 0);
+    final before = (await repository.getBySource(source.id)).single;
+    for (final type in [CloudDriveErrorType.network, CloudDriveErrorType.authentication, CloudDriveErrorType.notFound]) {
+      final failure = await indexer.scan(source: source, client: _FakeCloudClient({},
+        failedPaths: {'/动漫'}, errorType: type));
+      expect(failure.failureTypes, {type});
+      expect(failure.failures, 1);
+      expect((await repository.getBySource(source.id)).single.remoteId, before.remoteId);
+    }
+    final recovered = await indexer.scan(source: source, client: client);
+    expect(recovered.failureTypes, isEmpty);
+    expect(recovered.failures, 0);
+    expect(recovered.filteredBySizeCount, 1);
+    expect((await repository.getBySource(source.id)).single.remoteId, before.remoteId);
+  });
+
+  test('阈值往返不丢已有TMDB资料，删除远程文件仍移除索引', () async {
+    final repository = CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());
+    var threshold = 0;
+    final indexer = CloudMediaIndexer(repository: repository, minRecognizedVideoSizeBytesProvider: () => threshold);
+    final client = _FakeCloudClient({'/动漫': [_file('video', '/动漫/Show S01E01.mkv', size: 5)]});
+    await indexer.scan(source: source, client: client);
+    final snapshot = await repository.snapshot(source.id);
+    await repository.replaceSource(source.id, [snapshot.items.single.copyWith(tmdbId: 42, tmdbTitle: '人工作品', posterCachePath: 'manual.jpg')],
+      snapshot.fingerprints, snapshot.directoryEntries, snapshot.indexedRoots);
+    threshold = 10;
+    final filtered = await indexer.scan(source: source, client: client);
+    expect(filtered.videoCount, 0);
+    expect(filtered.filteredBySizeCount, 1);
+    expect((await repository.getBySource(source.id)).single.tmdbId, 42);
+    threshold = 0;
+    final restored = await indexer.scan(source: source, client: client);
+    expect(restored.videoCount, 1);
+    expect((await repository.getBySource(source.id)).single.tmdbTitle, '人工作品');
+    expect((await repository.getBySource(source.id)).single.posterCachePath, 'manual.jpg');
+    await indexer.scan(source: source, client: _FakeCloudClient({'/动漫': []}));
+    expect(await repository.getBySource(source.id), isEmpty);
+  });
+
   group('CloudMediaIndexer', () {
+    test('目录指纹保持旧编码并且不受返回顺序影响', () async {
+      final repository = CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      );
+      final entries = <CloudFileEntry>[
+        _file('z', '/动漫/Z.mkv', size: _videoSize),
+        _file('a', '/动漫/A.mkv', size: _videoSize),
+      ];
+      final children = entries.map((entry) => <String, Object?>{
+        'id': entry.id,
+        'name': entry.name,
+        'remotePath': entry.remotePath,
+        'isDirectory': entry.isDirectory,
+        'size': entry.size,
+        'modifiedAt': entry.modifiedAt!.toUtc().toIso8601String(),
+      }).toList()
+        ..sort((a, b) => jsonEncode(a).compareTo(jsonEncode(b)));
+      final expected = sha256.convert(utf8.encode(jsonEncode(<String, Object?>{
+        'path': '/动漫',
+        'minSizeBytes': 1024 * 1024,
+        'children': children,
+      }))).toString();
+      final indexer = CloudMediaIndexer(repository: repository);
+      await indexer.scan(source: source, client: _FakeCloudClient({'/动漫': entries}));
+      expect((await repository.snapshot(source.id)).fingerprints['/动漫'], expected);
+      final second = await indexer.scan(
+        source: source,
+        client: _FakeCloudClient({'/动漫': entries.reversed.toList()}),
+      );
+      expect(second.skipped, 1);
+      expect((await repository.snapshot(source.id)).fingerprints['/动漫'], expected);
+    });
+
+    test('字幕分桶保留同目录和直属字幕目录且排除深层和相邻目录', () async {
+      final repository = CloudMediaIndexRepository(
+        storage: MemoryCloudMediaIndexStorage(),
+      );
+      final directories = <String, List<CloudFileEntry>>{
+        '/动漫': <CloudFileEntry>[
+          _file('video', '/动漫/Show S01E01.mkv', size: _videoSize),
+          _file('same', '/动漫/Show S01E01.ass', size: 100),
+          _dir('subs', '/动漫/SuBs'),
+          _dir('other', '/动漫/Other'),
+        ],
+        '/动漫/SuBs': <CloudFileEntry>[
+          _file('direct', '/动漫/SuBs/Show S01E01.srt', size: 100),
+          _dir('deep', '/动漫/SuBs/deep'),
+        ],
+        '/动漫/SuBs/deep': <CloudFileEntry>[
+          _file('deep-sub', '/动漫/SuBs/deep/Show S01E01.ass', size: 100),
+        ],
+        '/动漫/Other': <CloudFileEntry>[
+          _file('other-sub', '/动漫/Other/Show S01E01.ass', size: 100),
+        ],
+      };
+      await CloudMediaIndexer(repository: repository).scan(
+        source: source,
+        client: _FakeCloudClient(directories),
+      );
+      final item = (await repository.getBySource(source.id)).single;
+      expect(item.subtitleRefs.map((ref) => ref.id), <String>['same', 'direct']);
+    });
+
     test('重新扫描后应用逐视频映射和保留原名规则', () async {
       final repository =
           CloudMediaIndexRepository(storage: MemoryCloudMediaIndexStorage());
@@ -1835,6 +1949,7 @@ class _FakeCloudClient implements CloudDriveClient {
     this.listStarted,
     this.releaseList,
     this.closeThrows = false,
+    this.errorType,
   });
 
   final Map<String, List<CloudFileEntry>> directories;
@@ -1842,6 +1957,7 @@ class _FakeCloudClient implements CloudDriveClient {
   final Completer<void>? listStarted;
   final Completer<void>? releaseList;
   final bool closeThrows;
+  final CloudDriveErrorType? errorType;
   int concurrentLists = 0;
   int maxConcurrentLists = 0;
   int authenticateCalls = 0;
@@ -1859,7 +1975,10 @@ class _FakeCloudClient implements CloudDriveClient {
     try {
       if (listStarted?.isCompleted == false) listStarted!.complete();
       await releaseList?.future;
-      if (failedPaths.contains(remotePath)) throw StateError('目录失败');
+      if (failedPaths.contains(remotePath)) {
+        if (errorType != null) throw CloudDriveException(errorType!);
+        throw StateError('目录失败');
+      }
       return directories[remotePath] ?? <CloudFileEntry>[];
     } finally {
       concurrentLists--;

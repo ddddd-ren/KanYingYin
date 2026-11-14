@@ -1,3 +1,15 @@
+import 'package:kanyingyin/services/tmdb/tmdb_vision_model_client.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_ai_search_assist.dart';
+import 'package:kanyingyin/modules/cloud/cloud_resource_tmdb_record.dart';
+import 'package:kanyingyin/modules/cloud/cloud_work_tmdb_record.dart';
+import 'package:kanyingyin/repositories/cloud_resource_tmdb_repository.dart';
+import 'package:kanyingyin/repositories/cloud_work_tmdb_repository.dart';
+import 'package:kanyingyin/pages/cloud/resources/cloud_resources_controller.dart';
+import 'dart:async';
+import 'package:kanyingyin/pages/settings/backup_migration_page.dart';
+import 'dart:convert';
+import 'package:kanyingyin/features/library/application/media_ai_classifier.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 import 'package:kanyingyin/pages/about/about_module.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
@@ -33,6 +45,7 @@ import 'package:kanyingyin/services/cloud/cloud_credential_store.dart';
 import 'package:kanyingyin/services/media_recognition_settings.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_api_key_provider.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_vision_model_credentials.dart';
 import 'package:kanyingyin/features/settings/presentation/settings_motion.dart';
 import 'package:kanyingyin/features/history/presentation/history_page.dart';
 import 'package:kanyingyin/features/tv_pairing/application/tv_pairing_controller.dart';
@@ -90,6 +103,13 @@ class SettingsModule extends Module {
   void routes(r) {
     _child(
       r,
+      "/backup-migration",
+      child: (_) => BackupMigrationPage(
+        onOpenPath: (path) => Modular.to.pushNamed(path),
+      ),
+    );
+    _child(
+      r,
       "/storage",
       child: (_) => StorageSettingsPage(
         resolver:
@@ -137,6 +157,20 @@ class SettingsModule extends Module {
         credentialManager: Modular.get<TmdbCredentialManager>(),
         settings: Modular.get<TypedSettings>(),
         apiKeyProvider: Modular.get<TmdbApiKeyProvider>(),
+        visionCredentials: Modular.get<TmdbVisionModelCredentials>(),
+        onVisionSettingsSaved: _refreshAiMatching,
+      ),
+    );
+    _child(
+      r,
+      "/tmdb/vision",
+      child: (_) => TmdbSettingsPage(
+        credentialManager: Modular.get<TmdbCredentialManager>(),
+        settings: Modular.get<TypedSettings>(),
+        apiKeyProvider: Modular.get<TmdbApiKeyProvider>(),
+        visionCredentials: Modular.get<TmdbVisionModelCredentials>(),
+        onVisionSettingsSaved: _refreshAiMatching,
+        visionOnly: true,
       ),
     );
     _child(r, "/media-recognition", child: (_) {
@@ -265,4 +299,57 @@ class SettingsModule extends Module {
       ),
     );
   }
+}
+
+Future<void> _refreshAiMatching() async {
+  final assist = Modular.get<TmdbAiSearchAssist>();
+  assist.clearCache();
+  final classifier = Modular.get<MediaAiClassifier>();
+  classifier.clearCache();
+  final controller = Modular.get<CloudResourcesController>();
+  unawaited(classifier.process(() => controller.mediaLibrarySnapshot));
+  unawaited(classifier
+      .process(() => Modular.get<LocalController>().localMediaLibrary));
+  if (!assist.config().enabled) return;
+  final works = Modular.get<CloudWorkTmdbRepository>();
+  final resources = Modular.get<CloudResourceTmdbRepository>();
+  for (final record in await works.getAll()) {
+    if (record.status != CloudWorkTmdbStatus.unmatched &&
+        record.status != CloudWorkTmdbStatus.failed) {
+      continue;
+    }
+    try {
+      await works.update(record.workKey, (current) {
+        if (current == null ||
+            jsonEncode(current.toJson()) != jsonEncode(record.toJson())) {
+          throw const TmdbAutomaticMatchCancelled();
+        }
+        return CloudWorkTmdbRecord.fromJson(
+            {...current.toJson(), 'status': 'unchecked'});
+      });
+    } on TmdbAutomaticMatchCancelled {
+      // 保留并发修改或删除的记录。
+    }
+  }
+  for (final record in await resources.getAll()) {
+    if (record.status != CloudResourceTmdbStatus.unmatched &&
+        record.status != CloudResourceTmdbStatus.failed) {
+      continue;
+    }
+    try {
+      await resources.upsert(
+          CloudResourceTmdbRecord.fromJson(
+              {...record.toJson(), 'status': 'unchecked'}),
+          checkCurrent: (current) {
+        if (jsonEncode(current?.toJson()) != jsonEncode(record.toJson())) {
+          throw const TmdbAutomaticMatchCancelled();
+        }
+      });
+    } on TmdbAutomaticMatchCancelled {
+      // 保留并发完成的匹配。
+    }
+  }
+  unawaited(controller.refresh().catchError((Object error) {
+    TmdbVisionModelClient.report('AI 配置已保存，刷新网盘后将自动重试未匹配作品');
+  }));
 }

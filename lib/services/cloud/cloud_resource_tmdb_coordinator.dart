@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
@@ -676,6 +677,7 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
           continue;
         }
         if (cached.status == CloudResourceTmdbStatus.unmatched &&
+            cached.tmdbRuleVersion >= currentTmdbRuleVersion &&
             cached.checkedAt.add(unmatchedRetryInterval).isAfter(now)) {
           continue;
         }
@@ -717,13 +719,24 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
     String apiKey,
     int generation,
   ) async {
+    final previous = _records[target.stableKey];
     _scrapingKeys.add(target.stableKey);
     if (generation == _generation) notifyListeners();
     try {
       final service = await _serviceFor(apiKey);
-      await service.match(target, options: _optionsProvider());
+      await service.match(target,
+          options: _optionsProvider(),
+          isCurrent: () => generation == _generation);
       if (generation == _generation) await _refreshRecord(target);
+    } on TmdbAutomaticMatchCancelled {
+      // 过期任务或人工修正已接管，不写失败记录。
     } on Object {
+      if (generation != _generation) return;
+      if (previous?.status == CloudResourceTmdbStatus.matched ||
+          previous?.status == CloudResourceTmdbStatus.conflict) {
+        await _refreshRecord(target);
+        return;
+      }
       final failed = CloudResourceTmdbRecord.failed(
         sourceId: target.sourceId,
         remoteId: target.remote.id,
@@ -733,7 +746,17 @@ class CloudResourceTmdbCoordinator extends ChangeNotifier {
         checkedAt: _now(),
         customTitle: target.customTitle,
       );
-      await _repository.upsert(failed);
+      try {
+        await _repository.upsert(failed, checkCurrent: (current) {
+          if (generation != _generation ||
+              jsonEncode(current?.toJson()) != jsonEncode(previous?.toJson())) {
+            throw const TmdbAutomaticMatchCancelled();
+          }
+        });
+      } on TmdbAutomaticMatchCancelled {
+        if (generation == _generation) await _refreshRecord(target);
+        return;
+      }
       if (generation == _generation) {
         _records[failed.stableKey] = failed;
         _markRecordsChanged();

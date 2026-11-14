@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:kanyingyin/utils/safe_export_file.dart';
 
 import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
@@ -50,7 +51,6 @@ final class ScrapedMetadataArchiveCodec {
     final root = await _temporaryDirectoryProvider();
     await root.create(recursive: true);
     final staging = await root.createTemp('kyymeta-write-');
-    final partial = File('${output.path}.partial');
     try {
       final localFile = File(p.join(staging.path, 'local.json'));
       final cloudFile = File(p.join(staging.path, 'cloud.json'));
@@ -123,22 +123,19 @@ final class ScrapedMetadataArchiveCodec {
         flush: true,
       );
 
-      if (await partial.exists()) await partial.delete();
-      await output.parent.create(recursive: true);
-      final encoder = ZipFileEncoder()..create(partial.path);
-      try {
-        await encoder.addFile(manifest, 'manifest.json');
-        for (final entry in stagedFiles.entries) {
-          await encoder.addFile(entry.value, entry.key);
+      await writeExportFileSafely(output, (temporary) async {
+        final encoder = ZipFileEncoder()..create(temporary.path);
+        try {
+          await encoder.addFile(manifest, 'manifest.json');
+          for (final entry in stagedFiles.entries) {
+            await encoder.addFile(entry.value, entry.key);
+          }
+        } finally {
+          await encoder.close();
         }
-      } finally {
-        await encoder.close();
-      }
-      if (await output.exists()) await output.delete();
-      await partial.rename(output.path);
+      });
       return output;
     } finally {
-      if (await partial.exists()) await partial.delete();
       if (await staging.exists()) await staging.delete(recursive: true);
     }
   }

@@ -15,9 +15,12 @@ class LocalMediaLibraryBuilder {
     final indexedByPath = {
       for (final item in sourceItems) item.path: item,
     };
-    final grouped = const LocalSeriesGrouper().group(
-      sourceItems.map((item) => item.toFileItem()),
-    );
+    final bySource = <String, List<LocalMediaIndexItem>>{};
+    for (final item in sourceItems) {
+      bySource.putIfAbsent(item.sourceLocation.stableId, () => []).add(item);
+    }
+    final grouped = bySource.values.expand((items) =>
+        const LocalSeriesGrouper().group(items.map((item) => item.toFileItem())));
 
     final series = grouped.expand((group) {
       final episodes = group.episodes
@@ -37,9 +40,8 @@ class LocalMediaLibraryBuilder {
         bySourceTitle.putIfAbsent(displayTitle, () => []).add(episode);
       }
       return bySourceTitle.entries.map((entry) => LocalMediaSeries(
-            key: bySourceTitle.length == 1
-                ? title.toLowerCase()
-                : '${title.toLowerCase()}|source|${entry.value.first.id}',
+            key: '${Uri.encodeComponent(entry.value.first.sourceLocation.stableId)}|'
+                '${bySourceTitle.length == 1 ? title.toLowerCase() : '${title.toLowerCase()}|source|${entry.value.first.id}'}',
             title: entry.key,
             legacyTitle: title,
             legacySeriesTitles: legacySeriesTitlesFor(

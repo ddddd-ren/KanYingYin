@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'package:kanyingyin/utils/safe_export_file.dart';
+import 'package:kanyingyin/utils/logger.dart';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -123,11 +125,18 @@ class _ConfigurationTransferPageState extends State<ConfigurationTransferPage> {
       final confirmed = await _showImportPreview(session);
       if (!confirmed || !mounted) return;
       final result = await widget.service.apply(session);
-      await widget.onImported?.call();
+      var refreshFailed = false;
+      try {
+        await widget.onImported?.call();
+      } catch (error, stackTrace) {
+        refreshFailed = true;
+        AppLogger().w('配置已导入，但界面刷新失败', error: error, stackTrace: stackTrace);
+      }
       if (!mounted) return;
       _showMessage(
         '导入完成：新增 ${result.added} 个，更新 ${result.updated} 个，'
-        '保留 ${result.preserved} 个来源',
+        '保留 ${result.preserved} 个来源'
+        '${refreshFailed ? '。界面刷新失败，请重启应用查看，无需重复导入' : ''}',
       );
     } on Object catch (error) {
       _showMessage(configurationTransferErrorMessage(error));
@@ -409,7 +418,9 @@ class _ConfigurationTransferPageState extends State<ConfigurationTransferPage> {
       final outputPath = selected.toLowerCase().endsWith('.kyyconfig')
           ? selected
           : '$selected.kyyconfig';
-      await File(outputPath).writeAsBytes(bytes, flush: true);
+      await writeExportFileSafely(File(outputPath), (temporary) async {
+        await temporary.writeAsBytes(bytes, flush: true);
+      });
       return outputPath;
     }
     return FilePicker.saveFile(
@@ -589,6 +600,7 @@ class _ConfigurationTransferPageState extends State<ConfigurationTransferPage> {
 }
 
 String configurationTransferErrorMessage(Object error) {
+  if (error is ExportFileRestoreException) return error.message;
   if (error is PlatformException) {
     return switch (error.code) {
       'PickerUnavailable' => '电视没有可用的系统文件选择器，请安装文件管理器后重试',
@@ -608,7 +620,7 @@ String configurationTransferErrorMessage(Object error) {
     return '此配置文件版本暂不支持';
   }
   if (error is ConfigurationArchiveTooLargeException) {
-    return '配置文件超过 512 KiB';
+    return '配置文件超过 16 MiB';
   }
   if (error is ConfigurationFileExtensionException) {
     return '请选择 .kyyconfig 配置文件';

@@ -13,6 +13,7 @@ import 'package:kanyingyin/services/tmdb/tmdb_scrape_options.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_cache.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scraper.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_vision_model_client.dart';
 import 'package:path/path.dart' as p;
 
 typedef TmdbPosterDownloader = Future<String?> Function(
@@ -23,6 +24,15 @@ typedef TmdbScrapeEngineFactory = TmdbScrapeEngine Function(
   ITmdbClient client,
 );
 typedef TmdbScrapeCacheFactory = TmdbScrapeCache Function(String apiKey);
+typedef TmdbVisionSearchAssist = Future<TmdbVisionSuggestion?> Function(
+  String seriesName,
+  List<LocalMediaIndexItem> items,
+);
+typedef TmdbVisionClassificationApply = Future<void> Function(
+  String seriesName,
+  List<LocalMediaIndexItem> items,
+  TmdbMetadata metadata,
+);
 
 class LocalTmdbScrapeService {
   LocalTmdbScrapeService({
@@ -35,6 +45,8 @@ class LocalTmdbScrapeService {
     this.posterPolicy = const TmdbPosterPolicy(),
     this.engineFactory,
     this.cacheFactory,
+    this.visionSearchAssist,
+    this.visionClassificationApply,
   }) : posterDownloader = posterDownloader ??
             ((url, path) =>
                 PosterService().downloadPosterTo(url, path, overwrite: true));
@@ -48,8 +60,98 @@ class LocalTmdbScrapeService {
   final TmdbPosterPolicy posterPolicy;
   final TmdbScrapeEngineFactory? engineFactory;
   final TmdbScrapeCacheFactory? cacheFactory;
+  final TmdbVisionSearchAssist? visionSearchAssist;
+  final TmdbVisionClassificationApply? visionClassificationApply;
   final Map<String, TmdbScrapeCache> _fallbackCaches =
       <String, TmdbScrapeCache>{};
+
+  Future<void> classifyExistingSeries({
+    required String seriesName,
+  }) async {
+    final normalizedKey = seriesName.trim().toLowerCase();
+    if (normalizedKey.isEmpty || visionClassificationApply == null) return;
+    final items = indexRepository
+        .getAll()
+        .where((item) => item.seriesName.trim().toLowerCase() == normalizedKey)
+        .toList(growable: false);
+    if (items.isEmpty) return;
+    final metadata =
+        items.map((item) => item.tmdb).whereType<TmdbMetadata>().firstOrNull;
+    if (metadata == null) return;
+    await _applyVisionClassification(seriesName, items, metadata);
+  }
+
+  Future<TmdbVisionSuggestion?> identifySeries(String seriesName) async {
+    final assist = visionSearchAssist;
+    final normalizedKey = seriesName.trim().toLowerCase();
+    if (assist == null || normalizedKey.isEmpty) return null;
+    final items = indexRepository
+        .getAll()
+        .where((item) => item.seriesName.trim().toLowerCase() == normalizedKey)
+        .toList(growable: false);
+    if (items.isEmpty) return null;
+    return assist(seriesName, items);
+  }
+
+  Future<TmdbScrapeSearchOutcome> _searchWithVisionAssist({
+    required TmdbScrapeEngine engine,
+    required TmdbScrapeSubject subject,
+    required TmdbScrapeOptions options,
+    required String seriesName,
+    required List<LocalMediaIndexItem> items,
+    bool skipVisionAssist = false,
+  }) async {
+    final original = await engine.search(subject, options);
+    final assist = visionSearchAssist;
+    if (skipVisionAssist || original.ranked.shouldAutoMatch || assist == null) {
+      return original;
+    }
+    try {
+      final suggestion = await assist(seriesName, items);
+      if (suggestion == null || suggestion.title.trim().isEmpty) {
+        return original;
+      }
+      final mediaEvidence = switch (suggestion.mediaType) {
+        'tv' => TmdbMediaEvidence.tv,
+        'movie' => TmdbMediaEvidence.movie,
+        _ => subject.mediaEvidence,
+      };
+      final assistedSubject = TmdbScrapeSubject(
+        stableKey: subject.stableKey,
+        titleCandidates: <String>[suggestion.title],
+        manualSearchTitle: suggestion.title,
+        year: suggestion.year ?? subject.year,
+        seasonNumbers: subject.seasonNumbers,
+        episodeNumbers: subject.episodeNumbers,
+        mediaEvidence: mediaEvidence,
+        existingMetadata: subject.existingMetadata,
+        fieldLocks: subject.fieldLocks,
+        matchOrigin: subject.matchOrigin,
+        ruleVersion: subject.ruleVersion,
+      );
+      final assisted = await engine.search(assistedSubject, options);
+      return (assisted.ranked.best?.score ?? 0) >
+              (original.ranked.best?.score ?? 0)
+          ? assisted
+          : original;
+    } on Object {
+      return original;
+    }
+  }
+
+  Future<void> _applyVisionClassification(
+    String seriesName,
+    List<LocalMediaIndexItem> items,
+    TmdbMetadata metadata,
+  ) async {
+    final apply = visionClassificationApply;
+    if (apply == null) return;
+    try {
+      await apply(seriesName, items, metadata);
+    } on Object {
+      // AI 分类失败不能影响已经完成的 TMDB 刮削。
+    }
+  }
 
   Future<int> inheritMatchedSeriesMetadata() async {
     final groups = <String, List<LocalMediaIndexItem>>{};
@@ -105,7 +207,7 @@ class LocalTmdbScrapeService {
         );
       }
     }
-    await indexRepository.updateItems(updates);
+    await indexRepository.patchItems(updates, originals: {for (final group in groups.values) for (final item in group) item.id: item});
     return updates.length;
   }
 
@@ -152,9 +254,16 @@ class LocalTmdbScrapeService {
     );
     final client = clientFactory(key);
     final engine = _engineFor(client, key);
-    final outcome = await engine.search(
-      subject,
-      request.options.copyWith(mediaTypeMode: request.mediaTypeMode),
+    final options = request.options.copyWith(
+      mediaTypeMode: request.mediaTypeMode,
+    );
+    final outcome = await _searchWithVisionAssist(
+      engine: engine,
+      subject: subject,
+      options: options,
+      seriesName: seriesName,
+      items: items,
+      skipVisionAssist: request.skipVisionAssist,
     );
     return TmdbPreparedSearchOutcome(ranked: outcome.ranked);
   }
@@ -191,9 +300,16 @@ class LocalTmdbScrapeService {
     );
     final client = clientFactory(key);
     final engine = _engineFor(client, key);
-    final outcome = await engine.search(
-      subject,
-      request.options.copyWith(mediaTypeMode: request.mediaTypeMode),
+    final options = request.options.copyWith(
+      mediaTypeMode: request.mediaTypeMode,
+    );
+    final outcome = await _searchWithVisionAssist(
+      engine: engine,
+      subject: subject,
+      options: options,
+      seriesName: item.seriesName,
+      items: <LocalMediaIndexItem>[item],
+      skipVisionAssist: request.skipVisionAssist,
     );
     return TmdbPreparedSearchOutcome(ranked: outcome.ranked);
   }
@@ -240,8 +356,8 @@ class LocalTmdbScrapeService {
         (subject.ruleVersion >= currentTmdbRuleVersion || protected)) {
       if (subject.ruleVersion < currentTmdbRuleVersion) {
         for (final item in seriesItems) {
-          await indexRepository.updateItem(
-            item.copyWith(tmdbRuleVersion: currentTmdbRuleVersion),
+          await indexRepository.patchItem(
+            item, item.copyWith(tmdbRuleVersion: currentTmdbRuleVersion),
           );
         }
       }
@@ -257,9 +373,12 @@ class LocalTmdbScrapeService {
       final key = apiKey.trim();
       final client = clientFactory(key);
       final engine = _engineFor(client, key);
-      final search = await engine.search(
-        subject,
-        resolvedOptions,
+      final search = await _searchWithVisionAssist(
+        engine: engine,
+        subject: subject,
+        options: resolvedOptions,
+        seriesName: seriesName,
+        items: seriesItems,
       );
       final candidates = search.ranked.candidates
           .map((candidate) => candidate.metadata)
@@ -294,8 +413,8 @@ class LocalTmdbScrapeService {
         if (_isProtectedConflict(item, best.metadata)) {
           isolatedItemIds.add(item.id);
           if (!_hasProtectedMatch(item)) {
-            await indexRepository.updateItem(
-              item.copyWith(
+            await indexRepository.patchItem(
+            item, item.copyWith(
                 scrapeStatus: TmdbScrapeStatus.pending,
                 tmdbRuleVersion: currentTmdbRuleVersion,
               ),
@@ -319,8 +438,8 @@ class LocalTmdbScrapeService {
               : subject.seasonNumbers,
         );
         merged.add(metadata);
-        await indexRepository.updateItem(
-          item.copyWith(
+        await indexRepository.patchItem(
+            item, item.copyWith(
             tmdb: metadata,
             tmdbIdentity: _tmdbIdentity(metadata),
             scrapeStatus: TmdbScrapeStatus.matched,
@@ -346,6 +465,7 @@ class LocalTmdbScrapeService {
             .toList(growable: false),
         resolvedOptions,
       );
+      await _applyVisionClassification(seriesName, seriesItems, merged.first);
       return TmdbScrapeResult(
         status: TmdbScrapeStatus.matched,
         metadata: merged.first,
@@ -389,7 +509,13 @@ class LocalTmdbScrapeService {
     try {
       final client = clientFactory(key);
       final engine = _engineFor(client, key);
-      final search = await engine.search(subject, resolvedOptions);
+      final search = await _searchWithVisionAssist(
+        engine: engine,
+        subject: subject,
+        options: resolvedOptions,
+        seriesName: item.seriesName,
+        items: <LocalMediaIndexItem>[item],
+      );
       final candidates = search.ranked.candidates
           .map((candidate) => candidate.metadata)
           .toList(growable: false);
@@ -447,13 +573,15 @@ class LocalTmdbScrapeService {
         tmdbMatchOrigin: TmdbMatchOrigin.automatic,
         tmdbRuleVersion: currentTmdbRuleVersion,
       );
-      await indexRepository.updateItem(updated);
+      await indexRepository.patchItem(item, updated);
       await metadataRepository.save(
           item.seriesName.trim().toLowerCase(), metadata);
       final failures = await _downloadPosters(
         <LocalMediaIndexItem>[updated],
         resolvedOptions,
       );
+      await _applyVisionClassification(
+          item.seriesName, <LocalMediaIndexItem>[updated], metadata);
       return TmdbScrapeResult(
         status: TmdbScrapeStatus.matched,
         metadata: metadata,
@@ -530,7 +658,7 @@ class LocalTmdbScrapeService {
         tmdbMatchOrigin: TmdbMatchOrigin.manual,
         tmdbRuleVersion: currentTmdbRuleVersion,
       );
-      await indexRepository.updateItem(updated);
+      await indexRepository.patchItem(item, updated);
       await metadataRepository.save(
           updated.seriesName.trim().toLowerCase(), metadata);
       final failures = await _downloadPosters(
@@ -605,8 +733,8 @@ class LocalTmdbScrapeService {
               : subject.seasonNumbers,
         );
         merged.add(metadata);
-        await indexRepository.updateItem(
-          item.copyWith(
+        await indexRepository.patchItem(
+            item, item.copyWith(
             tmdb: metadata,
             tmdbIdentity: _tmdbIdentity(metadata),
             scrapeStatus: TmdbScrapeStatus.matched,
@@ -669,8 +797,8 @@ class LocalTmdbScrapeService {
       }
       final clearAutomatic = clearAutomaticMatches &&
           item.tmdbMatchOrigin == TmdbMatchOrigin.automatic;
-      await indexRepository.updateItem(
-        item.copyWith(
+      await indexRepository.patchItem(
+            item, item.copyWith(
           clearTmdb: clearAutomatic,
           clearTmdbIdentity: clearAutomatic,
           scrapeStatus: TmdbScrapeStatus.pending,
@@ -694,8 +822,8 @@ class LocalTmdbScrapeService {
   Future<List<String>> _resetAutomaticMatchToPending(
     LocalMediaIndexItem item,
   ) async {
-    await indexRepository.updateItem(
-      item.copyWith(
+    await indexRepository.patchItem(
+            item, item.copyWith(
         clearTmdb: true,
         clearTmdbIdentity: true,
         scrapeStatus: TmdbScrapeStatus.pending,
@@ -755,8 +883,7 @@ class LocalTmdbScrapeService {
         continue;
       }
       for (final item in entry.value) {
-        final latest = indexRepository.getByPath(item.path) ?? item;
-        await indexRepository.updateItem(latest.copyWith(cover: savedPath));
+        await indexRepository.patchItem(item, item.copyWith(cover: savedPath));
       }
     }
     return failures;

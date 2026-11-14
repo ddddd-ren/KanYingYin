@@ -45,6 +45,11 @@ void main() {
           .map((candidate) => _identity(candidate.metadata))
           .toList(growable: false);
       final bestIdentity = identities.firstOrNull;
+      _expectSafeMatch(sample, bestIdentity, outcome.ranked.shouldAutoMatch);
+      if (!sample.expectedAutoMatch) {
+        expect(identities, contains(sample.expectedIdentity),
+            reason: '${sample.name}：待确认候选必须保留正确答案');
+      }
       final topOne = bestIdentity == sample.expectedIdentity;
       final topThree = identities.contains(sample.expectedIdentity);
       if (topOne) topOneCorrect++;
@@ -64,6 +69,14 @@ void main() {
 
     final total = tmdbScrapeCorpus.length;
     expect(unexpectedAutomaticCount, 0);
+    expect(topOneCorrect / total, greaterThanOrEqualTo(0.95),
+        reason: 'Top-1 正确率不得低于 95%');
+    expect(topThreeCorrect / total, greaterThanOrEqualTo(0.95),
+        reason: 'Top-3 召回率不得低于 95%');
+    expect(automaticCount / total, greaterThanOrEqualTo(0.65),
+        reason: '自动确认覆盖率须较历史 50% 基线提升至少 15 个百分点');
+    expect(automaticCorrect, automaticCount, reason: '固定样本不允许自动误匹配');
+    expect(automaticCorrect / automaticCount, greaterThanOrEqualTo(0.98));
     final cacheHitP95Milliseconds = await _cacheHitP95Milliseconds();
     final averageColdRequests = coldRequestCount / total;
     stdout.writeln(
@@ -74,6 +87,51 @@ void main() {
       'cacheHitP95Ms=${cacheHitP95Milliseconds.toStringAsFixed(3)}',
     );
   });
+
+  test('基准门禁能发现故意注入的自动错误身份', () async {
+    final sample = tmdbScrapeCorpus.first;
+    final outcome = await TmdbScrapeEngine(
+      client: _CorpusClient(sample, injectWrongIdentity: true),
+    ).search(
+      TmdbScrapeSubject(
+        stableKey: sample.name,
+        titleCandidates: sample.titleCandidates,
+        year: sample.year,
+        mediaEvidence: TmdbMediaEvidence.movie,
+      ),
+      const TmdbScrapeOptions.defaults(),
+    );
+    final bestIdentity = _identity(outcome.ranked.candidates.first.metadata);
+    expect(outcome.ranked.shouldAutoMatch, isTrue);
+    expect(bestIdentity, isNot(sample.expectedIdentity));
+    expect(
+      () => _expectSafeMatch(sample, bestIdentity, true),
+      throwsA(isA<TestFailure>()),
+    );
+  });
+
+  test('基准门禁能发现歧义候选被错误自动确认', () {
+    final sample =
+        tmdbScrapeCorpus.firstWhere((item) => !item.expectedAutoMatch);
+    expect(
+      () => _expectSafeMatch(sample, sample.expectedIdentity, true),
+      throwsA(isA<TestFailure>()),
+    );
+  });
+}
+
+void _expectSafeMatch(
+  TmdbScrapeCorpusCase sample,
+  String? bestIdentity,
+  bool automatic,
+) {
+  if (!sample.expectedAutoMatch) {
+    expect(automatic, isFalse, reason: '${sample.name}：歧义样本必须待确认');
+  }
+  if (automatic) {
+    expect(bestIdentity, sample.expectedIdentity,
+        reason: '${sample.name}：自动匹配不能写入错误身份');
+  }
 }
 
 Future<double> _cacheHitP95Milliseconds() async {
@@ -101,9 +159,10 @@ Future<double> _cacheHitP95Milliseconds() async {
 }
 
 class _CorpusClient implements ITmdbClient {
-  _CorpusClient(this.sample);
+  _CorpusClient(this.sample, {this.injectWrongIdentity = false});
 
   final TmdbScrapeCorpusCase sample;
+  final bool injectWrongIdentity;
   final List<String> queries = <String>[];
   var _nextDistractorId = 90000;
 
@@ -126,7 +185,7 @@ class _CorpusClient implements ITmdbClient {
     }
 
     final expected = _metadata(
-      id: sample.candidateId,
+      id: injectWrongIdentity ? sample.candidateId + 50000 : sample.candidateId,
       mediaType: sample.expectedType,
       title: sample.expectedTitle,
       year: sample.year,

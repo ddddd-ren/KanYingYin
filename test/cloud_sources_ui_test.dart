@@ -108,8 +108,7 @@ void main() {
 
     expect(find.text('网盘数据源'), findsOneWidget);
     expect(find.text('添加网盘来源'), findsOneWidget);
-    expect(find.text('配置迁移'), findsOneWidget);
-    expect(find.text('用密码加密导出或导入 TMDB 与网盘账号配置'), findsOneWidget);
+    expect(find.text('配置迁移'), findsNothing);
     expect(find.text('还没有添加网盘数据源'), findsOneWidget);
   });
 

@@ -28,12 +28,14 @@ class TmdbPreparedSearchRequest {
     required this.mediaTypeMode,
     required this.options,
     this.queryYear,
+    this.skipVisionAssist = false,
   });
 
   final String queryTitle;
   final int? queryYear;
   final TmdbMediaTypeMode mediaTypeMode;
   final TmdbScrapeOptions options;
+  final bool skipVisionAssist;
 }
 
 @immutable

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/scraped_metadata_transfer/application/scraped_metadata_archive_codec.dart';
@@ -16,6 +17,148 @@ import 'package:kanyingyin/repositories/local_media_index_repository.dart';
 import 'package:kanyingyin/services/tmdb/tmdb_scrape_subject.dart';
 
 void main() {
+  test('本地三方回滚保留并发改名时明确标记恢复不完整并保留图片', () async {
+    final storage = _FailOnceWorkStorage();
+    final fixture = await _fixture(workStorage: storage);
+    storage.failNextWrite = true;
+    storage.onFailure = () async {
+      final current = fixture.localRepository.getAll().single;
+      await fixture.localRepository.patchItem(
+        current, current.copyWith(seriesName: '并发改名'),
+      );
+    };
+    await expectLater(fixture.importer.apply(fixture.plan, fixture.archive),
+        throwsA(isA<ScrapedMetadataImportException>()
+            .having((e) => e.originalRestored, 'originalRestored', isFalse)));
+    expect(fixture.localRepository.getAll().single.seriesName, '并发改名');
+    final images = Directory('${fixture.cacheRoot.path}/scraped_metadata');
+    expect(await images.list().length, 2);
+  });
+
+  test('目标完整恢复后其他新增条目引用的导入图片仍保留', () async {
+    final storage = _FailOnceWorkStorage();
+    final fixture = await _fixture(workStorage: storage);
+    storage.failNextWrite = true;
+    String? referencedImage;
+    storage.onFailure = () async {
+      final current = fixture.localRepository.getAll().single;
+      referencedImage = current.cover;
+      await fixture.localRepository.saveForSource(current.sourcePath, [
+        current,
+        current.copyWith(path: r'E:\媒体\影视\三体\other.mkv', name: 'other.mkv'),
+      ]);
+    };
+    await expectLater(fixture.importer.apply(fixture.plan, fixture.archive),
+        throwsA(isA<ScrapedMetadataImportException>()
+            .having((e) => e.originalRestored, 'originalRestored', isTrue)));
+    final other = fixture.localRepository.getAll().singleWhere((item) => item.name == 'other.mkv');
+    expect(other.cover, referencedImage);
+    expect(await File(referencedImage!).exists(), isTrue);
+    expect(fixture.localRepository.getAll().singleWhere((item) => item.name != 'other.mkv').tmdb!.title, '旧标题');
+  });
+  test('图片等待后重新校验失败不会写入任何资料', () async {
+    var imageInstalled = false;
+    var validated = false;
+    final fixture = await _fixture(
+      networkImageInstaller: ({required url, required file}) async {
+        imageInstalled = true;
+      },
+      validateCloudTargets: (_) async {
+        validated = true;
+        expect(imageInstalled, isTrue);
+        throw StateError('来源已删除');
+      },
+    );
+    final original = (await fixture.workRepository.getAll()).single.toJson();
+    await expectLater(fixture.importer.apply(fixture.plan, fixture.archive),
+        throwsA(isA<ScrapedMetadataImportException>()));
+    expect(validated, isTrue);
+    expect((await fixture.workRepository.getAll()).single.toJson(), original);
+    expect(fixture.localRepository.getAll().single.tmdb!.title, '旧标题');
+  });
+  test('复制图片期间无关作品的新增和删除在导入后保留', () async {
+    final started = Completer<void>();
+    final resume = Completer<void>();
+    final fixture = await _fixture(networkImageInstaller: ({required url, required file}) async {
+      if (!started.isCompleted) started.complete();
+      await resume.future;
+    });
+    await fixture.workRepository.upsert(_otherWork('deleted', 'deleted-source'));
+    final importing = fixture.importer.apply(fixture.plan, fixture.archive);
+    await started.future;
+    await fixture.workRepository.upsert(_otherWork('added', 'added-source'));
+    await fixture.workRepository.removeSource('deleted-source');
+    resume.complete();
+    await importing;
+    expect(await fixture.workRepository.get('added'), isNotNull);
+    expect(await fixture.workRepository.get('deleted'), isNull);
+    expect((await fixture.workRepository.get('new-work'))!.metadata!.title, '三体');
+  });
+
+  test('等待图片期间已删除的导入目标不会复活', () async {
+    final started = Completer<void>();
+    final resume = Completer<void>();
+    final fixture = await _fixture(networkImageInstaller: ({required url, required file}) async {
+      if (!started.isCompleted) started.complete();
+      await resume.future;
+    });
+    final importing = fixture.importer.apply(fixture.plan, fixture.archive);
+    final expectation = expectLater(importing,
+        throwsA(isA<ScrapedMetadataImportException>()
+            .having((e) => e.originalRestored, 'originalRestored', isFalse)));
+    await started.future;
+    await fixture.workRepository.removeSource('new-cloud');
+    resume.complete();
+    await expectation;
+    expect(await fixture.workRepository.get('new-work'), isNull);
+    expect(fixture.localRepository.getAll().single.tmdb!.title, '旧标题');
+  });
+
+  test('云作品已经写入后才抛错也会有条件恢复原值', () async {
+    final storage = _FailOnceWorkStorage();
+    final fixture = await _fixture(workStorage: storage);
+    final original = (await fixture.workRepository.getAll()).single.toJson();
+    storage.failNextWrite = true;
+    storage.writeBeforeThrow = true;
+    await expectLater(fixture.importer.apply(fixture.plan, fixture.archive),
+        throwsA(isA<ScrapedMetadataImportException>()
+            .having((e) => e.originalRestored, 'originalRestored', isTrue)));
+    expect((await fixture.workRepository.getAll()).single.toJson(), original);
+    expect(fixture.localRepository.getAll().single.tmdb!.title, '旧标题');
+  });
+
+  test('失败回滚保留期间新增的无关云作品', () async {
+    final storage = _FailOnceWorkStorage();
+    final fixture = await _fixture(workStorage: storage);
+    storage.failNextWrite = true;
+    storage.writeBeforeThrow = true;
+    // 同仓库锁内不能再次写入；在故障存储中模拟其他已落盘记录。
+    storage.onFailure = () async {
+      storage.records.add(_otherWork('concurrent', 'other-source').toJson());
+    };
+    await expectLater(fixture.importer.apply(fixture.plan, fixture.archive),
+        throwsA(isA<ScrapedMetadataImportException>()));
+    expect(await fixture.workRepository.get('concurrent'), isNotNull);
+    expect((await fixture.workRepository.get('new-work'))!.metadata!.title, '旧标题');
+  });
+  test('恢复写入失败时明确提示未完整恢复并保留图片', () async {
+    final resources = _FailRollbackResourceStorage();
+    final works = _FailOnceWorkStorage();
+    final fixture = await _fixture(
+      workStorage: works,
+      resourceStorage: resources,
+    );
+    resources.failRollback = true;
+    works.failNextWrite = true;
+    await expectLater(
+      fixture.importer.apply(fixture.plan, fixture.archive),
+      throwsA(isA<ScrapedMetadataImportException>()
+          .having((e) => e.originalRestored, 'originalRestored', isFalse)
+          .having((e) => e.toString(), 'message', contains('未完整完成'))),
+    );
+    final importedDirectory = Directory('${fixture.cacheRoot.path}/scraped_metadata');
+    expect(await importedDirectory.list().length, 2);
+  });
   test('导入覆盖刮削资料但保留当前媒体路径字幕和索引字段', () async {
     final fixture = await _fixture();
     final original = fixture.localRepository.getAll().single;
@@ -75,18 +218,15 @@ void main() {
     final importedDirectory = Directory(
       '${fixture.cacheRoot.path}${Platform.pathSeparator}scraped_metadata',
     );
-    expect(
-      await importedDirectory.exists()
-          ? await importedDirectory.list().isEmpty
-          : true,
-      isTrue,
-    );
+    expect(await importedDirectory.list().length, 2);
   });
 }
 
 Future<_Fixture> _fixture({
   CloudWorkTmdbStorage? workStorage,
+  CloudResourceTmdbStorage? resourceStorage,
   TransferNetworkImageInstaller? networkImageInstaller,
+  Future<void> Function(ScrapedMetadataImportPlan)? validateCloudTargets,
 }) async {
   final temporary =
       await Directory.systemTemp.createTemp('kyymeta-import-test-');
@@ -136,7 +276,7 @@ Future<_Fixture> _fixture({
   );
 
   final resourceRepository = CloudResourceTmdbRepository(
-    storage: MemoryCloudResourceTmdbStorage(),
+    storage: resourceStorage ?? MemoryCloudResourceTmdbStorage(),
   );
   final oldResource = CloudResourceTmdbRecord.matched(
     sourceId: 'new-cloud',
@@ -269,6 +409,7 @@ Future<_Fixture> _fixture({
     temporaryDirectory: archiveDirectory,
   );
   final importer = ScrapedMetadataImporter(
+    validateCloudTargets: validateCloudTargets,
     localIndexRepository: localRepository,
     resourceRepository: resourceRepository,
     workRepository: workRepository,
@@ -348,6 +489,8 @@ final class _MemoryLocalIndexStorage implements LocalMediaIndexStorage {
 final class _FailOnceWorkStorage implements CloudWorkTmdbStorage {
   List<Map<String, Object?>> records = <Map<String, Object?>>[];
   bool failNextWrite = false;
+  bool writeBeforeThrow = false;
+  Future<void> Function()? onFailure;
 
   @override
   Object get synchronizationIdentity => this;
@@ -360,8 +503,33 @@ final class _FailOnceWorkStorage implements CloudWorkTmdbStorage {
   Future<void> write(List<Map<String, Object?>> records) async {
     if (failNextWrite) {
       failNextWrite = false;
+      if (writeBeforeThrow) this.records = records.map(Map<String, Object?>.from).toList();
+      await onFailure?.call();
       throw const FileSystemException('模拟写入失败');
     }
     this.records = records.map(Map<String, Object?>.from).toList();
+  }
+}
+
+CloudWorkTmdbRecord _otherWork(String id, String sourceId) => CloudWorkTmdbRecord.matched(
+  sourceId: sourceId,
+  workKey: id,
+  workRootId: id,
+  workRootPath: '/$id',
+  remoteName: id,
+  metadata: _oldMetadata,
+  checkedAt: DateTime.utc(2026, 7, 30),
+);
+
+class _FailRollbackResourceStorage extends MemoryCloudResourceTmdbStorage {
+  bool failRollback = false;
+  int importWrites = 0;
+
+  @override
+  Future<void> write(List<Map<String, Object?>> records) async {
+    if (failRollback && ++importWrites > 1) {
+      throw const FileSystemException('模拟恢复写入失败');
+    }
+    await super.write(records);
   }
 }

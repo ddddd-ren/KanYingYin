@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kanyingyin/features/configuration_transfer/application/configuration_archive_codec.dart';
 import 'package:kanyingyin/features/configuration_transfer/application/configuration_importer.dart';
@@ -23,13 +25,14 @@ void main() {
       warningLogger: (_) {},
     );
     await tmdbManager.initialize();
+    final userDataStore = _BackupStore();
     final importer = ConfigurationImporter(
-      userDataStore: _BackupStore(),
+      userDataStore: userDataStore,
       sourceRepository: sourceRepository,
       tmdbCredentialManager: tmdbManager,
     );
     final service = ConfigurationTransferService(
-      userDataStore: _BackupStore(),
+      userDataStore: userDataStore,
       sourceRepository: sourceRepository,
       tmdbCredentialManager: tmdbManager,
       importer: importer,
@@ -57,6 +60,16 @@ void main() {
     final bytes = await service.exportEncrypted(password: 'export-pass');
     await sourceRepository.delete(source.id);
     await tmdbManager.save('target-key');
+    userDataStore.value = PortableUserData.fromJson({});
+
+    await expectLater(service.inspect(bytes, password: 'wrong-password'),
+        throwsA(isA<ConfigurationArchiveAuthenticationException>()));
+    await expectLater(
+        service.inspect(Uint8List.fromList([1, 2, 3]), password: 'export-pass'),
+        throwsA(isA<ConfigurationArchiveFormatException>()));
+    expect(await sourceRepository.getAll(), isEmpty);
+    expect(tmdbManager.read(), 'target-key');
+    expect(userDataStore.writes, 0);
 
     final session = await service.inspect(bytes, password: 'export-pass');
     expect(session.summary.added, 1);
@@ -71,19 +84,31 @@ void main() {
     expect(await sourceRepository.getAll(), isEmpty);
     expect(tmdbManager.read(), 'target-key');
 
-    final result = await service.apply(session);
+    final remapped = await service.remapSession(session,
+        localRoots: {r'd:\media': r'e:\restored'});
+    expect(userDataStore.writes, 0);
+    final result = await service.apply(remapped);
     expect(result.added, 1);
     expect(tmdbManager.read(), 'tmdb-secret');
     expect((await credentialStore.read(source.id))?.cookie, 'cookie-secret');
+    expect(userDataStore.value.bookmarks.keys,
+        contains(r'local|e:\restored\movie.mkv'));
+    expect(userDataStore.value.bookmarks.keys,
+        isNot(contains(r'local|d:\media\movie.mkv')));
   });
 }
 
 class _BackupStore implements ConfigurationUserDataStore {
+  int writes = 0;
   PortableUserData value = PortableUserData.fromJson({
+    'localRoots': [r'd:\media'],
     'states': {
       'missing': {'favorite': true}
     },
     'bookmarks': {
+      r'local|d:\media\movie.mkv': [
+        {'positionMillis': 5000}
+      ],
       'local|missing.mp4': [
         {'positionMillis': 3000}
       ]
@@ -93,6 +118,7 @@ class _BackupStore implements ConfigurationUserDataStore {
   Future<PortableUserData> capture() async => value;
   @override
   Future<void> replace(PortableUserData data) async {
+    writes++;
     value = data;
   }
 }

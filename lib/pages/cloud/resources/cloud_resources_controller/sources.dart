@@ -38,32 +38,55 @@ mixin _CloudSourcesMixin on _CloudResourcesControllerBase {
 
   @override
   Future<void> reloadMediaLibrarySnapshot({bool force = false}) {
+    if (_disposed) return Future<void>.value();
     final pending = _mediaLibraryReloadFuture;
-    if (!force && pending != null) return pending;
-    final future = _reloadMediaLibrarySnapshot(++_mediaLibraryReloadGeneration);
-    _mediaLibraryReloadFuture = future;
-    return future.whenComplete(() {
-      if (identical(_mediaLibraryReloadFuture, future)) {
-        _mediaLibraryReloadFuture = null;
-      }
+    if (pending != null) {
+      if (force) _mediaLibraryReloadGeneration++;
+      return pending;
+    }
+    final future = _reloadLatestMediaLibrarySnapshot(
+      ++_mediaLibraryReloadGeneration,
+    );
+    final completion = future.whenComplete(() {
+      _mediaLibraryReloadFuture = null;
     });
+    _mediaLibraryReloadFuture = completion;
+    return completion;
+  }
+
+  Future<void> _reloadLatestMediaLibrarySnapshot(int generation) async {
+    while (!_disposed) {
+      try {
+        await _reloadMediaLibrarySnapshot(generation);
+      } catch (_) {
+        if (_disposed || generation == _mediaLibraryReloadGeneration) rethrow;
+      }
+      if (generation == _mediaLibraryReloadGeneration) return;
+      // 连续刮削通知只补读最新快照，避免同时重建多份媒体库。
+      generation = _mediaLibraryReloadGeneration;
+    }
   }
 
   Future<void> _reloadMediaLibrarySnapshot(int generation) async {
     final nextSeries = Map<String, List<MediaLibrarySeries>>.from(
       _mediaLibrarySeriesBySource,
     );
-    final enabledSources = (await _repository.getAll())
-        .where((source) => source.enabled)
-        .toList(growable: false);
+    final nextCached = Map<String, List<MediaLibrarySeries>>.from(
+      _cachedMediaLibrarySeriesBySource,
+    );
+    final cachedSources = await _repository.getAll();
+    if (_disposed || generation != _mediaLibraryReloadGeneration) return;
     final records = await _workTmdbRepository?.getAll() ??
         workTmdbRecords.values.toList(growable: false);
-    final nextSourceIds = enabledSources.map((source) => source.id).toSet();
+    final nextSourceIds = cachedSources.map((source) => source.id).toSet();
 
-    for (final source in enabledSources) {
+    for (final source in cachedSources) {
+      if (_disposed || generation != _mediaLibraryReloadGeneration) return;
       try {
         final snapshot = await _mediaIndexRepository.snapshot(source.id);
+        if (_disposed || generation != _mediaLibraryReloadGeneration) return;
         final hidden = await _hiddenVideoRepository.getBySource(source.id);
+        if (_disposed || generation != _mediaLibraryReloadGeneration) return;
         final items = snapshot.items.where((item) {
           final inScope = CloudSourcePathScope.containsSourcePath(
             source,
@@ -78,29 +101,32 @@ mixin _CloudSourcesMixin on _CloudResourcesControllerBase {
           );
           return inScope && !isHidden;
         }).toList(growable: false);
-        final tree = _mediaTreeResolver.resolve(
-          sourceId: source.id,
-          configuredRoots: source.remoteRoots
-              .map((root) => root.path)
-              .toList(growable: false),
-          directoryEntries: snapshot.directoryEntries,
-          minSizeBytes: _minRecognizedVideoSizeBytesProvider(),
-        );
         final sourceRecords = <String, CloudWorkTmdbRecord>{
           for (final record in records)
             if (record.sourceId == source.id) record.workKey: record,
         };
-        final collection = _collectionGrouper.group(
-          items: items,
-          works: tree.works,
-          recordsByWorkKey: sourceRecords,
-          query: '',
-        );
-        nextSeries[source.id] = _mediaLibraryAdapter.convert(
-          source: source,
-          collection: collection,
-          indexedItems: items,
-        );
+        List<MediaLibrarySeries> build(List<CloudMediaIndexItem> visible, int threshold) {
+          final tree = _mediaTreeResolver.resolve(
+            sourceId: source.id,
+            configuredRoots: source.remoteRoots.map((root) => root.path).toList(),
+            directoryEntries: snapshot.directoryEntries,
+            minSizeBytes: threshold,
+          );
+          return _mediaLibraryAdapter.convert(
+            source: source,
+            collection: _collectionGrouper.group(
+              sourceId: source.id, items: visible, works: tree.works, recordsByWorkKey: sourceRecords, query: '',
+            ),
+            indexedItems: visible,
+          );
+        }
+        nextCached[source.id] = build(items, 0);
+        final threshold = _minRecognizedVideoSizeBytesProvider();
+        final visible = items.where((item) => LocalVideoFileTypes.isRecognizedVideoSize(
+            item.size, minSizeBytes: threshold)).toList(growable: false);
+        nextSeries[source.id] = source.enabled
+            ? (threshold == 0 ? nextCached[source.id]! : build(visible, threshold))
+            : const [];
       } on Object catch (error, stackTrace) {
         AppLogger().w(
           'CloudResourcesController: failed to load media library snapshot '
@@ -111,13 +137,17 @@ mixin _CloudSourcesMixin on _CloudResourcesControllerBase {
       }
     }
     if (_disposed || generation != _mediaLibraryReloadGeneration) return;
-    _mediaLibrarySources = enabledSources;
+    _mediaLibrarySources = cachedSources;
     nextSeries.removeWhere(
       (sourceId, _) => !nextSourceIds.contains(sourceId),
     );
     _mediaLibrarySeriesBySource
       ..clear()
       ..addAll(nextSeries);
+    nextCached.removeWhere((sourceId, _) => !nextSourceIds.contains(sourceId));
+    _cachedMediaLibrarySeriesBySource
+      ..clear()
+      ..addAll(nextCached);
     _mediaLibrarySnapshotInitialized = true;
     if (!_disposed) {
       _mediaLibraryNotifier.notifyListeners();
@@ -189,22 +219,28 @@ mixin _CloudSourcesMixin on _CloudResourcesControllerBase {
     loading = true;
     _sourceLoadFailed = false;
     errorMessage = null;
+    scanFailureTypes = const {};
+    lastScanResult = null;
     _notify();
     var sourcesRead = false;
     try {
-      final loadedSources = (await _repository.getAll())
-          .where((source) => source.enabled)
+      final allSources = await _repository.getAll();
+      final loadedSources = allSources.where((source) => source.enabled)
           .toList(growable: false);
       if (!_isCurrent(generation)) return;
       sourcesRead = true;
       sources = loadedSources;
       // 只有成功读到来源列表才移除快照成员，同时废弃仍在读取的旧快照。
       _mediaLibraryReloadGeneration++;
-      _mediaLibrarySources = loadedSources;
-      final sourceIds = loadedSources.map((source) => source.id).toSet();
+      _mediaLibrarySources = allSources;
+      final sourceIds = allSources.map((source) => source.id).toSet();
       _mediaLibrarySeriesBySource
           .removeWhere((id, _) => !sourceIds.contains(id));
-      if (loadedSources.isEmpty) _mediaLibrarySnapshotInitialized = true;
+      _cachedMediaLibrarySeriesBySource.removeWhere((id, _) => !sourceIds.contains(id));
+      if (loadedSources.isEmpty && allSources.isNotEmpty) {
+        await reloadMediaLibrarySnapshot(force: true);
+      }
+      if (!_isCurrent(generation)) return;
       _mediaLibraryNotifier.notifyListeners();
       final currentId = selectedSource?.id;
       final nextId = loadedSources.any(
@@ -270,6 +306,8 @@ mixin _CloudSourcesMixin on _CloudResourcesControllerBase {
     _mediaTree = null;
     currentDirectoryScope = null;
     errorMessage = null;
+    scanFailureTypes = const {};
+    lastScanResult = null;
     selectedSource = sourceId == null
         ? null
         : sources.where((source) => source.id == sourceId).firstOrNull;

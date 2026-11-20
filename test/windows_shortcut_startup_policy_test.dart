@@ -13,19 +13,19 @@ void main() {
         .setMockMethodCallHandler(channel, null);
   });
 
-  test('桌面快捷方式存在时修复且不重复询问', () {
-    for (final state in <WindowsShortcutEntryState>[
-      WindowsShortcutEntryState.desktopOnly,
-      WindowsShortcutEntryState.desktopAndStartMenu,
-    ]) {
-      expect(
-        decideShortcutStartup(
-          state: state,
-          dialogAlreadyShown: false,
-        ),
-        ShortcutStartupDecision.repairDesktop,
-      );
-    }
+  test('仅桌面入口时首次询问，两个入口齐全时只修复', () {
+    expect(
+      decideShortcutStartup(
+          state: WindowsShortcutEntryState.desktopOnly,
+          dialogAlreadyShown: false),
+      ShortcutStartupDecision.askToCreateMissing,
+    );
+    expect(
+      decideShortcutStartup(
+          state: WindowsShortcutEntryState.desktopAndStartMenu,
+          dialogAlreadyShown: false),
+      ShortcutStartupDecision.repairDesktop,
+    );
   });
 
   test('仅开始菜单入口时首次询问且已询问后跳过', () {
@@ -34,7 +34,7 @@ void main() {
         state: WindowsShortcutEntryState.startMenuOnly,
         dialogAlreadyShown: false,
       ),
-      ShortcutStartupDecision.askToCreateDesktop,
+      ShortcutStartupDecision.askToCreateMissing,
     );
     expect(
       decideShortcutStartup(
@@ -51,7 +51,7 @@ void main() {
         state: WindowsShortcutEntryState.none,
         dialogAlreadyShown: false,
       ),
-      ShortcutStartupDecision.askToCreateDesktop,
+      ShortcutStartupDecision.askToCreateMissing,
     );
     expect(
       decideShortcutStartup(

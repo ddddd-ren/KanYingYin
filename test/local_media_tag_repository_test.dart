@@ -64,7 +64,7 @@ void main() {
     final repository = LocalMediaTagRepository(box: box);
     final item = _item('A');
     final target = const LocalMediaLibraryBuilder().buildSeries([item]).single;
-    final legacyKey = target.key.substring(target.key.indexOf('|') + 1);
+    final legacyKey = target.legacyTitle!.toLowerCase();
 
     await repository.saveForSeries(legacyKey, ['旧标签']);
     await repository.reconcileSourceKeys({
@@ -79,6 +79,34 @@ void main() {
       target.key: {item.id}
     });
     expect(repository.getAll(), isEmpty);
+  });
+
+  test('带来源的旧标题标签仅迁移到唯一匹配作品', () async {
+    final repository = LocalMediaTagRepository(box: box);
+    final first = _item('A').copyWith(tmdbIdentity: 'tv:11');
+    final second = _item('A', episode: 2).copyWith(tmdbIdentity: 'tv:22');
+    final series =
+        const LocalMediaLibraryBuilder().buildSeries([first, second]);
+    final firstKey =
+        series.firstWhere((s) => s.episodes.single.id == first.id).key;
+    final oldKey =
+        '${Uri.encodeComponent(first.sourceLocation.stableId)}|${series.first.legacyTitle!.toLowerCase()}';
+    final unmatched =
+        const LocalMediaLibraryBuilder().buildSeries([_item('A')]).single;
+    await repository.saveForSeries(unmatched.key, ['匹配前标签']);
+    await repository.saveForSeries(oldKey, ['资料']);
+    await repository.reconcileSourceKeys({
+      for (final work in series) work.key: {work.episodes.single.id},
+    });
+    expect(repository.getAll(), {
+      oldKey: ['资料'],
+      unmatched.key: ['匹配前标签']
+    });
+    await repository.reconcileSourceKeys({
+      firstKey: {first.id}
+    });
+    expect(repository.getAll().keys, [firstKey]);
+    expect(repository.getAll()[firstKey], unorderedEquals(['资料', '匹配前标签']));
   });
 
   test('旧拆分键按成员迁移，成员归属有歧义时保留原记录', () async {

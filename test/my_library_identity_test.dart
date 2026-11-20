@@ -1,10 +1,86 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kanyingyin/features/configuration_transfer/domain/portable_user_data.dart';
 import 'package:kanyingyin/features/library/application/media_library_user_state.dart';
 import 'package:kanyingyin/features/library/application/media_library_user_state_repository.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 import 'package:kanyingyin/services/cloud/cloud_media_library.dart';
 
 void main() {
+  test('同一本地来源内两部同名重拍版有独立稳定的收藏身份', () async {
+    final first = localItem('媒体', episode: 1).copyWith(tmdbIdentity: 'tv:11');
+    final second = localItem('媒体', episode: 2).copyWith(tmdbIdentity: 'tv:22');
+    final together = localLibrary([first, second]).series;
+    expect(together, hasLength(2));
+    final firstKey = localLibrary([first]).series.single.key;
+    final secondKey = localLibrary([second]).series.single.key;
+    expect(firstKey, isNot(secondKey));
+    for (final order in [
+      [first, second],
+      [second, first]
+    ]) {
+      final byId = {
+        for (final s in localLibrary(order).series)
+          s.episodes.single.stableId: s.key
+      };
+      expect(byId, {first.id: firstKey, second.id: secondKey});
+    }
+    final legacy =
+        'local|${Uri.encodeComponent(first.sourceLocation.stableId)}|相同作品 s01';
+    final repo = MediaLibraryUserStateRepository(
+        storage: MemoryMediaLibraryUserStateStorage());
+    await repo.save(
+        legacy, MediaLibraryUserState(favorite: true, mediaIds: [second.id]));
+    final ids = {
+      for (final s in together) s.key: s.episodes.map((e) => e.stableId).toSet()
+    };
+    final states = await repo.reconcile(ids);
+    expect(states.keys, [secondKey]);
+    expect(states[secondKey]?.favorite, isTrue);
+    await repo.save(
+        legacy,
+        MediaLibraryUserState(
+            watchLater: true, mediaIds: [first.id, second.id]));
+    expect((await repo.reconcile(ids))[legacy]?.watchLater, isTrue);
+  });
+
+  test('未识别剧集不能把两个不同 TMDB 身份的分组合在一起', () {
+    final unknown = localItem('媒体');
+    final a = localItem('媒体', episode: 2).copyWith(tmdbIdentity: 'tv:11');
+    final b = localItem('媒体', episode: 3).copyWith(tmdbIdentity: 'tv:22');
+    final series = localLibrary([unknown, a, b]).series;
+    expect(series, hasLength(2));
+    for (final work in series) {
+      final identities = work.episodes
+          .map((e) => e.localItem!.effectiveTmdbIdentity)
+          .whereType<String>()
+          .toSet();
+      expect(identities, hasLength(1));
+    }
+  });
+
+  test('备份换目录后，即使原目录仍在索引中也只关联到所选目录', () async {
+    final old = localItem('旧目录').copyWith(tmdbIdentity: 'tv:11');
+    final target = localItem('新目录').copyWith(tmdbIdentity: 'tv:11');
+    final oldKey = localLibrary([old]).series.single.key;
+    final targetKey = localLibrary([target]).series.single.key;
+    final backup = PortableUserData(states: {
+      oldKey: MediaLibraryUserState(favorite: true, mediaIds: [old.id]),
+    });
+    final restored =
+        backup.remap(localRoots: {old.sourcePath: target.sourcePath});
+    final repo = MediaLibraryUserStateRepository(
+        storage: MemoryMediaLibraryUserStateStorage());
+    await repo.replaceAll(restored.states);
+    final states = await repo.reconcile({
+      oldKey: {old.id},
+      targetKey: {target.id}
+    });
+    expect(states.keys, [targetKey]);
+    expect(states[targetKey]?.favorite, isTrue);
+    expect(states[targetKey]?.mediaIds, [target.id]);
+    expect(backup.states.keys, [oldKey]);
+  });
+
   test('同名跨本地来源保留独立身份及各自集数', () {
     final first = localItem('A');
     final second = localItem('B');
@@ -48,8 +124,8 @@ void main() {
     expect(all['old-mixed']?.favorite, isTrue);
     expect(all[target.key]?.watchLater, isTrue);
     expect(all[target.key]?.collections, ['周末']);
-    await restored.save(target.key, all[target.key]!.copyWith(favorite: false),
-        preserveClassification: true);
+    await restored
+        .updateMarks(target.key, favorite: false, mediaIds: [first.id]);
     final saved = (await repository.get(target.key))!;
     expect(saved.favorite, isFalse);
     expect(saved.watchLater, isTrue);

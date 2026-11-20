@@ -106,8 +106,8 @@ class CloudSeriesMatchRuleRepository {
   }) {
     if (updates.length != originals.length ||
         updates.keys.any((key) => !originals.containsKey(key)) ||
-        [...updates.entries, ...originals.entries].any(
-            (entry) => entry.value != null && entry.value!.stableKey != entry.key)) {
+        [...updates.entries, ...originals.entries].any((entry) =>
+            entry.value != null && entry.value!.stableKey != entry.key)) {
       throw ArgumentError('条件更新必须提供同一组身份及完整原值');
     }
     return _lock.synchronized(() async {

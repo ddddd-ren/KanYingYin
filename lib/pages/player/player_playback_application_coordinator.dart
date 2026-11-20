@@ -269,7 +269,7 @@ mixin _PlayerPlaybackApplicationCoordinator on _PlayerController {
     anime4kSupported = runtimeSettings.anime4kSupported;
     anime4kRuntimeState = anime4kPreference == Anime4kPreference.off
         ? Anime4kRuntimeState.off
-        : anime4kShadersAvailable
+        : anime4kSupported
             ? Anime4kRuntimeState.waitingForSize
             : Anime4kRuntimeState.incompatible;
     _anime4kCoordinator.reset();
@@ -1483,6 +1483,14 @@ mixin _PlayerPlaybackApplicationCoordinator on _PlayerController {
   }
 
   Future<void> _evaluateAnime4k() async {
+    final player = mediaPlayer;
+    if (anime4kSupported &&
+        anime4kPreference != Anime4kPreference.off &&
+        player?.platform is NativePlayer &&
+        shadersController.shadersDirectory == null) {
+      await shadersController.copyShadersToExternalDirectory();
+      if (_disposeRequested || !identical(player, mediaPlayer)) return;
+    }
     final decision = await _anime4kCoordinator.evaluateAndApply(
       Anime4kPolicyInput(
         preference: anime4kPreference,

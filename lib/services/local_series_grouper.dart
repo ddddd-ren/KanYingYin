@@ -8,15 +8,38 @@ class LocalSeriesGrouper {
 
   List<LocalVideoGroup> group(Iterable<LocalFileItem> items) {
     final buckets = <_SeriesBucket>[];
+    final byIdentity = <String?, List<_SeriesBucket>>{};
     for (final item in items.where((item) => item.isVideo)) {
       var descriptor = _SeriesDescriptor.fromItem(item);
-      descriptor = _reuseKnownBase(buckets, descriptor);
-      final bucket = _findBucket(buckets, descriptor);
+      var candidates = buckets;
+      final identity = descriptor.tmdbIdentity;
+      if (identity != null) {
+        final same = byIdentity[identity];
+        final unresolved = byIdentity[null] ?? const <_SeriesBucket>[];
+        // 两类候选都有时沿用原始顺序，让首次出现的匹配优先。
+        if (same == null) {
+          candidates = unresolved;
+        } else if (unresolved.isEmpty) {
+          candidates = same;
+        }
+      }
+      descriptor = _reuseKnownBase(candidates, descriptor);
+      final bucket = _findBucket(candidates, descriptor);
       if (bucket == null) {
-        buckets.add(_SeriesBucket(descriptor)..items.add(item));
+        final created = _SeriesBucket(descriptor)..items.add(item);
+        buckets.add(created);
+        (byIdentity[created.tmdbIdentity] ??= []).add(created);
       } else {
         bucket.items.add(item);
+        final previousIdentity = bucket.tmdbIdentity;
         bucket.merge(descriptor);
+        if (previousIdentity == null && bucket.tmdbIdentity != null) {
+          byIdentity[null]!.remove(bucket);
+          byIdentity[bucket.tmdbIdentity] = [
+            for (final entry in buckets)
+              if (entry.tmdbIdentity == bucket.tmdbIdentity) entry,
+          ];
+        }
       }
     }
 
@@ -39,9 +62,9 @@ class LocalSeriesGrouper {
     for (final bucket in buckets) {
       final known = bucket.descriptor;
       if (known.hasTitleOverride) continue;
-      if (known.tmdbIdentity != null &&
+      if (bucket.tmdbIdentity != null &&
           descriptor.tmdbIdentity != null &&
-          known.tmdbIdentity != descriptor.tmdbIdentity) {
+          bucket.tmdbIdentity != descriptor.tmdbIdentity) {
         continue;
       }
       if (known.key == descriptor.key ||
@@ -60,15 +83,16 @@ class LocalSeriesGrouper {
     _SeriesDescriptor descriptor,
   ) {
     for (final bucket in buckets) {
-      if (_sameCollection(bucket.descriptor, descriptor)) {
+      if (_sameCollection(bucket, descriptor)) {
         return bucket;
       }
     }
     return null;
   }
 
-  bool _sameCollection(_SeriesDescriptor left, _SeriesDescriptor right) {
-    final leftIdentity = left.tmdbIdentity;
+  bool _sameCollection(_SeriesBucket bucket, _SeriesDescriptor right) {
+    final left = bucket.descriptor;
+    final leftIdentity = bucket.tmdbIdentity;
     final rightIdentity = right.tmdbIdentity;
     if (leftIdentity != null &&
         rightIdentity != null &&
@@ -310,9 +334,10 @@ class LocalVideoGroup {
 }
 
 class _SeriesBucket {
-  _SeriesBucket(this.descriptor);
+  _SeriesBucket(this.descriptor) : tmdbIdentity = descriptor.tmdbIdentity;
 
   _SeriesDescriptor descriptor;
+  String? tmdbIdentity;
   final List<LocalFileItem> items = [];
 
   String get displayTitle => descriptor.displayTitle;
@@ -320,6 +345,8 @@ class _SeriesBucket {
   String get baseTitle => descriptor.baseTitle;
 
   void merge(_SeriesDescriptor next) {
+    // 名称可取自尚未匹配的剧集，但分组不能丢失已确认的身份。
+    tmdbIdentity ??= next.tmdbIdentity;
     if (descriptor.hasTitleOverride) return;
     if (next.hasTitleOverride ||
         next.baseTitle.length < descriptor.baseTitle.length) {

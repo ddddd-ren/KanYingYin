@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/bean/appbar/sys_app_bar.dart';
@@ -22,10 +24,10 @@ class _MyPageState extends State<MyPage> {
       AppDialog.dismiss<void>();
       return;
     }
-    navigationBarState.updateSelectedIndex(
+    unawaited(navigationBarState.selectDestination(
+      context,
       resolveNavigationIndex(defaultStartupPage),
-    );
-    Modular.to.navigate('/tab/local/');
+    ));
   }
 
   @override

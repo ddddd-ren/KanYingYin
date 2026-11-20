@@ -49,6 +49,7 @@ class CloudMediaScanResult {
     required this.failedPaths,
     required this.cancelled,
     this.videoCount = 0,
+    this.indexChanged = false,
     this.filteredBySizeCount = 0,
     this.failureTypes = const {},
     this.minSizeBytes = 1024 * 1024,
@@ -60,6 +61,7 @@ class CloudMediaScanResult {
   final List<String> failedPaths;
   final bool cancelled;
   final int videoCount;
+  final bool indexChanged;
   final int filteredBySizeCount;
   final Set<CloudDriveErrorType> failureTypes;
   final int minSizeBytes;
@@ -208,8 +210,10 @@ class CloudMediaIndexer {
             changed = true;
             continue;
           }
-          if (!entry.isDirectory && LocalVideoFileTypes.isVideoPath(entry.name) &&
-              !LocalVideoFileTypes.isRecognizedVideoSize(entry.size, minSizeBytes: minSizeBytes)) {
+          if (!entry.isDirectory &&
+              LocalVideoFileTypes.isVideoPath(entry.name) &&
+              !LocalVideoFileTypes.isRecognizedVideoSize(entry.size,
+                  minSizeBytes: minSizeBytes)) {
             filteredPaths.add(normalizedPath);
           }
           entries.add(CloudFileEntry(
@@ -252,11 +256,19 @@ class CloudMediaIndexer {
         failures: failedPaths.length,
         failedPaths: failedPaths,
         cancelled: true,
-        videoCount: previous.items.where((item) => LocalVideoFileTypes.isRecognizedVideoSize(item.size, minSizeBytes: minSizeBytes)).length,
-        matchedSubtitleCount: previous.items.where((item) => LocalVideoFileTypes.isRecognizedVideoSize(item.size, minSizeBytes: minSizeBytes)).fold<int>(
-          0,
-          (total, item) => total + item.subtitlePaths.length,
-        ),
+        videoCount: previous.items
+            .where((item) => LocalVideoFileTypes.isRecognizedVideoSize(
+                item.size,
+                minSizeBytes: minSizeBytes))
+            .length,
+        matchedSubtitleCount: previous.items
+            .where((item) => LocalVideoFileTypes.isRecognizedVideoSize(
+                item.size,
+                minSizeBytes: minSizeBytes))
+            .fold<int>(
+              0,
+              (total, item) => total + item.subtitlePaths.length,
+            ),
       );
     }
     if (!changed && failedPaths.isEmpty) {
@@ -269,11 +281,19 @@ class CloudMediaIndexer {
         failures: 0,
         failedPaths: const <String>[],
         cancelled: false,
-        videoCount: previous.items.where((item) => LocalVideoFileTypes.isRecognizedVideoSize(item.size, minSizeBytes: minSizeBytes)).length,
-        matchedSubtitleCount: previous.items.where((item) => LocalVideoFileTypes.isRecognizedVideoSize(item.size, minSizeBytes: minSizeBytes)).fold<int>(
-          0,
-          (total, item) => total + item.subtitlePaths.length,
-        ),
+        videoCount: previous.items
+            .where((item) => LocalVideoFileTypes.isRecognizedVideoSize(
+                item.size,
+                minSizeBytes: minSizeBytes))
+            .length,
+        matchedSubtitleCount: previous.items
+            .where((item) => LocalVideoFileTypes.isRecognizedVideoSize(
+                item.size,
+                minSizeBytes: minSizeBytes))
+            .fold<int>(
+              0,
+              (total, item) => total + item.subtitlePaths.length,
+            ),
       );
     }
     final allEntries = <String, CloudFileEntry>{};
@@ -342,7 +362,9 @@ class CloudMediaIndexer {
         (conflict) => _normalizePath(conflict.entry.remotePath),
       ),
     };
-    final previousByPath = {for (final item in previous.items) _normalizePath(item.remotePath): item};
+    final previousByPath = {
+      for (final item in previous.items) _normalizePath(item.remotePath): item
+    };
     final items = <String, CloudMediaIndexItem>{};
     for (final entry in videos) {
       final normalizedPath = _normalizePath(entry.remotePath);
@@ -413,10 +435,14 @@ class CloudMediaIndexer {
       final current = items[path]!;
       if (old == null || old.remoteId != current.remoteId) continue;
       items[path] = current.copyWith(
-        tmdbId: old.tmdbId, tmdbTitle: old.tmdbTitle,
-        tmdbOriginalTitle: old.tmdbOriginalTitle, tmdbOverview: old.tmdbOverview,
-        tmdbRating: old.tmdbRating, tmdbPosterUrl: old.tmdbPosterUrl,
-        tmdbBackdropUrl: old.tmdbBackdropUrl, posterCachePath: old.posterCachePath,
+        tmdbId: old.tmdbId,
+        tmdbTitle: old.tmdbTitle,
+        tmdbOriginalTitle: old.tmdbOriginalTitle,
+        tmdbOverview: old.tmdbOverview,
+        tmdbRating: old.tmdbRating,
+        tmdbPosterUrl: old.tmdbPosterUrl,
+        tmdbBackdropUrl: old.tmdbBackdropUrl,
+        posterCachePath: old.posterCachePath,
         tmdbGenres: old.tmdbGenres,
       );
     }
@@ -476,14 +502,18 @@ class CloudMediaIndexer {
       }
     }
     final visibleCount = items.length;
-    final matchedSubtitleCount = items.values.fold<int>(0, (total, item) => total + item.subtitlePaths.length);
+    final matchedSubtitleCount = items.values
+        .fold<int>(0, (total, item) => total + item.subtitlePaths.length);
     for (final old in previous.items) {
       final path = _normalizePath(old.remotePath);
       final current = allEntries[path];
-      if (current != null && current.id == old.remoteId &&
+      if (current != null &&
+          current.id == old.remoteId &&
           LocalVideoFileTypes.isVideoPath(current.name) &&
-          !LocalVideoFileTypes.isRecognizedVideoSize(current.size, minSizeBytes: minSizeBytes)) {
-        items[path] = old.copyWith(size: current.size, modifiedAt: current.modifiedAt);
+          !LocalVideoFileTypes.isRecognizedVideoSize(current.size,
+              minSizeBytes: minSizeBytes)) {
+        items[path] =
+            old.copyWith(size: current.size, modifiedAt: current.modifiedAt);
       }
     }
     if (changed || failedPaths.isNotEmpty || episodeRulesApplied) {
@@ -505,6 +535,7 @@ class CloudMediaIndexer {
       failedPaths: failedPaths,
       cancelled: false,
       videoCount: visibleCount,
+      indexChanged: changed || episodeRulesApplied,
       matchedSubtitleCount: matchedSubtitleCount,
     );
   }

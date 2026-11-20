@@ -8,6 +8,40 @@ import 'package:kanyingyin/services/local_media_index_metadata_refresher.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
+  test('当前索引只读一次，同一来源的旧条目共用一次快照', () async {
+    final directory = await Directory.systemTemp.createTemp('metadata_reads_');
+    addTearDown(() => directory.delete(recursive: true));
+    final repository = _MemoryMediaIndexRepository();
+    final refresher = LocalMediaIndexMetadataRefresher();
+    final items = List.generate(
+        3,
+        (i) => LocalMediaIndexItem(
+              path: p.join(directory.path, '$i.mkv'),
+              name: '$i.mkv',
+              parentPath: directory.path,
+              sourcePath: directory.path,
+              size: 1,
+              modified: DateTime(2026),
+              seriesName: '作品',
+              indexedAt: DateTime(2026),
+            ));
+    await repository.saveForSource(directory.path, items);
+    final current = await refresher.refreshRepository(repository);
+    expect(current.checkedCount, 3);
+    expect(repository.fullReads, 1);
+
+    repository.fullReads = 0;
+    await repository.saveForSource(directory.path, [
+      items.first,
+      for (final item in items.skip(1))
+        item.copyWith(derivedMetadataVersion: 0),
+    ]);
+    final stale = await refresher.refreshRepository(repository);
+    expect(stale.skippedCount, 2);
+    expect(stale.refreshedCount, 0);
+    expect(repository.fullReads, 2);
+  });
+
   test('LocalMediaIndexMetadataRefresher invalidates parser version 1', () {
     final item = LocalMediaIndexItem(
       path: r'D:\Anime\Show\Show [01].mkv',
@@ -204,11 +238,13 @@ void main() {
 }
 
 class _MemoryMediaIndexRepository extends ILocalMediaIndexRepository {
+  int fullReads = 0;
   final _items = <String, LocalMediaIndexItem>{};
   final _fingerprints = <String, Map<String, String>>{};
 
   @override
   List<LocalMediaIndexItem> getAll() {
+    fullReads++;
     return _items.values.toList();
   }
 

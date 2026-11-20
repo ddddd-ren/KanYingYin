@@ -29,24 +29,19 @@ void main() {
             categoryOverride: ['电影'],
             genreOverride: ['剧情'],
           ));
-      final stale = (await ordinaryRepository.get('work'))!;
-      final updatedAt = DateTime.utc(2026, 10, 11);
+      final beforeSave = DateTime.now();
       final classificationSave = classificationRepository.saveClassification(
         'work',
         categories: choice.categories,
         genres: choice.genres,
         mediaIds: ['classified-id'],
       );
-      final ordinarySave = ordinaryRepository.save(
+      final ordinarySave = ordinaryRepository.updateMarks(
         ' work ',
-        stale.copyWith(
-          favorite: false,
-          watchLater: true,
-          collections: ['稍后再看'],
-          mediaIds: ['current-id'],
-          updatedAt: updatedAt,
-        ),
-        preserveClassification: true,
+        favorite: false,
+        watchLater: true,
+        collections: ['稍后再看'],
+        mediaIds: ['current-id'],
       );
       await Future.wait([classificationSave, ordinarySave]);
 
@@ -56,9 +51,9 @@ void main() {
       expect(saved.favorite, isFalse);
       expect(saved.watchLater, isTrue);
       expect(saved.collections, ['稍后再看']);
-      expect(saved.mediaIds, ['current-id']);
-      expect(saved.updatedAt?.millisecondsSinceEpoch,
-          updatedAt.millisecondsSinceEpoch);
+      expect(saved.mediaIds, unorderedEquals(['classified-id', 'current-id']));
+      expect(saved.updatedAt!.millisecondsSinceEpoch,
+          greaterThanOrEqualTo(beforeSave.millisecondsSinceEpoch));
     });
   }
 
@@ -79,8 +74,7 @@ void main() {
     );
     expect(await repository.get('work'), isNull);
 
-    await repository.save('work', stale.copyWith(favorite: true),
-        preserveClassification: true);
+    await repository.updateMarks('work', favorite: true, mediaIds: ['one']);
 
     final saved = (await repository.get('work'))!;
     expect(saved.favorite, isTrue);
@@ -100,8 +94,7 @@ void main() {
       mediaIds: ['one'],
     );
 
-    await repository.save('work', stale.copyWith(favorite: false),
-        preserveClassification: true);
+    await repository.updateMarks('work', favorite: false, mediaIds: ['one']);
 
     final saved = await repository.get('work');
     expect(saved, isNotNull);
@@ -217,6 +210,31 @@ void main() {
       expect(() => MediaLibraryUserState.fromJson(raw), throwsFormatException,
           reason: raw.toString());
     }
+  });
+
+  test('过期快照与其他来源的同一媒体编号都不会重新关联标记', () async {
+    final repository = MediaLibraryUserStateRepository(
+        storage: MemoryMediaLibraryUserStateStorage({
+      'local|old': {
+        'favorite': true,
+        'mediaIds': ['same']
+      },
+      'disk|other': {
+        'watchLater': true,
+        'mediaIds': ['same']
+      },
+    }));
+    final identities = {
+      'local|new': {'same'}
+    };
+    final stale =
+        await repository.reconcile(identities, isCurrent: () => false);
+    expect(stale.keys, unorderedEquals(['local|old', 'disk|other']));
+    final current =
+        await repository.reconcile(identities, sourceIds: {'local'});
+    expect(current.keys, unorderedEquals(['local|new', 'disk|other']));
+    expect(current['local|new']!.favorite, isTrue);
+    expect(current['disk|other']!.watchLater, isTrue);
   });
 
   test('唯一媒体关联分别保留分类与题材，旧自动不覆盖新人工清空', () async {

@@ -704,7 +704,7 @@ class CloudResourceCollectionGrouper {
       group.stableKey,
     ];
     return const MediaLibraryQuery().matchesTitles(
-      [...values, ...group.videos.map((video) => video.name)], keyword);
+        [...values, ...group.videos.map((video) => video.name)], keyword);
   }
 
   CloudWorkIdentity _representativeWork(

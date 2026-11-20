@@ -74,7 +74,10 @@ void main() {
       isNot(contains(r'c:\users\asus')),
     );
     expect(releaseWorkflow, contains('看影音-'));
-    expect(releaseWorkflow, contains('-测试版-安装程序.exe'));
+    expect(releaseWorkflow, contains('-安装程序.exe'));
+    expect(releaseWorkflow, isNot(contains('-测试版-安装程序.exe')));
+    expect(releaseWorkflow,
+        contains(r'body_path: docs/releases/${{ env.RELEASE_TAG }}.md'));
     expect(releaseWorkflow.toLowerCase(), isNot(contains('.msix')));
     expect(releaseWorkflow, contains('uses: softprops/action-gh-release@'));
     expect(_topLevelJobNames(releaseWorkflow), hasLength(1));
@@ -199,6 +202,10 @@ void main() {
     final verification = _stepBlock(releaseWorkflow, '验证 EXE 安装程序');
     expect(verification, contains(r'$files.Count -ne 1'));
     expect(verification, contains(r'$expectedName'));
+    expect(
+      verification,
+      contains(r'$expectedName = "看影音-$env:APP_VERSION-安装程序.exe"'),
+    );
     expect(verification, contains(r'$env:APP_VERSION'));
     expect(verification, contains('Get-FileHash'));
     expect(verification, contains('Get-AuthenticodeSignature'));

@@ -24,6 +24,9 @@ import 'package:kanyingyin/widgets/cloud_poster_image.dart';
 import 'package:kanyingyin/widgets/poster_cover.dart';
 import 'package:kanyingyin/widgets/tmdb_network_image.dart';
 
+typedef MediaLibraryMarksAction = Future<void> Function(String seriesKey,
+    {bool? favorite, bool? watchLater, List<String>? collections});
+
 class MediaCategoryPage extends StatefulWidget {
   const MediaCategoryPage({
     super.key,
@@ -56,8 +59,7 @@ class MediaCategoryPage extends StatefulWidget {
   final Listenable? libraryListenable;
   final AppPlatformCapabilities? capabilities;
   final Map<String, MediaLibraryUserState> Function()? userStatesProvider;
-  final Future<void> Function(String, MediaLibraryUserState)?
-      onUserStateChanged;
+  final MediaLibraryMarksAction? onUserStateChanged;
   final Future<void> Function()? reconcileUserStates;
   final Future<void> Function(String, String)? onRelinkUserState;
   final Map<String, MediaWatchState> Function()? watchStatesProvider;
@@ -80,7 +82,11 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
   bool _playing = false;
   String? _errorMessage;
   String? _posterWarmupIdentity;
-  String? _stateIdentity;
+  CloudMediaLibrary? _stateLibrary;
+  Object? _queryInputs;
+  List<MediaLibrarySeries> _queryResult = const [];
+  CloudMediaLibrary? _keyLibrary;
+  Set<String> _seriesKeys = const {};
   bool _reconcilingStates = false;
   _MyLibraryTab _tab = _MyLibraryTab.favorite;
   String? _collection;
@@ -89,14 +95,18 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
 
   bool get _myLibrary => widget.category == null;
   String get _title => widget.category?.label ?? '我的片库';
-  bool get _showCollections => _myLibrary && _tab == _MyLibraryTab.collections && _collection == null;
+  bool get _showCollections =>
+      _myLibrary && _tab == _MyLibraryTab.collections && _collection == null;
 
-  bool _matchesScope(MediaLibraryUserState state) => !_myLibrary || switch (_tab) {
-    _MyLibraryTab.favorite => state.favorite,
-    _MyLibraryTab.watchLater => state.watchLater,
-    _MyLibraryTab.collections => state.collections.any((name) =>
-        _collection == null || name.toLowerCase() == _collection!.toLowerCase()),
-  };
+  bool _matchesScope(MediaLibraryUserState state) =>
+      !_myLibrary ||
+      switch (_tab) {
+        _MyLibraryTab.favorite => state.favorite,
+        _MyLibraryTab.watchLater => state.watchLater,
+        _MyLibraryTab.collections => state.collections.any((name) =>
+            _collection == null ||
+            name.toLowerCase() == _collection!.toLowerCase()),
+      };
 
   bool _pendingMatchesFilters(String key, String sourceId) =>
       (sourceId == 'all' || key.startsWith('$sourceId|')) &&
@@ -122,7 +132,7 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
   }
 
   Future<void> _initialize({bool refresh = false}) async {
-    _stateIdentity = null;
+    _stateLibrary = null;
     if (mounted) {
       setState(() {
         _loading = true;
@@ -175,61 +185,93 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
         : 'all';
     final userStates = widget.userStatesProvider?.call() ??
         const <String, MediaLibraryUserState>{};
-    final series = _queryService.apply(
-      series: library.series,
-      sourceId: sourceId,
-      keyword: _keyword,
-      selectedCategories: {if (widget.category != null) widget.category!.label},
-      favoriteOnly: _myLibrary && _tab == _MyLibraryTab.favorite,
-      watchLaterOnly: _myLibrary && _tab == _MyLibraryTab.watchLater,
-      selectedCollection: _myLibrary ? _collection ?? '' : '',
-
-      userStates: userStates,
-      classificationMode: _classificationMode,
+    final mode = _classificationMode;
+    final inputs = (
+      library,
+      sourceId,
+      _keyword,
+      widget.category,
+      _tab,
+      _collection,
+      userStates,
+      mode,
+      _sort,
+      _ascending
     );
-    if (_myLibrary) series.sort(_compareSeries);
+    if (_queryInputs != inputs) {
+      _queryInputs = inputs;
+      _queryResult = _queryService.apply(
+        series: library.series,
+        sourceId: sourceId,
+        keyword: _keyword,
+        selectedCategories: {
+          if (widget.category != null) widget.category!.label
+        },
+        favoriteOnly: _myLibrary && _tab == _MyLibraryTab.favorite,
+        watchLaterOnly: _myLibrary && _tab == _MyLibraryTab.watchLater,
+        selectedCollection: _myLibrary ? _collection ?? '' : '',
+        userStates: userStates,
+        classificationMode: mode,
+      );
+      if (_myLibrary) _queryResult.sort(_compareSeries);
+    }
+    final series = _queryResult;
     return Column(
       children: [
         _header(context, library, series.length, sourceId),
         if (_myLibrary) _tabs(),
         if (_collection != null)
-          Align(alignment: Alignment.centerLeft, child: TextButton.icon(
-            onPressed: () => setState(() => _collection = null),
-            icon: const Icon(Icons.arrow_back),
-            label: Text('合集 · $_collection', maxLines: 1, overflow: TextOverflow.ellipsis),
-          )),
-        if (_myLibrary && !_showCollections && _errorMessage != null && series.isNotEmpty)
+          Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => setState(() => _collection = null),
+                icon: const Icon(Icons.arrow_back),
+                label: Text('合集 · $_collection',
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+              )),
+        if (_myLibrary &&
+            !_showCollections &&
+            _errorMessage != null &&
+            series.isNotEmpty)
           _loadError(),
         if (widget.onRelinkUserState != null)
           _unlinkedStates(library, userStates, sourceId),
-        Expanded(child: _showCollections
-            ? _collections(library, userStates, sourceId)
-            : _content(context, series)),
+        Expanded(
+            child: _showCollections
+                ? _collections(library, userStates, sourceId)
+                : _content(context, series)),
       ],
     );
   }
 
   Widget _tabs() => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 16),
-    child: Align(alignment: Alignment.centerLeft, child: Wrap(spacing: 8, children: [
-      for (final tab in _MyLibraryTab.values)
-        ChoiceChip(label: Text(tab.label), selected: _tab == tab,
-          onSelected: _loading ? null : (_) {
-            setState(() {
-              _tab = tab;
-              _collection = null;
-              _keyword = '';
-              _searchController.clear();
-            });
-            _initialize(refresh: true);
-          }),
-    ])),
-  );
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Align(
+            alignment: Alignment.centerLeft,
+            child: Wrap(spacing: 8, children: [
+              for (final tab in _MyLibraryTab.values)
+                ChoiceChip(
+                    label: Text(tab.label),
+                    selected: _tab == tab,
+                    onSelected: _loading
+                        ? null
+                        : (_) {
+                            setState(() {
+                              _tab = tab;
+                              _collection = null;
+                              _keyword = '';
+                              _searchController.clear();
+                            });
+                          }),
+            ])),
+      );
 
   Widget _loadError() => ListTile(
-    title: Text(_errorMessage!),
-    trailing: TextButton(onPressed: () => _initialize(refresh: true), child: const Text('重试')),
-  );
+        title: Text(_errorMessage!),
+        trailing: TextButton(
+            onPressed: () => _initialize(refresh: true),
+            child: const Text('重试')),
+      );
 
   Widget _collections(CloudMediaLibrary library,
       Map<String, MediaLibraryUserState> states, String sourceId) {
@@ -237,69 +279,79 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
     final counts = <String, ({String name, int count})>{};
     for (final entry in states.entries) {
       final item = byKey[entry.key];
-      if (sourceId != 'all' && (item != null
-          ? item.sourceId != sourceId : !entry.key.startsWith('$sourceId|'))) {
+      if (sourceId != 'all' &&
+          (item != null
+              ? item.sourceId != sourceId
+              : !entry.key.startsWith('$sourceId|'))) {
         continue;
       }
       for (final name in entry.value.collections) {
         final key = name.toLowerCase();
-        if (_keyword.isNotEmpty && !key.contains(_keyword.toLowerCase()) &&
-            !(item == null ? entry.key.toLowerCase().contains(_keyword.toLowerCase())
+        if (_keyword.isNotEmpty &&
+            !key.contains(_keyword.toLowerCase()) &&
+            !(item == null
+                ? entry.key.toLowerCase().contains(_keyword.toLowerCase())
                 : _queryService.matchesSeries(item, _keyword))) {
           continue;
         }
         final previous = counts[key];
-        counts[key] = (name: previous?.name ?? name, count: (previous?.count ?? 0) + 1);
+        counts[key] =
+            (name: previous?.name ?? name, count: (previous?.count ?? 0) + 1);
       }
     }
-    final collections = counts.values.toList()..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    final collections = counts.values.toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     if (collections.isEmpty) {
       if (_loading || _errorMessage != null) return _content(context, const []);
       return Center(child: Text(_keyword.isEmpty ? '还没有合集' : '没有匹配的合集或作品'));
     }
     return Column(children: [
       if (_errorMessage != null) _loadError(),
-      Expanded(child: ListView.builder(
-      itemCount: collections.length,
-      itemBuilder: (context, index) {
-        final item = collections[index];
-        return ListTile(
-          leading: const Icon(Icons.video_library_outlined),
-          title: Text(item.name), subtitle: Text('${item.count} 部作品'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => setState(() {
-            _collection = item.name;
-            _keyword = '';
-            _searchController.clear();
-          }),
-        );
-      },
-    )),
+      Expanded(
+          child: ListView.builder(
+        itemCount: collections.length,
+        itemBuilder: (context, index) {
+          final item = collections[index];
+          return ListTile(
+            leading: const Icon(Icons.video_library_outlined),
+            title: Text(item.name),
+            subtitle: Text('${item.count} 部作品'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => setState(() {
+              _collection = item.name;
+              _keyword = '';
+              _searchController.clear();
+            }),
+          );
+        },
+      )),
     ]);
   }
 
   int _compareSeries(MediaLibrarySeries a, MediaLibrarySeries b) {
-    int size(MediaLibrarySeries item) => item.episodes.fold(0, (sum, e) => sum + (e.size ?? 0));
-    int modified(MediaLibrarySeries item) => item.episodes.fold(0,
+    int size(MediaLibrarySeries item) =>
+        item.episodes.fold(0, (sum, e) => sum + (e.size ?? 0));
+    int modified(MediaLibrarySeries item) => item.episodes.fold(
+        0,
         (latest, e) => (e.modifiedAt?.millisecondsSinceEpoch ?? 0) > latest
-            ? e.modifiedAt!.millisecondsSinceEpoch : latest);
+            ? e.modifiedAt!.millisecondsSinceEpoch
+            : latest);
     final compared = switch (_sort) {
-      LocalSortMode.name => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+      LocalSortMode.name =>
+        a.title.toLowerCase().compareTo(b.title.toLowerCase()),
       LocalSortMode.size => size(a).compareTo(size(b)),
       LocalSortMode.modified => modified(a).compareTo(modified(b)),
     };
-    return compared == 0 ? a.key.compareTo(b.key) : (_ascending ? compared : -compared);
+    return compared == 0
+        ? a.key.compareTo(b.key)
+        : (_ascending ? compared : -compared);
   }
 
   void _scheduleReconcile(CloudMediaLibrary library) {
     final callback = widget.reconcileUserStates;
     if (callback == null || _loading || _reconcilingStates) return;
-    final identity = library.series
-        .map((series) =>
-            '${series.key}:${series.episodes.map((e) => e.stableId).join(',')}')
-        .join('\n');
-    if (_stateIdentity == identity) return;
-    _stateIdentity = identity;
+    if (identical(_stateLibrary, library)) return;
+    _stateLibrary = library;
     _reconcilingStates = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
@@ -317,18 +369,29 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
     });
   }
 
-  Widget _unlinkedStates(
-      CloudMediaLibrary library, Map<String, MediaLibraryUserState> states, String sourceId) {
-    final keys = library.series.map((series) => series.key).toSet();
-    final pending = states.entries.where((entry) => !keys.contains(entry.key) &&
-        _matchesScope(entry.value) && (!_myLibrary || _pendingMatchesFilters(entry.key, sourceId)))
-        .map((entry) => entry.key).toList();
+  Widget _unlinkedStates(CloudMediaLibrary library,
+      Map<String, MediaLibraryUserState> states, String sourceId) {
+    if (states.isEmpty) return const SizedBox.shrink();
+    if (!identical(_keyLibrary, library)) {
+      _keyLibrary = library;
+      _seriesKeys = library.series.map((series) => series.key).toSet();
+    }
+    final keys = _seriesKeys;
+    final pending = states.entries
+        .where((entry) =>
+            !keys.contains(entry.key) &&
+            _matchesScope(entry.value) &&
+            (!_myLibrary || _pendingMatchesFilters(entry.key, sourceId)))
+        .map((entry) => entry.key)
+        .toList();
     if (pending.isEmpty) return const SizedBox.shrink();
     return Align(
         alignment: Alignment.centerLeft,
         child: TextButton.icon(
           icon: const Icon(Icons.link),
-          label: Text(_myLibrary ? '${pending.length} 项待关联记录' : '${pending.length} 项收藏/待看记录待关联'),
+          label: Text(_myLibrary
+              ? '${pending.length} 项待关联记录'
+              : '${pending.length} 项收藏/待看记录待关联'),
           onPressed: () => _relinkState(pending, library),
         ));
   }
@@ -384,7 +447,8 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
       count: _showCollections ? null : count,
       searchController: _searchController,
       searchKey: const ValueKey<String>('media-category-search'),
-      searchHint: _myLibrary ? (_showCollections ? '搜索合集或作品' : '搜索作品') : '搜索$_title',
+      searchHint:
+          _myLibrary ? (_showCollections ? '搜索合集或作品' : '搜索作品') : '搜索$_title',
       onSearchChanged: (value) => setState(() => _keyword = value.trim()),
       onClearSearch: () => setState(() {
         _searchController.clear();
@@ -414,21 +478,28 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
           },
         ),
       ),
-      sort: _myLibrary && !_showCollections ? PopupMenuButton<LocalSortMode>(
-        tooltip: '排序',
-        icon: Icon(_ascending ? Icons.sort_by_alpha : Icons.sort),
-        onSelected: (value) => setState(() {
-          _ascending = _sort == value ? !_ascending : value == LocalSortMode.name;
-          _sort = value;
-        }),
-        itemBuilder: (_) => [
-          for (final mode in LocalSortMode.values)
-            CheckedPopupMenuItem(value: mode, checked: _sort == mode,
-              child: Text(switch (mode) {
-                LocalSortMode.name => '名称', LocalSortMode.size => '大小', LocalSortMode.modified => '日期',
-              })),
-        ],
-      ) : null,
+      sort: _myLibrary && !_showCollections
+          ? PopupMenuButton<LocalSortMode>(
+              tooltip: '排序',
+              icon: Icon(_ascending ? Icons.sort_by_alpha : Icons.sort),
+              onSelected: (value) => setState(() {
+                _ascending =
+                    _sort == value ? !_ascending : value == LocalSortMode.name;
+                _sort = value;
+              }),
+              itemBuilder: (_) => [
+                for (final mode in LocalSortMode.values)
+                  CheckedPopupMenuItem(
+                      value: mode,
+                      checked: _sort == mode,
+                      child: Text(switch (mode) {
+                        LocalSortMode.name => '名称',
+                        LocalSortMode.size => '大小',
+                        LocalSortMode.modified => '日期',
+                      })),
+              ],
+            )
+          : null,
       actions: [
         IconButton(
           tooltip: _myLibrary ? '刷新已有资料' : '刷新分类',
@@ -483,7 +554,9 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
             const SizedBox(height: 12),
             Text(_keyword.isNotEmpty
                 ? '没有匹配的作品'
-                : _myLibrary ? '还没有${_collection == null ? _tab.label : '合集内'}作品' : '还没有$_title'),
+                : _myLibrary
+                    ? '还没有${_collection == null ? _tab.label : '合集内'}作品'
+                    : '还没有$_title'),
             if (_keyword.isNotEmpty)
               TextButton(
                 onPressed: () => setState(() {
@@ -543,9 +616,11 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
       watchProgress: widget.watchStatesProvider == null
           ? null
           : mediaSeriesProgress(series, widget.watchStatesProvider!()),
-      onTap: _playing ? null : !series.isAvailable
-          ? (_myLibrary ? () => _showSeriesDetails(series) : null)
-          : () => _openSeriesFromCard(series),
+      onTap: _playing
+          ? null
+          : !series.isAvailable
+              ? (_myLibrary ? () => _showSeriesDetails(series) : null)
+              : () => _openSeriesFromCard(series),
     );
   }
 
@@ -654,22 +729,11 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
         }
         return;
       case _MediaCategoryAction.favorite:
-        await _saveUserState(
-          series,
-          _userState(series).copyWith(
-            favorite: !_userState(series).favorite,
-            updatedAt: DateTime.now(),
-          ),
-        );
+        await _saveUserState(series, favorite: !_userState(series).favorite);
         return;
       case _MediaCategoryAction.watchLater:
-        await _saveUserState(
-          series,
-          _userState(series).copyWith(
-            watchLater: !_userState(series).watchLater,
-            updatedAt: DateTime.now(),
-          ),
-        );
+        await _saveUserState(series,
+            watchLater: !_userState(series).watchLater);
         return;
       case _MediaCategoryAction.collections:
         await _editCollections(series);
@@ -730,13 +794,16 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
   }
 
   Future<void> _saveUserState(
-    MediaLibrarySeries series,
-    MediaLibraryUserState state,
-  ) async {
+    MediaLibrarySeries series, {
+    bool? favorite,
+    bool? watchLater,
+    List<String>? collections,
+  }) async {
     final callback = widget.onUserStateChanged;
     if (callback == null) return;
     try {
-      await callback(series.key, state);
+      await callback(series.key,
+          favorite: favorite, watchLater: watchLater, collections: collections);
       if (mounted) setState(() {});
     } on Object {
       if (!mounted) return;
@@ -753,13 +820,7 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
       builder: (context) => _CollectionEditorDialog(initial: initial),
     );
     if (result == null || !mounted) return;
-    await _saveUserState(
-      series,
-      _userState(series).copyWith(
-        collections: result,
-        updatedAt: DateTime.now(),
-      ),
-    );
+    await _saveUserState(series, collections: result);
   }
 
   Future<List<MediaLibraryEpisode>?> _selectEpisodesToHide(
@@ -1027,9 +1088,12 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
                                         '共享自${episode.sharedFromVersionLabel}'),
                                 ],
                               ),
-                              onTap: () => Navigator.of(context).pop(
-                                (series: series, episode: episode),
-                              ),
+                              enabled: episode.isAvailable,
+                              onTap: !episode.isAvailable
+                                  ? null
+                                  : () => Navigator.of(context).pop(
+                                        (series: series, episode: episode),
+                                      ),
                             ),
                           );
                         },
@@ -1075,7 +1139,10 @@ class _MediaCategoryPageState extends State<MediaCategoryPage> {
 }
 
 enum _MyLibraryTab {
-  favorite('收藏'), watchLater('待看'), collections('合集');
+  favorite('收藏'),
+  watchLater('待看'),
+  collections('合集');
+
   const _MyLibraryTab(this.label);
   final String label;
 }

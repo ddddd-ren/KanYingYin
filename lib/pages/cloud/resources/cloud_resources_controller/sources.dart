@@ -68,6 +68,7 @@ mixin _CloudSourcesMixin on _CloudResourcesControllerBase {
   }
 
   Future<void> _reloadMediaLibrarySnapshot(int generation) async {
+    var complete = true;
     final nextSeries = Map<String, List<MediaLibrarySeries>>.from(
       _mediaLibrarySeriesBySource,
     );
@@ -105,29 +106,42 @@ mixin _CloudSourcesMixin on _CloudResourcesControllerBase {
           for (final record in records)
             if (record.sourceId == source.id) record.workKey: record,
         };
-        List<MediaLibrarySeries> build(List<CloudMediaIndexItem> visible, int threshold) {
+        List<MediaLibrarySeries> build(
+            List<CloudMediaIndexItem> visible, int threshold) {
           final tree = _mediaTreeResolver.resolve(
             sourceId: source.id,
-            configuredRoots: source.remoteRoots.map((root) => root.path).toList(),
+            configuredRoots:
+                source.remoteRoots.map((root) => root.path).toList(),
             directoryEntries: snapshot.directoryEntries,
             minSizeBytes: threshold,
           );
           return _mediaLibraryAdapter.convert(
             source: source,
             collection: _collectionGrouper.group(
-              sourceId: source.id, items: visible, works: tree.works, recordsByWorkKey: sourceRecords, query: '',
+              sourceId: source.id,
+              items: visible,
+              works: tree.works,
+              recordsByWorkKey: sourceRecords,
+              query: '',
             ),
             indexedItems: visible,
           );
         }
+
         nextCached[source.id] = build(items, 0);
         final threshold = _minRecognizedVideoSizeBytesProvider();
-        final visible = items.where((item) => LocalVideoFileTypes.isRecognizedVideoSize(
-            item.size, minSizeBytes: threshold)).toList(growable: false);
+        final visible = items
+            .where((item) => LocalVideoFileTypes.isRecognizedVideoSize(
+                item.size,
+                minSizeBytes: threshold))
+            .toList(growable: false);
         nextSeries[source.id] = source.enabled
-            ? (threshold == 0 ? nextCached[source.id]! : build(visible, threshold))
+            ? (threshold == 0
+                ? nextCached[source.id]!
+                : build(visible, threshold))
             : const [];
       } on Object catch (error, stackTrace) {
+        complete = false;
         AppLogger().w(
           'CloudResourcesController: failed to load media library snapshot '
           'sourceId=${source.id}',
@@ -148,7 +162,9 @@ mixin _CloudSourcesMixin on _CloudResourcesControllerBase {
     _cachedMediaLibrarySeriesBySource
       ..clear()
       ..addAll(nextCached);
-    _mediaLibrarySnapshotInitialized = true;
+    mediaLibrarySnapshotVersion++;
+    mediaLibrarySnapshotComplete = complete;
+    _mediaLibrarySnapshotInitialized = complete;
     if (!_disposed) {
       _mediaLibraryNotifier.notifyListeners();
       _notify();
@@ -225,8 +241,8 @@ mixin _CloudSourcesMixin on _CloudResourcesControllerBase {
     var sourcesRead = false;
     try {
       final allSources = await _repository.getAll();
-      final loadedSources = allSources.where((source) => source.enabled)
-          .toList(growable: false);
+      final loadedSources =
+          allSources.where((source) => source.enabled).toList(growable: false);
       if (!_isCurrent(generation)) return;
       sourcesRead = true;
       sources = loadedSources;
@@ -236,7 +252,8 @@ mixin _CloudSourcesMixin on _CloudResourcesControllerBase {
       final sourceIds = allSources.map((source) => source.id).toSet();
       _mediaLibrarySeriesBySource
           .removeWhere((id, _) => !sourceIds.contains(id));
-      _cachedMediaLibrarySeriesBySource.removeWhere((id, _) => !sourceIds.contains(id));
+      _cachedMediaLibrarySeriesBySource
+          .removeWhere((id, _) => !sourceIds.contains(id));
       if (loadedSources.isEmpty && allSources.isNotEmpty) {
         await reloadMediaLibrarySnapshot(force: true);
       }

@@ -140,6 +140,12 @@ void FlutterWindow::RegisterShortcutChannel() {
       return;
     }
 
+    if (call.method_name() == "createMissingShortcuts") {
+      result->Success(flutter::EncodableValue(ShortcutUtils::CreateMissingShortcuts(
+          kShortcutName, kShortcutDescription)));
+      return;
+    }
+
     if (call.method_name() == "createDesktopShortcut") {
       const bool success = ShortcutUtils::CreateDesktopShortcut(
           kShortcutName, kShortcutDescription);

@@ -38,9 +38,19 @@ final class ScrapedMetadataImportPlanner {
           ScrapedMetadataImportPlan plan) =>
       {
         for (final match in plan.cloudResourceMatches)
-          ('resource', match.targetSourceId, match.targetRemoteId, match.targetRemotePath),
+          (
+            'resource',
+            match.targetSourceId,
+            match.targetRemoteId,
+            match.targetRemotePath
+          ),
         for (final match in plan.cloudWorkMatches)
-          ('work', match.targetSourceId, match.targetWorkKey, match.targetWorkRootPath),
+          (
+            'work',
+            match.targetSourceId,
+            match.targetWorkKey,
+            match.targetWorkRootPath
+          ),
         for (final match in plan.cloudSeriesRuleMatches)
           ('rule', match.targetSourceId, match.targetParentPath, ''),
       };

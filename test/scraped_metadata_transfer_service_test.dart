@@ -20,7 +20,10 @@ void main() {
       readArchive: (_) async => archive,
       buildPlan: (_, __) async => _plan(archive.payload),
       importPlan: (_, __) async => const ScrapedMetadataTransferResult(
-        localCount: 1, cloudCount: 0, imageCount: 0, skippedCount: 0,
+        localCount: 1,
+        cloudCount: 0,
+        imageCount: 0,
+        skippedCount: 0,
       ),
     );
     final session = await service.inspect(File('unused'));

@@ -39,13 +39,13 @@ void main() {
   });
 
   test('Android 跳过桌面快捷方式并隐藏打开日志目录', () {
-    final initSource = File('lib/pages/init_page.dart').readAsStringSync();
+    final initSource = File('lib/app/startup_landing.dart').readAsStringSync();
     final playerSettings =
         File('lib/pages/settings/player_settings.dart').readAsStringSync();
 
     expect(
       initSource,
-      contains('if (!detectAppPlatform().desktopShell) return;'),
+      contains('if (!detectAppPlatform().desktopShell) return true;'),
     );
     expect(
       playerSettings,

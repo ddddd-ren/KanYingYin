@@ -1,10 +1,14 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_modular/flutter_modular.dart';
+import 'package:kanyingyin/features/library/application/media_ai_classifier.dart';
+import 'package:kanyingyin/pages/index_module.dart';
+import 'package:kanyingyin/services/tmdb/tmdb_credential_manager.dart';
+import 'package:kanyingyin/utils/storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/features/library/application/library_ports.dart';
 import 'package:kanyingyin/features/library/application/media_category_runtime.dart';
-import 'package:kanyingyin/features/library/application/media_library_user_state.dart';
 import 'package:kanyingyin/features/library/application/media_library_user_state_repository.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/services/local_playback_request_builder.dart';
@@ -12,6 +16,37 @@ import 'package:kanyingyin/services/cloud/cloud_playback_resolver.dart';
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
 
 void main() {
+  test('正式绑定中打开个人片库和刷新已有资料不会启动 AI 分类', () async {
+    final dir = await Directory.systemTemp.createTemp('my_library_bindings_');
+    Hive.init(dir.path);
+    final box = await Hive.openBox<Object?>('settings');
+    GStorage.setting = box;
+    addTearDown(() async {
+      Modular.destroy();
+      await box.close();
+      await dir.delete(recursive: true);
+    });
+    Modular.init(IndexModule(
+        tmdbCredentialManager: TmdbCredentialManager(
+      store: MemoryTmdbCredentialStore(),
+      legacyReader: () => '',
+      legacyDelete: () async {},
+    )));
+    final classifier = _CountingClassifier();
+    Modular.replaceInstance<MediaAiClassifier>(classifier);
+    final runtime = MediaCategoryRuntime(
+      localLibrary: Modular.get<LocalLibraryPort>(),
+      cloudLibrary: Modular.get<CloudLibraryPort>(),
+      playback: _Playback(),
+      settings: TypedSettings(box),
+      navigateToPlayer: () async {},
+      includeUnavailable: true,
+    );
+    addTearDown(runtime.dispose);
+    await runtime.initialize();
+    await runtime.refresh();
+    expect(classifier.calls, 0);
+  });
   test('个人片库只读缓存，标记跨运行时同步，已看保留待看，播放仍传递原始媒体身份', () async {
     final dir = await Directory.systemTemp.createTemp('my_library_runtime_');
     Hive.init(dir.path);
@@ -21,7 +56,7 @@ void main() {
       await dir.delete(recursive: true);
     });
     final item = LocalMediaIndexItem(
-        path: r'D:\媒体\作品.mkv',
+        path: (await File('${dir.path}/作品.mkv').create()).path,
         name: '作品.mkv',
         parentPath: r'D:\媒体',
         sourcePath: r'D:\媒体',
@@ -83,12 +118,18 @@ void main() {
     await second.initialize();
     expect(first.library.series, hasLength(2));
     expect(localPort.cachedReads, 2);
-    expect(cloudPort.ensures, 0);
-    expect(cloudPort.refreshes, 2);
-    await first.saveUserState(
-        local.key,
-        const MediaLibraryUserState(
-            favorite: true, watchLater: true, collections: ['周末']));
+    expect(cloudPort.ensures, 2);
+    expect(cloudPort.refreshes, 0);
+    await Future.wait([
+      first.saveUserState(local.key, favorite: true),
+      second.saveUserState(local.key, watchLater: true),
+      first.saveUserState(local.key, collections: ['周末']),
+    ]);
+    final concurrent = (await MediaLibraryUserStateRepository(storage: storage)
+        .get(local.key))!;
+    expect(concurrent.favorite, isTrue);
+    expect(concurrent.watchLater, isTrue);
+    expect(concurrent.collections, ['周末']);
     await Future<void>.delayed(Duration.zero);
     expect(second.userStates[local.key]?.favorite, isTrue);
     expect(second.userStates[local.key]?.mediaIds, [item.id]);
@@ -107,6 +148,10 @@ void main() {
     expect(playback.targets!.single.remoteId, 'remote');
     expect(playback.selected, cloud.episodes.single.stableId);
     expect(navigations, 2);
+    await File(item.path).delete();
+    await expectLater(
+        first.playEpisode(local, local.episodes.single), throwsStateError);
+    expect(navigations, 2);
   });
 }
 
@@ -119,8 +164,7 @@ class _LocalPort implements LocalLibraryPort {
   CloudMediaLibrary get library =>
       const CloudMediaLibrary(series: [], filters: []);
   @override
-  void reloadAvailableLibrary({bool includeUnavailable = false}) {
-    expect(includeUnavailable, isTrue);
+  Future<void> ensureLibrary({bool refresh = false}) async {
     cachedReads++;
   }
 }
@@ -131,6 +175,8 @@ class _CloudPort implements CloudLibraryPort {
   final CloudMediaLibrary cachedLibrary;
   int ensures = 0;
   int refreshes = 0;
+  @override
+  bool get snapshotComplete => true;
   final notifier = ChangeNotifier();
   @override
   Listenable get changes => notifier;
@@ -149,6 +195,15 @@ class _CloudPort implements CloudLibraryPort {
 
   @override
   Future<void> hideEpisodes(Iterable<MediaLibraryEpisode> episodes) async {}
+}
+
+class _CountingClassifier extends Fake implements MediaAiClassifier {
+  int calls = 0;
+
+  @override
+  Future<void> process(CloudMediaLibrary Function() library) async {
+    calls++;
+  }
 }
 
 class _Playback implements PlaybackPort {

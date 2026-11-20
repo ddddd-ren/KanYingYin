@@ -302,8 +302,8 @@ class LibraryMediaGrid extends StatelessWidget {
         action: data.sourceAccessible
             ? (onRetry == null ? null : () async => await onRetry!())
             : (onPickDirectory == null
-                  ? null
-                  : () async => await onPickDirectory!()),
+                ? null
+                : () async => await onPickDirectory!()),
       );
     }
     if (data.items.isEmpty) {
@@ -336,8 +336,7 @@ class LibraryMediaGrid extends StatelessWidget {
             '${data.filteredBySizeCount > 0 ? '${data.filteredBySizeCount} 个视频未达到大小要求。' : ''}${data.recognitionDescription}',
         actionLabel: onRecognitionSettings != null ? '调整识别设置' : '切换文件夹',
         actionIcon: Icons.folder_outlined,
-        action:
-            onRecognitionSettings ??
+        action: onRecognitionSettings ??
             (onPickDirectory == null
                 ? null
                 : () async => await onPickDirectory!()),
@@ -378,8 +377,6 @@ class LibraryMediaGrid extends StatelessWidget {
       ),
     );
   }
-
-
 }
 
 class _LibraryMediaTile extends StatefulWidget {

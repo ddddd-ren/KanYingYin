@@ -99,6 +99,7 @@ mixin _CloudScanMixin on _CloudResourcesControllerBase {
       scanFailureTypes = result.failureTypes;
       await _loadSnapshot(source, generation);
       if (!_isCurrent(generation)) return;
+      if (result.indexChanged) _classificationInputs.notifyListeners();
       if (result.failures > 0) {
         final type = scanRecoveryType;
         final reason = type == null

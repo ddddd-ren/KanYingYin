@@ -209,7 +209,7 @@ void main() {
           filters: [MediaLibrarySourceFilter('all', '全部', null)],
         ),
         onPlayEpisode: (_, __) async {},
-        onUserStateChanged: (_, __) async {},
+        onUserStateChanged: (_, {favorite, watchLater, collections}) async {},
         observeLibrary: false,
       ),
     ));

@@ -18,3 +18,16 @@
 - RSS：整个 Flutter 测试进程，包含框架/JIT，未强制 GC；差值可以为负。两个规模顺序执行，不能当成单独进程或应用净内存。
 
 这些结果属于 `flutter test` JIT，不能推断实机 Release 首屏。实机 Release 的启动、滚动与内存需另测另报。基准仅测量，不设置跨机器时间阈值。
+
+## 分类页业务耗时
+
+下列基准用独立进程分别测量两个规模，经过正式的分类控制器与文件存在性检查。每档首次进入一次，再重复进入五次。生成的普通文件位于构建目录，测试使用独立的临时设置库。
+
+```powershell
+foreach ($count in 1000, 10000) {
+  & D:\flutter\bin\flutter.bat test --no-pub tool/performance/category_switch_benchmark_test.dart --dart-define=benchmark_label=before "--dart-define=benchmark_count=$count" --reporter expanded
+  if ($LASTEXITCODE -ne 0) { throw "分类基准失败，样本数 $count" }
+}
+```
+
+改后使用标签 `after`。两组原始记录位于 `build/navigation_validation/category-标签-数量.json`，对比前核对样本摘要和可见作品数。`readyMs` 统计分类初始化并取得完整作品列表的时间，`nextEventMs` 记录调用后 UI isolate 恢复处理下一个事件的时间。屏幕点击响应和真实出画另用 Windows 应用测量。

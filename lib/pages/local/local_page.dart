@@ -1,3 +1,4 @@
+import 'package:mobx/mobx.dart' show ReactionDisposer, reaction;
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 import 'package:kanyingyin/pages/menu/adaptive_navigation_shell.dart';
@@ -41,7 +42,6 @@ import 'package:kanyingyin/services/tmdb/tmdb_scraper.dart';
 import 'package:kanyingyin/pages/video/local_video_controller.dart';
 import 'package:kanyingyin/utils/logger.dart';
 import 'package:path/path.dart' as p;
-import 'package:mobx/mobx.dart' show ReactionDisposer, reaction;
 
 enum _LocalMediaAction {
   play,
@@ -79,7 +79,10 @@ class _LocalPageState extends State<LocalPage>
   Map<String, MediaLibrarySeries> _librarySeriesByPath = const {};
   MediaClassificationMode _classificationMode =
       MediaClassificationMode.conservative;
-  late final ReactionDisposer _disposeClassificationReaction;
+  CloudMediaLibrary? _pathLibrary;
+  late final ReactionDisposer _disposeIndexReaction;
+  int _classificationLoad = 0;
+  int _reconciledVersion = 0;
 
   @override
   bool get wantKeepAlive => true;
@@ -87,18 +90,16 @@ class _LocalPageState extends State<LocalPage>
   @override
   void initState() {
     super.initState();
+    _disposeIndexReaction = reaction((_) => localController.cachedIndexVersion,
+        (_) => _reloadClassifications());
     localController.init();
     MediaLibraryUserStateRepository.changes.addListener(_reloadClassifications);
-    _disposeClassificationReaction = reaction(
-      (_) => localController.localLibraryItems.toList(growable: false),
-      (_) => _reloadClassifications(),
-    );
     _reloadClassifications();
   }
 
   @override
   void dispose() {
-    _disposeClassificationReaction();
+    _disposeIndexReaction();
     MediaLibraryUserStateRepository.changes
         .removeListener(_reloadClassifications);
     _scrollController.dispose();
@@ -108,12 +109,10 @@ class _LocalPageState extends State<LocalPage>
   }
 
   Future<void> _reloadClassifications() async {
+    final generation = ++_classificationLoad;
     try {
-      final states = await _userStateRepository.reconcile({
-        for (final series in localController.localMediaLibrary.series)
-          series.key:
-              series.episodes.map((episode) => episode.stableId).toSet(),
-      });
+      final states = await _userStateRepository.getAll();
+      if (!mounted || generation != _classificationLoad) return;
       final value = Modular.get<TypedSettings>()
           .readRaw(SettingBoxKey.mediaClassificationMode);
       if (!mounted) return;
@@ -125,7 +124,25 @@ class _LocalPageState extends State<LocalPage>
         );
       });
       _classificationChanges.value++;
+      final version = localController.cachedIndexVersion;
+      if (version == 0 ||
+          version == _reconciledVersion ||
+          !states.keys.any((key) => key.startsWith('local|'))) {
+        return;
+      }
+      _reconciledVersion = version;
+      await _userStateRepository.reconcile({
+        for (final series in localController.cachedLocalMediaLibrary.series)
+          series.key:
+              series.episodes.map((episode) => episode.stableId).toSet(),
+      },
+          sourceIds: const {
+            'local'
+          },
+          isCurrent: () =>
+              mounted && version == localController.cachedIndexVersion);
     } on Object {
+      if (generation == _classificationLoad) _reconciledVersion = 0;
       // 暂不可读时沿用已加载的人工选择。
     }
   }
@@ -398,6 +415,8 @@ class _LocalPageState extends State<LocalPage>
 
   Future<void> _confirmRemoveUnavailableMediaSources() async {
     if (localController.isLoading || localController.isIndexingLibrary) return;
+    await localController.refreshSourceAvailability();
+    if (!mounted || localController.isIndexingLibrary) return;
     final count = localController.unavailableMediaSourceCount();
     if (count <= 0) return;
 
@@ -1224,12 +1243,16 @@ class _LocalPageState extends State<LocalPage>
   }
 
   Widget _mediaGrid(BuildContext context) {
-    _librarySeriesByPath = {
-      for (final series in localController.localMediaLibrary.series)
-        for (final episode in series.episodes)
-          if (episode.localItem case final item?)
-            LocalMediaIndexItem.normalizePath(item.path): series,
-    };
+    final library = localController.localMediaLibrary;
+    if (!identical(_pathLibrary, library)) {
+      _pathLibrary = library;
+      _librarySeriesByPath = {
+        for (final series in library.series)
+          for (final episode in series.episodes)
+            if (episode.localItem case final item?)
+              LocalMediaIndexItem.normalizePath(item.path): series,
+      };
+    }
     final groups = _visibleGroups(localController.items);
     final groupById = {
       for (final group in groups) group.firstEpisode.path: group,

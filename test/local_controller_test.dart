@@ -61,20 +61,42 @@ void main() {
       indexedAt: DateTime(2026),
     );
     await repository.saveForSource(dir.path, [existingItem, missingItem]);
+    final firstDirectoryProbe = Completer<bool>();
+    var directoryProbes = 0;
     final controller = LocalController(
+      directoryExists: (_) async {
+        directoryProbes++;
+        if (directoryProbes == 1) return firstDirectoryProbe.future;
+        return true;
+      },
       mediaIndexRepository: repository,
       mediaSourceRepository: _MemoryMediaSourceRepository(),
       preferences: _preferences(),
     );
 
-    controller.reloadAvailableLocalLibraryIndex();
+    final cold = controller.reloadAvailableLocalLibraryIndex();
+    expect(directoryProbes, 1);
+    expect(controller.cachedIndexVersion, 0);
+    expect(
+        identical(cold, controller.reloadAvailableLocalLibraryIndex()), isTrue);
+    firstDirectoryProbe.complete(false);
+    await cold;
+    expect(directoryProbes, 2);
 
     expect(
         controller.localLibraryItems.map((item) => item.name), ['exists.mkv']);
     final firstList = controller.localLibraryItems;
-    controller.reloadAvailableLocalLibraryIndex();
-
+    final snapshot = controller.localMediaLibrary;
+    await controller.ensureCategoryIndex();
     expect(identical(controller.localLibraryItems, firstList), isTrue);
+    expect(identical(controller.localMediaLibrary, snapshot), isTrue);
+
+    await File(missingItem.path).create();
+    final pending = controller.reloadAvailableLocalLibraryIndex();
+    expect(identical(pending, controller.ensureCategoryIndex()), isTrue);
+    await pending;
+    expect(controller.localLibraryItems, hasLength(2));
+    expect(identical(controller.localMediaLibrary, snapshot), isFalse);
   });
 
   test('本地媒体库入口计数不包含网盘资源', () {
@@ -176,6 +198,25 @@ void main() {
     expect(item.videoHeight, 2160);
   });
 
+  test('延迟返回的离线目录不能覆盖新的导航结果', () async {
+    final oldProbe = Completer<bool>();
+    final controller = LocalController(
+      directoryExists: (path) async {
+        if (path == 'old') return oldProbe.future;
+        return true;
+      },
+      scanner: _ImmediateScanner(const []),
+      mediaSourceRepository: _MemoryMediaSourceRepository(),
+      preferences: _preferences(),
+    );
+    final older = controller.navigateTo('old');
+    await controller.navigateTo('new');
+    oldProbe.complete(false);
+    await older;
+    expect(controller.currentPath, 'new');
+    expect(controller.errorMessage, isNull);
+  });
+
   test('LocalController ignores stale navigation results', () async {
     final firstDir = await Directory.systemTemp.createTemp('kanyingyin_first_');
     final secondDir =
@@ -197,9 +238,8 @@ void main() {
     );
 
     final firstNavigation = controller.navigateTo(firstDir.path);
-    final secondNavigation = controller.navigateTo(secondDir.path);
-
     await scanner.waitFor(firstDir.path);
+    final secondNavigation = controller.navigateTo(secondDir.path);
     await scanner.waitFor(secondDir.path);
 
     scanner.complete(
@@ -359,6 +399,55 @@ void main() {
     expect(controller.mediaSources, isEmpty);
   });
 
+  test('来源菜单只读最近观测，晚归的离线探测不能覆盖重新连接', () async {
+    final repository = _MemoryMediaSourceRepository();
+    final source = await repository.upsertPath('media');
+    final older = Completer<bool>();
+    final menuProbe = Completer<bool>();
+    final index = _MemoryMediaIndexRepository();
+    await index.saveForSource(source.path, [
+      LocalMediaIndexItem(
+        path: '${source.path}/a.mkv',
+        name: 'a.mkv',
+        parentPath: source.path,
+        sourcePath: source.path,
+        size: 1,
+        seriesName: 'a',
+        modified: DateTime(2026),
+        indexedAt: DateTime(2026),
+      ),
+    ]);
+    var probes = 0;
+    final controller = LocalController(
+      mediaSourceRepository: repository,
+      mediaIndexRepository: index,
+      directoryExists: (_) async {
+        probes++;
+        if (probes == 1) return older.future;
+        if (probes == 4) return menuProbe.future;
+        return probes != 2;
+      },
+    );
+    controller.reloadMediaSources();
+    await controller.refreshSourceAvailability();
+    expect(controller.unavailableMediaSourceCount(), 1);
+    expect(controller.isMediaSourceAvailable(source), isFalse);
+    expect(probes, 2);
+    await controller.refreshSourceAvailability();
+    older.complete(false);
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.isMediaSourceAvailable(source), isTrue);
+    expect(controller.unavailableMediaSourceCount(), 0);
+    expect(probes, 3);
+
+    final menuRefresh = controller.refreshSourceAvailability();
+    await controller.ensureCategoryIndex(refresh: true);
+    menuProbe.complete(false);
+    await menuRefresh;
+    expect(probes, 5);
+    expect(controller.isMediaSourceAvailable(source), isTrue);
+  });
+
   test('LocalController removes unavailable media sources', () async {
     final dir =
         await Directory.systemTemp.createTemp('kanyingyin_source_stale_');
@@ -372,6 +461,7 @@ void main() {
     await controller.setRootDirectory(dir.path);
     await dir.delete(recursive: true);
 
+    await controller.refreshSourceAvailability();
     expect(controller.unavailableMediaSourceCount(), 1);
 
     final removedCount = await controller.removeUnavailableMediaSources();

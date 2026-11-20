@@ -17,6 +17,9 @@ import 'package:kanyingyin/utils/proxy_manager.dart';
 import 'package:kanyingyin/utils/utils.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:kanyingyin/pages/error/storage_error_page.dart';
+import 'package:kanyingyin/pages/init_page.dart';
+import 'package:kanyingyin/features/settings/application/typed_settings.dart'
+    show TypedSettings;
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:kanyingyin/utils/logger.dart';
@@ -138,6 +141,12 @@ Future<void> _startApplication() async {
   );
   final isLowResolution =
       capabilities.desktopShell && await Utils.isLowResolution();
+  Modular.setInitialRoute(resolveInitialRoute(
+    platformRoute: PlatformDispatcher.instance.defaultRouteName,
+    isAndroidTv: capabilities.isAndroidTv,
+    preferredPage: () =>
+        readDefaultStartupPage(TypedSettings(GStorage.setting)),
+  ));
   runApp(
     ChangeNotifierProvider(
       create: (_) => ThemeProvider(),

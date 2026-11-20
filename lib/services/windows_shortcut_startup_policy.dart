@@ -2,7 +2,7 @@ import 'package:kanyingyin/utils/windows_shortcut.dart';
 
 enum ShortcutStartupDecision {
   repairDesktop,
-  askToCreateDesktop,
+  askToCreateMissing,
   skip,
   reportDetectionFailure,
 }
@@ -50,7 +50,7 @@ class WindowsShortcutStartupCoordinator {
               ? ShortcutStartupFeedback.none
               : ShortcutStartupFeedback.repairFailed,
         );
-      case ShortcutStartupDecision.askToCreateDesktop:
+      case ShortcutStartupDecision.askToCreateMissing:
         final create = await askToCreate();
         if (create == null) {
           return const ShortcutStartupResult(
@@ -66,7 +66,7 @@ class WindowsShortcutStartupCoordinator {
         }
         final success = await repairOrCreate();
         return ShortcutStartupResult(
-          markDialogShown: true,
+          markDialogShown: success,
           feedback: success
               ? ShortcutStartupFeedback.created
               : ShortcutStartupFeedback.creationFailed,
@@ -90,15 +90,16 @@ ShortcutStartupDecision decideShortcutStartup({
   required bool dialogAlreadyShown,
 }) {
   return switch (state) {
-    WindowsShortcutEntryState.desktopOnly ||
     WindowsShortcutEntryState.desktopAndStartMenu =>
       ShortcutStartupDecision.repairDesktop,
+    WindowsShortcutEntryState.desktopOnly ||
     WindowsShortcutEntryState.startMenuOnly ||
     WindowsShortcutEntryState.none when dialogAlreadyShown =>
       ShortcutStartupDecision.skip,
+    WindowsShortcutEntryState.desktopOnly ||
     WindowsShortcutEntryState.startMenuOnly ||
     WindowsShortcutEntryState.none =>
-      ShortcutStartupDecision.askToCreateDesktop,
+      ShortcutStartupDecision.askToCreateMissing,
     WindowsShortcutEntryState.unknown =>
       ShortcutStartupDecision.reportDetectionFailure,
   };

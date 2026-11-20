@@ -34,7 +34,8 @@ void main() {
         ),
       ));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey<String>('export-scraped-metadata')));
+      await tester
+          .tap(find.byKey(const ValueKey<String>('export-scraped-metadata')));
       await tester.pumpAndSettle();
       expect(find.textContaining(entry.value), findsOneWidget);
     }

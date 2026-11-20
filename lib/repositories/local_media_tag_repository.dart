@@ -1,6 +1,7 @@
 import 'package:hive_ce/hive.dart';
 import 'package:kanyingyin/utils/user_data_mutation_lock.dart';
 import 'package:kanyingyin/modules/media/media_custom_tags.dart';
+import 'package:kanyingyin/modules/local/local_media_series_key.dart';
 import 'package:kanyingyin/utils/storage.dart';
 
 abstract interface class ILocalMediaTagRepository {
@@ -72,19 +73,20 @@ final class LocalMediaTagRepository implements ILocalMediaTagRepository {
           }
         }
         for (final key in keys) {
-          final separator = key.indexOf('|');
-          if (separator < 0) continue;
-          owners.putIfAbsent(key.substring(separator + 1), () => {}).add(key);
+          for (final legacy in LocalMediaSeriesKey.legacyTagKeys(key)) {
+            owners.putIfAbsent(legacy, () => {}).add(key);
+          }
         }
         final tags = getAll();
         var changed = false;
         for (final entry in tags.entries.toList()) {
           if (keys.contains(entry.key)) continue;
           final separator = entry.key.indexOf('|source|');
-          final targets = separator < 0
-              ? owners[entry.key]
-              : memberOwners[
-                  entry.key.substring(separator + '|source|'.length)];
+          final targets = owners[entry.key] ??
+              (separator < 0
+                  ? null
+                  : memberOwners[
+                      entry.key.substring(separator + '|source|'.length)]);
           if (targets == null || targets.length != 1) continue;
           final target = targets.single;
           final combined = [...?tags[target], ...entry.value];

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:flutter/foundation.dart';
 import 'package:kanyingyin/features/library/application/media_library_classification.dart';
@@ -101,34 +102,45 @@ class MediaCategoryRuntime extends ChangeNotifier {
       _watchRepository.setWatched(
           episodes.map(mediaWatchKeyForEpisode), watched);
 
-  Future<void> initialize() async {
-    _userStates = await _userStateRepository.getAll();
-    _localLibrary.reloadAvailableLibrary(includeUnavailable: includeUnavailable);
-    if (includeUnavailable) {
-      await _cloudLibrary.refreshLibrary();
-    } else {
-      await _cloudLibrary.ensureLibrary();
-    }
-    await reconcileUserStates();
-  }
+  bool _initialized = false;
+  int _loadGeneration = 0;
+  CloudMediaLibrary? _identityLocal, _identityCloud;
+  Map<String, Set<String>> _identities = const {};
+  CloudMediaLibrary? _lastLocal, _lastCloud, _merged;
 
-  Future<void> refresh() async {
-    _userStates = await _userStateRepository.getAll();
-    _localLibrary.reloadAvailableLibrary(includeUnavailable: includeUnavailable);
-    await _cloudLibrary.refreshLibrary();
+  Future<void> initialize() => _load(refresh: false);
+  Future<void> refresh() => _load(refresh: true);
+
+  Future<void> _load({required bool refresh}) async {
+    final generation = ++_loadGeneration;
+    _initialized = false;
+    await Future.wait([
+      _localLibrary.ensureLibrary(refresh: refresh),
+      refresh ? _cloudLibrary.refreshLibrary() : _cloudLibrary.ensureLibrary(),
+      _userStateRepository.getAll().then((states) {
+        if (!_disposed && generation == _loadGeneration) _userStates = states;
+      }),
+    ]);
+    if (_disposed || generation != _loadGeneration) return;
+    _initialized = true;
     await reconcileUserStates();
   }
 
   Future<void> saveUserState(
-    String seriesKey,
-    MediaLibraryUserState state,
-  ) =>
+    String seriesKey, {
+    bool? favorite,
+    bool? watchLater,
+    List<String>? collections,
+  }) =>
       _userStateLock.synchronized(() async {
         final ids = _mediaIdentities()[seriesKey];
-        await _userStateRepository.save(
+        if (ids == null) throw StateError('作品已不在媒体库中，请刷新后重试');
+        await _userStateRepository.updateMarks(
           seriesKey,
-          state.copyWith(mediaIds: ids),
-          preserveClassification: true,
+          favorite: favorite,
+          watchLater: watchLater,
+          collections: collections,
+          mediaIds: ids,
         );
         _userStates = await _userStateRepository.getAll();
       });
@@ -149,14 +161,39 @@ class MediaCategoryRuntime extends ChangeNotifier {
         _userStates = await _userStateRepository.getAll();
       });
 
-  Map<String, Set<String>> _mediaIdentities() => {
-        for (final series in library.series)
-          series.key:
-              series.episodes.map((episode) => episode.stableId).toSet(),
+  Map<String, Set<String>> _mediaIdentities() {
+    final local = _localLibrary.cachedLibrary;
+    final cloud = _cloudLibrary.cachedLibrary;
+    if (!identical(local, _identityLocal) ||
+        !identical(cloud, _identityCloud)) {
+      _identityLocal = local;
+      _identityCloud = cloud;
+      _identities = {
+        for (final works in [local.series, cloud.series])
+          for (final series in works)
+            series.key:
+                series.episodes.map((episode) => episode.stableId).toSet(),
       };
+    }
+    return _identities;
+  }
 
   Future<void> reconcileUserStates() => _userStateLock.synchronized(() async {
-        _userStates = await _userStateRepository.reconcile(_mediaIdentities());
+        if (!_initialized ||
+            !_cloudLibrary.snapshotComplete ||
+            _userStates.isEmpty) {
+          return;
+        }
+        final identities = _mediaIdentities();
+        final local = _identityLocal;
+        final cloud = _identityCloud;
+        _userStates = await _userStateRepository.reconcile(identities,
+            isCurrent: () =>
+                !_disposed &&
+                _initialized &&
+                _cloudLibrary.snapshotComplete &&
+                identical(local, _localLibrary.cachedLibrary) &&
+                identical(cloud, _cloudLibrary.cachedLibrary));
       });
 
   Future<void> relinkUserState(String oldKey, String targetKey) =>
@@ -168,9 +205,18 @@ class MediaCategoryRuntime extends ChangeNotifier {
       });
 
   CloudMediaLibrary get library {
-    final local = includeUnavailable ? _localLibrary.cachedLibrary : _localLibrary.library;
-    final cloud = includeUnavailable ? _cloudLibrary.cachedLibrary : _cloudLibrary.library;
-    return CloudMediaLibrary(
+    final local = includeUnavailable
+        ? _localLibrary.cachedLibrary
+        : _localLibrary.library;
+    final cloud = includeUnavailable
+        ? _cloudLibrary.cachedLibrary
+        : _cloudLibrary.library;
+    if (identical(_lastLocal, local) && identical(_lastCloud, cloud)) {
+      return _merged!;
+    }
+    _lastLocal = local;
+    _lastCloud = cloud;
+    return _merged = CloudMediaLibrary(
       series: <MediaLibrarySeries>[...local.series, ...cloud.series],
       filters: <MediaLibrarySourceFilter>[
         const MediaLibrarySourceFilter('all', '全部来源', null),
@@ -201,11 +247,13 @@ class MediaCategoryRuntime extends ChangeNotifier {
             candidate.episodes.any((item) => item.stableId == episode.stableId))
         .take(2)
         .toList(growable: false);
-    final currentSeries = matches.length == 1 ? matches.single : series;
+    if (matches.length != 1) throw StateError('作品已不在媒体库中，请刷新后重试');
+    final currentSeries = matches.single;
     if (!currentSeries.isAvailable) throw StateError('来源暂不可用，请恢复来源后刷新');
     final currentEpisode = currentSeries
         .playbackEpisodesFor(episode)
         .singleWhere((item) => item.stableId == episode.stableId);
+    if (!currentEpisode.isAvailable) throw StateError('视频暂不可用，请检查媒体来源');
     final opened = currentSeries.sourceKind == MediaSourceKind.local
         ? await _openLocalEpisode(currentSeries, currentEpisode)
         : await _openCloudEpisode(currentSeries, currentEpisode);
@@ -222,6 +270,10 @@ class MediaCategoryRuntime extends ChangeNotifier {
         .toList(growable: false);
     final selected = episode.localItem;
     if (selected == null || items.isEmpty) return false;
+    if (selected.location.isFile && !await File(selected.path).exists()) {
+      await _localLibrary.ensureLibrary(refresh: true);
+      throw StateError('文件已不存在，请检查媒体来源');
+    }
     await _playback.openFile(
       filePath: selected.path,
       seriesTitle: series.title,

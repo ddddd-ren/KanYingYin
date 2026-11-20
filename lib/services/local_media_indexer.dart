@@ -583,7 +583,7 @@ class LocalMediaIndexer
           reusedCount: reusedCount,
           removedCount: 0,
           skippedCount: skippedCount,
-        filteredBySizeCount: filteredBySizeCount,
+          filteredBySizeCount: filteredBySizeCount,
           cancelled: true,
           failures: failures,
         );
@@ -792,7 +792,8 @@ class LocalMediaIndexer
       );
     }
     final committed = await _repository.commitSource(
-      sourceSnapshot, [...indexed, ...retainedFiltered],
+      sourceSnapshot,
+      [...indexed, ...retainedFiltered],
       fingerprints: directoryFingerprints,
       mediaIdAliases: mediaIdAliases,
     );
@@ -813,7 +814,8 @@ class LocalMediaIndexer
     indexed
       ..clear()
       ..addAll(_repository.getBySourceLocation(sourceLocation).where((item) =>
-          LocalVideoFileTypes.isRecognizedVideoSize(item.size, minSizeBytes: minSizeBytes)));
+          LocalVideoFileTypes.isRecognizedVideoSize(item.size,
+              minSizeBytes: minSizeBytes)));
     AppLogger().i(
       'LocalMediaIndexer: source=${sourceLocation.stableId} '
       'inherited=$inheritedCount migrated=$migratedCount '
@@ -829,7 +831,8 @@ class LocalMediaIndexer
     ));
 
     final changes = buildLocalMediaIndexChanges(
-      previous: previousSourceItems.where((item) => !filteredEntries.containsKey(item.id)),
+      previous: previousSourceItems
+          .where((item) => !filteredEntries.containsKey(item.id)),
       current: indexed,
       failures: failures,
     );
@@ -841,7 +844,7 @@ class LocalMediaIndexer
       reusedCount: reusedCount,
       removedCount: previous.length,
       skippedCount: skippedCount,
-        filteredBySizeCount: filteredBySizeCount,
+      filteredBySizeCount: filteredBySizeCount,
       sourceAccessible: !failedDirectories.contains(''),
       failures: failures,
       changes: changes,

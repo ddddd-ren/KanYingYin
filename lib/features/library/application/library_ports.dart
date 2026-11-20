@@ -12,7 +12,7 @@ abstract interface class LocalLibraryPort {
 
   CloudMediaLibrary get cachedLibrary;
 
-  void reloadAvailableLibrary({bool includeUnavailable = false});
+  Future<void> ensureLibrary({bool refresh = false});
 }
 
 /// 媒体库功能访问网盘媒体的最小端口。
@@ -22,6 +22,8 @@ abstract interface class CloudLibraryPort {
   CloudMediaLibrary get cachedLibrary;
 
   Listenable get changes;
+
+  bool get snapshotComplete;
 
   Future<void> ensureLibrary();
 

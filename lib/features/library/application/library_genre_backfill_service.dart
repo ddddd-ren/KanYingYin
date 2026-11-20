@@ -49,7 +49,9 @@ class LibraryGenreBackfillService {
       );
     }
 
-    final localOriginals = {for (final item in _localRepository.getAll()) item.id: item};
+    final localOriginals = {
+      for (final item in _localRepository.getAll()) item.id: item
+    };
     final targets = <(TmdbMediaType, int), _GenreTargets>{};
     for (final item in localItems) {
       final metadata = item.tmdb;

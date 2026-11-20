@@ -84,8 +84,8 @@ void main() {
     expect(await sourceRepository.getAll(), isEmpty);
     expect(tmdbManager.read(), 'target-key');
 
-    final remapped = await service.remapSession(session,
-        localRoots: {r'd:\media': r'e:\restored'});
+    final remapped = await service
+        .remapSession(session, localRoots: {r'd:\media': r'e:\restored'});
     expect(userDataStore.writes, 0);
     final result = await service.apply(remapped);
     expect(result.added, 1);

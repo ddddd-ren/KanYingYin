@@ -100,6 +100,8 @@ class CloudResourcesPage extends StatefulWidget {
 
 class _CloudResourcesPageState extends State<CloudResourcesPage> {
   late final CloudResourcesController _controller;
+  int _reconciledVersion = 0;
+  int _classificationLoad = 0;
   late final AppPlatformCapabilities _capabilities;
   final CloudPlaybackResolver _playbackResolver = CloudPlaybackResolver();
   final CloudPlaybackNavigationCoordinator _playbackNavigation =
@@ -192,12 +194,10 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
   }
 
   Future<void> _reloadClassifications() async {
+    final generation = ++_classificationLoad;
     try {
-      final states = await _userStateRepository.reconcile({
-        for (final series in _controller.mediaLibrarySnapshot.series)
-          series.key:
-              series.episodes.map((episode) => episode.stableId).toSet(),
-      });
+      final states = await _userStateRepository.getAll();
+      if (!mounted || generation != _classificationLoad) return;
       final settings = widget.settings ?? Modular.get<TypedSettings>();
       final value = settings.readRaw(SettingBoxKey.mediaClassificationMode);
       if (!mounted) return;
@@ -207,7 +207,29 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
             (mode) => mode.name == value,
             orElse: () => MediaClassificationMode.conservative,
           ));
+      final version = _controller.mediaLibrarySnapshotVersion;
+      if (!_controller.mediaLibrarySnapshotComplete ||
+          version == _reconciledVersion ||
+          !states.keys.any((key) => !key.startsWith('local|'))) {
+        return;
+      }
+      _reconciledVersion = version;
+      final cached = _controller.cachedMediaLibrarySnapshot;
+      await _userStateRepository.reconcile({
+        for (final series in cached.series)
+          series.key:
+              series.episodes.map((episode) => episode.stableId).toSet(),
+      },
+          sourceIds: {
+            for (final source in cached.filters)
+              if (source.id != 'all') source.id
+          },
+          isCurrent: () =>
+              mounted &&
+              _controller.mediaLibrarySnapshotComplete &&
+              version == _controller.mediaLibrarySnapshotVersion);
     } on Object {
+      if (generation == _classificationLoad) _reconciledVersion = 0;
       // 暂不可读时保留当前选择，不因恢复失败清空人工分类。
     }
   }
@@ -1135,8 +1157,8 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
                     onPressed: _controller.loading || _controller.scanning
                         ? null
                         : () => _controller.retry(
-                            startScan: !_capabilities.isAndroidTv,
-                          ),
+                              startScan: !_capabilities.isAndroidTv,
+                            ),
                     child: const Text('重试'),
                   ),
                   if (_controller.scanRecoveryLabel != null)
@@ -1151,10 +1173,10 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
             Expanded(
               child: _controller.selectedSource == null
                   ? sources.isEmpty && !_controller.loading
-                        ? _emptyState()
-                        : MediaCardSkeletonGrid(
-                            capabilities: widget.capabilities,
-                          )
+                      ? _emptyState()
+                      : MediaCardSkeletonGrid(
+                          capabilities: widget.capabilities,
+                        )
                   : _directoryContent(),
             ),
           ],
@@ -1519,96 +1541,96 @@ class _CloudResourcesPageState extends State<CloudResourcesPage> {
       );
 
   Widget _directoryContent() => Column(
-    children: [
-      if (_autoOrganizing && _autoOrganizeProgress != null)
-        _autoOrganizeIndicator(_autoOrganizeProgress!)
-      else if (_batchScraping)
-        Padding(
-          key: const ValueKey<String>('cloud-batch-scrape-progress'),
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: Row(
-            children: [
-              const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
+        children: [
+          if (_autoOrganizing && _autoOrganizeProgress != null)
+            _autoOrganizeIndicator(_autoOrganizeProgress!)
+          else if (_batchScraping)
+            Padding(
+              key: const ValueKey<String>('cloud-batch-scrape-progress'),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('正在刮削 $_batchCurrent/$_batchTotal'),
+                ],
               ),
-              const SizedBox(width: 8),
-              Text('正在刮削 $_batchCurrent/$_batchTotal'),
-            ],
-          ),
-        )
-      else if (_controller.tmdbTotalCount > 0 &&
-          _controller.tmdbCompletedCount < _controller.tmdbTotalCount)
-        Padding(
-          key: const ValueKey<String>('cloud-tmdb-progress'),
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: LinearProgressIndicator(
-            value: _controller.tmdbCompletedCount / _controller.tmdbTotalCount,
-          ),
-        ),
-      if (_controller.scanning)
-        Padding(
-          key: const ValueKey<String>('cloud-scan-progress'),
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: Row(
-            children: [
-              const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else if (_controller.tmdbTotalCount > 0 &&
+              _controller.tmdbCompletedCount < _controller.tmdbTotalCount)
+            Padding(
+              key: const ValueKey<String>('cloud-tmdb-progress'),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: LinearProgressIndicator(
+                value:
+                    _controller.tmdbCompletedCount / _controller.tmdbTotalCount,
               ),
-              const SizedBox(width: 8),
-              Text('正在后台扫描 ${_controller.scannedDirectories} 个目录'),
-            ],
-          ),
-        ),
-      Expanded(
-        key: const ValueKey<String>('cloud-resource-poster-surface'),
-        child:
-            _controller.collection.groups.isEmpty &&
-                (_controller.scanning || _controller.loading)
-            ? MediaCardSkeletonGrid(capabilities: widget.capabilities)
-            : CloudResourcePosterWall(
-                capabilities: widget.capabilities ?? detectAppPlatform(),
-                sourceId: _controller.selectedSource!.id,
-                sourceName: _controller.selectedSource!.name,
-                recognitionDescription:
-                    MediaRecognitionSettings.describeThreshold(
+            ),
+          if (_controller.scanning)
+            Padding(
+              key: const ValueKey<String>('cloud-scan-progress'),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('正在后台扫描 ${_controller.scannedDirectories} 个目录'),
+                ],
+              ),
+            ),
+          Expanded(
+            key: const ValueKey<String>('cloud-resource-poster-surface'),
+            child: _controller.collection.groups.isEmpty &&
+                    (_controller.scanning || _controller.loading)
+                ? MediaCardSkeletonGrid(capabilities: widget.capabilities)
+                : CloudResourcePosterWall(
+                    capabilities: widget.capabilities ?? detectAppPlatform(),
+                    sourceId: _controller.selectedSource!.id,
+                    sourceName: _controller.selectedSource!.name,
+                    recognitionDescription:
+                        MediaRecognitionSettings.describeThreshold(
                       _controller.minRecognizedVideoSizeBytes,
                     ),
-                filteredBySizeCount:
-                    _controller.lastScanResult?.filteredBySizeCount ?? 0,
-                scanFailed: _controller.errorMessage != null,
-                hasActiveFilters: _controller.selectedGenres.isNotEmpty ||
-                    _controller.currentDirectoryScope != null,
-                onRecognitionSettings: () =>
-                    Modular.to.pushNamed('/settings/media-recognition'),
-                collection: _controller.collection,
-                userStates: _controller.classificationStates,
-                classificationMode: _controller.classificationMode,
-                classificationSeriesForGroup:
-                    _controller.classificationSeriesForGroup,
-                scrapingKeys: _controller.tmdbScrapingKeys,
-                searchQuery: _controller.query,
-                hiddenVideoCount: _controller.hiddenVideos.length,
-                subtitleVideoKeys: _subtitleVideoKeys(
-                  _controller.selectedSource!.id,
-                ),
-                onOpenGroup: _openGroup,
-                onEditTitle: _editTitle,
-                onEditTags: _editTags,
-                onScrape: _scrapeEntry,
-                onRematch: _rematchEntry,
-                onRescrapeWork: _rescrapeWork,
-                onManualMatch: _manualMatchEntry,
-                onMatchEpisodes: _matchEpisodes,
-                onDetails: _showMediaDetails,
-                onHide: _hideVideos,
-              ),
-      ),
-    ],
-  );
+                    filteredBySizeCount:
+                        _controller.lastScanResult?.filteredBySizeCount ?? 0,
+                    scanFailed: _controller.errorMessage != null,
+                    hasActiveFilters: _controller.selectedGenres.isNotEmpty ||
+                        _controller.currentDirectoryScope != null,
+                    onRecognitionSettings: () =>
+                        Modular.to.pushNamed('/settings/media-recognition'),
+                    collection: _controller.collection,
+                    userStates: _controller.classificationStates,
+                    classificationMode: _controller.classificationMode,
+                    classificationSeriesForGroup:
+                        _controller.classificationSeriesForGroup,
+                    scrapingKeys: _controller.tmdbScrapingKeys,
+                    searchQuery: _controller.query,
+                    hiddenVideoCount: _controller.hiddenVideos.length,
+                    subtitleVideoKeys: _subtitleVideoKeys(
+                      _controller.selectedSource!.id,
+                    ),
+                    onOpenGroup: _openGroup,
+                    onEditTitle: _editTitle,
+                    onEditTags: _editTags,
+                    onScrape: _scrapeEntry,
+                    onRematch: _rematchEntry,
+                    onRescrapeWork: _rescrapeWork,
+                    onManualMatch: _manualMatchEntry,
+                    onMatchEpisodes: _matchEpisodes,
+                    onDetails: _showMediaDetails,
+                    onHide: _hideVideos,
+                  ),
+          ),
+        ],
+      );
 
   Widget _autoOrganizeIndicator(CloudResourceAutoOrganizeProgress progress) {
     return Padding(

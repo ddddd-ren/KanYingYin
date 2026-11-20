@@ -204,7 +204,7 @@ void registerCloudBindings(Injector i) {
         minRecognizedVideoSizeBytesProvider: () =>
             Modular.get<MediaRecognitionSettings>().cloudMinSizeBytes,
       );
-      controller.mediaLibrarySnapshotListenable.addListener(() {
+      controller.classificationInputsChanged.addListener(() {
         unawaited(Modular.get<MediaAiClassifier>()
             .process(() => controller.mediaLibrarySnapshot));
       });

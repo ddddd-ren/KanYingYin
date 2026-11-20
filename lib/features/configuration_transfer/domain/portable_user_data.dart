@@ -184,16 +184,18 @@ class PortableUserData {
   PortableUserData remap(
       {Map<String, String> localRoots = const {},
       Map<String, String> cloudSources = const {}}) {
+    final mappings = localRoots.entries.toList()
+      ..sort((a, b) => b.key.length.compareTo(a.key.length));
+
     String mapPath(String value) {
+      if (mappings.isEmpty) return value;
       if (value.startsWith('file:')) {
         return 'file:${mapPath(value.substring(5))}';
       }
-      final context = p.Context(
-          style: RegExp(r'^[a-zA-Z]:[\\/]').hasMatch(value)
-              ? p.Style.windows
-              : p.Style.posix);
-      final mappings = localRoots.entries.toList()
-        ..sort((a, b) => b.key.length.compareTo(a.key.length));
+      final context = p.windows.isAbsolute(value) && !value.startsWith('/')
+          ? p.windows
+          : p.posix;
+      if (!context.isAbsolute(value)) return value;
       for (final entry in mappings) {
         if (context.equals(entry.key, value) ||
             context.isWithin(entry.key, value)) {
@@ -207,6 +209,37 @@ class PortableUserData {
       return value;
     }
 
+    String mapLocalKey(String key) {
+      if (mappings.isEmpty) return key;
+      if (key.startsWith('file:') ||
+          key.startsWith('document:') ||
+          p.windows.isAbsolute(key) ||
+          p.posix.isAbsolute(key)) {
+        return mapPath(key);
+      }
+      final separator = key.indexOf('|');
+      if (separator < 0) return key;
+      final prefix = key.substring(0, separator);
+      if (prefix.startsWith('file%3A')) {
+        // 只解码来源，后面的片名可能包含百分号或分隔符。
+        final String source;
+        try {
+          source = Uri.decodeComponent(prefix);
+        } on ArgumentError {
+          throw const FormatException('备份中的本地来源编码无效');
+        }
+        final mapped = mapPath(source);
+        if (mapped != source) {
+          key = Uri.encodeComponent(mapped) + key.substring(separator);
+        }
+      }
+      const marker = '|source|';
+      final member = key.lastIndexOf(marker);
+      if (member < 0) return key;
+      final start = member + marker.length;
+      return key.substring(0, start) + mapPath(key.substring(start));
+    }
+
     String mapKey(String key) {
       for (final prefix in ['local-work|', 'local-work-id|']) {
         if (key.startsWith(prefix)) {
@@ -216,7 +249,9 @@ class PortableUserData {
           }
         }
       }
-      if (key.startsWith('local|')) return 'local|${mapPath(key.substring(6))}';
+      if (key.startsWith('local|')) {
+        return 'local|${mapLocalKey(key.substring(6))}';
+      }
       for (final entry in cloudSources.entries) {
         final workPrefix = 'cloud-work|${entry.key}|';
         if (key.startsWith(workPrefix)) {

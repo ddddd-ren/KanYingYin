@@ -38,7 +38,7 @@ void main() {
       releaseNotes,
       contains(isPrerelease
           ? 'Android 手机测试版：$expectedVersion ($expectedBuildNumber)'
-          : 'Android 正式版：1.0.13 (10013)'),
+          : 'Android 正式版：1.0.14 (10014)'),
     );
     expect(
       readme,

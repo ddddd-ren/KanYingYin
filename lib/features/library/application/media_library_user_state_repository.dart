@@ -95,27 +95,35 @@ final class MediaLibraryUserStateRepository {
     return (await getAll())[normalizedKey];
   }
 
-  Future<void> save(
+  Future<void> save(String key, MediaLibraryUserState state) =>
+      _update(key, (_) => state);
+
+  Future<void> updateMarks(
+    String key, {
+    bool? favorite,
+    bool? watchLater,
+    List<String>? collections,
+    required Iterable<String> mediaIds,
+  }) =>
+      _update(
+          key,
+          (current) => current.copyWith(
+                favorite: favorite,
+                watchLater: watchLater,
+                collections: collections,
+                mediaIds: {...current.mediaIds, ...mediaIds},
+                updatedAt: DateTime.now(),
+              ));
+
+  Future<void> _update(
     String key,
-    MediaLibraryUserState state, {
-    bool preserveClassification = false,
-  }) {
+    MediaLibraryUserState Function(MediaLibraryUserState current) change,
+  ) {
     final normalizedKey = key.trim();
     if (normalizedKey.isEmpty) return Future<void>.value();
     return _lock.synchronized(() async {
       final all = await _readAll();
-      final current = all[normalizedKey];
-      // 普通标记保存保留锁内最新分类，避免旧界面快照覆盖人工确认。
-      final next = preserveClassification
-          ? state.copyWith(
-              categoryOverride: current?.categoryOverride,
-              genreOverride: current?.genreOverride,
-              clearCategoryOverride: current?.categoryOverride == null,
-              clearGenreOverride: current?.genreOverride == null,
-              aiClassified: current?.aiClassified ?? false,
-              aiClassificationIdentity: current?.aiClassificationIdentity,
-            )
-          : state;
+      final next = change(all[normalizedKey] ?? MediaLibraryUserState.empty);
       if (next.isEmpty) {
         all.remove(normalizedKey);
       } else {
@@ -140,29 +148,18 @@ final class MediaLibraryUserStateRepository {
     required List<String>? categories,
     required List<String>? genres,
     required Iterable<String> mediaIds,
-  }) {
-    final normalizedKey = key.trim();
-    if (normalizedKey.isEmpty) return Future<void>.value();
-    return _lock.synchronized(() async {
-      final all = await _readAll();
-      final state =
-          (all[normalizedKey] ?? MediaLibraryUserState.empty).copyWith(
-        categoryOverride: categories,
-        genreOverride: genres,
-        clearCategoryOverride: categories == null,
-        clearGenreOverride: genres == null,
-        aiClassified: false,
-        mediaIds: mediaIds,
-        updatedAt: DateTime.now(),
-      );
-      if (state.isEmpty) {
-        all.remove(normalizedKey);
-      } else {
-        all[normalizedKey] = state;
-      }
-      await _writeAll(all);
-    });
-  }
+  }) =>
+      _update(
+          key,
+          (current) => current.copyWith(
+                categoryOverride: categories,
+                genreOverride: genres,
+                clearCategoryOverride: categories == null,
+                clearGenreOverride: genres == null,
+                aiClassified: false,
+                mediaIds: mediaIds,
+                updatedAt: DateTime.now(),
+              ));
 
   Future<bool> saveAutomaticCategory(
     String key, {
@@ -210,10 +207,13 @@ final class MediaLibraryUserStateRepository {
   }
 
   Future<Map<String, MediaLibraryUserState>> reconcile(
-    Map<String, Set<String>> identities,
-  ) =>
+    Map<String, Set<String>> identities, {
+    Set<String>? sourceIds,
+    bool Function()? isCurrent,
+  }) =>
       _lock.synchronized(() async {
         final all = await _readAll();
+        if (isCurrent != null && !isCurrent()) return all;
         final owners = <String, Set<String>>{};
         for (final entry in identities.entries) {
           for (final id in entry.value) {
@@ -222,6 +222,10 @@ final class MediaLibraryUserStateRepository {
         }
         var changed = false;
         for (final entry in all.entries.toList()) {
+          if (sourceIds != null &&
+              !sourceIds.contains(entry.key.split('|').first)) {
+            continue;
+          }
           if (identities.containsKey(entry.key)) {
             final ids = {...entry.value.mediaIds, ...identities[entry.key]!};
             if (entry.value.mediaIds.toSet().difference(ids).isNotEmpty ||
@@ -239,6 +243,11 @@ final class MediaLibraryUserStateRepository {
           };
           if (candidates.length != 1) continue;
           final target = candidates.single;
+          if (entry.key.contains('|') &&
+              target.contains('|') &&
+              entry.key.split('|').first != target.split('|').first) {
+            continue;
+          }
           if ({
                 ...entry.value.collections.map((name) => name.toLowerCase()),
                 ...?all[target]?.collections.map((name) => name.toLowerCase())

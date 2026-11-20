@@ -79,7 +79,8 @@ void main() {
         query: keyword,
       );
       expect(matches.groups.map((group) => group.stableKey),
-          collection.groups.map((group) => group.stableKey), reason: keyword);
+          collection.groups.map((group) => group.stableKey),
+          reason: keyword);
     }
   });
 

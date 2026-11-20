@@ -35,6 +35,10 @@ void main() {
     )));
     await tester.pumpAndSettle();
     final currentSeries = _series('source|tmdb|tv|42');
+    controller.replaceSnapshot(currentSeries, complete: false);
+    await tester.pumpAndSettle();
+    expect((await repository.get(oldSeries.key))?.favorite, isTrue);
+    expect(await repository.get(currentSeries.key), isNull);
     controller.replaceSnapshot(currentSeries);
     await tester.pumpAndSettle();
 
@@ -73,13 +77,23 @@ class _SnapshotController extends CloudResourcesController {
   CloudMediaLibrary get mediaLibrarySnapshot => _snapshot;
 
   @override
+  CloudMediaLibrary get cachedMediaLibrarySnapshot => _snapshot;
+
+  @override
   Listenable get mediaLibrarySnapshotListenable => _snapshotChanges;
 
   @override
   Future<void> load({bool startScan = true}) async {}
 
-  void replaceSnapshot(MediaLibrarySeries series) {
-    _snapshot = CloudMediaLibrary(series: [series], filters: const []);
+  void replaceSnapshot(MediaLibrarySeries series, {bool complete = true}) {
+    _snapshot = CloudMediaLibrary(series: [
+      series
+    ], filters: [
+      MediaLibrarySourceFilter(
+          series.sourceId, series.sourceName, series.sourceKind),
+    ]);
+    mediaLibrarySnapshotVersion++;
+    mediaLibrarySnapshotComplete = complete;
     _snapshotChanges.notifyListeners();
   }
 

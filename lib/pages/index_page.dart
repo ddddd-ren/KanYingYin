@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kanyingyin/app/startup_landing.dart';
 import 'package:kanyingyin/pages/menu/menu.dart';
 
 class IndexPage extends StatefulWidget {
@@ -12,6 +13,6 @@ class IndexPage extends StatefulWidget {
 class _IndexPageState extends State<IndexPage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
-    return const ScaffoldMenu();
+    return const StartupPrompts(child: ScaffoldMenu());
   }
 }

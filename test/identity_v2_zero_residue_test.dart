@@ -107,7 +107,11 @@ void main() {
     );
     expect(releaseWorkflow, isNot(contains('ubuntu-latest')));
     expect(releaseWorkflow, contains('build_inno_setup.ps1'));
-    expect(releaseWorkflow, contains('-测试版-安装程序.exe'));
+    expect(releaseWorkflow, isNot(contains('-测试版-安装程序.exe')));
+    expect(
+      releaseWorkflow,
+      contains(r'看影音-$env:APP_VERSION-安装程序.exe'),
+    );
     expect(releaseWorkflow.toLowerCase(), isNot(contains('.msix')));
 
     for (final workflow in <String>[prWorkflow, releaseWorkflow]) {

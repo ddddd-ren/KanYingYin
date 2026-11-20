@@ -114,8 +114,10 @@ void registerLibraryBindings(Injector i) {
   );
   i.addSingleton<LocalController>(
     () => LocalController(
-      localMinSizeBytesProvider: () => Modular.get<MediaRecognitionSettings>().localMinSizeBytes,
-      cloudMinSizeBytesProvider: () => Modular.get<MediaRecognitionSettings>().cloudMinSizeBytes,
+      localMinSizeBytesProvider: () =>
+          Modular.get<MediaRecognitionSettings>().localMinSizeBytes,
+      cloudMinSizeBytesProvider: () =>
+          Modular.get<MediaRecognitionSettings>().cloudMinSizeBytes,
       scanner: LocalMediaScanner(
         entryProviders: <LocalMediaEntryProvider>[
           Modular.get<FileSystemMediaEntryProvider>(),
@@ -213,25 +215,33 @@ class _LocalControllerLibraryPort implements LocalLibraryPort {
   CloudMediaLibrary get cachedLibrary => _controller.cachedLocalMediaLibrary;
 
   @override
-  void reloadAvailableLibrary({bool includeUnavailable = false}) {
-    if (includeUnavailable) {
-      _controller.reloadLocalLibraryIndex();
-    } else {
-      _controller.reloadAvailableLocalLibraryIndex();
-    }
-  }
+  Future<void> ensureLibrary({bool refresh = false}) =>
+      _controller.ensureCategoryIndex(refresh: refresh);
 }
 
 class _CloudResourcesLibraryPort implements CloudLibraryPort {
-  _CloudResourcesLibraryPort(this._controller);
+  _CloudResourcesLibraryPort(this._controller) {
+    changes.addListener(() {
+      _visible = null;
+      _cached = null;
+    });
+  }
+
+  CloudMediaLibrary? _visible;
+  CloudMediaLibrary? _cached;
+
+  @override
+  bool get snapshotComplete => _controller.mediaLibrarySnapshotComplete;
 
   final CloudResourcesController _controller;
 
   @override
-  CloudMediaLibrary get library => _controller.mediaLibrarySnapshot;
+  CloudMediaLibrary get library =>
+      _visible ??= _controller.mediaLibrarySnapshot;
 
   @override
-  CloudMediaLibrary get cachedLibrary => _controller.cachedMediaLibrarySnapshot;
+  CloudMediaLibrary get cachedLibrary =>
+      _cached ??= _controller.cachedMediaLibrarySnapshot;
 
   @override
   Listenable get changes => _controller.mediaLibrarySnapshotListenable;

@@ -41,17 +41,22 @@ class AdaptiveNavigationShell extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final platform = capabilities ?? detectAppPlatform();
-        final sidebarVisible = !navigationHidden && (platform.isAndroidTv ||
-            constraints.maxWidth >= compactNavigationBreakpoint);
-        final myLibraryIndex = destinations.indexWhere((item) => item.path == '/my-library');
+        final sidebarVisible = !navigationHidden &&
+            (platform.isAndroidTv ||
+                constraints.maxWidth >= compactNavigationBreakpoint);
+        final myLibraryIndex =
+            destinations.indexWhere((item) => item.path == '/my-library');
         return LibraryNavigationScope(
           sidebarVisible: sidebarVisible,
-          openMyLibrary: myLibraryIndex < 0 ? null : () => onDestinationSelected(myLibraryIndex),
+          openMyLibrary: myLibraryIndex < 0
+              ? null
+              : () => onDestinationSelected(myLibraryIndex),
           child: navigationHidden
               ? _contentOnly(context)
               : sidebarVisible
                   ? _desktopLayout(context,
-                      expanded: platform.isAndroidTv || constraints.maxWidth >= expandedSidebarBreakpoint,
+                      expanded: platform.isAndroidTv ||
+                          constraints.maxWidth >= expandedSidebarBreakpoint,
                       isAndroidTv: platform.isAndroidTv)
                   : _bottomLayout(context),
         );
@@ -306,8 +311,11 @@ class AdaptiveNavigationShell extends StatelessWidget {
 
 /// 由导航外层提供实际侧栏状态，工具栏不再根据自己的宽度猜测。
 class LibraryNavigationScope extends InheritedWidget {
-  const LibraryNavigationScope({super.key, required this.sidebarVisible,
-    required this.openMyLibrary, required super.child});
+  const LibraryNavigationScope(
+      {super.key,
+      required this.sidebarVisible,
+      required this.openMyLibrary,
+      required super.child});
 
   final bool sidebarVisible;
   final VoidCallback? openMyLibrary;
@@ -317,7 +325,8 @@ class LibraryNavigationScope extends InheritedWidget {
 
   @override
   bool updateShouldNotify(LibraryNavigationScope oldWidget) =>
-      sidebarVisible != oldWidget.sidebarVisible || openMyLibrary != oldWidget.openMyLibrary;
+      sidebarVisible != oldWidget.sidebarVisible ||
+      openMyLibrary != oldWidget.openMyLibrary;
 }
 
 class _TvFocusBridge extends StatefulWidget {

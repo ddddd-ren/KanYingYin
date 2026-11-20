@@ -18,6 +18,8 @@ class ShortcutUtils {
   static std::optional<ShortcutEntryState> InspectShortcutEntries(
       const std::wstring& shortcut_name);
   static bool DesktopShortcutExists(const std::wstring& shortcut_name);
+  static bool CreateMissingShortcuts(const std::wstring& shortcut_name,
+                                     const std::wstring& description);
   static bool CreateDesktopShortcut(const std::wstring& shortcut_name,
                                     const std::wstring& description);
 };

@@ -45,7 +45,7 @@ void main() {
     await index.saveForSource(source.path, [item]);
     final controller = LocalController(
         mediaIndexRepository: index, localMinSizeBytesProvider: () => 1000);
-    controller.reloadLocalLibraryIndex();
+    await controller.reloadAvailableLocalLibraryIndex();
     expect(controller.localMediaLibrary.series, isEmpty);
     final cached = controller.cachedLocalMediaLibrary.series.single;
     expect(cached.isAvailable, isFalse);
@@ -66,7 +66,7 @@ void main() {
     expect((await marks().get(cached.key))?.collections, ['周末']);
     await source.create();
     await File(item.path).writeAsString('video');
-    controller.reloadLocalLibraryIndex();
+    await controller.reloadAvailableLocalLibraryIndex();
     final restored = controller.cachedLocalMediaLibrary.series.single;
     expect(restored.key, cached.key);
     expect(restored.isAvailable, isTrue);

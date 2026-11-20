@@ -22,6 +22,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ChoiceChip, '合集'));
     await tester.pump();
+    await tester.tap(find.byTooltip('刷新已有资料'));
+    await tester.pump();
     expect(find.byType(ImmersiveMediaCard), findsNothing);
     expect(find.text('不应出现的作品'), findsNothing);
 
@@ -46,6 +48,8 @@ void main() {
     }, refresh: () => ++reads == 1 ? Future<void>.value() : pending.future)));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ChoiceChip, '合集'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('刷新已有资料'));
     await tester.pump();
     expect(find.text('周末'), findsOneWidget);
     expect(find.byType(ImmersiveMediaCard), findsNothing);
@@ -106,7 +110,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ImmersiveMediaCard), findsNWidgets(2));
     expect(find.textContaining('项待关联记录'), findsNothing);
-    expect(reads, 3);
+    expect(reads, 1);
     expect(tester.takeException(), isNull);
   });
 
@@ -125,8 +129,11 @@ void main() {
     await tester.pumpWidget(MaterialApp(
         home: page([item], states,
             changes: changes,
-            onSave: (key, state) async {
-              states[key] = state;
+            onSave: (key, {favorite, watchLater, collections}) async {
+              expect(favorite, isFalse);
+              expect(watchLater, isNull);
+              expect(collections, isNull);
+              states[key] = states[key]!.copyWith(favorite: favorite);
               changes.notifyListeners();
             },
             onPlay: (_, episode) async => played = episode.stableId)));
@@ -225,7 +232,7 @@ MediaCategoryPage page(
   Map<String, MediaLibraryUserState> states, {
   Future<void> Function()? refresh,
   Listenable? changes,
-  Future<void> Function(String, MediaLibraryUserState)? onSave,
+  MediaLibraryMarksAction? onSave,
   Future<void> Function(MediaLibrarySeries, MediaLibraryEpisode)? onPlay,
   Future<void> Function(String, String)? onRelink,
 }) =>

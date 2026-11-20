@@ -1,6 +1,20 @@
 part of '../version_history.dart';
 
 /// Android 各正式版/测试版的命名更新说明常量，仅供 [versionHistoryForCurrent] 使用。
+const VersionHistory _androidTenthRelease = VersionHistory(
+  version: '1.0.14',
+  date: '2026-11-20',
+  changes: [
+    '我的片库集中查看手机和平板本地媒体与个人网盘作品的收藏、待看和合集，支持搜索、筛选和排序',
+    '收藏、待看、合集和观看进度与作品身份关联；来源更名、重新分组或恢复备份时，在身份明确的情况下继续保留',
+    '电影、动漫和电视剧分类复用已有媒体库资料，减少重复读取；无效或已删除的本地媒体不会继续出现在分类结果中',
+    '更新或重新刮削 TMDB 资料时保留人工分类、题材标签和图片选择；资料导入失败时恢复原有内容',
+    '启动时优先显示你选择的首页，首页出现后再显示更新说明',
+    '继续支持本地媒体库、个人网盘、字幕、音轨、后台播放、画中画、MediaCodec 硬件解码和 Anime4K',
+    '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和图片文件',
+  ],
+);
+
 const VersionHistory _androidFirstRelease = VersionHistory(
   version: '1.0.0',
   date: '2026-07-30',

@@ -655,6 +655,12 @@ void main() {
         preferredSourceId: source.id,
       );
       expect(controller.availableGenres, isEmpty);
+      final classified = Completer<void>();
+      var classificationChanges = 0;
+      controller.classificationInputsChanged.addListener(() {
+        classificationChanges++;
+        if (!classified.isCompleted) classified.complete();
+      });
 
       coordinator.publish(
         CloudResourceTmdbRecord.matched(
@@ -718,6 +724,8 @@ void main() {
           ['纪录片']);
       expect(currentClassification().genres, ['纪录片']);
       expect(currentClassification().needsConfirmation, isTrue);
+      await classified.future;
+      expect(classificationChanges, 1);
       controller.dispose();
     });
 
@@ -1162,14 +1170,22 @@ void main() {
         ],
       );
 
+      var classificationChanges = 0;
+      fixture.controller.classificationInputsChanged.addListener(() {
+        classificationChanges++;
+      });
       await fixture.controller.load(startScan: false);
 
+      expect(classificationChanges, 0);
       expect(fixture.controller.entries.single.id, 'cached-video');
       expect(client.listed, isEmpty);
 
       await fixture.controller.refresh();
 
       expect(client.listed, isNotEmpty);
+      expect(classificationChanges, 1);
+      await fixture.controller.refresh();
+      expect(classificationChanges, 1);
       fixture.controller.dispose();
     });
 

@@ -258,6 +258,7 @@ class CloudMediaLibraryAggregator {
     required Iterable<CloudMediaIndexItem> cloudItems,
     required Iterable<CloudSource> cloudSources,
     Map<String, bool> localSourceAvailability = const {},
+    Set<String> missingLocalIds = const {},
     Map<String, String> localSourceNames = const {},
     Map<String, String> localSourceTitlesByMediaId = const <String, String>{},
     Map<String, List<String>> localLegacyTitlesByMediaId =
@@ -274,7 +275,10 @@ class CloudMediaLibraryAggregator {
     )) {
       final metadata = _localMetadata(local.episodes);
       final sourceKey = local.episodes.first.sourceLocation.stableId;
-      final available = localSourceAvailability[sourceKey] ?? true;
+      final sourceAvailable = localSourceAvailability[sourceKey] ?? true;
+      final available = sourceAvailable &&
+          (missingLocalIds.isEmpty ||
+              local.episodes.any((item) => !missingLocalIds.contains(item.id)));
       result.add(MediaLibrarySeries(
         key: 'local|${local.key}',
         seriesKey: local.key,
@@ -308,7 +312,8 @@ class CloudMediaLibraryAggregator {
                     seriesTitle: local.title,
                   ),
                   localItem: item,
-                  isAvailable: available,
+                  isAvailable:
+                      sourceAvailable && !missingLocalIds.contains(item.id),
                 ))
             .toList(growable: false),
       ));

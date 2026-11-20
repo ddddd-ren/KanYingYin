@@ -4,6 +4,28 @@ import 'package:kanyingyin/modules/local/local_file_item.dart';
 import 'package:kanyingyin/services/local_series_grouper.dart';
 
 void main() {
+  test('补上身份后仍按最初顺序决定跨季影片的归属', () {
+    LocalFileItem item(String folder, int part, int? season, String? id) =>
+        _video(
+          path: 'D:/$folder/Movie $part.mkv',
+          name: 'Movie $part.mkv',
+          seriesName: folder,
+          episodeNumber: season == null ? null : part,
+          seasonNumber: season,
+          tmdbIdentity: id,
+        );
+    final first = item('甲作品', 1, 1, null);
+    final second = item('乙作品', 2, 2, 'tv:7');
+    final identified = item('甲作品', 3, 1, 'tv:7');
+    final noSeason = item('另一个目录', 4, null, 'tv:7');
+    final groups =
+        const LocalSeriesGrouper().group([first, second, identified, noSeason]);
+    expect(groups.map((group) => group.episodes.toSet()), [
+      {first, identified, noSeason},
+      {second},
+    ]);
+  });
+
   test('LocalSeriesGrouper uses the manual series title override', () {
     final groups = const LocalSeriesGrouper().group([
       LocalFileItem(

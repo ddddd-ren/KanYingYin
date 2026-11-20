@@ -148,7 +148,8 @@ class LocalTmdbImageSelectionService {
       final updates = <String, LocalMediaIndexItem>{
         for (final item in matching) item.id: item.copyWith(tmdb: updated),
       };
-      await _indexRepository.patchItems(updates, originals: {for (final item in matching) item.id: item});
+      await _indexRepository.patchItems(updates,
+          originals: {for (final item in matching) item.id: item});
       final key = seriesName.trim().toLowerCase();
       final savedMetadata = _matchingItems(seriesName)
           .map((item) => item.tmdb)

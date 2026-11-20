@@ -32,22 +32,33 @@ void main() {
   test('阈值调高再调低保留人工匹配且真实删除仍移除', () async {
     final directory = await Directory.systemTemp.createTemp('scan_threshold_');
     addTearDown(() => directory.delete(recursive: true));
-    final file = await File('${directory.path}/Show S01E01.mkv').writeAsString('video');
+    final file =
+        await File('${directory.path}/Show S01E01.mkv').writeAsString('video');
     var threshold = 0;
     final repository = LocalMediaIndexRepository(storage: _Storage([]));
-    final indexer = LocalMediaIndexer(repository: repository, minRecognizedVideoSizeBytesProvider: () => threshold);
+    final indexer = LocalMediaIndexer(
+        repository: repository,
+        minRecognizedVideoSizeBytesProvider: () => threshold);
     await indexer.indexSource(directory.path);
     final original = repository.getAll().single;
-    await repository.patchItem(original, original.copyWith(seriesName: '人工匹配', manualOverride: true,
-      episodeNumber: 7, cover: 'manual.jpg', tmdb: _metadata()));
-    final controller = LocalController(mediaIndexRepository: repository, localMinSizeBytesProvider: () => threshold);
+    await repository.patchItem(
+        original,
+        original.copyWith(
+            seriesName: '人工匹配',
+            manualOverride: true,
+            episodeNumber: 7,
+            cover: 'manual.jpg',
+            tmdb: _metadata()));
+    final controller = LocalController(
+        mediaIndexRepository: repository,
+        localMinSizeBytesProvider: () => threshold);
     threshold = 10;
     final filtered = await indexer.indexSource(directory.path);
     expect(filtered.items, isEmpty);
     expect(filtered.filteredBySizeCount, 1);
     expect(filtered.removedCount, 0);
     expect(repository.getAll().single.manualOverride, isTrue);
-    controller.reloadAvailableLocalLibraryIndex();
+    await controller.reloadAvailableLocalLibraryIndex();
     expect(controller.localLibraryItems, isEmpty);
     threshold = 0;
     final restored = await indexer.indexSource(directory.path);
@@ -55,7 +66,7 @@ void main() {
     expect(restored.items.single.seriesName, '人工匹配');
     expect(restored.items.single.episodeNumber, 7);
     expect(restored.items.single.cover, 'manual.jpg');
-    controller.reloadAvailableLocalLibraryIndex();
+    await controller.reloadAvailableLocalLibraryIndex();
     expect(controller.localLibraryItems.single.id, original.id);
     await file.delete();
     await indexer.indexSource(directory.path);
@@ -65,17 +76,35 @@ void main() {
   test('目录暂失效后重试保留人工匹配及原观看记录', () async {
     final directory = await Directory.systemTemp.createTemp('scan_recover_');
     addTearDown(() => directory.delete(recursive: true));
-    final file = await File('${directory.path}/Show S01E01.mkv').writeAsString('video');
+    final file =
+        await File('${directory.path}/Show S01E01.mkv').writeAsString('video');
     final repository = LocalMediaIndexRepository(storage: _Storage([]));
-    final indexer = LocalMediaIndexer(repository: repository, minRecognizedVideoSizeBytes: 0);
+    final indexer = LocalMediaIndexer(
+        repository: repository, minRecognizedVideoSizeBytes: 0);
     await indexer.indexSource(directory.path);
     final original = repository.getAll().single;
-    await repository.patchItem(original, original.copyWith(seriesName: '人工剧名', manualOverride: true,
-      seasonNumber: 3, episodeNumber: 8, cover: 'poster.jpg', tmdb: _metadata()));
-    final history = PlaybackHistoryRepository(storage: MemoryPlaybackHistoryStorage());
-    await history.save(PlaybackHistoryEntry(stableKey: original.id, source: PlaybackHistorySource.local,
-      sourceId: directory.path, seriesTitle: '人工剧名', episodeTitle: '第8集', mediaPath: file.path,
-      episodeIndex: 7, positionSeconds: 123, durationSeconds: 600, updatedAt: DateTime(2026)));
+    await repository.patchItem(
+        original,
+        original.copyWith(
+            seriesName: '人工剧名',
+            manualOverride: true,
+            seasonNumber: 3,
+            episodeNumber: 8,
+            cover: 'poster.jpg',
+            tmdb: _metadata()));
+    final history =
+        PlaybackHistoryRepository(storage: MemoryPlaybackHistoryStorage());
+    await history.save(PlaybackHistoryEntry(
+        stableKey: original.id,
+        source: PlaybackHistorySource.local,
+        sourceId: directory.path,
+        seriesTitle: '人工剧名',
+        episodeTitle: '第8集',
+        mediaPath: file.path,
+        episodeIndex: 7,
+        positionSeconds: 123,
+        durationSeconds: 600,
+        updatedAt: DateTime(2026)));
     final moved = await directory.rename('${directory.path}_offline');
     try {
       final unavailable = await indexer.indexSource(directory.path);

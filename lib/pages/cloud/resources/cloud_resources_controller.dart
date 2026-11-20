@@ -63,8 +63,7 @@ part 'cloud_resources_controller/tmdb_work.dart';
 part 'cloud_resources_controller/episode_match.dart';
 part 'cloud_resources_controller/auto_organize.dart';
 
-int _defaultCloudMinSizeBytes() =>
-    MediaRecognitionSettings.cloudDefaultBytes;
+int _defaultCloudMinSizeBytes() => MediaRecognitionSettings.cloudDefaultBytes;
 
 typedef CloudDirectoryScopeTreeBuilder = CloudDirectoryScopeTree Function({
   required Iterable<String> rootPaths,
@@ -270,9 +269,14 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
   CloudMediaTree? _mediaTree;
   final Map<String, List<MediaLibrarySeries>> _mediaLibrarySeriesBySource =
       <String, List<MediaLibrarySeries>>{};
-  final Map<String, List<MediaLibrarySeries>> _cachedMediaLibrarySeriesBySource = {};
+  final Map<String, List<MediaLibrarySeries>>
+      _cachedMediaLibrarySeriesBySource = {};
   List<CloudSource> _mediaLibrarySources = const <CloudSource>[];
   final ChangeNotifier _mediaLibraryNotifier = ChangeNotifier();
+  final ChangeNotifier _classificationInputs = ChangeNotifier();
+
+  /// 只有扫描更新了索引或刮削资料发生变化时才通知分类器。
+  Listenable get classificationInputsChanged => _classificationInputs;
 
   List<CloudSource> sources = <CloudSource>[];
   List<CloudFileEntry> entries = <CloudFileEntry>[];
@@ -309,9 +313,11 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
       CloudDriveErrorType.invalidPassword ||
       CloudDriveErrorType.verificationRequired ||
       CloudDriveErrorType.permission ||
-      CloudDriveErrorType.protocolUpdated => '重新授权',
+      CloudDriveErrorType.protocolUpdated =>
+        '重新授权',
       CloudDriveErrorType.notFound ||
-      CloudDriveErrorType.invalidAddress => '编辑来源',
+      CloudDriveErrorType.invalidAddress =>
+        '编辑来源',
       _ => null,
     };
   }
@@ -337,6 +343,8 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
   bool _sourceLoadFailed = false;
   Future<void>? _resourcesLoadFuture;
   bool _mediaLibrarySnapshotInitialized = false;
+  bool mediaLibrarySnapshotComplete = false;
+  int mediaLibrarySnapshotVersion = 0;
   Future<void>? _mediaLibraryReloadFuture;
   int _mediaLibraryReloadGeneration = 0;
 
@@ -351,12 +359,14 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
 
   CloudMediaLibrary get mediaLibrarySnapshot => CloudMediaLibrary(
         series: <MediaLibrarySeries>[
-          for (final source in _mediaLibrarySources.where((source) => source.enabled))
+          for (final source
+              in _mediaLibrarySources.where((source) => source.enabled))
             ...?_mediaLibrarySeriesBySource[source.id],
         ],
         filters: <MediaLibrarySourceFilter>[
           const MediaLibrarySourceFilter('all', '全部', null),
-          for (final source in _mediaLibrarySources.where((source) => source.enabled))
+          for (final source
+              in _mediaLibrarySources.where((source) => source.enabled))
             MediaLibrarySourceFilter(
               source.id,
               source.name,
@@ -366,12 +376,15 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
       );
 
   CloudMediaLibrary get cachedMediaLibrarySnapshot => CloudMediaLibrary(
-        series: [for (final source in _mediaLibrarySources)
-          ...?_cachedMediaLibrarySeriesBySource[source.id]],
+        series: [
+          for (final source in _mediaLibrarySources)
+            ...?_cachedMediaLibrarySeriesBySource[source.id]
+        ],
         filters: [
           const MediaLibrarySourceFilter('all', '全部来源', null),
           for (final source in _mediaLibrarySources)
-            MediaLibrarySourceFilter(source.id, source.name, MediaSourceKind.cloud),
+            MediaLibrarySourceFilter(
+                source.id, source.name, MediaSourceKind.cloud),
         ],
       );
 
@@ -609,6 +622,7 @@ abstract class _CloudResourcesControllerBase extends ChangeNotifier {
     _scanToken?.cancel();
     _tmdbCoordinator?.removeListener(_handleTmdbChange);
     _workTmdbCoordinator?.removeListener(_handleTmdbChange);
+    _classificationInputs.dispose();
     _mediaLibraryNotifier.dispose();
     super.dispose();
   }

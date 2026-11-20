@@ -32,12 +32,14 @@ class MediaAiClassifier {
   }
 
   Future<void> process(CloudMediaLibrary Function() library) {
-    if (!config().autoClassification ||
+    final settings = config();
+    if (!settings.isConfigured ||
+        !settings.autoClassification ||
         mode() == MediaClassificationMode.manual) {
       return Future<void>.value();
     }
     for (final series in library().series) {
-      _pending[series.key] = library;
+      if (series.tmdbMetadata != null) _pending[series.key] = library;
     }
     return _running ??= _drain().whenComplete(() => _running = null);
   }

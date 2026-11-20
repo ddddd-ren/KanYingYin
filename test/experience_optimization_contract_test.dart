@@ -10,7 +10,7 @@ void main() {
       source,
       matches(
         RegExp(
-          r'updateSelectedIndex\(\s*resolveNavigationIndex\(defaultStartupPage\),?\s*\)',
+          r'selectDestination\(\s*context,\s*resolveNavigationIndex\(defaultStartupPage\),?\s*\)',
         ),
       ),
     );

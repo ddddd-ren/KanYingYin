@@ -5,12 +5,12 @@ import 'package:kanyingyin/utils/windows_shortcut.dart';
 void main() {
   const coordinator = WindowsShortcutStartupCoordinator();
 
-  test('桌面入口存在时只修复一次', () async {
+  test('两个入口存在时只修复一次', () async {
     var askCount = 0;
     var repairCount = 0;
 
     final result = await coordinator.run(
-      state: WindowsShortcutEntryState.desktopOnly,
+      state: WindowsShortcutEntryState.desktopAndStartMenu,
       dialogAlreadyShown: false,
       askToCreate: () async {
         askCount++;
@@ -120,7 +120,7 @@ void main() {
     expect(result.markDialogShown, isFalse);
   });
 
-  test('修复和创建失败返回各自的明确反馈', () async {
+  test('修复和创建失败会显示原因，创建失败后下次启动仍可重试', () async {
     final repairResult = await coordinator.run(
       state: WindowsShortcutEntryState.desktopAndStartMenu,
       dialogAlreadyShown: false,
@@ -136,6 +136,13 @@ void main() {
 
     expect(repairResult.feedback, ShortcutStartupFeedback.repairFailed);
     expect(createResult.feedback, ShortcutStartupFeedback.creationFailed);
-    expect(createResult.markDialogShown, isTrue);
+    expect(createResult.markDialogShown, isFalse);
+    expect(
+      decideShortcutStartup(
+        state: WindowsShortcutEntryState.desktopOnly,
+        dialogAlreadyShown: createResult.markDialogShown,
+      ),
+      ShortcutStartupDecision.askToCreateMissing,
+    );
   });
 }

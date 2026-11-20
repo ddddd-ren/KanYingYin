@@ -59,6 +59,52 @@ void main() {
     }
   });
 
+  test('换目录分别映射带来源的旧作品键和拆分成员，标题原样保留', () {
+    const oldRoot = r'd:\电影% #';
+    const newRoot = r'e:\收藏';
+    const oldId = r'd:\电影% #\分区\剧.mkv';
+    const newId = r'f:\专题\剧.mkv';
+    final source = Uri.encodeComponent('file:$oldRoot');
+    final target = Uri.encodeComponent('file:$newRoot');
+    const name = '旧%标题|第二季';
+    final pairs = {
+      'local|$source|$name': 'local|$target|$name',
+      'local|$source|$name|source|$oldId': 'local|$target|$name|source|$newId',
+      'local|$name|source|$oldId': 'local|$name|source|$newId',
+      'local|file:$oldId': 'local|file:$newId',
+      'local|$oldId': 'local|$newId',
+      'local|%ZZ|保留': 'local|%ZZ|保留',
+      'local|document%3Acontent%3A%2F%2Ftree|作品':
+          'local|document%3Acontent%3A%2F%2Ftree|作品',
+    };
+    final data = PortableUserData.fromJson({
+      'states': {
+        for (final key in pairs.keys) key: {'watchLater': true},
+      }
+    });
+    final mapped = data.remap(localRoots: {
+      r'D:\电影% #': newRoot,
+      r'D:\电影% #\分区': r'F:\专题',
+    });
+    expect(mapped.states.keys, unorderedEquals(pairs.values));
+    expect(data.states.keys, unorderedEquals(pairs.keys));
+    final collision = PortableUserData.fromJson({
+      'states': {
+        'local|$source|$name': {'favorite': true},
+        'local|$target|$name': {'watchLater': true},
+      }
+    });
+    expect(() => collision.remap(localRoots: {oldRoot: newRoot}),
+        throwsFormatException);
+    final damaged = PortableUserData.fromJson({
+      'states': {
+        'local|file%3A%ZZ|作品': {'favorite': true},
+      }
+    });
+    expect(() => damaged.remap(localRoots: {oldRoot: newRoot}),
+        throwsFormatException);
+  });
+
   test('人工分类、手工清空与分类模式备份往返和重映射不丢失', () {
     final raw = <String, Object?>{
       'states': {

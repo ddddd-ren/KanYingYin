@@ -24,10 +24,12 @@ void main() {
     storage.onFailure = () async {
       final current = fixture.localRepository.getAll().single;
       await fixture.localRepository.patchItem(
-        current, current.copyWith(seriesName: '并发改名'),
+        current,
+        current.copyWith(seriesName: '并发改名'),
       );
     };
-    await expectLater(fixture.importer.apply(fixture.plan, fixture.archive),
+    await expectLater(
+        fixture.importer.apply(fixture.plan, fixture.archive),
         throwsA(isA<ScrapedMetadataImportException>()
             .having((e) => e.originalRestored, 'originalRestored', isFalse)));
     expect(fixture.localRepository.getAll().single.seriesName, '并发改名');
@@ -48,13 +50,22 @@ void main() {
         current.copyWith(path: r'E:\媒体\影视\三体\other.mkv', name: 'other.mkv'),
       ]);
     };
-    await expectLater(fixture.importer.apply(fixture.plan, fixture.archive),
+    await expectLater(
+        fixture.importer.apply(fixture.plan, fixture.archive),
         throwsA(isA<ScrapedMetadataImportException>()
             .having((e) => e.originalRestored, 'originalRestored', isTrue)));
-    final other = fixture.localRepository.getAll().singleWhere((item) => item.name == 'other.mkv');
+    final other = fixture.localRepository
+        .getAll()
+        .singleWhere((item) => item.name == 'other.mkv');
     expect(other.cover, referencedImage);
     expect(await File(referencedImage!).exists(), isTrue);
-    expect(fixture.localRepository.getAll().singleWhere((item) => item.name != 'other.mkv').tmdb!.title, '旧标题');
+    expect(
+        fixture.localRepository
+            .getAll()
+            .singleWhere((item) => item.name != 'other.mkv')
+            .tmdb!
+            .title,
+        '旧标题');
   });
   test('图片等待后重新校验失败不会写入任何资料', () async {
     var imageInstalled = false;
@@ -79,11 +90,13 @@ void main() {
   test('复制图片期间无关作品的新增和删除在导入后保留', () async {
     final started = Completer<void>();
     final resume = Completer<void>();
-    final fixture = await _fixture(networkImageInstaller: ({required url, required file}) async {
+    final fixture = await _fixture(
+        networkImageInstaller: ({required url, required file}) async {
       if (!started.isCompleted) started.complete();
       await resume.future;
     });
-    await fixture.workRepository.upsert(_otherWork('deleted', 'deleted-source'));
+    await fixture.workRepository
+        .upsert(_otherWork('deleted', 'deleted-source'));
     final importing = fixture.importer.apply(fixture.plan, fixture.archive);
     await started.future;
     await fixture.workRepository.upsert(_otherWork('added', 'added-source'));
@@ -92,18 +105,21 @@ void main() {
     await importing;
     expect(await fixture.workRepository.get('added'), isNotNull);
     expect(await fixture.workRepository.get('deleted'), isNull);
-    expect((await fixture.workRepository.get('new-work'))!.metadata!.title, '三体');
+    expect(
+        (await fixture.workRepository.get('new-work'))!.metadata!.title, '三体');
   });
 
   test('等待图片期间已删除的导入目标不会复活', () async {
     final started = Completer<void>();
     final resume = Completer<void>();
-    final fixture = await _fixture(networkImageInstaller: ({required url, required file}) async {
+    final fixture = await _fixture(
+        networkImageInstaller: ({required url, required file}) async {
       if (!started.isCompleted) started.complete();
       await resume.future;
     });
     final importing = fixture.importer.apply(fixture.plan, fixture.archive);
-    final expectation = expectLater(importing,
+    final expectation = expectLater(
+        importing,
         throwsA(isA<ScrapedMetadataImportException>()
             .having((e) => e.originalRestored, 'originalRestored', isFalse)));
     await started.future;
@@ -120,7 +136,8 @@ void main() {
     final original = (await fixture.workRepository.getAll()).single.toJson();
     storage.failNextWrite = true;
     storage.writeBeforeThrow = true;
-    await expectLater(fixture.importer.apply(fixture.plan, fixture.archive),
+    await expectLater(
+        fixture.importer.apply(fixture.plan, fixture.archive),
         throwsA(isA<ScrapedMetadataImportException>()
             .having((e) => e.originalRestored, 'originalRestored', isTrue)));
     expect((await fixture.workRepository.getAll()).single.toJson(), original);
@@ -139,7 +156,8 @@ void main() {
     await expectLater(fixture.importer.apply(fixture.plan, fixture.archive),
         throwsA(isA<ScrapedMetadataImportException>()));
     expect(await fixture.workRepository.get('concurrent'), isNotNull);
-    expect((await fixture.workRepository.get('new-work'))!.metadata!.title, '旧标题');
+    expect(
+        (await fixture.workRepository.get('new-work'))!.metadata!.title, '旧标题');
   });
   test('恢复写入失败时明确提示未完整恢复并保留图片', () async {
     final resources = _FailRollbackResourceStorage();
@@ -156,7 +174,8 @@ void main() {
           .having((e) => e.originalRestored, 'originalRestored', isFalse)
           .having((e) => e.toString(), 'message', contains('未完整完成'))),
     );
-    final importedDirectory = Directory('${fixture.cacheRoot.path}/scraped_metadata');
+    final importedDirectory =
+        Directory('${fixture.cacheRoot.path}/scraped_metadata');
     expect(await importedDirectory.list().length, 2);
   });
   test('导入覆盖刮削资料但保留当前媒体路径字幕和索引字段', () async {
@@ -503,7 +522,9 @@ final class _FailOnceWorkStorage implements CloudWorkTmdbStorage {
   Future<void> write(List<Map<String, Object?>> records) async {
     if (failNextWrite) {
       failNextWrite = false;
-      if (writeBeforeThrow) this.records = records.map(Map<String, Object?>.from).toList();
+      if (writeBeforeThrow) {
+        this.records = records.map(Map<String, Object?>.from).toList();
+      }
       await onFailure?.call();
       throw const FileSystemException('模拟写入失败');
     }
@@ -511,15 +532,16 @@ final class _FailOnceWorkStorage implements CloudWorkTmdbStorage {
   }
 }
 
-CloudWorkTmdbRecord _otherWork(String id, String sourceId) => CloudWorkTmdbRecord.matched(
-  sourceId: sourceId,
-  workKey: id,
-  workRootId: id,
-  workRootPath: '/$id',
-  remoteName: id,
-  metadata: _oldMetadata,
-  checkedAt: DateTime.utc(2026, 7, 30),
-);
+CloudWorkTmdbRecord _otherWork(String id, String sourceId) =>
+    CloudWorkTmdbRecord.matched(
+      sourceId: sourceId,
+      workKey: id,
+      workRootId: id,
+      workRootPath: '/$id',
+      remoteName: id,
+      metadata: _oldMetadata,
+      checkedAt: DateTime.utc(2026, 7, 30),
+    );
 
 class _FailRollbackResourceStorage extends MemoryCloudResourceTmdbStorage {
   bool failRollback = false;

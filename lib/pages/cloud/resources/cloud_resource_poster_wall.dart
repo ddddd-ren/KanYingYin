@@ -159,8 +159,10 @@ class _CloudResourcePosterWallState extends State<CloudResourcePosterWall> {
   Widget build(BuildContext context) {
     if (collection.groups.isEmpty) {
       final searching = searchQuery.trim().isNotEmpty;
-      if (searching || widget.hasActiveFilters ||
-          hiddenVideoCount > 0 || widget.scanFailed) {
+      if (searching ||
+          widget.hasActiveFilters ||
+          hiddenVideoCount > 0 ||
+          widget.scanFailed) {
         final message = searching
             ? '没有找到匹配的视频'
             : widget.scanFailed
@@ -173,7 +175,8 @@ class _CloudResourcePosterWallState extends State<CloudResourcePosterWall> {
       return EmptyState(
         icon: Icons.video_file_outlined,
         title: widget.filteredBySizeCount > 0 ? '视频已按大小过滤' : '没有发现视频文件',
-        description: '${widget.filteredBySizeCount > 0 ? '${widget.filteredBySizeCount} 个视频未达到大小要求。' : ''}${widget.recognitionDescription}',
+        description:
+            '${widget.filteredBySizeCount > 0 ? '${widget.filteredBySizeCount} 个视频未达到大小要求。' : ''}${widget.recognitionDescription}',
         actionLabel: '调整识别设置',
         actionIcon: Icons.settings_outlined,
         action: widget.onRecognitionSettings,

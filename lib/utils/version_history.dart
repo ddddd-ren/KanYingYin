@@ -27,6 +27,40 @@ class VersionHistory {
 /// 区段拆分到 part 文件，展开顺序与原列表完全一致，不得重排。
 const List<VersionHistory> versionHistoryList = [
   VersionHistory(
+    version: '1.0.18',
+    date: '2026-11-20',
+    changes: [
+      '我的片库集中管理本地与个人网盘作品的收藏、待看和合集；来源变更或恢复备份后，在作品身份明确时继续关联记录',
+      '电影、动漫和电视剧分类复用已有媒体库资料，大型片库按需检查旧索引，减少重复读取和切页等待',
+      '启动时优先打开你选择的首页，首页显示后再呈现更新说明；快速切换分类时打开最后选中的页面',
+      '媒体资料更新与导入保留人工分类、标签和图片选择，写入失败时恢复原有资料',
+      'Windows 更新不会修改或删除本地及个人网盘中的原始视频、字幕和图片文件',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.242',
+    date: '2026-11-19',
+    isPrerelease: true,
+    changes: [
+      '启动时优先打开你选定的首页，首次使用和更新提示会在首页出现后依次显示',
+      '快速连点侧栏会打开最后选中的页面。电影、动漫和电视剧会复用已有片库，减少重复加载',
+      '打开大媒体库时只复查需要更新的旧索引，减少启动后点击没有反应的情况',
+      '本次 Windows 测试版不会修改本地或个人网盘中的原始视频、字幕和图片',
+    ],
+  ),
+  VersionHistory(
+    version: '2.1.241',
+    date: '2026-11-19',
+    isPrerelease: true,
+    changes: [
+      '打开「我的片库」和切换页签时直接读取已有资料，不会启动网盘 AI 分类',
+      '同一来源中已识别为不同作品的同名影片可以分别收藏，归属不明的旧标记保留在「待关联记录」',
+      '从备份恢复到新目录时，收藏、待看和合集跟随新位置，即使原目录仍在片库中',
+      '在多个页面同时修改收藏、待看和合集时，每项操作独立保存',
+      '本次 Windows 测试版不会修改本地或个人网盘中的原始视频、字幕和图片',
+    ],
+  ),
+  VersionHistory(
     version: '2.1.240',
     date: '2026-11-14',
     isPrerelease: true,
@@ -564,12 +598,23 @@ List<VersionHistory> versionHistoryForCurrent(
   String currentVersion, {
   AppPlatformKind? platform,
 }) {
-  if (currentVersion == '2.1.240' && platform == AppPlatformKind.android) {
-    return const [VersionHistory(version: '2.1.240', date: '2026-11-14', isPrerelease: true, changes: [
-      '本轮仅同步 Android 手机版本配置，不交付 Android 安装包',
-      '保留现有本地扫描、网盘浏览和播放器行为',
-      '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和图片文件',
-    ])];
+  if (currentVersion == '1.0.18' && platform == AppPlatformKind.android) {
+    return const <VersionHistory>[_androidTenthRelease];
+  }
+  if ((currentVersion == '2.1.241' || currentVersion == '2.1.240') &&
+      platform == AppPlatformKind.android) {
+    return [
+      VersionHistory(
+        version: currentVersion,
+        date: currentVersion == '2.1.241' ? '2026-11-19' : '2026-11-14',
+        isPrerelease: true,
+        changes: const [
+          '本轮仅同步 Android 手机版本配置，不交付 Android 安装包',
+          '保留现有本地扫描、网盘浏览和播放器行为',
+          '本次更新不会修改、删除、改名或移动本地及个人网盘中的原始视频、字幕和图片文件',
+        ],
+      ),
+    ];
   }
   if (currentVersion == '2.1.239' && platform == AppPlatformKind.android) {
     return const <VersionHistory>[

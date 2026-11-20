@@ -35,7 +35,8 @@ class MediaCategoryModule extends Module {
         initialize: () async {
           await runtime.initialize();
           if (category != null) {
-            unawaited(Modular.get<MediaAiClassifier>().process(() => runtime.library));
+            unawaited(Modular.get<MediaAiClassifier>()
+                .process(() => runtime.library));
           }
         },
         refresh: runtime.refresh,

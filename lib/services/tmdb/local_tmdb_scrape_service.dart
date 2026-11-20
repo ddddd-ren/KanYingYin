@@ -207,7 +207,10 @@ class LocalTmdbScrapeService {
         );
       }
     }
-    await indexRepository.patchItems(updates, originals: {for (final group in groups.values) for (final item in group) item.id: item});
+    await indexRepository.patchItems(updates, originals: {
+      for (final group in groups.values)
+        for (final item in group) item.id: item
+    });
     return updates.length;
   }
 
@@ -357,7 +360,8 @@ class LocalTmdbScrapeService {
       if (subject.ruleVersion < currentTmdbRuleVersion) {
         for (final item in seriesItems) {
           await indexRepository.patchItem(
-            item, item.copyWith(tmdbRuleVersion: currentTmdbRuleVersion),
+            item,
+            item.copyWith(tmdbRuleVersion: currentTmdbRuleVersion),
           );
         }
       }
@@ -414,7 +418,8 @@ class LocalTmdbScrapeService {
           isolatedItemIds.add(item.id);
           if (!_hasProtectedMatch(item)) {
             await indexRepository.patchItem(
-            item, item.copyWith(
+              item,
+              item.copyWith(
                 scrapeStatus: TmdbScrapeStatus.pending,
                 tmdbRuleVersion: currentTmdbRuleVersion,
               ),
@@ -439,7 +444,8 @@ class LocalTmdbScrapeService {
         );
         merged.add(metadata);
         await indexRepository.patchItem(
-            item, item.copyWith(
+          item,
+          item.copyWith(
             tmdb: metadata,
             tmdbIdentity: _tmdbIdentity(metadata),
             scrapeStatus: TmdbScrapeStatus.matched,
@@ -734,7 +740,8 @@ class LocalTmdbScrapeService {
         );
         merged.add(metadata);
         await indexRepository.patchItem(
-            item, item.copyWith(
+          item,
+          item.copyWith(
             tmdb: metadata,
             tmdbIdentity: _tmdbIdentity(metadata),
             scrapeStatus: TmdbScrapeStatus.matched,
@@ -798,7 +805,8 @@ class LocalTmdbScrapeService {
       final clearAutomatic = clearAutomaticMatches &&
           item.tmdbMatchOrigin == TmdbMatchOrigin.automatic;
       await indexRepository.patchItem(
-            item, item.copyWith(
+        item,
+        item.copyWith(
           clearTmdb: clearAutomatic,
           clearTmdbIdentity: clearAutomatic,
           scrapeStatus: TmdbScrapeStatus.pending,
@@ -823,7 +831,8 @@ class LocalTmdbScrapeService {
     LocalMediaIndexItem item,
   ) async {
     await indexRepository.patchItem(
-            item, item.copyWith(
+      item,
+      item.copyWith(
         clearTmdb: true,
         clearTmdbIdentity: true,
         scrapeStatus: TmdbScrapeStatus.pending,

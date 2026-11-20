@@ -34,29 +34,57 @@ Future<void> _openVersionChangelogDialog(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('2.1.240 测试版更新弹窗展示我的片库', (tester) async {
-    expect(AppVersion.current, '2.1.240');
+  testWidgets('当前正式版展示本轮 Windows 更新', (tester) async {
+    expect(AppVersion.current, '1.0.18');
     final entries = versionHistoryForCurrent(AppVersion.current);
-    expect(entries, hasLength(1));
-    expect(entries.single.isPrerelease, isTrue);
-    expect(entries.single.date, '2026-11-14');
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(body: VersionChangelogContent(versions: entries)),
     ));
-    expect(find.text('v2.1.240  测试版  2026-11-14'), findsOneWidget);
-    for (final text in ['我的片库', '收藏', '待看', '合集', '原始视频']) {
+    expect(find.text('v1.0.18  正式版  2026-11-20'), findsOneWidget);
+    for (final text in ['我的片库', '分类', '首页']) {
+      expect(find.textContaining(text), findsWidgets);
+    }
+  });
+
+  test('当前 Android 正式版只展示手机版更新', () {
+    final entries = versionHistoryForCurrent(
+      AppVersion.current,
+      platform: AppPlatformKind.android,
+    );
+    expect(entries, hasLength(1));
+    expect(entries.single.version, '1.0.14');
+    expect(entries.single.isPrerelease, isFalse);
+    final changes = entries.single.changes.join('\n');
+    for (final text in ['我的片库', '本地媒体库', '个人网盘', 'MediaCodec']) {
+      expect(changes, contains(text));
+    }
+    expect(changes, isNot(contains('Windows')));
+    expect(changes, isNot(contains('Android TV')));
+    expect(changes, isNot(contains('首次正式发布')));
+  });
+
+  testWidgets('2.1.241 测试版更新弹窗展示片库修正', (tester) async {
+    final entries = versionHistoryForCurrent('2.1.241');
+    expect(entries, hasLength(1));
+    expect(entries.single.isPrerelease, isTrue);
+    expect(entries.single.date, '2026-11-19');
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: VersionChangelogContent(versions: entries)),
+    ));
+    expect(find.text('v2.1.241  测试版  2026-11-19'), findsOneWidget);
+    for (final text in ['我的片库', 'AI 分类', '同名影片', '新目录', '独立保存', '原始视频']) {
       expect(find.textContaining(text), findsWidgets);
     }
     expect(tester.takeException(), isNull);
   });
 
-  test('Android 2.1.240 更新说明注明仅同步版本配置', () {
+  test('Android 2.1.241 更新说明注明仅同步版本配置', () {
     final entries = versionHistoryForCurrent(
-      '2.1.240',
+      '2.1.241',
       platform: AppPlatformKind.android,
     );
     expect(entries, hasLength(1));
-    expect(entries.single.version, '2.1.240');
+    expect(entries.single.version, '2.1.241');
     expect(entries.single.isPrerelease, isTrue);
     final changes = entries.single.changes.join('\n');
     for (final text in ['仅同步', '不交付 Android 安装包', '原始视频']) {
@@ -78,7 +106,7 @@ void main() {
     expect(changes, isNot(contains('Android TV')));
   });
 
-  test('Android 1.0.13 正式版只展示手机和平板功能', () {
+  test('Android 1.0.13 正式版历史说明只展示手机和平板功能', () {
     final entries = versionHistoryForCurrent(
       '1.0.17',
       platform: AppPlatformKind.android,

@@ -1,6 +1,7 @@
 import 'package:kanyingyin/services/local_video_file_types.dart';
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show mapEquals, setEquals;
 
 import 'package:kanyingyin/features/library/application/local_library_metadata_coordinator.dart';
 import 'package:kanyingyin/features/library/application/local_library_preferences.dart';
@@ -82,6 +83,7 @@ abstract class _LocalController with Store {
   _LocalController({
     ILocalMediaScanner? scanner,
     int Function()? localMinSizeBytesProvider,
+    Future<bool> Function(String)? directoryExists,
     int Function()? cloudMinSizeBytesProvider,
     ILocalMediaIndexer? mediaIndexer,
     LocalMediaLibraryBuilder? mediaLibraryBuilder,
@@ -107,6 +109,7 @@ abstract class _LocalController with Store {
   }) : this._(
           scanner: scanner,
           localMinSizeBytesProvider: localMinSizeBytesProvider,
+          directoryExists: directoryExists,
           cloudMinSizeBytesProvider: cloudMinSizeBytesProvider,
           mediaIndexer: mediaIndexer,
           mediaLibraryBuilder: mediaLibraryBuilder,
@@ -137,6 +140,7 @@ abstract class _LocalController with Store {
   _LocalController._({
     ILocalMediaScanner? scanner,
     int Function()? localMinSizeBytesProvider,
+    Future<bool> Function(String)? directoryExists,
     int Function()? cloudMinSizeBytesProvider,
     ILocalMediaIndexer? mediaIndexer,
     LocalMediaLibraryBuilder? mediaLibraryBuilder,
@@ -161,6 +165,8 @@ abstract class _LocalController with Store {
     LibraryGenreBackfillService? genreBackfillService,
   })  : _scanner = scanner ?? LocalMediaScanner(),
         _localMinSizeBytesProvider = localMinSizeBytesProvider,
+        _directoryExists =
+            directoryExists ?? ((path) => Directory(path).exists()),
         _cloudMinSizeBytesProvider = cloudMinSizeBytesProvider,
         _mediaIndexRepository = mediaIndexRepository,
         _mediaIndexer =
@@ -206,6 +212,7 @@ abstract class _LocalController with Store {
 
   final ILocalMediaScanner _scanner;
   final int Function()? _localMinSizeBytesProvider;
+  final Future<bool> Function(String) _directoryExists;
   final int Function()? _cloudMinSizeBytesProvider;
   LocalScanResult? lastDirectoryScan;
   final ILocalMediaIndexRepository _mediaIndexRepository;
@@ -326,7 +333,8 @@ abstract class _LocalController with Store {
 
   final ObservableList<LocalMediaIndexItem> cachedLocalLibraryItems =
       ObservableList<LocalMediaIndexItem>();
-  final ObservableMap<String, bool> _cachedLocalSourceAvailability = ObservableMap();
+  final ObservableMap<String, bool> _cachedLocalSourceAvailability =
+      ObservableMap();
   final ObservableMap<String, String> _cachedLocalSourceNames = ObservableMap();
 
   final ObservableList<CloudMediaIndexItem> cloudLibraryItems =
@@ -420,7 +428,7 @@ abstract class _LocalController with Store {
   Future<int> removeUnavailableMediaSources();
   Future<LibraryGenreBackfillResult> refreshLibraryGenres();
   void reloadLocalLibraryIndex();
-  void reloadAvailableLocalLibraryIndex();
+  Future<void> reloadAvailableLocalLibraryIndex();
   Future<Map<String, int>> refreshLocalLibraryIndex({
     bool throwOnFailure = false,
   });

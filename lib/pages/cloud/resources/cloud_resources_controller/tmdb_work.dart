@@ -202,7 +202,13 @@ mixin _CloudTmdbWorkMixin on _CloudResourcesControllerBase {
       _syncIndexedTmdbMetadata();
       _invalidateCollection();
       _reconcileSelectedGenres();
-      unawaited(reloadMediaLibrarySnapshot(force: true).catchError((_) {}));
+      unawaited(reloadMediaLibrarySnapshot(force: true).then((_) {
+        if (!_disposed &&
+            resourceRevision == _resourceTmdbRecordsRevision &&
+            workRevision == _workTmdbRecordsRevision) {
+          _classificationInputs.notifyListeners();
+        }
+      }).catchError((_) {}));
     }
     _notify();
   }

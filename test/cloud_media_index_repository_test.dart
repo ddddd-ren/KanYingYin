@@ -29,7 +29,9 @@ void main() {
     final repository = CloudMediaIndexRepository(storage: storage);
     expect(await repository.getBySource('target'), hasLength(1));
     expect(unrelated.iterations, 0);
-    expect(await repository.updateMatching('target', (_) => true, (item) => item), 1);
+    expect(
+        await repository.updateMatching('target', (_) => true, (item) => item),
+        1);
     expect(unrelated.iterations, 0);
     expect((storage.value['items'] as List).first, same(unrelated));
   });

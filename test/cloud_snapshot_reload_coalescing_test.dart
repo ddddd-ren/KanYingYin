@@ -36,8 +36,10 @@ void main() {
         queueLatest ? completes : throwsStateError,
       );
       if (queueLatest) {
-        expect(identical(pending,
-            controller.reloadMediaLibrarySnapshot(force: true)), isTrue);
+        expect(
+            identical(
+                pending, controller.reloadMediaLibrarySnapshot(force: true)),
+            isTrue);
       }
       sources.release.complete();
       await check;
@@ -88,7 +90,8 @@ void main() {
 
 class _FailOnceSources extends CloudSourceRepository {
   _FailOnceSources(CloudCredentialStore credentials)
-      : super(storage: MemoryCloudSourceStorage(), credentialStore: credentials);
+      : super(
+            storage: MemoryCloudSourceStorage(), credentialStore: credentials);
 
   final started = Completer<void>();
   final release = Completer<void>();

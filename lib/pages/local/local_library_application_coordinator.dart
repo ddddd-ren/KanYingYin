@@ -5,23 +5,40 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
   @override
   @action
   Future<void> init() async {
-    await _loadRecentDirectoriesSafe();
+    final requestId = ++_navigationRequestId;
+    await Future.wait([
+      _loadRecentDirectoriesSafe(),
+      _restoreStartDirectory(requestId),
+      Future<void>(_loadStartupLibrary),
+    ]);
+  }
+
+  Future<void> _loadStartupLibrary() async {
     _reloadMediaSourcesSafe();
-    await _refreshLocalLibraryDerivedMetadataSafe();
+    final sourceCheck = refreshSourceAvailability();
     _reloadLocalLibraryIndexSafe();
-    // 启动时也检查旧索引，补齐已匹配电视剧缺失的 TMDB 集名。
+    final result = await _refreshLocalLibraryDerivedMetadataSafe();
+    if (result.refreshedCount > 0) _reloadLocalLibraryIndexSafe();
     _autoScrapeTmdbAfterScan();
     unawaited(_reloadCloudAndBackfillGenres());
+    await sourceCheck;
+  }
+
+  Future<void> _restoreStartDirectory(int requestId) async {
     final lastDir = _preferences.lastLocalDirectory;
     final userDefaultPath = _preferences.defaultPath;
 
     String? resolvedPath;
-    if (userDefaultPath.isNotEmpty && Directory(userDefaultPath).existsSync()) {
+    if (userDefaultPath.isNotEmpty && await _directoryExists(userDefaultPath)) {
       resolvedPath = userDefaultPath;
-    } else if (lastDir.isNotEmpty && Directory(lastDir).existsSync()) {
+    } else if (requestId == _navigationRequestId &&
+        lastDir.isNotEmpty &&
+        lastDir != userDefaultPath &&
+        await _directoryExists(lastDir)) {
       resolvedPath = lastDir;
     }
 
+    if (requestId != _navigationRequestId) return;
     if (resolvedPath == null) {
       isLoading = false;
       errorMessage = null;
@@ -33,7 +50,7 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
 
     if (currentPath.isEmpty || resolvedPath != _lastResolvedStartPath) {
       _lastResolvedStartPath = resolvedPath;
-      await navigateTo(resolvedPath);
+      await _navigateTo(resolvedPath, requestId, directoryVerified: true);
     } else {
       await refresh();
     }
@@ -41,9 +58,14 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
 
   @override
   @action
-  Future<void> navigateTo(String path) async {
-    final requestId = ++_navigationRequestId;
-    if (!Directory(path).existsSync()) {
+  Future<void> navigateTo(String path) =>
+      _navigateTo(path, ++_navigationRequestId);
+
+  Future<void> _navigateTo(String path, int requestId,
+      {bool directoryVerified = false}) async {
+    final exists = directoryVerified || await _directoryExists(path);
+    if (requestId != _navigationRequestId) return;
+    if (!exists) {
       isLoading = false;
       lastDirectoryScan = LocalScanResult(
         currentPath: path,
@@ -413,7 +435,10 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
   }
 
   Future<bool> setRootDirectory(String path) async {
-    if (!Directory(path).existsSync()) {
+    final requestId = ++_navigationRequestId;
+    final exists = await _directoryExists(path);
+    if (requestId != _navigationRequestId) return false;
+    if (!exists) {
       errorMessage = '目录暂不可用，请连接磁盘后重试，或重新选择目录：$path';
       AppLogger().w('LocalController: root directory not found: $path');
       return false;
@@ -421,15 +446,19 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
     await _trySaveDefaultDirectory(path);
     await _tryUpsertMediaSource(path);
     _reloadMediaSourcesSafe();
+    if (requestId != _navigationRequestId) return false;
     _lastResolvedStartPath = path;
-    await navigateTo(path);
+    await _navigateTo(path, requestId, directoryVerified: true);
     return true;
   }
 
   @override
   @action
   void reloadMediaSources() {
+    _verifiedAt = null;
+    _indexGeneration++;
     _reloadMediaSourcesSafe();
+    unawaited(refreshSourceAvailability());
   }
 
   @override
@@ -453,11 +482,37 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
     }
   }
 
-  bool isMediaSourceAvailable(LocalMediaSource source) {
-    if (source.location.isDocument) {
-      return _sourceAccessibility[source.id] ?? true;
-    }
-    return _sourceCoordinator.isAvailable(source);
+  int _sourceProbeGeneration = 0;
+  final _categorySourceGeneration = <String, int>{};
+
+  bool isMediaSourceAvailable(LocalMediaSource source) =>
+      _sourceAccessibility[source.id] ?? true;
+
+  Future<void> refreshSourceAvailability() async {
+    final generation = ++_sourceProbeGeneration;
+    final sources =
+        mediaSources.where((source) => source.location.isFile).toList();
+    await Future.wait(sources.map((source) async {
+      try {
+        final available = await _directoryExists(source.path);
+        if (generation != _sourceProbeGeneration ||
+            (_categorySourceGeneration[source.id] ?? -1) >= generation ||
+            !mediaSources.any((current) => current.id == source.id)) {
+          return;
+        }
+        runInAction(() => _recordSourceAvailability(source, available));
+      } on FileSystemException catch (error) {
+        AppLogger().w('本地来源可用性检查失败', error: error);
+      }
+    }));
+  }
+
+  void _recordSourceAvailability(LocalMediaSource source, bool available) {
+    if (_sourceAccessibility[source.id] == available) return;
+    _sourceAccessibility[source.id] = available;
+    _cachedLocalSourceAvailability[source.id] = source.enabled && available;
+    _verifiedAt = null;
+    _indexGeneration++;
   }
 
   int unavailableMediaSourceCount() =>
@@ -496,8 +551,10 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
         legacyTitlesByMediaId: localLegacySeriesTitlesByMediaId,
       );
 
-  Map<String, String> get localSourceTitlesByMediaId =>
-      _sourceTitlesFor(localLibraryItems);
+  Map<String, String> get localSourceTitlesByMediaId => _availableTitles.value;
+
+  late final _availableTitles =
+      Computed(() => _sourceTitlesFor(localLibraryItems), keepAlive: true);
 
   Map<String, String> _sourceTitlesFor(
       Iterable<LocalMediaIndexItem> indexedItems) {
@@ -512,7 +569,10 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
   }
 
   Map<String, List<String>> get localLegacySeriesTitlesByMediaId =>
-      _legacyTitlesFor(localLibraryItems);
+      _availableLegacyTitles.value;
+
+  late final _availableLegacyTitles =
+      Computed(() => _legacyTitlesFor(localLibraryItems), keepAlive: true);
 
   Map<String, List<String>> _legacyTitlesFor(
       Iterable<LocalMediaIndexItem> indexedItems) {
@@ -587,26 +647,34 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
     return byDirectory.values.expand(_seriesGrouper.group);
   }
 
-  CloudMediaLibrary get localMediaLibrary =>
-      const CloudMediaLibraryAggregator().build(
-        localItems: localLibraryItems,
-        localSourceTitlesByMediaId: localSourceTitlesByMediaId,
-        localLegacyTitlesByMediaId: localLegacySeriesTitlesByMediaId,
-        cloudItems: const <CloudMediaIndexItem>[],
-        cloudSources: const <CloudSource>[],
-      );
+  CloudMediaLibrary get localMediaLibrary => _availableSnapshot.value;
 
-  CloudMediaLibrary get cachedLocalMediaLibrary {
-    return const CloudMediaLibraryAggregator().build(
-      localItems: cachedLocalLibraryItems,
-      localSourceTitlesByMediaId: _sourceTitlesFor(cachedLocalLibraryItems),
-      localLegacyTitlesByMediaId: _legacyTitlesFor(cachedLocalLibraryItems),
-      localSourceAvailability: _cachedLocalSourceAvailability,
-      localSourceNames: _cachedLocalSourceNames,
-      cloudItems: const [],
-      cloudSources: const [],
-    );
-  }
+  late final _availableSnapshot = Computed(
+      () => const CloudMediaLibraryAggregator().build(
+            localItems: localLibraryItems,
+            localSourceTitlesByMediaId: localSourceTitlesByMediaId,
+            localLegacyTitlesByMediaId: localLegacySeriesTitlesByMediaId,
+            cloudItems: const <CloudMediaIndexItem>[],
+            cloudSources: const <CloudSource>[],
+          ),
+      keepAlive: true);
+
+  CloudMediaLibrary get cachedLocalMediaLibrary => _cachedSnapshot.value;
+
+  late final _cachedSnapshot = Computed(
+      () => const CloudMediaLibraryAggregator().build(
+            localItems: cachedLocalLibraryItems,
+            localSourceTitlesByMediaId:
+                _sourceTitlesFor(cachedLocalLibraryItems),
+            localLegacyTitlesByMediaId:
+                _legacyTitlesFor(cachedLocalLibraryItems),
+            localSourceAvailability: _cachedLocalSourceAvailability,
+            missingLocalIds: _missingPaths.value,
+            localSourceNames: _cachedLocalSourceNames,
+            cloudItems: const [],
+            cloudSources: const [],
+          ),
+      keepAlive: true);
 
   CloudMediaLibrary get combinedMediaLibrary =>
       const CloudMediaLibraryAggregator().build(
@@ -736,6 +804,97 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
     }
   }
 
+  int _indexGeneration = 0;
+  final _cachedIndexVersion = Observable(0);
+  int get cachedIndexVersion => _cachedIndexVersion.value;
+  int? _verifiedThreshold;
+  DateTime? _verifiedAt;
+  Future<void>? _verification;
+  final _missingPaths = Observable<Set<String>>(const {});
+
+  Future<void> ensureCategoryIndex({bool refresh = false}) {
+    final running = _verification;
+    if (running != null) {
+      if (refresh) _indexGeneration++;
+      return running;
+    }
+    final checked = _verifiedAt;
+    if (!refresh &&
+        checked != null &&
+        _verifiedThreshold == (_localMinSizeBytesProvider?.call() ?? 0) &&
+        DateTime.now().difference(checked) < const Duration(minutes: 1)) {
+      return Future.value();
+    }
+    final future = _verifyCategoryIndex().whenComplete(() {
+      _verification = null;
+    });
+    _verification = future;
+    return future;
+  }
+
+  Future<void> _verifyCategoryIndex() async {
+    while (true) {
+      final generation = _indexGeneration;
+      final threshold = _localMinSizeBytesProvider?.call() ?? 0;
+      final sourceGeneration = _sourceProbeGeneration;
+      final indexed = _mediaIndexRepository.getAll().toList(growable: false);
+      final sources = _indexedSources();
+      final locations = {
+        for (final item in indexed)
+          item.sourceLocation.stableId: item.sourceLocation
+      };
+      final availability = <String, bool>{};
+      await Future.wait(locations.entries.map((entry) async {
+        final location = entry.value;
+        availability[entry.key] = sources[entry.key]?.enabled != false &&
+            (location.isDocument
+                ? _sourceAccessibility[entry.key] ?? true
+                : await _directoryExists(location.value));
+      }));
+      if (generation != _indexGeneration) continue;
+      final missing = <String>{};
+      for (var start = 0; start < indexed.length; start += 32) {
+        await Future.wait(indexed.skip(start).take(32).map((item) async {
+          if (availability[item.sourceLocation.stableId] == false ||
+              (!item.location.isDocument && !await File(item.path).exists())) {
+            missing.add(item.id);
+          }
+        }));
+        if (generation != _indexGeneration) break;
+      }
+      if (generation != _indexGeneration ||
+          sourceGeneration != _sourceProbeGeneration ||
+          threshold != (_localMinSizeBytesProvider?.call() ?? 0)) {
+        continue;
+      }
+
+      final available = indexed
+          .where((item) =>
+              !missing.contains(item.id) &&
+              availability[item.sourceLocation.stableId] != false &&
+              LocalVideoFileTypes.isRecognizedVideoSize(item.size,
+                  minSizeBytes: threshold))
+          .toList();
+      runInAction(() {
+        for (final entry in availability.entries) {
+          final source = sources[entry.key];
+          if (source != null && source.enabled) {
+            _categorySourceGeneration[entry.key] = sourceGeneration;
+            _sourceAccessibility[entry.key] = entry.value;
+          }
+        }
+        _publishCachedIndex(indexed, sources, availability);
+        if (!setEquals(_missingPaths.value, missing)) {
+          _missingPaths.value = missing;
+        }
+        _publishLocalItems(available);
+      });
+      _verifiedAt = DateTime.now();
+      _verifiedThreshold = threshold;
+      return;
+    }
+  }
+
   @override
   @action
   void reloadLocalLibraryIndex() {
@@ -743,10 +902,8 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
   }
 
   @override
-  @action
-  void reloadAvailableLocalLibraryIndex() {
-    _reloadLocalLibraryIndexSafe(requireExistingFiles: true);
-  }
+  Future<void> reloadAvailableLocalLibraryIndex() =>
+      ensureCategoryIndex(refresh: true);
 
   Future<int> refreshLocalLibraryDerivedMetadata() async {
     final result = await _refreshLocalLibraryDerivedMetadataSafe();
@@ -839,7 +996,8 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
         } else {
           throw UnsupportedError('当前索引器不支持 Android 文档来源');
         }
-        _sourceAccessibility[source.id] = result.sourceAccessible;
+        _sourceProbeGeneration++;
+        _recordSourceAvailability(source, result.sourceAccessible);
         if (result.mediaIdAliases.isNotEmpty) {
           try {
             await MediaLibraryUserStateRepository()
@@ -1553,7 +1711,7 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
       await init();
       return;
     }
-    await navigateTo(currentPath);
+    await Future.wait([navigateTo(currentPath), refreshSourceAvailability()]);
   }
 
   @override
@@ -1627,12 +1785,24 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
 
   Future<void> _loadRecentDirectoriesSafe() async {
     try {
-      final paths = _preferences.recentDirectories;
-      pathHistory = ObservableList.of(
-        paths
-            .where((path) => path.isNotEmpty && Directory(path).existsSync())
-            .take(_LocalController._maxRecentDirectories),
-      );
+      final paths = _preferences.recentDirectories
+          .where((path) => path.isNotEmpty)
+          .toList();
+      pathHistory =
+          ObservableList.of(paths.take(_LocalController._maxRecentDirectories));
+      final missing = <String>{};
+      await Future.wait(paths.toSet().map((path) async {
+        if (!await _directoryExists(path)) missing.add(path);
+      }));
+      runInAction(() {
+        final valid = {
+          ...pathHistory
+              .where((path) => path == currentPath || !missing.contains(path)),
+          ...paths.where((path) => !missing.contains(path)),
+        };
+        pathHistory = ObservableList.of(
+            valid.take(_LocalController._maxRecentDirectories));
+      });
     } catch (e) {
       AppLogger()
           .w('LocalController: failed to load recent directories', error: e);
@@ -1722,9 +1892,8 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
     try {
       mediaSources = ObservableList.of(_mediaSourceRepository.getAll());
       final sourceIds = mediaSources.map((source) => source.id).toSet();
-      _sourceAccessibility.removeWhere(
-        (sourceId, _) => !sourceIds.contains(sourceId),
-      );
+      _sourceAccessibility.removeWhere((id, _) => !sourceIds.contains(id));
+      _categorySourceGeneration.removeWhere((id, _) => !sourceIds.contains(id));
     } catch (e) {
       AppLogger()
           .w('LocalController: failed to load local media sources', error: e);
@@ -1818,68 +1987,89 @@ mixin _LocalLibraryApplicationCoordinator on _LocalController {
     }));
   }
 
-  void _reloadLocalLibraryIndexSafe({bool requireExistingFiles = false}) {
-    try {
-      final threshold = _localMinSizeBytesProvider?.call() ?? 0;
-      final cached = _mediaIndexRepository.getAll();
-      final sources = {
-        for (final source in _mediaSourceRepository.getAll()) source.id: source
+  Map<String, LocalMediaSource> _indexedSources() => {
+        for (final source in _mediaSourceRepository.getAll()) source.id: source,
       };
-      final availability = <String, bool>{};
-      for (final item in cached) {
-        availability.putIfAbsent(item.sourceLocation.stableId, () {
-          final source = sources[item.sourceLocation.stableId];
-          if (source != null) {
-            return source.enabled && isMediaSourceAvailable(source);
-          }
-          return item.sourceLocation.isDocument ||
-              Directory(item.sourcePath).existsSync();
-        });
-      }
+
+  void _publishCachedIndex(List<LocalMediaIndexItem> cached,
+      Map<String, LocalMediaSource> sources, Map<String, bool> availability) {
+    if (!mapEquals(_cachedLocalSourceAvailability, availability)) {
       _cachedLocalSourceAvailability
         ..clear()
         ..addAll(availability);
+    }
+    final names = {
+      for (final entry in sources.entries) entry.key: entry.value.name
+    };
+    if (!mapEquals(_cachedLocalSourceNames, names)) {
       _cachedLocalSourceNames
         ..clear()
-        ..addAll(
-            {for (final entry in sources.entries) entry.key: entry.value.name});
-      if (cached.length != cachedLocalLibraryItems.length ||
-          cached.asMap().entries.any((entry) =>
-              !identical(entry.value, cachedLocalLibraryItems[entry.key]))) {
-        cachedLocalLibraryItems
-          ..clear()
-          ..addAll(cached);
+        ..addAll(names);
+    }
+    if (cachedIndexVersion == 0 ||
+        cached.length != cachedLocalLibraryItems.length ||
+        cached.asMap().entries.any((entry) =>
+            !identical(entry.value, cachedLocalLibraryItems[entry.key]))) {
+      cachedLocalLibraryItems
+        ..clear()
+        ..addAll(cached);
+      _cachedIndexVersion.value++;
+    }
+  }
+
+  void _reloadLocalLibraryIndexSafe() {
+    _indexGeneration++;
+    _verifiedAt = null;
+    try {
+      final threshold = _localMinSizeBytesProvider?.call() ?? 0;
+      final cached = _mediaIndexRepository.getAll();
+      final sources = _indexedSources();
+      final availability = <String, bool>{};
+      for (final item in cached) {
+        final id = item.sourceLocation.stableId;
+        availability.putIfAbsent(
+            id,
+            () =>
+                sources[id]?.enabled != false &&
+                (item.sourceLocation.isDocument
+                    ? _sourceAccessibility[id] ?? true
+                    : _sourceAccessibility[id] ??
+                        _cachedLocalSourceAvailability[id] ??
+                        false));
       }
+      _publishCachedIndex(cached, sources, availability);
       final indexedItems = cached
           .where((item) => LocalVideoFileTypes.isRecognizedVideoSize(item.size,
               minSizeBytes: threshold))
           .toList(growable: false);
-      final nextItems = requireExistingFiles
-          ? indexedItems
-              .where(
-                (item) =>
-                    item.location.isDocument || File(item.path).existsSync(),
-              )
-              .toList(growable: false)
-          : indexedItems;
-      final currentItems = localLibraryItems;
-      var unchanged = currentItems.length == nextItems.length;
-      for (var index = 0; unchanged && index < currentItems.length; index++) {
-        unchanged = currentItems[index].id == nextItems[index].id &&
-            identical(currentItems[index], nextItems[index]);
-      }
-      if (unchanged) {
-        return;
-      }
-      localLibraryItems = ObservableList.of(nextItems);
-      if (items.isNotEmpty) {
-        items = ObservableList.of(_mergeIndexedMetadata(items));
-      }
+      final nextItems = indexedItems
+          .where((item) =>
+              !_missingPaths.value.contains(item.id) &&
+              (_verifiedThreshold == null ||
+                  availability[item.sourceLocation.stableId] != false))
+          .toList();
+      _publishLocalItems(nextItems);
     } catch (e) {
       AppLogger().w(
         'LocalController: failed to load local media index',
         error: e,
       );
+    }
+  }
+
+  void _publishLocalItems(List<LocalMediaIndexItem> nextItems) {
+    final currentItems = localLibraryItems;
+    var unchanged = currentItems.length == nextItems.length;
+    for (var index = 0; unchanged && index < currentItems.length; index++) {
+      unchanged = currentItems[index].id == nextItems[index].id &&
+          identical(currentItems[index], nextItems[index]);
+    }
+    if (unchanged) {
+      return;
+    }
+    localLibraryItems = ObservableList.of(nextItems);
+    if (items.isNotEmpty) {
+      items = ObservableList.of(_mergeIndexedMetadata(items));
     }
   }
 

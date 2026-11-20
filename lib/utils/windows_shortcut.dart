@@ -62,6 +62,18 @@ class WindowsShortcut {
         state == WindowsShortcutEntryState.desktopAndStartMenu;
   }
 
+  static Future<bool> createMissingShortcuts() async {
+    if (!detectAppPlatform().desktopShell) return false;
+    try {
+      return await _channel.invokeMethod<bool>('createMissingShortcuts') ??
+          false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
   static Future<bool> createDesktopShortcut() {
     if (!detectAppPlatform().desktopShell) return Future<bool>.value(false);
     return _client.createDesktopShortcut();

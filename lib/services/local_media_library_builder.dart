@@ -1,4 +1,5 @@
 import 'package:kanyingyin/modules/local/local_media_index_item.dart';
+import 'package:kanyingyin/modules/local/local_media_series_key.dart';
 import 'package:kanyingyin/services/local_series_grouper.dart';
 import 'package:path/path.dart' as p;
 
@@ -19,8 +20,8 @@ class LocalMediaLibraryBuilder {
     for (final item in sourceItems) {
       bySource.putIfAbsent(item.sourceLocation.stableId, () => []).add(item);
     }
-    final grouped = bySource.values.expand((items) =>
-        const LocalSeriesGrouper().group(items.map((item) => item.toFileItem())));
+    final grouped = bySource.values.expand((items) => const LocalSeriesGrouper()
+        .group(items.map((item) => item.toFileItem())));
 
     final series = grouped.expand((group) {
       final episodes = group.episodes
@@ -29,6 +30,10 @@ class LocalMediaLibraryBuilder {
           .toList(growable: false)
         ..sort(_compareEpisodes);
       final title = group.title.trim();
+      final identity = episodes
+          .map((item) => item.effectiveTmdbIdentity)
+          .whereType<String>()
+          .firstOrNull;
       final bySourceTitle = <String, List<LocalMediaIndexItem>>{};
       for (final episode in episodes) {
         final sourceTitle = sourceTitlesByMediaId[episode.id]?.trim();
@@ -40,8 +45,12 @@ class LocalMediaLibraryBuilder {
         bySourceTitle.putIfAbsent(displayTitle, () => []).add(episode);
       }
       return bySourceTitle.entries.map((entry) => LocalMediaSeries(
-            key: '${Uri.encodeComponent(entry.value.first.sourceLocation.stableId)}|'
-                '${bySourceTitle.length == 1 ? title.toLowerCase() : '${title.toLowerCase()}|source|${entry.value.first.id}'}',
+            key: LocalMediaSeriesKey.build(
+              sourceId: entry.value.first.sourceLocation.stableId,
+              title: title,
+              tmdbIdentity: identity,
+              part: bySourceTitle.length > 1 ? entry.key : null,
+            ),
             title: entry.key,
             legacyTitle: title,
             legacySeriesTitles: legacySeriesTitlesFor(

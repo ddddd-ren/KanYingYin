@@ -26,17 +26,19 @@ class AppUpdateFlow {
   final UpdateMessagePresenter _showToast;
   final UpdateErrorLogger _logError;
 
-  Future<void> runAutomatic() async {
-    if (!_policy.isDue) return;
+  Future<bool> runAutomatic({bool Function()? canPresent}) async {
+    if (!_policy.isDue) return true;
     try {
       final result = await _checker.check();
-      await _policy.markSuccessful();
+      if (canPresent != null && !canPresent()) return false;
       if (result.status == AppUpdateCheckStatus.updateAvailable) {
         await _showRelease(result.release!);
       }
+      await _policy.markSuccessful();
     } on Object catch (error, stackTrace) {
       _logError(error, stackTrace);
     }
+    return true;
   }
 
   Future<void> runManual() async {

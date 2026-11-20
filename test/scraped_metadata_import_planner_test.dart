@@ -19,8 +19,15 @@ void main() {
       final fixture = await _fixture(
         localPath: r'E:\媒体\影视\三体\S01E01.mkv',
         localSize: 1024,
-        cloudSources: [_cloudSource(id: 'new-source-id', rootId: 'new-root-id')],
-        cloudItems: [_cloudItem(sourceId: 'new-source-id', remoteId: 'changed-remote-id', remotePath: '/影视/三体.mkv')],
+        cloudSources: [
+          _cloudSource(id: 'new-source-id', rootId: 'new-root-id')
+        ],
+        cloudItems: [
+          _cloudItem(
+              sourceId: 'new-source-id',
+              remoteId: 'changed-remote-id',
+              remotePath: '/影视/三体.mkv')
+        ],
       );
       final plan = await fixture.planner.plan(_payload(withCloud: true));
       expect(plan.cloudResourceMatches, hasLength(1));
@@ -30,7 +37,8 @@ void main() {
       } else {
         await fixture.index.removeSource('new-source-id');
       }
-      await expectLater(fixture.planner.validateCloudTargets(plan), throwsStateError);
+      await expectLater(
+          fixture.planner.validateCloudTargets(plan), throwsStateError);
     });
   }
   test('本地盘符变化后按相对路径和大小匹配', () async {

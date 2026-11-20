@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:kanyingyin/pages/init_page.dart';
 import 'package:kanyingyin/shaders/shader_asset_installer.dart';
 import 'package:kanyingyin/shaders/shaders_controller.dart';
 import 'package:path/path.dart' as p;
@@ -114,28 +113,12 @@ void main() {
       onInstallError: (error, _) => loggedErrors.add(error),
     );
 
-    await controller.copyShadersToExternalDirectory();
-    await controller.copyShadersToExternalDirectory();
+    final preparing = controller.copyShadersToExternalDirectory();
+    expect(controller.copyShadersToExternalDirectory(), same(preparing));
+    await preparing;
 
     expect(controller.shadersDirectory, isNull);
     expect(attempts, 1);
-    expect(loggedErrors, hasLength(1));
-    expect(loggedErrors.single, same(error));
-  });
-
-  test('着色器准备抛出异常后仍检查快捷方式并导航默认页面', () async {
-    final error = StateError('着色器准备失败');
-    final events = <String>[];
-    final loggedErrors = <Object>[];
-
-    await runInitStartupSequence(
-      prepareShaders: () async => throw error,
-      checkShortcut: () async => events.add('shortcut'),
-      navigateToDefaultPage: () => events.add('navigate'),
-      onShaderError: (error, _) => loggedErrors.add(error),
-    );
-
-    expect(events, const <String>['shortcut', 'navigate']);
     expect(loggedErrors, hasLength(1));
     expect(loggedErrors.single, same(error));
   });

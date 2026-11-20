@@ -75,6 +75,24 @@ void main() {
     expect(_policy(settings).isDue, isFalse);
   });
 
+  test('检查期间离开首页时保留下次提醒机会', () async {
+    var current = true;
+    final shown = <AppRelease>[];
+    final flow = _flow(
+      settings: settings,
+      fetch: () async {
+        current = false;
+        return _release('2.1.168');
+      },
+      showRelease: (release) async => shown.add(release),
+    );
+
+    await flow.runAutomatic(canPresent: () => current);
+
+    expect(shown, isEmpty);
+    expect(_policy(settings).isDue, isTrue);
+  });
+
   test('手动检查绕过每日限制并提示当前为测试版', () async {
     await _policy(settings).markSuccessful();
     var requests = 0;

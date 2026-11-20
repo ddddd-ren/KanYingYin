@@ -8,6 +8,9 @@ void main() {
     final source = File('windows/runner/shortcut_utils.cpp').readAsStringSync();
 
     expect(header, contains('DesktopShortcutExists'));
+    expect(source, contains('FOLDERID_PublicDesktop'));
+    expect(source, contains('FOLDERID_CommonPrograms'));
+    expect(source, contains(r'shortcutName + L"\\" + shortcutName'));
     expect(source, isNot(contains('INVALID_FILE_ATTRIBUTES) return true')));
     expect(source, contains('GetWindowsDirectoryW'));
     expect(source, contains('SetArguments'));
@@ -30,7 +33,7 @@ void main() {
   test('启动页通过组合状态协调修复和询问', () {
     final shortcutSource =
         File('lib/utils/windows_shortcut.dart').readAsStringSync();
-    final initSource = File('lib/pages/init_page.dart').readAsStringSync();
+    final initSource = File('lib/app/startup_landing.dart').readAsStringSync();
 
     expect(
       shortcutSource,
@@ -42,8 +45,8 @@ void main() {
     );
     expect(initSource, contains('WindowsShortcutStartupCoordinator'));
 
-    final methodStart = initSource.indexOf('Future<void> _showShortcutDialog');
-    final methodEnd = initSource.indexOf('Future<void> _showVersionChangelog');
+    final methodStart = initSource.indexOf('Future<bool> _showShortcutDialog');
+    final methodEnd = initSource.indexOf('Future<bool> _showVersionChangelog');
     final methodSource = initSource.substring(methodStart, methodEnd);
     expect(
       methodSource.indexOf('inspectShortcutEntries'),
@@ -51,7 +54,7 @@ void main() {
     );
     expect(
       methodSource,
-      contains('repairOrCreate: WindowsShortcut.createDesktopShortcut'),
+      contains('WindowsShortcut.createMissingShortcuts'),
     );
     expect(methodSource, contains('将在下次启动时重试'));
   });

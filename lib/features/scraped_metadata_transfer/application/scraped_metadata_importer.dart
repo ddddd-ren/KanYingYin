@@ -26,7 +26,8 @@ typedef TransferNetworkImageInstaller = Future<void> Function({
 });
 
 final class ScrapedMetadataImportException implements Exception {
-  const ScrapedMetadataImportException(this.cause, {this.originalRestored = true});
+  const ScrapedMetadataImportException(this.cause,
+      {this.originalRestored = true});
 
   final Object cause;
   final bool originalRestored;
@@ -75,10 +76,12 @@ final class ScrapedMetadataImporter {
     final originalLocal = <String, LocalMediaIndexItem>{};
     final localUpdates = <String, LocalMediaIndexItem>{};
     final originalResources = {
-      for (final record in await _resourceRepository.getAll()) record.stableKey: record,
+      for (final record in await _resourceRepository.getAll())
+        record.stableKey: record,
     };
     final originalWorks = {
-      for (final record in await _workRepository.getAll()) record.workKey: record,
+      for (final record in await _workRepository.getAll())
+        record.workKey: record,
     };
     final originalRules = {
       for (final rule in await _ruleRepository.getAll()) rule.stableKey: rule,
@@ -137,7 +140,8 @@ final class ScrapedMetadataImporter {
         );
       }
       localTouched = true;
-      await _localIndexRepository.patchItems(localUpdates, originals: originalLocal);
+      await _localIndexRepository.patchItems(localUpdates,
+          originals: originalLocal);
 
       for (final match in plan.cloudResourceMatches) {
         final portable = CloudResourceTmdbRecord.fromJson(
@@ -160,8 +164,9 @@ final class ScrapedMetadataImporter {
         resourceUpdates[rebound.stableKey] = rebound;
       }
       resourcesTouched = true;
-      await _resourceRepository.patchRecords(resourceUpdates,
-          originals: {for (final key in resourceUpdates.keys) key: originalResources[key]});
+      await _resourceRepository.patchRecords(resourceUpdates, originals: {
+        for (final key in resourceUpdates.keys) key: originalResources[key]
+      });
 
       for (final match in plan.cloudWorkMatches) {
         final portable = CloudWorkTmdbRecord.fromJson(match.portable.record);
@@ -185,8 +190,9 @@ final class ScrapedMetadataImporter {
         workUpdates[rebound.workKey] = rebound;
       }
       worksTouched = true;
-      await _workRepository.patchRecords(workUpdates,
-          originals: {for (final key in workUpdates.keys) key: originalWorks[key]});
+      await _workRepository.patchRecords(workUpdates, originals: {
+        for (final key in workUpdates.keys) key: originalWorks[key]
+      });
 
       for (final match in plan.cloudSeriesRuleMatches) {
         final portable = CloudSeriesMatchRule.fromJson(match.portable.record);
@@ -206,12 +212,14 @@ final class ScrapedMetadataImporter {
         ruleUpdates[rebound.stableKey] = rebound;
       }
       rulesTouched = true;
-      await _ruleRepository.patchRecords(ruleUpdates,
-          originals: {for (final key in ruleUpdates.keys) key: originalRules[key]});
+      await _ruleRepository.patchRecords(ruleUpdates, originals: {
+        for (final key in ruleUpdates.keys) key: originalRules[key]
+      });
 
       return ScrapedMetadataTransferResult(
         localCount: localUpdates.length,
-        cloudCount: resourceUpdates.length + workUpdates.length + ruleUpdates.length,
+        cloudCount:
+            resourceUpdates.length + workUpdates.length + ruleUpdates.length,
         imageCount: installedImages.length,
         skippedCount: plan.missingMediaCount,
       );
@@ -231,7 +239,8 @@ final class ScrapedMetadataImporter {
         rulesTouched: rulesTouched,
       );
       // 尝试写入后，新图片可能已被并发编辑引用，失败时保留缓存以免误删。
-      final retainImages = localTouched || resourcesTouched || worksTouched || rulesTouched;
+      final retainImages =
+          localTouched || resourcesTouched || worksTouched || rulesTouched;
       for (final image in retainImages ? <File>[] : createdImages.reversed) {
         try {
           if (await image.exists()) await image.delete();
@@ -302,9 +311,11 @@ final class ScrapedMetadataImporter {
     }
     if (localTouched) {
       await restore(() async {
-        await _localIndexRepository.patchItems(originalLocal, originals: localUpdates);
+        await _localIndexRepository.patchItems(originalLocal,
+            originals: localUpdates);
         for (final original in originalLocal.values) {
-          final current = _localIndexRepository.getByLocation(original.location);
+          final current =
+              _localIndexRepository.getByLocation(original.location);
           final before = original.toJson()..remove('indexedAtMillis');
           final actual = current?.toJson()?..remove('indexedAtMillis');
           if (jsonEncode(before) != jsonEncode(actual)) {

@@ -90,42 +90,43 @@ class LocalMediaIndexMetadataRefresher {
     LocalMediaIndexMetadataRefreshCancelChecker? isCancelled,
   }) async {
     final items = repository.getAll();
-    final snapshots = {for (final item in items) item.sourcePath: repository.captureSource(item.sourceLocation)};
+    final staleSources = {
+      for (final item in items)
+        if (needsRefresh(item)) item.sourceLocation,
+    };
+    // 首次异步读盘前固定来源版本，期间被移除的来源不会被旧任务写回。
+    final snapshots = [
+      for (final source in staleSources) repository.captureSource(source),
+    ];
     var refreshedCount = 0;
     var skippedCount = 0;
-    final bySourcePath = <String, List<LocalMediaIndexItem>>{};
-
-    for (final item in items) {
-      if (!needsRefresh(item)) {
-        bySourcePath.putIfAbsent(item.sourcePath, () => []).add(item);
-        continue;
-      }
-
-      try {
-        if (!File(item.path).existsSync()) {
+    final updates = <LocalMediaSourceSnapshot, List<LocalMediaIndexItem>>{};
+    for (final snapshot in snapshots) {
+      for (var i = 0; i < snapshot.items.length; i++) {
+        final item = snapshot.items[i];
+        if (!needsRefresh(item)) continue;
+        try {
+          if (!await File(item.path).exists()) {
+            skippedCount++;
+            continue;
+          }
+          final refreshed = await refreshItem(item, indexedAt: DateTime.now());
+          final next = updates.putIfAbsent(snapshot, snapshot.items.toList);
+          next[i] = refreshed;
+          refreshedCount++;
+        } catch (e, stackTrace) {
           skippedCount++;
-          bySourcePath.putIfAbsent(item.sourcePath, () => []).add(item);
-          continue;
+          AppLogger().w(
+            'LocalMediaIndexMetadataRefresher: failed to refresh ${item.path}',
+            error: e,
+            stackTrace: stackTrace,
+          );
         }
-        final refreshed = await refreshItem(item, indexedAt: DateTime.now());
-        bySourcePath.putIfAbsent(refreshed.sourcePath, () => []).add(refreshed);
-        refreshedCount++;
-      } catch (e, stackTrace) {
-        skippedCount++;
-        bySourcePath.putIfAbsent(item.sourcePath, () => []).add(item);
-        AppLogger().w(
-          'LocalMediaIndexMetadataRefresher: failed to refresh ${item.path}',
-          error: e,
-          stackTrace: stackTrace,
-        );
       }
     }
-
-    if (refreshedCount > 0) {
-      for (final entry in bySourcePath.entries) {
-        if (isCancelled?.call() ?? false) break;
-        await repository.commitSource(snapshots[entry.key]!, entry.value);
-      }
+    for (final entry in updates.entries) {
+      if (isCancelled?.call() ?? false) break;
+      await repository.commitSource(entry.key, entry.value);
     }
 
     return LocalMediaIndexMetadataRefreshResult(

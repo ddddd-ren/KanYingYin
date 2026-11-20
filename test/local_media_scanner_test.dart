@@ -14,20 +14,21 @@ void main() {
     final directory = await Directory.systemTemp.createTemp('scan_sizes_');
     addTearDown(() => directory.delete(recursive: true));
     for (final size in [0, 10, 11]) {
-      await File('${directory.path}/$size.mkv').writeAsBytes(List.filled(size, 1));
+      await File('${directory.path}/$size.mkv')
+          .writeAsBytes(List.filled(size, 1));
     }
     await File('${directory.path}/note.txt').writeAsString('not video');
-    final limited = await LocalMediaScanner(minRecognizedVideoSizeBytes: 10).scan(
-      directory.path, sortMode: LocalSortMode.name, ascending: true);
+    final limited = await LocalMediaScanner(minRecognizedVideoSizeBytes: 10)
+        .scan(directory.path, sortMode: LocalSortMode.name, ascending: true);
     expect(limited.items.single.name, '11.mkv');
     expect(limited.filteredBySizeCount, 2);
     expect(limited.failedPaths, isEmpty);
-    final unlimited = await LocalMediaScanner(minRecognizedVideoSizeBytes: 0).scan(
-      directory.path, sortMode: LocalSortMode.name, ascending: true);
+    final unlimited = await LocalMediaScanner(minRecognizedVideoSizeBytes: 0)
+        .scan(directory.path, sortMode: LocalSortMode.name, ascending: true);
     expect(unlimited.items, hasLength(2));
     expect(unlimited.filteredBySizeCount, 1);
     final unavailable = await _testScanner().scan('${directory.path}/missing',
-      sortMode: LocalSortMode.name, ascending: true);
+        sortMode: LocalSortMode.name, ascending: true);
     expect(unavailable.sourceAccessible, isFalse);
     expect(unavailable.failedPaths, hasLength(1));
     expect(unavailable.filteredBySizeCount, 0);

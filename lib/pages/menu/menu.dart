@@ -1,10 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:kanyingyin/bean/widget/embedded_native_control_area.dart';
 import 'package:kanyingyin/features/settings/application/typed_settings.dart';
 import 'package:kanyingyin/features/tv/presentation/tv_back_navigation_guard.dart';
 import 'package:kanyingyin/pages/navigation/navigation_config.dart';
-import 'package:kanyingyin/pages/router.dart';
+import 'package:kanyingyin/bean/dialog/dialog_helper.dart';
+import 'package:synchronized/synchronized.dart';
 import 'package:kanyingyin/utils/constants.dart';
 import 'package:kanyingyin/utils/utils.dart';
 import 'package:kanyingyin/bean/appbar/desktop_window_controls.dart';
@@ -25,6 +28,8 @@ class ScaffoldMenu extends StatefulWidget {
 class NavigationBarState extends ChangeNotifier {
   late int _selectedIndex = getDefaultSelectedIndex();
   bool _isHide = false;
+  final _navigationLock = Lock();
+  int _navigationRequest = 0;
 
   int get selectedIndex => _selectedIndex;
 
@@ -42,6 +47,40 @@ class NavigationBarState extends ChangeNotifier {
     if (_selectedIndex == pageIndex) return;
     _selectedIndex = pageIndex;
     notifyListeners();
+  }
+
+  Future<void> selectDestination(BuildContext context, int index) async {
+    final request = ++_navigationRequest;
+    final sourceRoute = ModalRoute.of(context);
+    final sourcePath = Modular.to.path;
+    updateSelectedIndex(index);
+
+    // 事件尾合并连点，让同轮打开的播放器或弹窗先完成路由解析。
+    await Future<void>.delayed(Duration.zero);
+    await _navigationLock.synchronized(() async {
+      if (request != _navigationRequest || !context.mounted) return;
+      final current = Modular.to.path;
+      if (sourceRoute?.isCurrent != true ||
+          !current.startsWith('/tab/') ||
+          AppDialog.observer.hasAppDialog) {
+        updateSelectedIndex(resolveNavigationIndex(sourcePath));
+        return;
+      }
+      final target = appNavigationDestinations[index].defaultStartupPath;
+      if (current == target) return;
+      final router = Modular.routerConfig;
+      try {
+        // Modular 解析时即登记模块，已开始的解析必须配对提交并释放旧模块。
+        final configuration = await router.routeInformationParser!
+            .parseRouteInformation(RouteInformation(uri: Uri.parse(target)));
+        await router.routerDelegate.setNewRoutePath(configuration);
+      } on Object {
+        if (request == _navigationRequest && context.mounted) {
+          updateSelectedIndex(resolveNavigationIndex(Modular.to.path));
+        }
+        rethrow;
+      }
+    });
   }
 
   void hideNavigate() {
@@ -79,10 +118,8 @@ class _ScaffoldMenu extends State<ScaffoldMenu> {
                   child: child,
                 ),
               ),
-              onDestinationSelected: (index) {
-                state.updateSelectedIndex(index);
-                Modular.to.navigate('/tab${menu.getPath(index)}/');
-              },
+              onDestinationSelected: (index) =>
+                  unawaited(state.selectDestination(context, index)),
               onThemeModeChanged: (mode) async {
                 final themeProvider =
                     Provider.of<ThemeProvider>(context, listen: false);

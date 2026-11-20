@@ -157,7 +157,7 @@ void main() {
       Future<ProcessResult> parse(String source) async {
         await fixture.writeAsString(source, encoding: utf8, flush: true);
         return Process.run(
-          'powershell.exe',
+          'pwsh.exe',
           <String>[
             '-NoProfile',
             '-ExecutionPolicy',

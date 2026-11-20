@@ -56,12 +56,13 @@ void main() {
           "'KYY_CONFIG_PASSWORD', 'Process')",
       r"$preloadPassword = [Environment]::GetEnvironmentVariable("
           "'KYY_TV_PRELOAD_PASSWORD', 'Process')",
-      r"if ($null -ne $configPassword -or $null -ne $preloadPassword) { "
+      r"if (-not [string]::IsNullOrEmpty($configPassword) -or "
+          r"-not [string]::IsNullOrEmpty($preloadPassword)) { "
           "throw 'process passwords were not cleared' }",
     ].join('; ');
 
     final result = await Process.run(
-      'powershell.exe',
+      'pwsh.exe',
       <String>[
         '-NoProfile',
         '-NonInteractive',
@@ -119,7 +120,7 @@ void main() {
         "Clear-PersonalTvBuildResidue -ProjectRoot '$projectRootPath'";
 
     final result = await Process.run(
-      'powershell.exe',
+      'pwsh.exe',
       <String>[
         '-NoProfile',
         '-NonInteractive',

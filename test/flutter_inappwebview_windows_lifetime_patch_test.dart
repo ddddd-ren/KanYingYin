@@ -179,8 +179,9 @@ Future<_TargetFixtureResult> _configureTargetFixture({
   required int sourceOccurrences,
 }) async {
   final workspace = await _createWorkspace();
+  final workspacePath = await workspace.resolveSymbolicLinks();
   final originalSource = File(
-    '${workspace.path}/flutter/ephemeral/.plugin_symlinks/'
+    '$workspacePath/flutter/ephemeral/.plugin_symlinks/'
     'flutter_inappwebview_windows/windows/webview_environment/'
     'webview_environment.cpp',
   );
@@ -189,9 +190,9 @@ Future<_TargetFixtureResult> _configureTargetFixture({
     '$_unsafeProcessInfoCallback$_synchronousFallback',
     encoding: utf8,
   );
-  final dummySource = File('${workspace.path}/dummy.cpp');
+  final dummySource = File('$workspacePath/dummy.cpp');
   await dummySource.writeAsString('void fixture() {}\n', encoding: utf8);
-  final buildDirectory = Directory('${workspace.path}/build');
+  final buildDirectory = Directory('$workspacePath/build');
   final resolvedSources = File('${buildDirectory.path}/resolved_sources.txt');
   final sourceList = <String>[
     _cmakePath(dummySource.path),
@@ -220,7 +221,7 @@ file(WRITE "\${CMAKE_BINARY_DIR}/resolved_sources.txt" "\${RESOLVED_SOURCES}")
 
   final result = await Process.run(
     'cmake',
-    <String>['-S', workspace.path, '-B', buildDirectory.path],
+    <String>['-S', workspacePath, '-B', buildDirectory.path],
     workingDirectory: Directory.current.path,
   );
   return _TargetFixtureResult(
